@@ -10,18 +10,24 @@
 //   raw-port/re/disasm/Helium.__ZNK8HGString5c_strEv.s   (layout evidence)
 //   raw-port/re/disasm/Helium.__ZNK8HGString6_flagsEi.s  (layout evidence)
 //   raw-port/re/disasm/Helium.__ZNK8HGString4hashEv.s    (ported here)
+//   raw-port/re/disasm/Helium.__ZN8HGStringD1Ev.s        (ported here)
+//   raw-port/re/disasm/Helium.__ZN8HGStringD2Ev.s        (layout evidence)
+//   raw-port/re/disasm/Helium.__ZN8HGStringC2EPKcbj.s    (layout evidence)
 //
 // SYMBOLS PORTED IN THIS FILE
 //   0x000b3320 T __ZNK8HGString4dataEv     HGString::data() const
 //   0x000b3330 T __ZNK8HGString6lengthEv   HGString::length() const
+//   0x000b7990 T __ZN8HGStringD1Ev         HGString::~HGString()  [D1]
 //   0x000b7eb0 T __ZNK8HGString4hashEv     HGString::hash() const
 //
 // Every other HGString method (c_str, digest, push, join, fork, gate,
 // sample2d, …) is its own ledger unit and is deliberately NOT written here.
 //
-// FRONTIER CALLEES: none.  data() and length() are single loads; hash() is
-// one long straight-line SSE sequence.  No `callq` and no indirect branch
-// appears in any of the three bodies.
+// FRONTIER CALLEES: none for data()/length()/hash() — the first two are single
+// loads and the third is one long straight-line SSE sequence, with no `callq`
+// and no indirect branch in any of them.  The D1 dtor reaches exactly two true
+// out-of-scope externs, `_free` and `__ZdlPv`, cited at their call sites in the
+// dtor's own block below.
 //
 // ── CLASS SHAPE ──────────────────────────────────────────────────────────
 // HGString is Helium's shader-source string builder — the `string_t` that
@@ -36,15 +42,36 @@
 //                             also `addq 0x8(%rdi), %rax` @0xb83e7 (_flags),
 //                             which forms `buf + length` — so +0x08 is a
 //                             LENGTH, not an end pointer.
-//   +0x10  pending : size_t   `cmpq $0x0, 0x10(%rdi)` @0xb848c (c_str) —
+//   +0x10  alloc   : Alloc*   `cmpq $0x0, 0x10(%rdi)` @0xb848c (c_str) —
 //                             c_str() only returns `buf` directly when this
 //                             is zero AND `buf[length] == 0`; otherwise it
-//                             tail-calls str_close() to finalise the
-//                             buffer.  Named for that role; its exact
-//                             semantics belong to the str_close/str_ext
-//                             units, which are not yet transcribed.
+//                             tail-calls str_close() to finalise the buffer.
+//   +0x18  extraBegin : T*    `movq 0x18(%rbx), %rdi` @0xb79a8 / @0xb79d2 (D1)
+//   +0x20  extraEnd   : T*    `movq %rdi, 0x20(%rbx)` @0xb79b1 (D1)
+//   +0x28  (exists but is read by no unit ported here — the ctor's third
+//           `movups %xmm0` @0xb6e91 zeroes it, which is what fixes
+//           sizeof(HGString) at 0x30)
 //
-// The remainder of the object is opaque at this unit's decode depth and is
+// +0x10 IS A POINTER TO A REFCOUNTED RECORD, not a scalar. The c_str() site
+// above only null-tests it, so the data()/length() units could not tell (they
+// hedged it as a `size_t pending`); the D1 dtor ported below DEREFERENCES it
+// three ways and settles it:
+//   @0xb799d  `testq %rax,%rax`                     — null-check, as in c_str
+//   @0xb79a2  `decq 0x8(%rax)`                      — 64-bit refcount at +0x08
+//   @0xb79c0  `movq 0x10(%rax),%rdi ; callq _free`  — a buffer at +0x10
+//   @0xb79c9  `movq 0x10(%rbx),%rdi ; callq _free`  — and the record itself
+// Two independent decodes agree: the landed `string_t` shape in
+// raw-port/src/channels/glsl.ts names +0x10 `alloc`, with `cap` at Alloc+0x00
+// and `base` at Alloc+0x10; and the HGString ctor @0xb6ed9 hands `this`
+// straight to `str_alloc(string_t&, unsigned long)` and then runs glsl.ts's
+// exact grow-gate on `0x10(%rbx)` (@0xb6efe `cmpq (%rax),%r13` = cap,
+// @0xb6f15 `movq 0x10(%rax),%rdi` = base, @0xb6f25 writes the new base back).
+// The dtor additionally identifies Alloc+0x08 — the one field glsl.ts left
+// undecoded ("its middle field isn't touched by these four fns") — as the
+// reference count. The field is therefore typed `Alloc*` here rather than as
+// the `size_t` the c_str-only evidence suggested.
+//
+// The remainder of the object is opaque at this file's decode depth and is
 // deliberately left un-modelled rather than guessed at.
 //
 // ── POINTER MODEL ────────────────────────────────────────────────────────
@@ -73,9 +100,52 @@ export interface HGStringInstance {
   buf: HGStringBuf | null;
   /** +0x08 — `size_t length`, loaded by `movq 0x8(%rdi), %rax` @0xb3334. */
   length: number;
-  /** +0x10 — `size_t`, tested by `cmpq $0x0, 0x10(%rdi)` @0xb848c. */
-  pending: number;
+  /**
+   * +0x10 — `Alloc*`, the refcounted buffer record. Null-tested by c_str()
+   * @0xb848c and by the D1 dtor @0xb799d; dereferenced by the D1 dtor at
+   * @0xb79a2 (refcount), @0xb79c0 (base) and @0xb79c9 (the record itself).
+   * See the CLASS SHAPE block for why this is a pointer and not a scalar.
+   */
+  alloc: HGStringAlloc | null;
+  /**
+   * +0x18 — `__begin_` of the inlined libc++ vector triple; read by the D1
+   * dtor @0xb79a8 and @0xb79d2 and handed to `::operator delete` @0xb79bb.
+   */
+  extraBegin: HGStringExtraBlock | null;
+  /**
+   * +0x20 — `__end_` of that same triple; written @0xb79b1 with the value of
+   * +0x18 immediately before the block is deleted.
+   */
+  extraEnd: HGStringExtraBlock | null;
 }
+
+/**
+ * `Alloc` — the refcounted buffer record `HGStringInstance.alloc` points at.
+ *
+ * `cap` (+0x00) and `base` (+0x10) come from the landed `string_t` decode in
+ * raw-port/src/channels/glsl.ts and are re-confirmed by the HGString ctor's
+ * grow-gate @0xb6efe/@0xb6f15/@0xb6f25. `refCount` (+0x08) is pinned by the
+ * D1 dtor's `decq 0x8(%rax)` @0xb79a2 together with the free-both-on-zero
+ * sequence @0xb79c0..@0xb79cd.
+ */
+export interface HGStringAlloc {
+  /** +0x00 — allocated capacity in bytes (`cmpq (%rax),%r13` @0xb6efe). */
+  cap: number;
+  /** +0x08 — 64-bit reference count; decremented @0xb79a2. */
+  refCount: number;
+  /** +0x10 — the raw character buffer; freed @0xb79c4. */
+  base: HGStringBuf | null;
+}
+
+/**
+ * Opaque brand for the block managed by the inlined vector triple at
+ * `HGString+0x18`. The D1 dtor only null-tests it, copies it to +0x20, and
+ * hands it to `::operator delete` — it never dereferences it — so nothing
+ * about its contents is decoded here.
+ */
+export type HGStringExtraBlock = {
+  readonly __brand: "HGString::extraBlock";
+};
 
 /**
  * HGString::data() const  —  Helium @0xb3320.
@@ -151,7 +221,7 @@ export function HGString_data(self: HGStringInstance): HGStringBuf | null {
  * the NUL terminator, and the one `reset()` @0xb9184 zeroes.
  *
  * No NUL check, no `str_close()`, no involvement of `buf` (+0x00) or the
- * `pending` field (+0x10) — unlike `c_str()` @0xb8480, which reads all three.
+ * `alloc` field (+0x10) — unlike `c_str()` @0xb8480, which reads all three.
  *
  * @param self the HGString (%rdi).
  * @returns the `size_t length` field at +0x08.
@@ -465,4 +535,145 @@ export function HGString_hash(self: HGStringInstance): HGStringHash {
     // 0xb82a1  shlq $0x20, %rdx ; 0xb82a5 orq %r9, %rdx
     hi: BigInt(w2) | (BigInt(w3) << 32n),
   };
+}
+
+// ###########################################################################
+// UNIT: HGString::~HGString()  [D1, complete-object dtor]      @Helium 0xb7990
+//   __ZN8HGStringD1Ev
+//
+// re/disasm: raw-port/re/disasm/Helium.__ZN8HGStringD1Ev.s (24 lines)
+//
+// FULL DISASM (@0xb7990..0xb79e1; 0xb79e2 is alignment padding):
+//   0xb7990  pushq %rbp
+//   0xb7991  movq  %rsp, %rbp
+//   0xb7994  pushq %rbx
+//   0xb7995  pushq %rax                 ; 8B of stack-alignment padding
+//   0xb7996  movq  %rdi, %rbx           ; rbx = this
+//   0xb7999  movq  0x10(%rdi), %rax     ; rax = this->alloc
+//   0xb799d  testq %rax, %rax
+//   0xb79a0  je    0xb79a8              ; no record -> skip the release
+//   0xb79a2  decq  0x8(%rax)            ; --alloc->refCount (64-bit, NOT atomic)
+//   0xb79a6  je    0xb79c0              ; ZF => the count reached zero
+// L_b79a8:
+//   0xb79a8  movq  0x18(%rbx), %rdi     ; rdi = this->extraBegin
+//   0xb79ac  testq %rdi, %rdi
+//   0xb79af  je    0xb79db              ; null -> nothing to delete, return
+// L_b79b1:
+//   0xb79b1  movq  %rdi, 0x20(%rbx)     ; this->extraEnd = this->extraBegin
+//   0xb79b5  addq  $0x8, %rsp
+//   0xb79b9  popq  %rbx
+//   0xb79ba  popq  %rbp
+//   0xb79bb  jmp   0x3c4fa0             ## symbol stub for: __ZdlPv
+//                                       ; TAIL-jmp ::operator delete(extraBegin)
+// L_b79c0:                              ; the refcount hit zero
+//   0xb79c0  movq  0x10(%rax), %rdi     ; rdi = alloc->base
+//   0xb79c4  callq 0x3c513e             ## symbol stub for: _free
+//   0xb79c9  movq  0x10(%rbx), %rdi     ; rdi = this->alloc (re-read, same ptr)
+//   0xb79cd  callq 0x3c513e             ## symbol stub for: _free
+//   0xb79d2  movq  0x18(%rbx), %rdi     ; rdi = this->extraBegin
+//   0xb79d6  testq %rdi, %rdi
+//   0xb79d9  jne   0xb79b1              ; non-null -> the delete path above
+// L_b79db:
+//   0xb79db  addq  $0x8, %rsp
+//   0xb79df  popq  %rbx
+//   0xb79e0  popq  %rbp
+//   0xb79e1  retq
+//   0xb79e2  nopw  %cs:(%rax,%rax)      ; padding, not code
+//
+// D2 (__ZN8HGStringD2Ev @0xb7930) is the SAME blocks instruction for
+// instruction — only the addresses and the two `_free` stub displacements
+// differ. That is ordinary Itanium C1/C2 dtor aliasing for a class with no
+// virtual bases. D2 is its own ledger unit and is NOT written here.
+//
+// CONTROL FLOW — the delete runs on BOTH paths. L_b79b1 has two predecessors:
+// the fall-through @0xb79af (the record survived, or there was no record) and
+// the back-edge @0xb79d9 taken after the buffer was freed. So the `extraBegin`
+// block is released whether or not the refcount reached zero — the two
+// resources are independent. On the first path the release is a TAIL jmp (the
+// frame is torn down first); on the second it is a backwards branch into the
+// same three instructions. Same operation, written once below.
+//
+// NOT DONE BY THE MACHINE (and therefore not done here): neither `this->alloc`
+// nor `this->extraBegin` is nulled out, and the `decq` carries no `lock`
+// prefix. The object is dead after the dtor, so the binary leaves both owning
+// slots dangling; "tidying" them would be a rewrite, not a transcription.
+//
+// FRONTIER CALLEES — two true out-of-scope externs, both libc / the C++
+// runtime allocator, neither of them Helium code:
+//   _free    @0xb79c4 (alloc->base) and @0xb79cd (the Alloc record)
+//   __ZdlPv  @0xb79bb (::operator delete, reached as a tail jmp)
+// `depgraph.py deps __ZN8HGStringD1Ev` reports no in-scope callee, and the
+// listing contains no indirect or virtual call. Integer/pointer only, so
+// Math.fround does not apply.
+// ###########################################################################
+
+/**
+ * Frontier: libc `free(void*)` — called at @0xb79c4 with `alloc->base` and at
+ * @0xb79cd with the `Alloc` record itself, both through the
+ * `symbol stub for: _free` at 0x3c513e. Out of scope for the raw port.
+ */
+function free(_p: HGStringBuf | HGStringAlloc | null): void {
+  // @0xb79c4 callq 0x3c513e  ## symbol stub for: _free   (alloc->base)
+  // @0xb79cd callq 0x3c513e  ## symbol stub for: _free   (this->alloc)
+  throw new Error(
+    "_free @Helium @0xb79c4/@0xb79cd not yet transcribed (libc extern)"
+  );
+}
+
+/**
+ * Frontier: `::operator delete(void*)` (`__ZdlPv`) — reached at @0xb79bb as a
+ * TAIL jmp through the `symbol stub for: __ZdlPv` at 0x3c4fa0, with
+ * `this->extraBegin` in %rdi. Out of scope for the raw port.
+ */
+function operator_delete(_p: HGStringExtraBlock | null): void {
+  // @0xb79bb jmp 0x3c4fa0  ## symbol stub for: __ZdlPv
+  throw new Error(
+    "__ZdlPv (::operator delete) @Helium @0xb79bb not yet transcribed (C++ runtime extern)"
+  );
+}
+
+/**
+ * HGString::~HGString()  [D1, complete-object dtor]  —  Helium @0xb7990
+ * (__ZN8HGStringD1Ev).
+ *
+ * Faithful transcription of the disassembly quoted above:
+ *
+ *   1. @0xb7999-@0xb79a0  if `this->alloc` is null, skip to step 3.
+ *   2. @0xb79a2-@0xb79a6  `--alloc->refCount`; when it reaches zero,
+ *      @0xb79c0-@0xb79cd  `free(alloc->base)` then `free(this->alloc)`.
+ *   3. @0xb79a8/@0xb79d2  if `this->extraBegin` is non-null,
+ *      @0xb79b1           set `this->extraEnd = this->extraBegin`, then
+ *      @0xb79bb           `::operator delete(this->extraBegin)`.
+ *
+ * Step 3 is reached from both the refcount-survived path and the
+ * refcount-hit-zero back-edge; see the CONTROL FLOW note above. The
+ * apparently-pointless store at @0xb79b1 is the `__end_ = __begin_` half of an
+ * inlined `std::__1::vector::~vector`, which is what pins +0x18/+0x20 as the
+ * first two slots of a vector triple.
+ *
+ * @param self the HGString (%rdi).
+ */
+export function HGString_destroy(self: HGStringInstance): void {
+  // 0xb7999  movq 0x10(%rdi),%rax / 0xb799d testq %rax,%rax / 0xb79a0 je 0xb79a8
+  const alloc = self.alloc;
+  if (alloc !== null) {
+    // 0xb79a2  decq 0x8(%rax) / 0xb79a6 je 0xb79c0
+    alloc.refCount = alloc.refCount - 1;
+    if (alloc.refCount === 0) {
+      // 0xb79c0-0xb79c4  free(alloc->base)
+      free(alloc.base);
+      // 0xb79c9-0xb79cd  free(this->alloc) — the machine re-reads 0x10(%rbx)
+      // rather than reusing %rax, though both name the same pointer.
+      free(self.alloc);
+    }
+  }
+  // 0xb79a8 / 0xb79d2  movq 0x18(%rbx),%rdi / testq / je 0xb79db
+  const extraBegin = self.extraBegin;
+  if (extraBegin !== null) {
+    // 0xb79b1  movq %rdi, 0x20(%rbx)
+    self.extraEnd = extraBegin;
+    // 0xb79bb  jmp __ZdlPv   (a tail call on the fall-through path)
+    operator_delete(extraBegin);
+  }
+  // 0xb79db-0xb79e1  epilogue / retq
 }
