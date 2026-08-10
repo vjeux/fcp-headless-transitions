@@ -52,7 +52,7 @@ bash raw-port/army/gate/gate.sh $CHANGED 2>&1 | tee "$GLOG"
 grep -q "GATE: PASS" "$GLOG" || { FAIL=1; REASON="G0-G5 gate reject"; }
 # G5 flags (blind-spot: NO-DISASM / dispatch-only) — a green status is NOT allowed while flags stand,
 # unless a reviewer has re-derived and passes --reviewed.
-FLAGS=$(grep -cE '^  FLAG:' "$GLOG" 2>/dev/null || echo 0)
+FLAGS=$(grep -cE '^  FLAG:' "$GLOG" 2>/dev/null || true); FLAGS=$(printf '%s' "${FLAGS:-0}" | tr -dc '0-9'); FLAGS=${FLAGS:-0}
 rm -f "$GLOG"
 
 python3 raw-port/army/tools/regression_check.py origin/main HEAD $CHANGED; rc=$?
