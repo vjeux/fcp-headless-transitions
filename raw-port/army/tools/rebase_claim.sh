@@ -1,9 +1,8 @@
 #!/bin/bash
 # rebase_claim.sh — PULL-side of the rebase queue (Model B: workers pull, nobody dispatches).
 #
-# Replaces the coordinator's push-dispatch (rebase_dispatch.sh --apply + spawn_agent). A worker slot
-# calls `rebase_claim.sh claim`; it atomically LEASES exactly one open PR that is stuck on a
-# regression/rebase faithfulness-gate FAILURE and is under the per-PR attempt cap, and prints
+# A worker slot calls `rebase_claim.sh claim`; it atomically LEASES exactly one open PR that is stuck
+# on a regression/rebase faithfulness-gate FAILURE and is under the per-PR attempt cap, and prints
 #   CLAIMED <PR#> <branch>
 # The worker then runs rebase_pr.sh <PR#>. If no such PR is free, prints `NONE` (exit 1) and the
 # worker falls through to normal port units. Leases live in $STATE/rebase_leases/<PR> (atomic mkdir,

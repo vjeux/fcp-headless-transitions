@@ -22,14 +22,14 @@ You MAY claim 2-4 PRs per tick (claim → handle → release, one at a time). Th
 The `gh pr list` loop described below is what `review_claim.sh` automates — you no longer hand-pick;
 you handle exactly the PR it leases you.
 
-## PR FLOW (2026-08-10) — YOU ARE THE CI. Read `raw-port/army/PR_FLOW.md` first.
-Merging now happens through GitHub Pull Requests, NOT the retired local `wt_merge`/sidecar machinery.
+## PR FLOW — YOU ARE THE CI. Read `raw-port/army/PR_FLOW.md` first.
+Merging happens through GitHub Pull Requests.
 The faithfulness oracle dlsym's the REAL Final Cut Pro binary (only runs on vjeux-mac; a self-hosted
 GitHub Actions runner there is SIGKILLed by corp Defender) — so **you, the reviewer agent, ARE the
 CI**: you run the gate locally and post the verdict as the GitHub commit status `faithfulness-gate`.
 Branch protection on `main` requires that green status + up-to-date + linear history + enforce_admins.
 
-Your loop (replaces sidecars + wt_merge):
+Your loop:
 1. `gh pr list --repo vjeux/fcp-headless-transitions --state open` → pick a PR without a fresh verdict
    (skip PRs whose head SHA already has a `faithfulness-gate` status from the last ~10 min).
 2. `bash raw-port/army/tools/pr_gate.sh <PR#>` — runs gate.sh G0-G5 + regression_check + dup_check in
@@ -60,10 +60,9 @@ Your loop (replaces sidecars + wt_merge):
 5. After merge: `python3 raw-port/army/tools/mark_ported.py` (flips the merged symbol to `ported`,
    unlocking its callers). The ledger now lives in $FCT_STATE_DIR (untracked).
 
-The classify/oracle/reach/line-by-line VERDICT PROCEDURE below is UNCHANGED — it is how you decide
-faithful-vs-cheat. Only the plumbing changed: post a commit status + `gh pr merge` instead of writing
-a `.review.<sha>.json` sidecar + `wt_merge.sh`. (The RESOLVED coordinator rulings at the bottom still
-govern your judgment verbatim.)
+The classify/oracle/reach/line-by-line VERDICT PROCEDURE below is the core of your job — it is how you
+decide faithful-vs-cheat. Your verdict of record is the `faithfulness-gate` commit status you post +
+your merge action. (The RESOLVED rulings at the bottom govern your judgment verbatim.)
 
 ---
 
@@ -124,10 +123,10 @@ For the changed .ts file and each exported function it claims to port:
    virtual/vtable dispatch — and it MUST cite its @0xADDR. If a REAL-work instruction has no
    counterpart in the TS, or a same-framework callee is throw-stubbed, that is a cheat. REJECT.
 
-## Your written verdict (PR FLOW — the commit status IS your verdict of record)
-In the PR flow your verdict is expressed by the `faithfulness-gate` commit STATUS + your merge action,
-not a `.review.<sha>.json` sidecar (sidecars are RETIRED — `pr_gate.sh` posts the status; branch
-protection makes it the required check). Keep your judgment classification the same:
+## Your written verdict (the commit status IS your verdict of record)
+Your verdict is expressed by the `faithfulness-gate` commit STATUS + your merge action
+(`pr_gate.sh` posts the status; branch protection makes it the required check). Keep your judgment
+classification the same:
 - ACCEPT (merge allowed) ONLY when verdict ∈ {VERIFIED, LIKELY_REAL(+your line-by-line sign), TRAP, EMPTY}.
   Post green via `pr_gate.sh <PR#>` (or `--reviewed` if it had G5 flags) THEN `gh pr merge <PR#> --squash --auto --delete-branch`.
 - SKELETON: a DISPATCH_ONLY shell is a HARD G5 REJECT. Do NOT sign a dispatch-only shell as
@@ -207,14 +206,14 @@ throw-free but still WRONG — the oracle/line-read catch what the reach fuzz ca
     python3 raw-port/army/verifier/prove_all.py     # must print PROVE_ALL: PASS
 If that fails, the verifier is broken — fix it before signing anything.
 
-## RESOLVED: PCColorSpaceHandle::getColorSpaceRef (2026-07-30, coordinator)
-DECISIVE — stop re-litigating this. Evidence gathered twice (reviewer-34/45) + coordinator call-site probe:
+## RESOLVED: PCColorSpaceHandle::getColorSpaceRef (RESOLVED ruling)
+DECISIVE — stop re-litigating this. Evidence gathered twice (reviewer-34/45) + a call-site probe:
 - +0x00 IS a real field: ctor @0x9b23e `movq %rbx,(%r14)`; `operator bool()` @0x9b39a `cmpq $0x0,(%rdi);setne`; setter tail-calls PCCFRef::operator= on +0x00.
 - getColorSpaceRef @0x9b384 is UNIQUE (no ICF twin) and is literally `movq %rdi,%rax; ret` = return this.
 - The class is a SINGLE-FIELD wrapper `{ PCCFRef<CGColorSpace*> @ +0x00 }`. A C++ method returning a REFERENCE to a first member compiles to exactly `movq %rdi,%rax` because address(member)==this. The `Ref` suffix = reference return.
 RULE (deterministic): `return this` is FAITHFUL and ACCEPTABLE **iff** the TS types the return as the handle/PCCFRef reference (a value address-equal to `this`) AND does NOT claim to dereference/load +0x00. REJECT only if the port (a) returns a dereferenced raw CGColorSpace* value while emitting no load, or (b) its narrative asserts "tag-only wrapper / no +0x00 field" (that reasoning is FALSE — there is a field — even though the emitted `return this` happens to match). Judge on the emitted TS return semantics, not the prose.
 
-## RESOLVED: extern boundary model — no-op vs throw (2026-07-30, coordinator)
+## RESOLVED: extern boundary model — no-op vs throw (RESOLVED ruling)
 DECISIVE — stop re-litigating per-branch. The LANDED, consistent convention across the whole
 PCCFRef family (PCCFRef_CFArray/CFData/CFDictionary, PCCFRefTraits_CGColorSpace/vImageConverter, all on main):
 - **LIFETIME / OWNERSHIP primitives → JS NO-OP (or return-arg).** CFRelease/CGColorSpaceRelease/
@@ -232,13 +231,13 @@ THROW on the reachable (non-null) path DIVERGES from the landed convention and b
 (Independent of file-level-regression checks, which still apply — e.g. the PCCFRef_CFArray_dtor D1-only
 branch is ALSO REJECT for dropping the landed D2 destructor.)
 
-## RESOLVED: CFRelease/CFRetain-family externs = NO-OP, not throw (2026-07-30, coordinator)
+## RESOLVED: CFRelease/CFRetain-family externs = NO-OP, not throw (RESOLVED ruling)
 Established convention on main (PCCFRef_CFArray/CFData/CFDictionary, PCCFRefTraits_CGColorSpace/vImageConverter all landed this way). Governs the whole PCCFRef family + ObjC retain/release dtors — judge consistently, stop re-deriving per branch:
 - LIFETIME/OWNERSHIP externs that return void OR return-their-arg-unchanged — `_CFRelease`, `_CFRetain`, `_CGColorSpaceRelease`/`_CGColorSpaceRetain`, `_objc_release`, `_objc_retain` — are modelled as a JS **NO-OP** (retain-family returns the arg unchanged). JS GC owns our surrogate, so the reference-count primitive is faithfully a no-op at the boundary. A `throw` for one of these on the reachable (non-null) path is a DIVERGENCE from the landed convention — do NOT accept a dtor/release port whose CFRelease path throws on normal input. (A throw MAY appear on the C++ unwind/landing-pad path only — that is reached only during exception propagation and is fine.)
 - VALUE-PRODUCING externs — `_CFBundleGetBundleWithIdentifier`, `_CGColorSpaceCreateWithName`, `_CGColorSpaceCreateDeviceRGB`, ObjC value-returning `_objc_msgSend`, etc. — CANNOT be synthesized, so they THROW with @0xADDR. That is correct and required.
 RULE: releaser/retainer/dtor port → CFRelease/objc_release must be a no-op (retain returns arg). Value-getter port → extern throws @0xADDR. reach_check hitting a CFRelease-throw on non-null input = REJECT (fix to no-op); reach_check hitting a value-getter throw = expected/OK.
 
-## RESOLVED: per-method ledger units — honest partial class files are NOT Pattern-C/skeleton (2026-07-30, coordinator)
+## RESOLVED: per-method ledger units — honest partial class files are NOT Pattern-C/skeleton (RESOLVED ruling)
 VERIFIED from the ledger structure: units are keyed PER-METHOD. A class like `HGConvolutionShader` is a
 container whose children are individual method units (`compile@0x1654e0`, `RenderTile@0x1663c0`,
 `GetDOD@0x1653d0`, `addRound@0x165080`, ...), each with its OWN `status`. depclaim dispenses/marks-done
@@ -251,7 +250,7 @@ CONSEQUENCE — stop rejecting honest partial class files:
 - PATTERN C (still REJECT) = the CLAIMED unit's OWN real-disasm body is shipped as a throw/no-op
   ("I decoded it but punt"). Judge the CLAIMED method(s) only: its body must be a faithful transcription.
 - PATTERN D (still REJECT) = a class asserted fully done while most methods throw — impossible under
-  per-method status, but still reject any sidecar that CLAIMS coverage of throw-stubbed siblings as ported.
+  per-method status, but still reject any PR that CLAIMS coverage of throw-stubbed siblings as ported.
 - ADD-ONLY guard still applies: the branch must NOT overwrite/regress a sibling method that ALREADY
   landed with a real body (turning a landed real `compile` back into a throw) — that is a file-level
   regression, REJECT (caught by the 3-dot `-`-side check).
@@ -259,7 +258,7 @@ RULE: review the branch's CLAIMED method body(ies) for faithful transcription + 
 regression). Do NOT reject solely because OTHER un-claimed methods in the same class file are cited
 throw-stubs — that is the expected incremental-per-method workflow.
 
-## RESOLVED: call_once singleton `getInstance` — the EXACT cheat distinguisher (2026-07-30, coordinator)
+## RESOLVED: call_once singleton `getInstance` — the EXACT cheat distinguisher (RESOLVED ruling)
 GROUND TRUTH (verified byte-for-byte): the landed-honest `OZChannelBase_Factory::getInstance` and the
 name-blocklisted `OZChannel_Factory::getInstance` are STRUCTURALLY IDENTICAL — both use the correct
 libc++ sentinel `_instanceOnce !== -1n`, both confine the ONLY throw to a SEPARATE

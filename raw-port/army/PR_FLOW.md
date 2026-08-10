@@ -1,10 +1,10 @@
-# PR_FLOW.md — the GitHub-Pull-Request swarm flow (supersedes wt_merge/wt_setup/sidecars)
+# PR_FLOW.md — the GitHub-Pull-Request swarm flow
 
-**As of 2026-08-10, merging happens through GitHub PRs, not the custom local merge machinery.**
-This fixes the perpetually-dirty tree, the 125-worktree explosion, and the stale-base stall.
-`wt_merge.sh`, `wt_setup.sh`, and the old `brief.py` were DELETED (2026-08-10, infra/ws6-teardown),
-along with the `.review.<sha>.json` sidecar convention. `gate.sh`, `regression_check.py`,
-`dup_check.py`, `depclaim.py`, `depgraph.py`, `rebase_helper.py` are KEPT (reused below).
+**Merging happens through GitHub Pull Requests.** Workers open PRs; a reviewer cron slot runs the
+gate as CI and merges server-side. The canonical tree stays clean (GitHub merges server-side), there
+is no local merge machinery, and branch protection enforces every guarantee. The gate tools
+`gate.sh`, `regression_check.py`, `dup_check.py`, `depclaim.py`, `depgraph.py`, `rebase_helper.py`
+are the mechanical backbone (used below).
 
 ## Why not GitHub Actions?
 The faithfulness oracle (`fct/parity`) dlsym's the REAL Final Cut Pro binary — only works on
@@ -29,7 +29,7 @@ IS the CI**: it runs the gate locally and posts the verdict as a GitHub commit s
    encouraged; the reviewer runs the authoritative gate.) Do 4-8 units, release the slot lock, STOP.
    **Never call spawn_agent.**
 
-## Reviewer flow (replaces: sidecar + wt_merge)
+## Reviewer flow (reviewer cron slot — full brief in REVIEWER_BRIEF.md)
 0. `slot_lock.sh acquire reviewer <N>` — single-flight this slot; exit if BUSY. Release at the end.
 1. `review_claim.sh claim` → leases ONE PR (`CLAIMED <PR#> <sha>`, keyed by head SHA so two reviewer
    slots never gate the same head) or `NONE`. Handle exactly that PR, then
@@ -52,7 +52,7 @@ IS the CI**: it runs the gate locally and posts the verdict as a GitHub commit s
    verified. Do NOT merge a PR whose faithfulness-gate status is not success.
 5. After merge, `mark_ported.py` (updates the ledger — now in $FCT_STATE_DIR, untracked).
 
-## Dispatch model (2026-08-10, Model B) — QUEUE-DRIVEN, no agent ever spawns an agent
+## Dispatch model — QUEUE-DRIVEN, no agent ever spawns an agent
 There is **no coordinator agent** and **no `spawn_agent` anywhere in the swarm**. Concurrency is
 bounded structurally by a fixed set of self-scheduled cron slots + the warm worktree pool. The
 scheduler (cron) is the ONLY thing that ever creates a session — so the agent population can never
@@ -60,7 +60,7 @@ explode, because agents don't reproduce.
 
 Three kinds of cron:
 - **`swarm-maint`** — a SCRIPT cron (no agent): `raw-port/army/tools/swarm_maint.sh`. Every tick it
-  does all the non-judgement plumbing the old coordinator did in-agent: ledger guard, warm-pool
+  does all the non-judgement plumbing headlessly: ledger guard, warm-pool
   init/gc, clean the canonical tree (only if no gate/submit proc is live), periodic `depclaim.py seed`,
   `depgraph.py reconcile`, and a one-line snapshot. It NEVER spawns and NEVER merges.
 - **`swarm-worker-1..4`** — PROMPT crons, each a fixed slot. Every tick: take its slot lock
@@ -78,8 +78,7 @@ decision), never an agent spawning more agents.
 - **PORT queue** = `depclaim.py` (append-only claim ledger). Workers pull `next`.
 - **REBASE queue** = open PRs whose latest `faithfulness-gate` is a regression/rebase FAILURE. Workers
   pull `rebase_claim.sh claim` (atomic lease + per-PR attempt cap 3; past cap the PR is auto-closed and
-  its symbol re-queued to the append-only PORT queue). This REPLACES the old push-dispatch
-  (`rebase_dispatch.sh --apply` + coordinator spawning a rebase worker).
+  its symbol re-queued to the append-only PORT queue).
 - **REVIEW queue** = open PRs without a fresh verdict for their current head SHA. Reviewers pull
   `review_claim.sh claim` (atomic lease keyed by PR#+head-SHA so two reviewers never gate the same head).
 
@@ -105,6 +104,3 @@ Rebasing splits by how much judgment it needs, so it has three owners:
 The reviewer NEVER re-gates the same stale head every tick — it escalates (union or worker-queue) or
 skips just that tick. This is what stops #12/#14-style PRs from looping forever.
 
-## Migration of the 399 pre-existing port/* branches
-`raw-port/army/tools/migrate_branches_to_prs.py` (dry-run default; `--apply` to execute):
-MERGED/DUP/EMPTY → delete branch; STALE → rebase_helper then re-triage; CLEAN → open PR.

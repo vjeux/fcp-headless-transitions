@@ -24,9 +24,10 @@ boundary. Every function gets a faithful, gate-passing, @0xADDR-cited TS port.
   - `army/ledger/CLASSES.tsv` enumerates ALL classes (7,232 class leaves seeded so far); the shader
     ledger enumerates all metallib functions. These are the real denominators. "Done" = every leaf
     in every framework ledger is status=ported (and ideally verified).
-  - `army/tools/frontier.py` still computes the reachable frontier for prioritization, but claim.py
-    hands out ALL leaves, not just reachable ones. A leaf being "not reachable from the 65" is NOT a
-    reason to skip it — it just means it's lower priority than reachable work, port it later.
+  - `depgraph.py` computes dependency-readiness for prioritization, but `depclaim.py next`
+    hands out ALL ready leaves, not just those reachable from the 65. A leaf being "not reachable
+    from the 65" is NOT a reason to skip it — it just means it's lower priority than reachable work,
+    port it later.
 
 CORRECTION LOG: earlier revisions of this file said "we do NOT port them all / never port dead code."
 That was WRONG and contradicted the stated goal. The entire engine is in scope. (Fixed 2026-07-28.)
@@ -42,12 +43,13 @@ scanning src/ for `@0xADDR` citations (idempotent; run after every batch).
 ## 3. Partitioning (collision-free parallelism)
 Unit of assignment = ONE C++ CLASS = ONE TypeScript file `src/<layer>/<Class>.ts` (mirrors FCP's
 class hierarchy, one class per file — already the convention: OZChannel.ts, OZScene.ts, ...).
-- Agents claim a class by writing `army/claims/<FW>.<Class>.claim` (contains agent id + UTC ts).
-  A claim file is an advisory lock; the coordinator rejects double-claims.
+- Workers claim a unit via `depclaim.py next` (append-only claim ledger, `depgraph/claims.jsonl`).
+  A claim, once handed out, is permanent — the queue never re-hands it, so two workers can't collide.
 - Classes are independent files -> no merge conflicts. Cross-class refs go through imports only.
 - Base classes are decoded FIRST (an agent porting OZImageElement needs OZElement/OZTransformNode/
-  OZSceneNode already ported or stubbed-with-throw). The coordinator topologically orders by
-  inheritance depth (from the base-call trace in each parseBegin) and by the frontier BFS.
+  OZSceneNode already ported or stubbed-with-throw). `depgraph.py` topologically orders by
+  dependency-readiness (every in-scope callee ported, 0 unresolved indirect) so `depclaim.py next`
+  only ever hands out a unit whose deps are ready.
 
 ## 4. Per-unit agent recipe (what each agent runs)
 1. Claim the class (write claim file). Read army/PORTING_SPEC.md.
@@ -76,7 +78,7 @@ per tick) was retired because an agent that spawns agents can explode the popula
 scheduler (cron) is now the ONLY thing that creates a session. See PR_FLOW.md "Dispatch model" and
 SWARM_RESTART.md for the authoritative description. In brief:
 - A SCRIPT cron (`swarm_maint.sh`) refreshes the ledger, warm pool, and (via `depgraph reconcile` +
-  `depclaim seed`) the frontier/queue — the plumbing the old coordinator did in-agent.
+  `depclaim seed`) the frontier/queue — the headless plumbing, no agent involved.
 - Fixed `swarm-worker-N` / `swarm-reviewer-N` PROMPT crons each PULL from disk-backed queues
   (`depclaim.py next` for ports, `rebase_claim.sh` for rebases, `review_claim.sh` for reviews), do a
   bounded batch, and STOP. Each is a single self-scheduled slot guarded by `slot_lock.sh`.

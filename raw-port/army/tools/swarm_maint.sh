@@ -1,8 +1,8 @@
 #!/bin/bash
 # swarm_maint.sh — headless maintenance tick for the queue-driven swarm (Model B).
 #
-# This is a SCRIPT cron (no agent, no spawn_agent). It does every non-judgement plumbing task the old
-# coordinator agent used to do in STEP 0/1/2/6, so the worker/reviewer PROMPT crons can stay tiny and
+# This is a SCRIPT cron (no agent, no spawn_agent). It does every non-judgement plumbing task
+# headlessly, so the worker/reviewer PROMPT crons can stay tiny and
 # purely pull-driven. Runs on cli:vjeux-mac against the canonical checkout. Prints ONE status line.
 #
 # Does: (0) ledger guard, (1) warm-pool init+gc, (2) clean the canonical tree if no gate/submit proc
