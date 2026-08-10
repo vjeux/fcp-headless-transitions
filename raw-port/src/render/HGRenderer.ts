@@ -26,6 +26,7 @@
 //   0x000f2d40  HGRenderer::GetROI(HGNode*)            (cached-path FULL)
 //   0x000f2d80  HGRenderer::GetFlags(HGNode*, int)             (FULL)
 //   0x000f2dd0  HGRenderer::GetInput(HGNode*, int)             (FULL — tail-jmp to GetOutput)
+//   0x000ef3e0  HGRenderer::SetOwningRenderQueue(HGRenderQueue*)       (FULL)
 //
 // STRUCT LAYOUT (recovered from accessor asm — every offset cited @0xADDR
 // on the field it belongs to):
@@ -285,6 +286,17 @@ export class HGRenderer {
    * method reads it yet, so it is modeled as an opaque value (null default).
    */
   externalResource448: unknown = null;
+
+  /**
+   * @+0x440 — opaque `HGRenderQueue*` back-pointer to the render queue that
+   * owns this renderer, written verbatim by
+   * `HGRenderer::SetOwningRenderQueue(HGRenderQueue*)`
+   * (@Helium 0xef3e4 `movq %rsi, 0x440(%rdi)`). Distinct from the
+   * external-resource slot at +0x448. `HGRenderQueue` is not yet ported, and
+   * no ported method reads this field, so it is modeled as an opaque value
+   * (null default) exactly like `externalResource448`.
+   */
+  owningRenderQueue440: unknown = null;
 
   /**
    * @+0x120 — `pthread_rwlock_t`. Its address is taken by
@@ -1032,6 +1044,32 @@ export class HGRenderer {
   SetExternalResource(resource: unknown): void {
     // @Helium 0xef404: movq %rsi, 0x448(%rdi)
     this.externalResource448 = resource;
+  }
+
+  /**
+   * `HGRenderer::SetOwningRenderQueue(HGRenderQueue*)` — Helium @0x000ef3e0.
+   *
+   * Stores the `HGRenderQueue*` argument verbatim into the field at
+   * `this + 0x440`. Full transcription (5 instructions + padding):
+   *
+   *   0xef3e0  pushq   %rbp
+   *   0xef3e1  movq    %rsp, %rbp
+   *   0xef3e4  movq    %rsi, 0x440(%rdi)   ; this->owningRenderQueue440 = arg
+   *   0xef3eb  popq    %rbp
+   *   0xef3ec  retq
+   *   0xef3ed  nopl    (%rax)              ; alignment padding, not code
+   *
+   * Zero callees, zero externs, zero indirect calls, no null check — a pure
+   * pointer store (the frame push/pop is the only other work, and has no
+   * observable effect in a JS port). `HGRenderQueue` is not yet ported, so
+   * the pointer is held opaquely (see the +0x440 field declaration above).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN10HGRenderer20SetOwningRenderQueueEP13HGRenderQueue.s
+   */
+  SetOwningRenderQueue(queue: unknown): void {
+    // @Helium 0xef3e4: movq %rsi, 0x440(%rdi)
+    this.owningRenderQueue440 = queue;
   }
 
   /**
