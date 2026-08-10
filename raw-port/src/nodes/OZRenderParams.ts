@@ -323,6 +323,28 @@ export class OZRenderParams {
   renderQualityDynamicAt1d4: number = 0;
 
   /**
+   * @Ozone offset +0x1e4 — a one-byte "do 3D-intersection antialiasing" flag
+   * written by `setDo3DIntersectionAntialiasing(bool)` @0x271904 as
+   * `movb %sil,0x1e4(%rdi)` (the incoming bool argument's low byte).
+   * Modelled as `number` (0..255) because the setter uses a byte-level
+   * `movb`; a JS boolean would drop the exact bit pattern any wider reader
+   * would see through a `char` alias.
+   */
+  do3DIntersectionAntialiasingAt1e4: number = 0;
+
+  /**
+   * @Ozone offset +0x1e5 — a SECOND one-byte flag written to the SAME
+   * value as `+0x1e4` by `setDo3DIntersectionAntialiasing(bool)`
+   * @0x27190b (`movb %sil,0x1e5(%rdi)`). The compiler emitted two
+   * separate byte stores rather than a single 16-bit store, so the two
+   * slots are semantically distinct fields the class keeps in lock-step
+   * through this particular setter. A future writer decoded from other
+   * disasm may set them independently; until then both are surfaced by
+   * offset. Modelled as `number` (0..255) for the same reason as +0x1e4.
+   */
+  do3DIntersectionAntialiasingMirrorAt1e5: number = 0;
+
+  /**
    * `OZRenderParams::setResolution(PCVector2<double> const&)`
    *   — @Ozone 0x2716f0
    *   — __ZN14OZRenderParams13setResolutionERK9PCVector2IdE
@@ -973,5 +995,62 @@ export class OZRenderParams {
     // disasm order here.
     this.zeroedAt188 = { x: 0, y: 0 };
     this.zeroedAt198 = { x: 0, y: 0 };
+  }
+
+  /**
+   * `OZRenderParams::setDo3DIntersectionAntialiasing(bool)`
+   *   — @Ozone 0x271900
+   *   — __ZN14OZRenderParams31setDo3DIntersectionAntialiasingEb
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly at
+   * raw-port/re/disasm/__ZN14OZRenderParams31setDo3DIntersectionAntialiasingEb.s:
+   *
+   *   0x271900  pushq  %rbp
+   *   0x271901  movq   %rsp, %rbp
+   *   0x271904  movb   %sil, 0x1e4(%rdi)          ; this->+0x1e4 = arg
+   *   0x27190b  movb   %sil, 0x1e5(%rdi)          ; this->+0x1e5 = arg
+   *   0x271912  xorps  %xmm0, %xmm0               ; xmm0 = 0 (16 bytes)
+   *   0x271915  movups %xmm0, 0x188(%rdi)         ; this->+0x188 = (0, 0)
+   *   0x27191c  movups %xmm0, 0x198(%rdi)         ; this->+0x198 = (0, 0)
+   *   0x271923  popq   %rbp
+   *   0x271924  retq
+   *
+   * Same shape as `setDoHighQualityResampling` @0x271820 — the class
+   * caches BOTH boolean policy flags in mirrored byte pairs and both
+   * setters invalidate the SAME derived-caching slots at +0x188 / +0x198
+   * on write. Whatever those two 16-byte slots hold (some cached
+   * resolution/subregion pair likely) it is a function of at least
+   *   { resolution, HQR-flag, 3D-AA-flag }
+   * so each policy change resets them.
+   *
+   * ABI: SysV x86_64. The `bool` arg is in `%sil` (low byte of `%rsi`).
+   * We mask to the low 8 bits so the modelled write matches the machine's
+   * `movb` truncation for any input width.
+   *
+   * Zero in-scope callees, no imports needed.
+   */
+  setDo3DIntersectionAntialiasing(doAntialiasing: boolean | number): void {
+    // Faithful `movb %sil` model: capture only the low 8 bits of the
+    // argument. C++ bool is stored as byte 0/1; a rogue caller passing
+    // any wider int gets truncated by the machine's `movb`.
+    const sil =
+      typeof doAntialiasing === "boolean"
+        ? (doAntialiasing ? 1 : 0)
+        : (doAntialiasing & 0xff);
+
+    // @0x271904  movb %sil, 0x1e4(%rdi)
+    this.do3DIntersectionAntialiasingAt1e4 = sil;
+    // @0x27190b  movb %sil, 0x1e5(%rdi)
+    this.do3DIntersectionAntialiasingMirrorAt1e5 = sil;
+
+    // @0x271912  xorps %xmm0, %xmm0            ; xmm0 = 0
+    // @0x271915  movups %xmm0, 0x188(%rdi)     ; this->+0x188 = (0, 0)
+    // Order matches setDoHighQualityResampling (which shares this
+    // invalidation pair): +0x188 BEFORE +0x198.
+    this.zeroedAt188 = { x: 0, y: 0 };
+    // @0x27191c  movups %xmm0, 0x198(%rdi)     ; this->+0x198 = (0, 0)
+    this.zeroedAt198 = { x: 0, y: 0 };
+
+    // @0x271923-0x271924 — epilogue + retq.
   }
 }
