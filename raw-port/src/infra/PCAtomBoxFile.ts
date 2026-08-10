@@ -10,6 +10,7 @@
 //
 // Source disasm: raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile11isValidTypeEj.s (27 lines)
 //                raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile12getErrorCodeEv.s (39 lines)
+//                raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile13getTopAtomBoxEv.s (7 lines)
 //
 // -----------------------------------------------------------------------------
 // SYMBOLS PORTED
@@ -18,6 +19,8 @@
 //       -- PCAtomBoxFile::isValidType(unsigned int)  @ProCore 0x254ea
 //   * __ZN13PCAtomBoxFile12getErrorCodeEv
 //       -- PCAtomBoxFile::getErrorCode()             @ProCore 0x24f96
+//   * __ZN13PCAtomBoxFile13getTopAtomBoxEv
+//       -- PCAtomBoxFile::getTopAtomBox()            @ProCore 0x24dfa
 //
 // No callees: a pure integer switch over the 32-bit FourCC. `unsigned int` is a
 // 32-bit value that fits in a JS number, so a plain number models it (the compares
@@ -214,4 +217,37 @@ export function PCAtomBoxFile_getErrorCode(): number {
   if (ecx !== 0x2) return -1 | 0; // 0xffffffff
   // errno == 2 (ENOENT) -> -2
   return -2 | 0; // 0xfffffffe
+}
+
+// =============================================================================
+// PCAtomBoxFile::getTopAtomBox()  @ProCore 0x24dfa  __ZN13PCAtomBoxFile13getTopAtomBoxEv
+// =============================================================================
+// PCAtomBoxFile — the container-file reader. Its top-level atom box is embedded
+// at offset +0x00, so `getTopAtomBox()` returns the `this` pointer unchanged
+// (the file object IS-A / begins-with a PCAtomBox). The embedded box's own
+// fields (offset, dataStart, children, ...) are ported in PCAtomBox.ts; here we
+// model only that the top box coincides with `this` and return it, which is the
+// exact semantics of the single `movq %rdi,%rax` instruction. Returning `this`
+// (typed as PCAtomBoxFile, whose +0x00 IS the PCAtomBox) avoids inventing a
+// phantom field and matches the machine's pointer identity.
+//
+// Source disasm: raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile13getTopAtomBoxEv.s (7 lines)
+export class PCAtomBoxFile {
+  /**
+   * PCAtomBoxFile::getTopAtomBox()
+   * @0x24dfa ProCore  (__ZN13PCAtomBoxFile13getTopAtomBoxEv)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile13getTopAtomBoxEv.s):
+   *   0x24dfa  pushq %rbp ; movq %rsp,%rbp     ; frame
+   *   0x24dfe  movq  %rdi, %rax                ; rax = this  (top atom box lives at +0x00)
+   *   0x24e01  popq %rbp ; retq                ; return this  (== &topAtomBox at +0x00)
+   *
+   * Returns the address of the file's embedded top-level PCAtomBox, which — as
+   * the first member at +0x00 — coincides with the PCAtomBoxFile `this` pointer.
+   * Zero callees, no externs.
+   */
+  getTopAtomBox(): PCAtomBoxFile {
+    // @0x24dfe movq %rdi,%rax : the top atom box is at +0x00, i.e. `this` itself.
+    return this;
+  }
 }
