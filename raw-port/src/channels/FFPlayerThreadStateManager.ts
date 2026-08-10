@@ -64,6 +64,39 @@ export function FFPlayerThreadStateManager_hasShutdownBeenRequested(
   return state >= FF_PLAYER_THREAD_SHUTDOWN_REQUESTED_STATE;
 }
 
+/**
+ * FFPlayerThreadStateManager::hasShutdownOrAbortPrerollBeenRequested()
+ * @Flexo 0xdbb540  __ZN26FFPlayerThreadStateManager38hasShutdownOrAbortPrerollBeenRequestedEv
+ *
+ * Reads the int32 state at this+0x90 and returns TRUE when the state is either one of the two
+ * "abort preroll" states {3,4}, OR the shutdown threshold (>= 0x64). Faithful transcription;
+ * the {3,4} test is the compiler's `(state - 3) <u 2` range-check idiom and the shutdown test
+ * reuses the same `state >= 0x64` signed compare as hasShutdownBeenRequested().
+ *
+ * Disassembly (verbatim):
+ *   0xdbb544  movl  0x90(%rdi),%eax   ; eax = *(int32*)(this+0x90) — the thread state
+ *   0xdbb54a  leal  -0x3(%rax),%ecx   ; ecx = state - 3
+ *   0xdbb54d  cmpl  $0x2,%ecx         ; flags = ecx - 2      (unsigned range test)
+ *   0xdbb550  setb  %cl              ; cl = CF=1 => (state-3) <u 2  => state ∈ {3,4}
+ *   0xdbb553  cmpl  $0x64,%eax        ; flags = eax - 0x64   (AT&T dst-src = state - 100)
+ *   0xdbb556  setge %al              ; al = (state >= 100) ? 1 : 0  (signed SF==OF)
+ *   0xdbb559  orb   %cl,%al           ; al = cl | al
+ *   0xdbb55b/c popq/retq             ; return low byte of al
+ */
+export function FFPlayerThreadStateManager_hasShutdownOrAbortPrerollBeenRequested(
+  self: FFPlayerThreadStateManager,
+): boolean {
+  // @0xdbb544 movl 0x90(%rdi),%eax — load the int32 state (signed 32-bit width).
+  const state = self.state | 0;
+  // @0xdbb54a leal -0x3(%rax),%ecx ; @0xdbb54d cmpl $0x2,%ecx ; @0xdbb550 setb %cl —
+  // UNSIGNED range test: cl = ((state - 3) >>> 0) < 2  => state === 3 || state === 4.
+  const abortPreroll = (((state - 3) >>> 0) < 2);
+  // @0xdbb553 cmpl $0x64,%eax ; @0xdbb556 setge %al — SIGNED: al = state >= 0x64.
+  const shutdown = state >= FF_PLAYER_THREAD_SHUTDOWN_REQUESTED_STATE;
+  // @0xdbb559 orb %cl,%al — return cl | al.
+  return abortPreroll || shutdown;
+}
+
 // =============================================================================
 // setStateInternal — the state-transition mutator.
 //   0x0000000000dbb4b0  FFPlayerThreadStateManager::setStateInternal(

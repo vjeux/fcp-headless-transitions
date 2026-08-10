@@ -1,8 +1,8 @@
 #!/bin/bash
 # pr_gate.sh <PR#> [--reviewed] — PR-flow faithfulness gate, run by the ADVERSARIAL REVIEWER on
-# vjeux-mac (has Final Cut Pro; the dlsym oracle needs it). Replaces wt_merge.sh + sidecars.
+# vjeux-mac (has Final Cut Pro; the dlsym oracle needs it). It IS the CI for main.
 #
-# TWO-PHASE (mirrors the old gate=mechanical / reviewer=semantic split):
+# TWO-PHASE (mechanical gate, then semantic reviewer sign-off):
 #   PHASE 1 (default): run gate.sh G0-G5 + regression_check + dup_check in an ISOLATED worktree
 #     (gate TOOLS taken from origin/main so a PR can't ship its own gate). Post commit status:
 #       - hard fail (G0-G5 reject / regression exit2 / dup exit5) -> status FAILURE.
@@ -30,12 +30,15 @@ post_status () { gh api -X POST "repos/$REPO_SLUG/statuses/$HEAD_SHA" -f state="
 post_status pending "gate running on vjeux-mac"
 
 git fetch -q origin main "+refs/pull/$PR/head:refs/prgate/$PR" 2>/dev/null || git fetch -q origin main "$HEAD_REF" 2>/dev/null
-WT="/tmp/prgate_${PR}_$$_$(date +%s)"
-git worktree add -q --detach "$WT" "$HEAD_SHA" 2>&1 | tail -1
-cleanup () { cd "$CANON"; find "$WT" -maxdepth 4 -type l -delete 2>/dev/null; git worktree remove --force "$WT" 2>/dev/null; rm -rf "$WT" 2>/dev/null; git worktree prune 2>/dev/null; }
+# WARM POOL (2026-08-10): lease a pre-materialized worktree and detached-checkout the PR head into it,
+# instead of `git worktree add`/`remove` per PR (which wrote ~2,579 files -> corp Defender scan storm).
+# The pool reuses the checkout + a warm tsgo cache; release resets it to origin/main for the next PR.
+WT="$(bash "$CANON/raw-port/army/tools/wt_pool.sh" acquire-at "$HEAD_SHA")"
+[ -z "$WT" ] && { post_status pending "pool busy — retry"; echo "PR_GATE: POOL_BUSY (#$PR) — no free worktree, retry"; exit 3; }
+cleanup () { bash "$CANON/raw-port/army/tools/wt_pool.sh" release "$WT" >/dev/null 2>&1; }
 trap cleanup EXIT
 cd "$WT"
-for d in engine/node_modules raw-port/node_modules venv; do ln -sfn "$CANON/$d" "$d" 2>/dev/null || true; done
+for d in raw-port/node_modules venv; do ln -sfn "$CANON/$d" "$d" 2>/dev/null || true; done
 # TRUSTED gate tools from origin/main (never trust the PR's own gate)
 T="/tmp/prgate_tools_$$"; rm -rf "$T"; mkdir -p "$T"
 git --git-dir="$CANON/.git" archive origin/main raw-port/army/gate raw-port/army/tools | tar -x -C "$T" 2>/dev/null

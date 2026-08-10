@@ -24,14 +24,14 @@ import json, os, sys, subprocess, threading, re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
-ENGINE = os.path.join(REPO, "engine")
+RAWPORT = os.path.join(REPO, "raw-port")
 sys.path.insert(0, HERE)
 from classify_disasm import classify, find_disasm
 
 RW = os.path.join(HERE, "reach_worker.ts")
 
 def _reach(module_path, export_name, params, cap=256):
-    proc = subprocess.Popen(["node_modules/.bin/tsx", RW], cwd=ENGINE,
+    proc = subprocess.Popen(["node_modules/.bin/tsx", RW], cwd=RAWPORT,
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         text=True, bufsize=1, start_new_session=True)
     if (proc.stdout.readline() or "").strip() != "READY":
