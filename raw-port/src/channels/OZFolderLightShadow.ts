@@ -13,6 +13,9 @@
 // -----------------------------------------------------------------------------
 // SYMBOL PORTED IN THIS FILE (one C++ method = one member citing its @0xADDR)
 // -----------------------------------------------------------------------------
+//   * OZFolderLightShadow::opacity() const           @Ozone 0x4f27d0
+//     __ZNK19OZFolderLightShadow7opacityEv
+//     DECODE: raw-port/re/disasm/__ZNK19OZFolderLightShadow7opacityEv.s
 //   * OZFolderLightShadow::uniformSoftness() const   @Ozone 0x4f2810
 //     __ZNK19OZFolderLightShadow15uniformSoftnessEv
 //     DECODE: raw-port/re/disasm/__ZNK19OZFolderLightShadow15uniformSoftnessEv.s
@@ -24,7 +27,7 @@
 // each member lands as its own unit: the four ctors (@0x4f19c0, @0x4f1d20,
 // @0x4f1fd0, @0x4f20f0 and their C1 aliases), the dtors (@0x4f23a0 / @0x4f2460
 // / @0x4f25f0), initChannels @0x4f1c70, update @0x4f2790, the two hasShadows
-// overloads @0x4f27a0 / @0x4f27b0, opacity @0x4f27d0 / @0x4f27e0, softness
+// overloads @0x4f27a0 / @0x4f27b0, the NON-const opacity twin @0x4f27e0, softness
 // @0x4f27f0 / @0x4f2800, the NON-const uniformSoftness twin @0x4f2820, and the
 // NON-const color twin @0x4f2840.
 //
@@ -38,7 +41,11 @@
 // it as the sub-object ctor's `this`), and the four accessor pairs read those
 // same offsets back:
 //
-//   +0x080  opacity channel     [ctor @0x4f1a16 `leaq 0x80(%rbx),%r14`;
+//   +0x080  opacity channel     [ctor @0x4f1a16 `leaq 0x80(%rbx),%r14` ->
+//           (OZChannelPercent)   @0x4f1a42 `callq OZChannelPercent::OZChannelPercent(
+//                                  double, PCString const&, OZChannelFolder*,
+//                                  unsigned int, unsigned int, OZChannelImpl*,
+//                                  OZChannelInfo*)` — which pins the TYPE;
 //                                initChannels @0x4f1cac passes it to
 //                                `OZChannel::setMax(double)` @0x4f1cbb;
 //                                `opacity() const` @0x4f27d4 returns its address]
@@ -88,6 +95,7 @@
 // Per PORTING_SPEC.md Rules 1, 2, 5, 6.
 
 import { OZChannelBool } from "./OZChannelBool";
+import { OZChannelPercent } from "./OZChannelPercent";
 import { OZChannelColorNoAlpha } from "./OZChannelColorNoAlpha";
 
 export class OZFolderLightShadow {
@@ -109,6 +117,24 @@ export class OZFolderLightShadow {
    * nothing here pre-populates its state.
    */
   uniformSoftnessAt1b0: OZChannelBool = new OZChannelBool();
+
+  /**
+   * `+0x80  OZChannelPercent opacity` — the shadow's opacity parameter, an
+   * EMBEDDED (by-value) channel sub-object.
+   *
+   * Constructed in place by the ctor: `leaq 0x80(%rbx), %r14` @Ozone 0x4f1a16
+   * hands the member's address to
+   * `OZChannelPercent::OZChannelPercent(double, PCString const&,
+   * OZChannelFolder*, unsigned int, unsigned int, OZChannelImpl*,
+   * OZChannelInfo*)` @0x4f1a42 — a sub-object ctor call, not a pointer store,
+   * which makes it an inline member and fixes its type as `OZChannelPercent`.
+   * `initChannels()` then narrows its range in place, passing the same address
+   * to `OZChannel::setMax(double)` (@0x4f1cac / @0x4f1cbb).
+   *
+   * Modelled as a live `OZChannelPercent` instance so a JS reference to it IS
+   * the `&(this+0x80)` address {@link OZFolderLightShadow.opacity} returns.
+   */
+  opacityAt80: OZChannelPercent = new OZChannelPercent();
 
   /**
    * `OZFolderLightShadow::uniformSoftness() const` — Ozone @0x004f2810
@@ -150,6 +176,39 @@ export class OZFolderLightShadow {
   uniformSoftness(): OZChannelBool {
     // @Ozone 0x4f2814: leaq 0x1b0(%rdi), %rax
     return this.uniformSoftnessAt1b0;
+  }
+
+  /**
+   * `OZFolderLightShadow::opacity() const` — Ozone @0x004f27d0
+   * (mangled `__ZNK19OZFolderLightShadow7opacityEv`).
+   *
+   * Full transcription — every instruction of the function, in order
+   * (raw-port/re/disasm/__ZNK19OZFolderLightShadow7opacityEv.s):
+   *
+   *   0x4f27d0  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x4f27d1  movq  %rsp, %rbp            ; frame setup (no TS counterpart)
+   *   0x4f27d4  leaq  0x80(%rdi), %rax      ; return &this->opacity
+   *   0x4f27db  popq  %rbp                  ; frame teardown (no TS counterpart)
+   *   0x4f27dc  retq                        ; return that address
+   *
+   * The same one-`leaq` accessor shape as the sibling
+   * {@link OZFolderLightShadow.uniformSoftness} @0x4f2814 (and
+   * {@link OZFolderLightShadow.color} @0x4f2834), over the +0x80 slot: `leaq`
+   * computes an EFFECTIVE ADDRESS, so the signature is
+   * `OZChannelPercent const& opacity() const` — the caller gets the embedded
+   * channel itself, not a copy, and a pointer field would instead have
+   * compiled to `movq 0x80(%rdi), %rax`.
+   *
+   * The non-const twin @0x4f27e0 is byte-identical on the same slot and stays
+   * its own ledger entry (TypeScript has no const overload).
+   *
+   * Zero callees, zero externs, zero indirect calls, no null check.
+   *
+   * @returns the embedded opacity channel at `this + 0x80`.
+   */
+  opacity(): OZChannelPercent {
+    // @Ozone 0x4f27d4: leaq 0x80(%rdi), %rax
+    return this.opacityAt80;
   }
 
   /**
