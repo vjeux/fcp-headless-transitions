@@ -133,6 +133,25 @@ function AudioUnitSetProperty(
 /**
  * `FFAudioGraph` — Flexo audio-graph helpers. Only `GetUnitChannels` is ported
  * in this file; other members are separate ledger entries.
+ * FFAudioNode — the +0x30 slice relevant to `IsNodeInputConnected`.
+ *
+ * FFAudioNode's full layout is not decoded here; this models ONLY the one
+ * field that method reads: a libc++ `std::__1::map<uint32, X>` at +0x30
+ * (its per-input connection table). The RB-tree keys are the uint32 input
+ * indices; `IsNodeInputConnected` only needs membership, so the value type
+ * is left opaque (`unknown`). Modelled as a JS `Map<number, unknown>` per the
+ * layer convention for libc++ `__tree`-backed maps (see
+ * CustomPixelFormatRegistry). The offset +0x30 is documented per Rule 5.
+ */
+export interface FFAudioNodeWithInputMap {
+  /** +0x30 : std::map<uint32, X> input-connection table (RB-tree). */
+  inputConnections_at0x30: Map<number, unknown>;
+}
+
+/**
+ * `FFAudioGraph` — Flexo audio-graph helpers. Ports `GetUnitChannels` and
+ * `IsNodeInputConnected` in this file; other members are separate ledger
+ * entries added additively.
  */
 export class FFAudioGraph {
   /**
@@ -235,5 +254,68 @@ export class FFAudioGraph {
     }
     // @0xd3879d movl -0x14(%rbp),%eax : return ASBD.mChannelsPerFrame (+0x1c).
     return (outData.mChannelsPerFrame ?? 0) >>> 0;
+  }
+
+  /**
+   * `FFAudioGraph::IsNodeInputConnected(FFAudioNode*, unsigned int)` -> bool
+   * @Flexo 0xd3a5f0
+   * (__ZN12FFAudioGraph20IsNodeInputConnectedEP11FFAudioNodej).
+   *
+   * Static helper (no `this` access): the disasm reads only the FFAudioNode
+   * argument (%rsi) and the uint32 input index (%edx). It is a textbook
+   * libc++ `std::map<uint32, X>::find(key) != end()` inlined as a red-black-
+   * tree lower_bound walk. The map is a MEMBER of FFAudioNode at +0x30:
+   *
+   *   +0x30  std::__1::map<uint32, X>  inputConnections
+   *          (its `__tree` end-node header lives at node+0x30 — the code does
+   *           `addq $0x30,%rsi` to form `end()`, and reads the root pointer
+   *           from `0x30(%rsi)` = header->__left_ = the tree root)
+   *   each __tree_node has its uint32 key at +0x20 and its two child links at
+   *   +0x00 (__left_) / +0x08 (__right_).
+   *
+   * FULL DISASM (raw-port/re/disasm/
+   *   Flexo.__ZN12FFAudioGraph20IsNodeInputConnectedEP11FFAudioNodej.s, 26 lines):
+   *   0xd3a5f4  movq 0x30(%rsi),%rcx      ; rcx = root = header->__left_
+   *   0xd3a5f8  addq $0x30,%rsi           ; rsi = &node->map header (= end())
+   *   0xd3a5fc  testq %rcx,%rcx ; je .fin ; empty tree -> rax stays = rsi (end)
+   *   0xd3a601  movq %rsi,%rax            ; rax = end() (best-so-far / result)
+   *   .loop (0xd3a610):
+   *   0xd3a610  xorl %edi,%edi
+   *   0xd3a612  cmpl %edx,0x20(%rcx)      ; flags on (node->key - edx)
+   *   0xd3a615  setb %dil                 ; dil = (node->key <  edx) ? 1 : 0
+   *   0xd3a619  cmovaeq %rcx,%rax         ; if node->key >= edx : rax = rcx
+   *                                       ;   (remember this candidate; it is
+   *                                       ;    the smallest key seen that is
+   *                                       ;    >= edx = the lower_bound)
+   *   0xd3a61d  movq (%rcx,%rdi,8),%rcx   ; descend: rdi=1 -> __right_ (+0x08),
+   *                                       ;          rdi=0 -> __left_  (+0x00)
+   *   0xd3a621  testq %rcx,%rcx ; jne .loop ; until we fall off a leaf
+   *   .fin_lookup (0xd3a626):
+   *   0xd3a626  cmpq %rsi,%rax ; je .fin  ; rax == end() -> not found
+   *   0xd3a62b  cmpl 0x20(%rax),%edx      ; flags on (edx - rax->key)
+   *   0xd3a62e  jae .found                ; edx >= rax->key ? (with rax->key
+   *                                       ;   >= edx from lower_bound => equal)
+   *   .fin (0xd3a630):
+   *   0xd3a630  movq %rsi,%rax            ; not found -> rax = end()
+   *   .found (0xd3a633):
+   *   0xd3a633  cmpq %rsi,%rax ; setne %al ; return (rax != end()) = found
+   *
+   * Net effect: the classic `map.find(key) != map.end()` — lower_bound(edx)
+   * lands on the first key >= edx; the port is "connected" iff that key
+   * exactly equals edx (i.e. the key is present in the map).
+   *
+   * The red-black tree is a libc++ (`std::__1::__tree`) container — an
+   * out-of-scope STL internal. Per the established convention in this layer
+   * (see CustomPixelFormatRegistry: libc++ `__tree`-backed maps are modelled
+   * as a JS `Map<number, X>`), we model FFAudioNode's +0x30 map as a
+   * `Map<number, unknown>` and mirror the exact `has(key)` result the RB-tree
+   * walk computes. No in-scope callee, no indirect call.
+   */
+  static IsNodeInputConnected(node: FFAudioNodeWithInputMap, inputIndex: number): boolean {
+    // @0xd3a5f4/@0xd3a5f8 : the tree at node+0x30 is our inputConnections map.
+    // The whole RB-tree walk (@0xd3a601..@0xd3a636) computes exactly
+    // `lower_bound(edx) exists && *lower_bound == edx` == `map contains edx`.
+    // @0xd3a612 compares the uint32 key, so match on the unsigned index.
+    return node.inputConnections_at0x30.has(inputIndex >>> 0);
   }
 }
