@@ -68,6 +68,8 @@ export class FFPlayerHealthMeter {
     //   atomically store 1 into this->failedPreroll (old value discarded).
     this.failedPreroll = 1;
   }
+  // +0x1b5c  number of GPUs (int32) — written by setNumGPUs(int) @Flexo 0xda45e0.
+  numGPUs = 0;
 
   /**
    * FFPlayerHealthMeter::getLiveEditFrameGenerationAllowance(double)
@@ -172,5 +174,32 @@ export class FFPlayerHealthMeter {
 
     // @0xda3792  return result.
     return result;
+  }
+
+  /**
+   * FFPlayerHealthMeter::setNumGPUs(int)
+   * @0xADDR Flexo 0x0000000000da45e0  (__ZN19FFPlayerHealthMeter10setNumGPUsEi)
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly
+   * (raw-port/re/disasm/Flexo.__ZN19FFPlayerHealthMeter10setNumGPUsEi.s):
+   *
+   *   0xda45e0  pushq %rbp                    ; frame prologue
+   *   0xda45e1  movq  %rsp, %rbp
+   *   0xda45e4  movl  %esi, 0x1b5c(%rdi)        ; this->+0x1b5c = arg (int32 store)
+   *   0xda45ea  popq  %rbp                     ; frame epilogue
+   *   0xda45eb  retq
+   *   0xda45ec  nopl  (%rax)                    ; alignment padding (not executed)
+   *
+   * Single-instruction body: store the incoming `int` argument (SysV/AAPCS
+   * puts scalar arg2 in `%rsi`; a 32-bit `int` occupies the low half `%esi`)
+   * into the class slot at +0x1b5c. The `movl` (32-bit store) confirms the
+   * field is a 4-byte int. Modelled as `number` (JS Number covers int32
+   * exactly); `| 0` forces int32 truncation to mirror the machine's `movl`.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure field write.
+   */
+  setNumGPUs(numGPUs: number): void {
+    // @0xda45e4  movl %esi,0x1b5c(%rdi)
+    this.numGPUs = numGPUs | 0;
   }
 }
