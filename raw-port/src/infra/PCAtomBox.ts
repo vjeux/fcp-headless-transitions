@@ -60,6 +60,11 @@ export class PCAtomBox {
   //        has no parent (top-level box).
   parent: PCAtomBox | null = null;
 
+  // +0x28  void*  payload data pointer — the raw bytes of this atom's payload.
+  //        Returned verbatim by getPayloadData() @0x008ec4 (`movq 0x28(%rdi),%rax`).
+  //        Modelled as a Uint8Array (the byte view) or null when unset.
+  payloadData: Uint8Array | null = null;
+
   // +0x30/+0x38  the children pointer-vector [begin,end). The machine derives
   //   count = (end-begin) >> 3 over 8-byte pointers; we model it directly as an array.
   children: (PCAtomBox | null)[] = [];
@@ -260,5 +265,23 @@ export class PCAtomBox {
   getSize(): bigint {
     // @0x008b6c — movq 0x8(%rdi),%rax : load the u64 size at +0x08.
     return this.size;
+  }
+
+  /**
+   * PCAtomBox::getPayloadData()
+   * @0xADDR ProCore 0x0000000000008ec0  (__ZN9PCAtomBox14getPayloadDataEv)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN9PCAtomBox14getPayloadDataEv.s):
+   *   0x008ec0  pushq %rbp ; movq %rsp,%rbp        ; frame
+   *   0x008ec4  movq 0x28(%rdi), %rax              ; rax = *(void**)(this+0x28) = payloadData
+   *   0x008ec8  popq %rbp ; retq                   ; return payloadData
+   *
+   * A plain pointer-field accessor: returns the pointer to this atom's payload
+   * bytes (the box body after its header). Zero callees, no externs. Modelled as
+   * the Uint8Array byte view stored in the +0x28 field; null when unset.
+   */
+  getPayloadData(): Uint8Array | null {
+    // @0x008ec4 — movq 0x28(%rdi),%rax : load the payload data pointer at +0x28.
+    return this.payloadData;
   }
 }
