@@ -19,7 +19,11 @@ Your loop (replaces sidecars + wt_merge):
        does NOT clear flags; only your adversarial re-derivation does.
      - clean PASS, 0 flags → status SUCCESS.
 3. If gate FAIL → `gh pr review <PR#> --request-changes -b "<one-line reason>"`.
-   Regression fail → tell the author to rebase (or run `rebase_helper.py <Class>` and re-push).
+   Regression fail → REBASE, do NOT skip-and-loop (see "REBASE OWNERSHIP" below): run
+   `python3 raw-port/army/tools/rebase_helper.py <Class>`. If it exits 0 it pushed a rebased branch
+   (gate + merge that). If it exits 6 (NEEDS_WORKER_REBASE — add/add on a shared class body), the fix
+   is AUTHOR work, not yours: leave a "needs worker rebase" comment and let the coordinator dispatch a
+   worker (rebase_pr.sh). NEVER re-gate the same stale head every tick — that loops forever.
    Dup fail → `gh pr close <PR#>` (the symbol is already on main).
 4. If gate PASS: do the SEMANTIC adversarial review below (classify → oracle → reach → LINE-BY-LINE,
    re-deriving disasm INDEPENDENTLY from the binary). If the PR had G5 FLAGs, after you confirm it is
@@ -108,8 +112,25 @@ protection makes it the required check). Keep your judgment classification the s
 - REJECT stops the merge. `gh pr review <PR#> --request-changes -b "<exactly which instruction the TS omits>"`.
 - REGRESSION: `pr_gate.sh` runs regression_check.py — if the branch DROPS any @0xADDR symbol/export
   origin/main already has (a stale-base branch), the status is FAILURE. This is NOT a verdict on your
-  review; the branch just needs a rebase onto current origin/main (branch protection's "up-to-date"
-  requirement also forces this). Tell the author to rebase, or run `rebase_helper.py <Class>`.
+  review; the branch needs a rebase onto current origin/main. See REBASE OWNERSHIP below — you try the
+  mechanical `rebase_helper.py`; anything it can't do is a WORKER task, never an infinite reviewer skip.
+
+## REBASE OWNERSHIP (2026-08-10) — three kinds, three owners; NEVER skip-loop
+Rebasing splits by how much judgment it needs:
+1. BEHIND / up-to-date only (fast-forwardable, no content clash) → `pr_land.sh` does it at merge time
+   via GitHub `update-branch`. Mechanical; already handled inside your merge step. Not your problem.
+2. Shared file, DISJOINT top-level exports (two ports added different free functions to one file) →
+   `rebase_helper.py <Class>` unions them mechanically (empty-base diff3), gates, pushes. Exit 0 = done,
+   gate+merge the pushed branch. Safe for YOU (reviewer) to run — it makes no code decision, and BAILs
+   the instant one is needed.
+3. Shared CLASS BODY / real conflict (both branch and main added methods INSIDE one `class X {}` — the
+   PCAtomBox case) → `rebase_helper.py` returns exit 6 (NEEDS_WORKER_REBASE). Re-applying net-new
+   methods into main's class body is AUTHORING, so a WORKER owns it (you are the adversary — you must
+   not gate your own edits). Comment "needs worker rebase (rebase_pr.sh #<PR>)" and move on THIS tick;
+   the coordinator dispatches a worker that runs `rebase_pr.sh <PR#>`, re-applies, re-gates, and
+   force-pushes the SAME branch in place — then you gate+merge it normally next time.
+NEVER re-gate the same unchanged stale head every tick hoping it changes. Escalate (union or worker) or,
+after the coordinator's attempt-cap, the PR is closed and the symbol re-handed to a fresh worker.
 - Leave a one-line PR comment stating the evidence (oracle VERIFIED / reach LIKELY_REAL + line-by-line
   confirmed / TRAP / EMPTY) so the merge trail records WHY it was faithful. That comment is your
   durable verdict; the green status is what actually gates the merge.
@@ -142,7 +163,9 @@ Rules for reviewer-driven merge:
   If it posts FAILURE after you thought it was fine, your ACCEPT was WRONG — `gh pr review
   --request-changes` and move on.
 - Regression FAILURE (branch DROPS a symbol origin/main already has) is not a faithfulness fault — the
-  branch needs a rebase (or is superseded). Comment "needs rebase" and skip; do not force.
+  branch needs a rebase. Do NOT "comment and skip" forever (that loops). Run `rebase_helper.py <Class>`:
+  exit 0 → it pushed a rebased branch, gate+merge that; exit 6 (NEEDS_WORKER_REBASE) → comment
+  "needs worker rebase" so the coordinator dispatches a worker (rebase_pr.sh). Skip only THIS tick.
 - Dup FAILURE (`dup_check` exit 5 — every cited symbol already on main) → `gh pr close <PR#>`.
 - If `gh pr merge` reports the branch is behind / not up-to-date, tell the author to rebase (or push a
   rebase via `pr_submit.sh` / `rebase_helper.py`); GitHub's strict protection requires up-to-date.

@@ -66,3 +66,22 @@ the gate (as GitHub CI) and merges.
 
 Do 4-8 units, then STOP. Report per unit: FW, class, mangled, addr, deps (proof they were ported),
 branch + PR number/URL, local GATE result.
+
+## REBASE-TASK MODE (when the coordinator dispatches you to rebase a specific PR, not to port)
+If your brief says "rebase PR #N" instead of "port units", you are fixing a stale-base PR whose
+shared CLASS BODY conflicts with main (rebase_helper couldn't union it — that's why it came to you, a
+worker: re-applying methods into a class body is AUTHOR work). Do EXACTLY this ONE PR, then STOP:
+1. `bash raw-port/army/tools/rebase_pr.sh <PR#>` — it tries the mechanical paths first; for a
+   shared-class conflict it prints `REBASE_MANUAL` and PREPARES a pool worktree $WT starting from
+   CURRENT origin/main, plus the branch's version of each conflicting file at /tmp/rebase_pr_<PR>_theirs/.
+   (If it prints REBASE_CLEAN or REBASE_UNION, it already force-pushed — you are DONE, just report.)
+2. For each conflicting file: open `$WT/<file>` (= main's CURRENT class, with main's methods intact)
+   and `/tmp/rebase_pr_<PR>_theirs/<file>` (= the branch's version). With the edit tool, ADD ONLY the
+   branch's net-new methods (the ones NOT already on main) into main's class body. NEVER delete main's
+   methods (that would just re-create the regression). Keep every @0xADDR provenance line.
+3. `bash raw-port/army/gate/gate.sh <file>` in $WT — must print GATE: PASS.
+4. `git -C "$WT" add -A && git -C "$WT" commit -q -m "rebase <branch> onto origin/main (re-apply net-new methods)"`
+5. `git -C "$WT" push -f origin "HEAD:<branch>"` — force-pushes the SAME branch, so PR #N updates IN
+   PLACE (do NOT open a new PR). Then `bash raw-port/army/tools/wt_pool.sh release "$WT"`.
+6. STOP. The reviewer re-gates PR #N (now rebased) and merges it. Report: PR#, files reconciled,
+   net-new methods you re-applied, gate result, force-push confirmation.
