@@ -12,11 +12,16 @@
 // PROVENANCE / DECODE:
 //   raw-port/re/disasm/Helium.__ZN3arbL4achrEPKcc.s   (arb::achr, ported here)
 //   raw-port/re/disasm/Helium.__ZN3arbL4aidxEPKcPjS2_.s (arb::aidx, ported here)
+//   raw-port/re/disasm/Helium.__ZN3arbL9isepsilonEPKcS1_j.s (arb::isepsilon,
+//                                                            ported here)
 //
 // SYMBOLS PORTED IN THIS FILE
 //   0x000d35b0 t __ZN3arbL4achrEPKcc      arb::achr(char const*, char)
 //   0x000d30a0 t __ZN3arbL4aidxEPKcPjS2_  arb::aidx(char const*, unsigned int*,
 //                                                   unsigned int*)
+//   0x000d6dd0 t __ZN3arbL9isepsilonEPKcS1_j
+//                                         arb::isepsilon(char const*,
+//                                                   char const*, unsigned int)
 //
 // SIBLING SYMBOLS IN THE SAME NAMESPACE (each its own ledger unit — still
 // `todo`, deliberately NOT written here):
@@ -39,10 +44,13 @@
 //   0x000d8030 t arb::obj_write_symbol(...)
 //   0x000d8db0 t arb::obj_write_ssat(...)
 //
-// FRONTIER CALLEES: none.  arb::achr and arb::aidx are both leaves — neither
+// FRONTIER CALLEES: arb::achr and arb::aidx are both leaves — neither
 // disassembly contains a `callq` or an indirect branch, only loads, compares
 // and jumps.  `depgraph.py deps __ZN3arbL4aidxEPKcPjS2_` reports nothing at
 // all (0 in-scope callees, 0 externs, 0 indirect), matching the listing.
+// arb::isepsilon calls exactly one thing, the libSystem extern `_strncmp`
+// (@0xd6ef8 and @0xd6f10 via the Helium stub 0x3c5618); it has no in-scope
+// callee and no indirect branch either.
 //
 // ── POINTER MODEL ────────────────────────────────────────────────────────
 // `char const*` is modelled as a (Uint8Array, index) pair and the returned
@@ -650,4 +658,424 @@ export function arb_aidx(
   p = p + 1;
   // 0xd31dd xorl %eax,%eax / 0xd31df cmpb $0x5d,%cl / 0xd31e2 cmoveq %rdi,%rax
   return ch === ARB_RBRACKET ? p : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// arb::isepsilon(char const*, char const*, unsigned int)  —  Helium @0xd6dd0
+// ─────────────────────────────────────────────────────────────────────────
+// PROVENANCE: raw-port/re/disasm/Helium.__ZN3arbL9isepsilonEPKcS1_j.s
+//
+// FRONTIER CALLEES: `_strncmp` only (libSystem libc, called @0xd6ef8 and
+// @0xd6f10 through the Helium stub at 0x3c5618).  Modelled below by
+// {@link arb_strncmp}, a local transcription of the C-standard semantics —
+// the same treatment HGLogger.ts gives `_strcmp`.  There is no other call
+// and no indirect branch in the body.
+//
+// STATIC DATA REFERENCED:
+//   __ZL5ctype   Helium @0x3ce930 (__TEXT,__const; internal linkage)
+//     A 256-entry, 2-BYTE-STRIDE character table.  isepsilon touches only
+//     the EVEN lane, `ctype[2*c]`, via `cmpb $0x0,(%rdx,%rsi,2)` @0xd6f47,
+//     and only its SIGN BIT (`js` @0xd6f4b).  That lane is reproduced
+//     verbatim as {@link ARB_CTYPE_EVEN} below.
+//   "9.999999975e-07"  Helium @0x8dcb65 (__TEXT,__cstring), 15 bytes —
+//     the `leaq 0x805c75(%rip)` @0xd6ee9 resolves to 0xd6ef0 + 0x805c75.
+//   "1e-6"             Helium @0x8dcb75 (__TEXT,__cstring), 4 bytes —
+//     the `leaq 0x805c6d(%rip)` @0xd6f01 resolves to 0xd6f08 + 0x805c6d.
+//   Both `movl` byte counts (0xf @0xd6ef0 and 0x4 @0xd6f08) equal the
+//   literals' exact lengths, so each strncmp is a PREFIX test.
+//
+// ── THE THIRD PARAMETER IS DEAD ──────────────────────────────────────────
+// The SysV ABI puts the `unsigned int` third argument in %edx.  Tracing
+// %edx/%rdx from the entry at 0xd6dd0, the first access is the WRITE
+// `leal -0x21(%rax),%edx` @0xd6df6 (or `movzbl 0x1(%rbx),%edx` @0xd6e7d on
+// the 0xd6de1 bail-out path).  It is never read.  The parameter is kept in
+// the port's signature to preserve the ABI-visible arity.
+//
+// ── WHAT isepsilon DOES ──────────────────────────────────────────────────
+// `b` is a component selector such as ".x" / ".g" / ".w"; `a` is either a
+// brace-enclosed constant list `{ v0, v1, v2, v3 }` or a bare scalar.  The
+// function answers: "is the component that `b` selects equal to the ARB
+// epsilon literal?"  It does so by
+//   1. parsing `.` + one component letter out of `b`, mapping it to an
+//      index in %ecx — x/r -> 0, y/g -> 1, z/b -> 2, everything else -> 3
+//      (the pre-set default, which is also the correct index for w/a);
+//   2. if `a` starts with `{`, stepping into the list;
+//   3. skipping (index) comma-separated entries so the cursor lands on the
+//      selected one — except for index 0, which needs no skipping and is
+//      signalled by the %al flag set alongside %ecx=0 @0xd6e66/0xd6e68;
+//   4. prefix-comparing the cursor against the two epsilon spellings.
+// Whitespace and `#`-to-end-of-line comments are skipped at every step,
+// using the same two byte-class predicates as {@link arb_achr}.
+
+/**
+ * Even lane of `__ZL5ctype` — Helium @0x3ce930 (__TEXT,__const), read as
+ * `ctype[2*c]` by `cmpb $0x0,(%rdx,%rsi,2)` @0xd6f47.
+ *
+ * Extracted from the x86_64 slice (fat offset 0x4000, __TEXT,__const at
+ * vmaddr 0x3c7b80 / file offset 0x3c7000), i.e. file offset 0x3d2930,
+ * taking byte `2*c` of the 512-byte table for c = 0..255.
+ *
+ * isepsilon consumes ONLY bit 7 (the `js` sign test @0xd6f4b).  The bytes
+ * whose bit 7 is set are exactly
+ *     '+'  '-'  '.'  '0'-'9'  'E'  'e'
+ * — the character set of a floating-point literal, which is what the
+ * 0xd6f40 loop is skipping over.  The remaining bits belong to sibling
+ * `arb` routines that are separate ledger units; they are recorded here
+ * verbatim rather than masked away, so the table stays a faithful copy of
+ * the bytes in the binary.
+ */
+const ARB_CTYPE_EVEN = new Uint8Array([
+  /* 0x00 ................ */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0x10 ................ */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0x20  !"#$%&'()*+,-./ */ 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x80, 0x80, 0x00,
+  /* 0x30 0123456789:;<=>? */ 0xd0, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0x40 @ABCDEFGHIJKLMNO */ 0x00, 0x5a, 0x5b, 0x5c, 0x5d, 0xde, 0x5f, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+  /* 0x50 PQRSTUVWXYZ[\]^_ */ 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x00, 0x00, 0x00, 0x00, 0x40,
+  /* 0x60 `abcdefghijklmno */ 0x00, 0x7a, 0x7b, 0x5c, 0x5d, 0xde, 0x5f, 0x60, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40,
+  /* 0x70 pqrstuvwxyz{|}~. */ 0x40, 0x40, 0x60, 0x40, 0x40, 0x40, 0x40, 0x60, 0x60, 0x60, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0x80 ................ */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0x90 ................ */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0xa0 ................ */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0xb0 ................ */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0xc0 ................ */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0xd0 ................ */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0xe0 ................ */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  /* 0xf0 ................ */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+]);
+
+/** `'{'` — the constant-list opener, tested @0xd6e6a and @0xd6e78. */
+const ARB_LBRACE = 0x7b;
+/** `','` — the constant-list separator, tested @0xd6f9b. */
+const ARB_COMMA = 0x2c;
+// `'.'` (0x2e), the component-selector prefix tested @0xd6dde, is already
+// declared above as ARB_DOT for arb::aidx's `[n..m]` range syntax.
+
+/** `"9.999999975e-07"` — Helium @0x8dcb65, 15 bytes (strncmp n=0xf @0xd6ef0). */
+const ARB_EPSILON_LONG = "9.999999975e-07";
+/** `"1e-6"` — Helium @0x8dcb75, 4 bytes (strncmp n=0x4 @0xd6f08). */
+const ARB_EPSILON_SHORT = "1e-6";
+
+/**
+ * `_strncmp(char const*, char const*, size_t)` — libSystem libc, reached
+ * through the Helium stub at 0x3c5618 (call sites @0xd6ef8 and @0xd6f10).
+ *
+ * Out-of-scope extern, so its C-standard behaviour is transcribed here
+ * rather than deferred: compare at most `n` bytes, stopping early at the
+ * first difference or at a shared NUL, and report the sign of the
+ * difference of the two bytes read as `unsigned char`.
+ *
+ * Both call sites pass `n` equal to the literal's exact length, and the
+ * literals are pure ASCII, so `lit.charCodeAt(i)` is the byte value.
+ */
+function arb_strncmp(
+  s: Uint8Array,
+  sIndex: number,
+  lit: string,
+  n: number
+): number {
+  for (let i = 0; i < n; i++) {
+    const x = s[sIndex + i];
+    const y = lit.charCodeAt(i);
+    if (x !== y) return x < y ? -1 : 1;
+    if (x === 0) return 0;
+  }
+  return 0;
+}
+
+/**
+ * arb::isepsilon(char const*, char const*, unsigned int)  —  Helium @0xd6dd0
+ * (internal linkage).
+ *
+ * Faithful transcription of
+ * raw-port/re/disasm/Helium.__ZN3arbL9isepsilonEPKcS1_j.s.
+ * Register map: %rbx = the cursor into `a`, %rsi = the cursor into `b`,
+ * %ecx = the component index, %al = the "component index is 0" flag,
+ * %rdx/%rdi = scratch cursors for the comment scanners.
+ *
+ * Control-flow skeleton (labels as used in the comments below):
+ *   0xd6dd9  movl  $0x3, %ecx                ; default component index = 3
+ *   0xd6dde  cmpb  $0x2e, (%rsi) ; jne E76   ; `b` must start with '.'
+ *   0xd6de7  movzbl 0x1(%rsi), %eax ; je E76 ; ...and not end there
+ *  P:0xd6df6  <skip whitespace / comments in `b`>       (pre-form, bail=E76)
+ *  R:0xd6e39  addl  $-0x62, %eax ; cmpl $0x18 ; ja E76  ; letter in 'b'..'z'
+ *   0xd6e46  btl   %eax, $0x410000  ; jb E66  ; 'r','x' -> index 0, flag 1
+ *   0xd6e50  btl   %eax, $0x800020  ; jb E71  ; 'g','y' -> index 1
+ *   0xd6e5a  btl   %eax, $0x1000001 ; jae E76 ; 'b','z' -> index 2, else 3
+ *  E76:0xd6e76 xorl %eax,%eax                 ; flag = 0
+ *   0xd6e6a/0xd6e78  cmpb $0x7b,(%rbx) ; jne EE9   ; `a` starts with '{'?
+ *  E7D:0xd6e7d <skip whitespace / comments in `a`>      (post-form) -> EE5
+ *  EE5:0xd6ee5 testb %al,%al ; je F31            ; index 0 needs no skipping
+ *  F31:0xd6f31 <skip index entries of the '{' list>     -> EE9
+ *  EE9:0xd6ee9 strncmp against the two epsilon spellings
+ *
+ * The `jb`/`jae` pairs on the byte-class tests (0xd6dfc/0xd6e0d,
+ * 0xd6e8f/0xd6eae/0xd6ee1, 0xd6f5b/0xd6f6e, 0xd6fb6/0xd6fce/0xd7001) are
+ * the same two predicates {@link arb_isSkippable} /
+ * {@link arb_isSkippableLoop} that {@link arb_achr} decodes; see the byte
+ * class discussion at the top of this file.
+ *
+ * @param a NUL-terminated buffer holding the constant / list (%rdi).
+ * @param aIndex cursor into `a`.
+ * @param b NUL-terminated buffer holding the `.c` selector (%rsi).
+ * @param bIndex cursor into `b`.
+ * @param _unusedEdx the third `unsigned int` parameter — never read by
+ *        this build (see the DEAD PARAMETER note above).
+ * @returns true iff the selected component's text begins with
+ *          `"9.999999975e-07"` or `"1e-6"`.
+ */
+export function arb_isepsilon(
+  a: Uint8Array,
+  aIndex: number,
+  b: Uint8Array,
+  bIndex: number,
+  _unusedEdx: number
+): boolean {
+  // 0xd6dd6  movq %rdi, %rbx
+  let p = aIndex;
+  // 0xd6dd9  movl $0x3, %ecx — the default index, which is also w/a's index.
+  let comp = 3;
+  // %al at the E66/E76 join: 1 only on the E66 (index 0) path.
+  let flag = 0;
+  // %rsi
+  let q = bIndex;
+  // %al / %eax while scanning `b`
+  let ch = 0;
+
+  // `selector:` is the E76 join — every bail-out below lands there with
+  // %ecx untouched (still 3) and %eax about to be zeroed.
+  selector: {
+    // 0xd6dde  cmpb $0x2e, (%rsi) ; 0xd6de1 jne 0xd6e76
+    if (b[q] !== ARB_DOT) break selector;
+    // 0xd6de7  movzbl 0x1(%rsi), %eax ; 0xd6deb testb ; 0xd6ded je 0xd6e76
+    ch = b[q + 1];
+    if (ch === 0) break selector;
+    // 0xd6df3  incq %rsi
+    q = q + 1;
+
+    // P @0xd6df6 — skip whitespace and comments (pre-form: a comment that
+    // runs to end-of-input bails to E76 @0xd6e26).
+    for (;;) {
+      // 0xd6df6/0xd6dfc  jb 0xd6e0f
+      if (arb_isSkippable(ch)) {
+        do {
+          ch = b[q + 1]; // 0xd6e00
+          q = q + 1; //     0xd6e04
+        } while (arb_isSkippableLoop(ch)); // 0xd6e0a/0xd6e0d
+      }
+      // 0xd6e0f  cmpb $0x23, %al ; 0xd6e11 jne 0xd6e36
+      if (ch !== ARB_COMMENT) break;
+      // 0xd6e13  movq %rsi, %rdx
+      let r = q;
+      for (;;) {
+        ch = b[r + 1]; // 0xd6e20
+        // 0xd6e24/0xd6e26  je 0xd6e76
+        if (ch === 0) break selector;
+        const atNewline = b[r] === ARB_NEWLINE; // 0xd6e2c
+        r = r + 1; //                              0xd6e28/0xd6e2f
+        if (atNewline) break; //                   0xd6e32
+      }
+      q = r; // 0xd6e34  jmp 0xd6df6
+    }
+
+    // R @0xd6e36  movzbl %al,%eax ; 0xd6e39 addl $-0x62,%eax
+    const k = ch - 0x62;
+    // 0xd6e3c  cmpl $0x18, %eax ; 0xd6e3f ja  — unsigned, so k < 0 also bails.
+    if ((k >>> 0) > 0x18) break selector;
+    // 0xd6e41/0xd6e46  btl %eax, $0x410000 ; jb 0xd6e66   -> bits 16,22 = 'r','x'
+    if (((0x410000 >>> k) & 1) !== 0) {
+      // E66 @0xd6e66
+      comp = 0; //  0xd6e66  xorl %ecx, %ecx
+      flag = 1; //  0xd6e68  movb $0x1, %al
+      // 0xd6e6a  cmpb $0x7b,(%rbx) ; 0xd6e6d jne 0xd6ee9
+      if (a[p] !== ARB_LBRACE) return arb_isepsilon_compare(a, p);
+      // 0xd6e6f  jmp 0xd6e7d — skip the E76 `xorl %eax,%eax`.
+      return arb_isepsilon_afterBrace(a, p, comp, flag);
+    }
+    // 0xd6e4b/0xd6e50  btl %eax, $0x800020 ; jb 0xd6e71   -> bits 5,23 = 'g','y'
+    if (((0x800020 >>> k) & 1) !== 0) {
+      comp = 1; // E71 @0xd6e71  movl $0x1, %ecx  (falls through into E76)
+      break selector;
+    }
+    // 0xd6e55/0xd6e5a  btl %eax, $0x1000001 ; jae 0xd6e76 -> bits 0,24 = 'b','z'
+    if (((0x1000001 >>> k) & 1) === 0) break selector;
+    comp = 2; // 0xd6e5f  movl $0x2, %ecx ; 0xd6e64 jmp 0xd6e76
+  }
+
+  // E76 @0xd6e76  xorl %eax, %eax
+  flag = 0;
+  // 0xd6e78  cmpb $0x7b, (%rbx) ; 0xd6e7b jne 0xd6ee9
+  if (a[p] !== ARB_LBRACE) return arb_isepsilon_compare(a, p);
+  return arb_isepsilon_afterBrace(a, p, comp, flag);
+}
+
+/**
+ * The `{`-list tail of arb::isepsilon — Helium @0xd6e7d..0xd700d.
+ *
+ * Split out of {@link arb_isepsilon} only because the disassembly reaches
+ * it from TWO `cmpb $0x7b,(%rbx)` sites (0xd6e6d's fall-through @0xd6e6f
+ * and 0xd6e7b's fall-through) that carry different %eax values; the
+ * instruction sequence itself is unchanged and unshared with anything else.
+ *
+ * @param p cursor at the `{` (%rbx).
+ * @param comp the component index in %ecx.
+ * @param flag the %al flag — 1 iff the index is 0 and no entry-skipping is
+ *        needed.
+ */
+function arb_isepsilon_afterBrace(
+  a: Uint8Array,
+  p: number,
+  comp: number,
+  flag: number
+): boolean {
+  // E7D @0xd6e7d  movzbl 0x1(%rbx),%edx ; 0xd6e81 incq %rbx
+  let ch = a[p + 1];
+  p = p + 1;
+  // 0xd6e84/0xd6e86  je 0xd6ee5
+  if (ch !== 0) {
+    // 0xd6e88..0xd6ee3 — post-form skip: whitespace, then comments, then
+    // back around; every exit falls into EE5 @0xd6ee5.
+    for (;;) {
+      // 0xd6e88/0xd6e8f jb 0xd6eb0   and   0xd6eda/0xd6ee1 jae 0xd6ea0
+      if (arb_isSkippable(ch)) {
+        do {
+          ch = a[p + 1]; // 0xd6ea0
+          p = p + 1; //     0xd6ea4
+        } while (arb_isSkippableLoop(ch)); // 0xd6ea7/0xd6eae
+      }
+      // 0xd6eb0  cmpb $0x23,%dl ; 0xd6eb3 jne 0xd6ee5
+      if (ch !== ARB_COMMENT) break;
+      // 0xd6eb5  incq %rbx
+      p = p + 1;
+      let endOfInput = false;
+      for (;;) {
+        ch = a[p]; // 0xd6ec0
+        // 0xd6ec3/0xd6ec5  je 0xd6ee5
+        if (ch === 0) {
+          endOfInput = true;
+          break;
+        }
+        const prevWasNewline = a[p - 1] === ARB_NEWLINE; // 0xd6ecb
+        p = p + 1; //                                       0xd6ec7/0xd6ecf
+        if (prevWasNewline) break; //                       0xd6ed2
+      }
+      if (endOfInput) break;
+      // 0xd6ed4  decq %rsi ; 0xd6ed7 movq %rsi, %rbx
+      p = p - 1;
+    }
+  }
+
+  // EE5 @0xd6ee5  testb %al, %al ; 0xd6ee7 je 0xd6f31
+  if (flag !== 0) return arb_isepsilon_compare(a, p);
+
+  // F31 @0xd6f31  leaq __ZL5ctype(%rip), %rdx — loop-invariant base.
+  for (;;) {
+    // 0xd6f38  decq %rbx — also the `jne 0xd6f38` loop-back target.
+    p = p - 1;
+    // 0xd6f40 — skip the entry's number text: advance while the ctype even
+    // lane's sign bit is set (`cmpb $0x0,(%rdx,%rsi,2)` ; `js`).
+    let e: number;
+    do {
+      e = a[p + 1]; // 0xd6f40  movzbl 0x1(%rbx), %esi
+      p = p + 1; //    0xd6f44  incq %rbx
+    } while ((ARB_CTYPE_EVEN[e] & 0x80) !== 0); // 0xd6f47/0xd6f4b js
+
+    // 0xd6f4d  xorl %eax, %eax — false is the result for every exit below.
+    // 0xd6f4f/0xd6f52  je 0xd6f1e
+    if (e === 0) return false;
+
+    // 0xd6f54 — pre-form skip: whitespace, then comments (a comment running
+    // to end-of-input returns false @0xd6f87).
+    for (;;) {
+      // 0xd6f54/0xd6f5b  jb 0xd6f70
+      if (arb_isSkippable(e)) {
+        do {
+          e = a[p + 1]; // 0xd6f60
+          p = p + 1; //    0xd6f64
+        } while (arb_isSkippableLoop(e)); // 0xd6f67/0xd6f6e
+      }
+      // 0xd6f70  cmpb $0x23,%sil ; 0xd6f74 jne 0xd6f97
+      if (e !== ARB_COMMENT) break;
+      // 0xd6f76  movq %rbx, %rdi
+      let r = p;
+      for (;;) {
+        e = a[r + 1]; // 0xd6f80
+        // 0xd6f84/0xd6f87  je 0xd6f1e
+        if (e === 0) return false;
+        const atNewline = a[r] === ARB_NEWLINE; // 0xd6f8d
+        r = r + 1; //                              0xd6f89/0xd6f90
+        if (atNewline) break; //                   0xd6f93
+      }
+      p = r; // 0xd6f95  jmp 0xd6f54
+    }
+
+    // 0xd6f97/0xd6f9b  cmpl $0x2c, %esi ; 0xd6f9e jne 0xd6f1e
+    if (e !== ARB_COMMA) return false;
+
+    // 0xd6fa4  movzbl 0x1(%rbx),%eax ; 0xd6fa8 incq %rbx
+    let f = a[p + 1];
+    p = p + 1;
+    // 0xd6fab/0xd6fad  je 0xd7005
+    if (f !== 0) {
+      // 0xd6faf..0xd7003 — the same post-form skip as 0xd6e88; every exit
+      // falls into 0xd7005.
+      for (;;) {
+        // 0xd6faf/0xd6fb6 jb 0xd6fd0  and  0xd6ffa/0xd7001 jae 0xd6fc0
+        if (arb_isSkippable(f)) {
+          do {
+            f = a[p + 1]; // 0xd6fc0
+            p = p + 1; //    0xd6fc4
+          } while (arb_isSkippableLoop(f)); // 0xd6fc7/0xd6fce
+        }
+        // 0xd6fd0  cmpb $0x23,%al ; 0xd6fd2 jne 0xd7005
+        if (f !== ARB_COMMENT) break;
+        // 0xd6fd4  incq %rbx
+        p = p + 1;
+        let endOfInput = false;
+        for (;;) {
+          f = a[p]; // 0xd6fe0
+          // 0xd6fe3/0xd6fe5  je 0xd7005
+          if (f === 0) {
+            endOfInput = true;
+            break;
+          }
+          const prevWasNewline = a[p - 1] === ARB_NEWLINE; // 0xd6feb
+          p = p + 1; //                                       0xd6fe7/0xd6fef
+          if (prevWasNewline) break; //                       0xd6ff2
+        }
+        if (endOfInput) break;
+        // 0xd6ff4  decq %rsi ; 0xd6ff7 movq %rsi, %rbx
+        p = p - 1;
+      }
+    }
+
+    // 0xd7005  decl %ecx ; 0xd7007 jne 0xd6f38
+    comp = (comp - 1) | 0;
+    if (comp === 0) break;
+  }
+  // 0xd700d  jmp 0xd6ee9
+  return arb_isepsilon_compare(a, p);
+}
+
+/**
+ * The EE9 tail of arb::isepsilon — Helium @0xd6ee9..0xd6f30.
+ *
+ * Split out because the disassembly branches into it from four sites
+ * (0xd6e6d, 0xd6e7b, 0xd6ee5's fall-through and 0xd700d); the instruction
+ * sequence is a single straight-line pair of `strncmp` prefix tests.
+ *
+ *   0xd6ee9  leaq "9.999999975e-07"(%rip), %rsi
+ *   0xd6ef0  movl $0xf, %edx
+ *   0xd6ef8  callq _strncmp        ; 0xd6eff je 0xd6f25 -> return 1
+ *   0xd6f01  leaq "1e-6"(%rip), %rsi
+ *   0xd6f08  movl $0x4, %edx
+ *   0xd6f10  callq _strncmp
+ *   0xd6f1b  sete %al              ; return (result == 0)
+ */
+function arb_isepsilon_compare(a: Uint8Array, p: number): boolean {
+  // 0xd6ef8  callq _strncmp ; 0xd6efd testl ; 0xd6eff je 0xd6f25
+  if (arb_strncmp(a, p, ARB_EPSILON_LONG, 0xf) === 0) {
+    return true; // 0xd6f25  movl $0x1, %eax
+  }
+  // 0xd6f10  callq _strncmp ; 0xd6f19 testl ; 0xd6f1b sete %al
+  return arb_strncmp(a, p, ARB_EPSILON_SHORT, 0x4) === 0;
 }
