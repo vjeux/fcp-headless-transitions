@@ -184,6 +184,80 @@ function CFRelease(_cf: CFStringRef): void {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CoreFoundation externs used by flattenDictionary (all TRUE out-of-scope). Each is
+// a CoreFoundation.framework boundary stub — the JS surrogate has no CF runtime (no
+// CFDictionary/CFString/CFNumber byte model), so each is a documented boundary throw
+// citing its @ProCore stub, exactly like the copyMetadata/createParsedHDRMetadata
+// externs above. `operator new[]`/`operator delete[]` are libc (out-of-scope) too.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Opaque CoreFoundation type identifier (`CFTypeID`, an unsigned long). Compared for
+ *  equality only. Kept as bigint since CFTypeID is a machine-word-sized value. */
+type CFTypeID = bigint;
+
+/** `_CFDictionaryGetCount(dict)` — CoreFoundation extern, ProCore stub 0xddf9a
+ *  (@ProCore 0xb5b38). TRUE out-of-scope extern. Returns the entry count (CFIndex). */
+function CFDictionaryGetCount(_dict: CFDictionaryRef): number {
+  throw new Error(
+    "_CFDictionaryGetCount is a CoreFoundation extern with no pure-JS equivalent " +
+      "(@ProCore stub 0xddf9a).",
+  );
+}
+/** `_CFDictionaryGetKeysAndValues(dict, keys, values)` — CoreFoundation extern, ProCore
+ *  stub 0xddfa6 (@ProCore 0xb5b76). TRUE out-of-scope extern. Fills the caller's two
+ *  parallel pointer arrays with the dictionary's keys and values. */
+function CFDictionaryGetKeysAndValues(
+  _dict: CFDictionaryRef,
+  _keys: unknown[],
+  _values: unknown[],
+): void {
+  throw new Error(
+    "_CFDictionaryGetKeysAndValues is a CoreFoundation extern with no pure-JS " +
+      "equivalent (@ProCore stub 0xddfa6).",
+  );
+}
+/** `_CFGetTypeID(cf)` — CoreFoundation extern, ProCore stub 0xddfd0 (@ProCore 0xb5b90).
+ *  TRUE out-of-scope extern. Returns the CFTypeID of an arbitrary CF object. */
+function CFGetTypeID(_cf: unknown): CFTypeID {
+  throw new Error(
+    "_CFGetTypeID is a CoreFoundation extern with no pure-JS equivalent " +
+      "(@ProCore stub 0xddfd0).",
+  );
+}
+/** `_CFDictionaryGetTypeID()` — CoreFoundation extern, ProCore stub 0xddfac
+ *  (@ProCore 0xb5b98). TRUE out-of-scope extern. Returns the CFDictionary CFTypeID. */
+function CFDictionaryGetTypeID(): CFTypeID {
+  throw new Error(
+    "_CFDictionaryGetTypeID is a CoreFoundation extern with no pure-JS equivalent " +
+      "(@ProCore stub 0xddfac).",
+  );
+}
+/** `_CFStringGetTypeID()` — CoreFoundation extern, ProCore stub 0xde0d2
+ *  (@ProCore 0xb5bb0). TRUE out-of-scope extern. Returns the CFString CFTypeID. */
+function CFStringGetTypeID(): CFTypeID {
+  throw new Error(
+    "_CFStringGetTypeID is a CoreFoundation extern with no pure-JS equivalent " +
+      "(@ProCore stub 0xde0d2).",
+  );
+}
+/** `_CFStringGetLength(str)` — CoreFoundation extern, ProCore stub 0xde0c6
+ *  (@ProCore 0xb5bbd). TRUE out-of-scope extern. Returns the string's length (CFIndex). */
+function CFStringGetLength(_str: unknown): number {
+  throw new Error(
+    "_CFStringGetLength is a CoreFoundation extern with no pure-JS equivalent " +
+      "(@ProCore stub 0xde0c6).",
+  );
+}
+/** `_CFNumberGetTypeID()` — CoreFoundation extern, ProCore stub 0xddfe2
+ *  (@ProCore 0xb5bc7). TRUE out-of-scope extern. Returns the CFNumber CFTypeID. */
+function CFNumberGetTypeID(): CFTypeID {
+  throw new Error(
+    "_CFNumberGetTypeID is a CoreFoundation extern with no pure-JS equivalent " +
+      "(@ProCore stub 0xddfe2).",
+  );
+}
+
 export class PCAtomMetadataHandler {
   // +0x88: the atom-metadata dictionary (a CFDictionaryRef) that copyMetadata() copies.
   metadata!: CFDictionaryRef; // field @+0x88
@@ -322,6 +396,126 @@ export class PCAtomMetadataHandler {
 
     // @0xb5026  return out.
     return out;
+  }
+
+  /**
+   * PCAtomMetadataHandler::flattenDictionary(__CFDictionary const*, __CFDictionary*)
+   * @0xADDR ProCore 0x00000000000b5b0c
+   *   (__ZN21PCAtomMetadataHandler17flattenDictionaryEPK14__CFDictionaryPS0_)
+   *
+   * Recursively flattens a (possibly nested) source CFDictionary into a flat
+   * destination CFDictionary: it walks every value, recursing into sub-dictionaries
+   * and copying scalar leaves — non-empty CFStrings and any CFNumber — under their
+   * key. (Empty strings and every other CF type are dropped.) Instance method, but
+   * `this` is used only to recurse on itself; the work is on the two CF-dictionary
+   * arguments.
+   *
+   * DECODE (raw-port/re/disasm/…flattenDictionaryEPK14__CFDictionaryPS0_.s, 87 lines):
+   *   0xb5b1d  testq %rdi,%rdi ; sete %al                 ; source == NULL ?
+   *   0xb5b23  movq  %rsi,-0x38(%rbp)                     ; save dest
+   *   0xb5b27  testq %rsi,%rsi ; sete %cl                 ; dest == NULL ?
+   *   0xb5b2d  orb   %al,%cl ; jne 0xb5c0c                ; if either NULL -> return
+   *   0xb5b38  callq _CFDictionaryGetCount(source) -> r14 ; count
+   *   0xb5b40..0xb5b4f  size = count*8 (overflow-guarded): shlq $0x20 ; movq $-1,%r15 ;
+   *            cmovnsq %rax,%r15 ; sarq $0x1d,%r15        ; -> byte size for count 8-byte ptrs
+   *   0xb5b56  rbx = operator new[](size)                 ; keys[]  array
+   *   0xb5b61  r12 = operator new[](size)                 ; values[] array
+   *   0xb5b76  _CFDictionaryGetKeysAndValues(source, keys, values)
+   *   0xb5b7b  testl %r14d,%r14d ; jle 0xb5bed            ; if count <= 0 skip loop
+   *   0xb5b80  andl $0x7fffffff,%r14d                     ; count masked to 31 bits (loop bound)
+   *   0xb5b87  xorl %ebx,%ebx                             ; i = 0
+   *   loop @0xb5b89:
+   *     0xb5b89  r13 = values[i]                          ; movq (%r12,%rbx,8),%r13
+   *     0xb5b90  r15 = CFGetTypeID(r13)
+   *     0xb5b98  cmpq CFDictionaryGetTypeID() ; jne 0xb5bb0
+   *     0xb5ba2  flattenDictionary(values[i], dest) ; jmp 0xb5be5   ; recurse into sub-dict
+   *     0xb5bb0  cmpq CFStringGetTypeID()
+   *     0xb5bb8  jne 0xb5bc7                              ; not a string -> try number
+   *     0xb5bba  CFStringGetLength(values[i]) ; testq ; jg 0xb5bd1  ; non-empty string -> set
+   *     0xb5bc7  cmpq CFNumberGetTypeID() ; jne 0xb5be5  ; a number -> set; else skip
+   *     0xb5bd1  _CFDictionarySetValue(dest, keys[i], values[i])
+   *     0xb5be5  i++ ; cmpq %rbx,%r14 ; jne 0xb5b89       ; loop while i != count
+   *   0xb5bed  delete[] keys  (operator delete[] @stub 0xde6ba)
+   *   0xb5bf6  rdi = values ; jmp operator delete[]        ; tail-delete[] values, return
+   *   0xb5c0c  (early NULL return path) — no allocation, just return.
+   *
+   * NOTE the string test is `(isString && length>0)` then FALL THROUGH into the number
+   * test: `jne 0xb5bc7` when not a string, and after the `jg 0xb5bd1` for a non-empty
+   * string the number branch is skipped by the jump target ordering. So the set happens
+   * iff `(type==CFString && CFStringGetLength>0) || type==CFNumber`.
+   *
+   * FRONTIER CALLEES: all CoreFoundation externs (boundary stubs declared above) —
+   * CFDictionaryGetCount/GetKeysAndValues/SetValue, CFGetTypeID, CFDictionaryGetTypeID,
+   * CFStringGetTypeID, CFStringGetLength, CFNumberGetTypeID — plus libc operator new[]/
+   * delete[] (the JS GC owns the arrays). The only IN-scope callee is the recursive
+   * self-call, transcribed directly. No CF byte model is simulated, so the first CF
+   * call reaches its documented boundary; the walk/recursion control flow is faithful.
+   */
+  flattenDictionary(
+    source: CFDictionaryRef | null,
+    dest: CFDictionaryRef | null,
+  ): void {
+    // @0xb5b1d..0xb5b2f  if (source == NULL || dest == NULL) return.
+    if (source === null || source === undefined) return;
+    if (dest === null || dest === undefined) return;
+
+    // @0xb5b38  count = CFDictionaryGetCount(source).
+    const count = CFDictionaryGetCount(source);
+
+    // @0xb5b40..0xb5b66  keys = new (ptr)[count]; values = new (ptr)[count]. The overflow-
+    // guarded count*8 byte size just backs two count-element pointer arrays; the JS GC
+    // owns them (operator delete[] @0xb5bed/0xb5c07 is a libc extern — no-op here).
+    const keys: unknown[] = new Array<unknown>(count < 0 ? 0 : count);
+    const values: unknown[] = new Array<unknown>(count < 0 ? 0 : count);
+
+    // @0xb5b76  CFDictionaryGetKeysAndValues(source, keys, values).
+    CFDictionaryGetKeysAndValues(source, keys, values);
+
+    // @0xb5b7b  testl %r14d,%r14d ; jle 0xb5bed — skip the loop when count <= 0.
+    if (count <= 0) {
+      // @0xb5bed/0xb5c07  delete[] keys ; delete[] values ; return (GC owns them).
+      return;
+    }
+
+    // @0xb5b80  count masked to 31 bits as the loop bound (i in [0,count)).
+    const n = count & 0x7fffffff;
+    // @0xb5b87  i = 0.
+    for (let i = 0; i < n; i++) {
+      // @0xb5b89  val = values[i].
+      const val = values[i];
+      // @0xb5b90  tid = CFGetTypeID(val).
+      const tid = CFGetTypeID(val);
+
+      // @0xb5b98  if (tid == CFDictionaryGetTypeID()) recurse.
+      if (tid === CFDictionaryGetTypeID()) {
+        // @0xb5ba9  flattenDictionary(val, dest) — in-scope recursion (this-relative call).
+        this.flattenDictionary(val as CFDictionaryRef, dest);
+        // @0xb5bae  jmp to loop-increment.
+        continue;
+      }
+
+      // @0xb5bb0  isString = (tid == CFStringGetTypeID()).
+      // @0xb5bb8/0xb5bc2  set iff (isString && CFStringGetLength(val) > 0) ...
+      let doSet = false;
+      if (tid === CFStringGetTypeID() && CFStringGetLength(val) > 0) {
+        doSet = true;
+      } else if (tid === CFNumberGetTypeID()) {
+        // @0xb5c7/0xb5bcf  ... or (tid == CFNumberGetTypeID()).
+        doSet = true;
+      }
+
+      if (doSet) {
+        // @0xb5bd1..0xb5be0  CFDictionarySetValue(dest, keys[i], values[i]).
+        CFDictionarySetValue(
+          dest,
+          keys[i] as CFStringRef,
+          val as CFStringRef,
+        );
+      }
+      // @0xb5be5  i++ (loop condition cmpq %rbx,%r14 handled by the for-bound).
+    }
+
+    // @0xb5bed/0xb5c07  delete[] keys ; delete[] values ; return (libc; GC owns arrays).
   }
 }
 
