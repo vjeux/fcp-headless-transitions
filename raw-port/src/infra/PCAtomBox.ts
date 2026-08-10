@@ -55,6 +55,11 @@ export class PCAtomBox {
   // +0x18  int  this atom's type id (child match key), compared @0x008fcb in findFirstChild.
   type: number = 0;
 
+  // +0x20  PCAtomBox*  parent link — this atom's enclosing box. Returned verbatim
+  //        by getParent() @0x008bb6 (`movq 0x20(%rdi),%rax`). null when this atom
+  //        has no parent (top-level box).
+  parent: PCAtomBox | null = null;
+
   // +0x30/+0x38  the children pointer-vector [begin,end). The machine derives
   //   count = (end-begin) >> 3 over 8-byte pointers; we model it directly as an array.
   children: (PCAtomBox | null)[] = [];
@@ -218,5 +223,22 @@ export class PCAtomBox {
   setSize(value: bigint): void {
     // @0x008b76 — movq %rsi,0x8(%rdi) : store the u64 size at +0x08.
     this.size = BigInt.asUintN(64, value);
+  }
+
+  /**
+   * PCAtomBox::getParent()
+   * @0xADDR ProCore 0x0000000000008bb2  (__ZN9PCAtomBox9getParentEv)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN9PCAtomBox9getParentEv.s):
+   *   0x008bb2  pushq %rbp ; movq %rsp,%rbp        ; frame
+   *   0x008bb6  movq 0x20(%rdi), %rax              ; rax = *(PCAtomBox**)(this+0x20) = parent
+   *   0x008bba  popq %rbp ; retq                   ; return parent
+   *
+   * A plain pointer-field accessor: returns the atom's enclosing (parent) box.
+   * Zero callees, no externs. Returns null when there is no parent.
+   */
+  getParent(): PCAtomBox | null {
+    // @0x008bb6 — movq 0x20(%rdi),%rax : load the parent pointer at +0x20.
+    return this.parent;
   }
 }
