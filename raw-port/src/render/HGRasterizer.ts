@@ -89,6 +89,10 @@ export interface HGRasterizer {
   /** +0x450  — u32 current GL matrix mode (GL_MODELVIEW / GL_PROJECTION /
    *  other). See OFF_MATRIX_MODE above. */
   matrixMode: number;
+  /** +0x454  — u8 flags byte. Bit 0 (0x1) is the "clear to black" request
+   *  flag, OR'd in by clearToBlack() @0x1981f4 (`orb $0x1, 0x454(%rdi)`).
+   *  Other bits are unmapped so far. */
+  flags0x454: number;
 }
 
 /** A GL_PROJECTION stack slot at rasterizer+0x1b0+8*i is a pointer-to-
@@ -205,4 +209,24 @@ export function HGRasterizer_rotatef(
   // is an extern boundary @0x1975c0: the concrete virtual target is not
   // yet transcribed.
   ctrl.rotate(angleD, xD, yD, zD);
+}
+
+/**
+ * HGRasterizer::clearToBlack() @Helium 0x1981f0  (__ZN12HGRasterizer12clearToBlackEv)
+ *
+ * Requests that the rasterizer clear its framebuffer to black by setting bit 0
+ * of the flags byte at +0x454. A deferred flag: the actual clear happens later
+ * when the flag is consumed; this entry point just records the request.
+ *
+ * DECODE (raw-port/re/disasm/Helium.__ZN12HGRasterizer12clearToBlackEv.s):
+ *   0x1981f0  pushq %rbp ; movq %rsp,%rbp        ; frame
+ *   0x1981f4  orb   $0x1, 0x454(%rdi)            ; *(u8*)(this+0x454) |= 0x1
+ *   0x1981fb  popq %rbp ; retq                   ; void
+ *
+ * Zero callees, no externs — a single read-modify-write OR of the low bit into
+ * the +0x454 flags byte. The `orb` is a byte operation, so we mask to 8 bits.
+ */
+export function HGRasterizer_clearToBlack(self: HGRasterizer): void {
+  // 0x1981f4 — orb $0x1, 0x454(%rdi) : set bit 0 of the u8 flags byte at +0x454.
+  self.flags0x454 = (self.flags0x454 | 0x1) & 0xff;
 }
