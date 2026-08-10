@@ -8,6 +8,8 @@
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetPriorityENS_8PriorityE.s (SetPriority)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetResourceENS_8ResourceE.s (SetResource)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetResourceENS_8ResourceE.s (SetResource)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob23SetRenderThreadPriorityENS_20RenderThreadPriorityE.s
+//                                                                       (SetRenderThreadPriority)
 //
 // This file ports ONLY the methods listed under "Symbols ported here" below.
 // HGRenderJob is a large class (fields at offsets 0xc8 and 0xd8 imply at
@@ -23,7 +25,12 @@
 //   uint32_t type;      // offset 0x0c — HGRenderJob::Type enum tag.
 //                       // SetType @0x54514 writes it via `movl %esi, 0xc(%rdi)`.
 //                       // Values not enumerated here; opaque u32.
-//   ...                          // fields 0x10..0xc7 not yet decoded
+//   ...                          // fields 0x10..0x6f not yet decoded
+//   uint32_t renderThreadPriority; // offset 0x70 — HGRenderJob::RenderThreadPriority
+//                       // enum tag. SetRenderThreadPriority @0x544b4 writes it
+//                       // via `movl %esi, 0x70(%rdi)`. Values not enumerated
+//                       // here; opaque u32.
+//   ...                          // fields 0x74..0xc7 not yet decoded
 //   uint64_t userTag;   // offset 0xc8 — a user-supplied tag word; the
 //                       // SetUserTag setter @0x54650 writes to it. The
 //                       // matching getter (GetUserTag) is a separate
@@ -46,10 +53,12 @@
 // -----------------------------------------------------------------------------
 // FRONTIER CALLEES
 // -----------------------------------------------------------------------------
-//   SetUserTag  — none.
-//   SetUserName — `_free` @0x3c513e (libc extern, outside port scope), and
-//                 `_strdup` @0x3c5606 (libc extern, outside port scope). Both
-//                 are modelled as boundary stubs; see externs section below.
+//   SetUserTag              — none.
+//   SetUserName             — `_free` @0x3c513e (libc extern, outside port scope), and
+//                             `_strdup` @0x3c5606 (libc extern, outside port scope). Both
+//                             are modelled as boundary stubs; see externs section below.
+//   SetType                 — none.
+//   SetRenderThreadPriority — none.
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -64,6 +73,8 @@
 //       — HGRenderJob::SetPriority(HGRenderJob::Priority) @Helium 0x544a0
 //   * __ZN11HGRenderJob11SetResourceENS_8ResourceE
 //       — HGRenderJob::SetResource(HGRenderJob::Resource) @Helium 0x54380
+//   * __ZN11HGRenderJob23SetRenderThreadPriorityENS_20RenderThreadPriorityE
+//       — HGRenderJob::SetRenderThreadPriority(HGRenderJob::RenderThreadPriority) @Helium 0x544b0
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — SetUserTag @0x54650
@@ -107,6 +118,19 @@
 // "if the pointer is null, skip the libc call" guard — modelled below with
 // a plain JS truthiness test on the string / stored slot.
 //
+// -----------------------------------------------------------------------------
+// FULL DISASM — SetRenderThreadPriority @0x544b0
+// -----------------------------------------------------------------------------
+//   0x544b0  pushq  %rbp                              ; frame prologue
+//   0x544b1  movq   %rsp, %rbp
+//   0x544b4  movl   %esi, 0x70(%rdi)                  ; this->renderThreadPriority = arg (u32)
+//                                                    ; (%rdi = this, %esi = enum value)
+//   0x544b7  popq   %rbp                              ; epilogue
+//   0x544b8  retq
+//   0x544b9  nopl   (%rax)                            ; padding
+//
+// A pure setter — 6-line body, one 32-bit store, no callees, no branches.
+//
 // LIBC EXTERNS (out-of-scope boundary stubs) — the two symbol stubs above
 // call into libSystem (libc), NOT into any FCP framework. Per the port
 // discipline (see raw-port/army/PORTING_SPEC.md Rule 3 & the DEP-WORKER
@@ -137,6 +161,14 @@ export type HGRenderJobPriority = number;
  * / other setters pin the enum values.
  */
 export type HGRenderJobResource = number;
+
+/**
+ * HGRenderJob::RenderThreadPriority — enum tag stored at +0x70. Values are not
+ * yet enumerated here; SetRenderThreadPriority passes `esi` (an unsigned 32-bit
+ * int) straight into the slot. Model as an opaque u32 alias until a ctor or
+ * other setter pins the enum values.
+ */
+export type HGRenderJobRenderThreadPriority = number;
 
 /**
  * `HGRenderJob` — Helium render job. This file ports the setters listed in
@@ -172,6 +204,12 @@ export class HGRenderJob {
    *  null` because JS has GC'd strings — the machine's owning-pointer
    *  semantics reduce to "the field either holds a string or is null". */
   userName: string | null = null; // @Helium HGRenderJob@0xd8
+
+  /** @Helium HGRenderJob@0x70 — the u32 HGRenderJob::RenderThreadPriority
+   *  enum tag. Written by SetRenderThreadPriority @0x544b4 via a single
+   *  `movl %esi, 0x70(%rdi)`. Zero-initialised to a neutral tag until a
+   *  ctor is transcribed to reveal the true default. */
+  renderThreadPriority: HGRenderJobRenderThreadPriority = 0; // @Helium HGRenderJob@0x70
 
   /**
    * `HGRenderJob::SetUserTag(unsigned long long)` @Helium 0x54650
@@ -341,6 +379,38 @@ export class HGRenderJob {
     // @0x54387..0x54388 — epilogue + retq.
     // ------------------------------------------------------------
     this._resource = resource >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::SetRenderThreadPriority(HGRenderJob::RenderThreadPriority)`
+   *   @Helium 0x544b0
+   *   (__ZN11HGRenderJob23SetRenderThreadPriorityENS_20RenderThreadPriorityE)
+   *
+   * Faithful line-for-line transcription of a 6-line function: writes the
+   * u32 argument to the `renderThreadPriority` slot at `this+0x70`. No
+   * callees, no side effects. From raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob23SetRenderThreadPriorityENS_20RenderThreadPriorityE.s:
+   *
+   *   0x544b0  pushq %rbp                    ; frame prologue
+   *   0x544b1  movq  %rsp, %rbp
+   *   0x544b4  movl  %esi, 0x70(%rdi)        ; this->renderThreadPriority (u32) = esi
+   *   0x544b7  popq  %rbp                    ; epilogue
+   *   0x544b8  retq
+   *   0x544b9  nopl  (%rax)                  ; padding
+   *
+   * @param priority — HGRenderJob::RenderThreadPriority enum value
+   *                   (SysV %esi, u32; the width is `movl`, so a 32-bit
+   *                   store).
+   */
+  SetRenderThreadPriority(priority: HGRenderJobRenderThreadPriority): void {
+    // ------------------------------------------------------------
+    // @0x544b0..0x544b1 — prologue (no TS-visible effect).
+    // @0x544b4 — movl %esi, 0x70(%rdi) : store u32 at offset +0x70.
+    //   Model 32-bit truncation with `>>> 0` so a negative / oversized
+    //   JS number stores the same bit-pattern the machine would.
+    // @0x544b7..0x544b8 — epilogue + retq.
+    // ------------------------------------------------------------
+    this.renderThreadPriority = priority >>> 0;
   }
 }
 

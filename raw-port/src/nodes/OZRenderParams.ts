@@ -50,6 +50,10 @@
 //       — OZRenderParams::setReducedResolutionMedia(bool) @Ozone 0x271970
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams25setReducedResolutionMediaEb.s — 7 lines)
+//   * __ZN14OZRenderParams38setDo3DIntersectionAntialiasingDynamicEb
+//       — OZRenderParams::setDo3DIntersectionAntialiasingDynamic(bool) @Ozone 0x271930
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams38setDo3DIntersectionAntialiasingDynamicEb.s — 10 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -203,6 +207,24 @@ export class OZRenderParams {
    * port will refer to this same slot.
    */
   textRenderQualityDynamicAt1dc: number = 0;
+
+  /**
+   * @Ozone offset +0x1e5 — a one-byte flag written by
+   * `setDo3DIntersectionAntialiasingDynamic(bool)` @0x271934 via
+   * `movb %sil, 0x1e5(%rdi)`. The single-byte width (`movb`) confirms
+   * this is a C++ `bool` / uint8 field.
+   *
+   * The setter also zeroes the two paired PCVector2 slots at +0x188
+   * and +0x198 whenever this flag is written — the SAME two slots
+   * that `setResolution` zeroes. That pairing tells us the flag
+   * gates a resolution-dependent cache: flipping "do 3D-intersection
+   * antialiasing dynamically" invalidates the cached derived
+   * resolution slots so downstream consumers must recompute.
+   *
+   * Preserved as `number` (0..255) here so the exact bit-width the
+   * machine writes is legible; the setter accepts a `bool`.
+   */
+  do3DIntersectionAntialiasingDynamicAt1e5: number = 0;
 
   /**
    * @Ozone offset +0x1a8 — a one-byte flag/mode discriminator, read
@@ -896,5 +918,60 @@ export class OZRenderParams {
     this.zeroedAt198 = { x: 0, y: 0 };
 
     // @0x271843-0x271844 — epilogue + retq.
+  }
+
+  /**
+   * `OZRenderParams::setDo3DIntersectionAntialiasingDynamic(bool)`
+   *   — @Ozone 0x271930
+   *   — __ZN14OZRenderParams38setDo3DIntersectionAntialiasingDynamicEb
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly:
+   *   0x271930  pushq  %rbp                     ; frame prologue
+   *   0x271931  movq   %rsp, %rbp
+   *   0x271934  movb   %sil, 0x1e5(%rdi)         ; this->+0x1e5 = arg (bool, 1 byte)
+   *   0x27193b  xorps  %xmm0, %xmm0              ; xmm0 = 0 (16 zero bytes)
+   *   0x27193e  movups %xmm0, 0x188(%rdi)        ; this[+0x188] = (0, 0)
+   *   0x271945  movups %xmm0, 0x198(%rdi)        ; this[+0x198] = (0, 0)
+   *   0x27194c  popq   %rbp                     ; frame epilogue
+   *   0x27194d  retq
+   *   0x27194e  nop
+   *
+   * SEMANTICS:
+   *   Two-part update:
+   *     1. Writes the incoming C++ `bool` argument (SysV/AAPCS puts scalar
+   *        arg2 in `%rsi`; `bool` occupies the low byte `%sil`) into the
+   *        class slot at +0x1e5.
+   *     2. Zeroes BOTH paired PCVector2<double> slots at +0x188 and +0x198
+   *        (32 bytes total, via two `movups` from a common xored xmm0).
+   *
+   *   The +0x188 / +0x198 pair is the SAME pair that `setResolution` and
+   *   `setResolutionDynamic` (when mode==1) zero. So flipping the
+   *   "do 3D-intersection antialiasing dynamically" flag invalidates the
+   *   downstream derived-resolution cache — the class will re-derive
+   *   those slots the next time a resolution setter runs. This is a
+   *   cache-invalidation pattern: setting the flag forces recomputation
+   *   of whatever depends on it.
+   *
+   * DEPENDENCIES: zero in-scope, zero externs. Pure field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams38setDo3DIntersectionAntialiasingDynamicEb.s (10 lines)
+   */
+  setDo3DIntersectionAntialiasingDynamic(doDynamic: boolean): void {
+    // @0x271934  movb %sil,0x1e5(%rdi)
+    //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
+    this.do3DIntersectionAntialiasingDynamicAt1e5 = doDynamic ? 1 : 0;
+
+    // @0x27193b  xorps %xmm0,%xmm0             ; xmm0 = 0
+    // @0x27193e  movups %xmm0,0x188(%rdi)      ; this[+0x188] = (0, 0)
+    // @0x271945  movups %xmm0,0x198(%rdi)      ; this[+0x198] = (0, 0)
+    //
+    // Note on write order: the disasm writes +0x188 BEFORE +0x198,
+    // which is the REVERSE of setResolution's write order but matches
+    // setResolutionDynamic's order. Same zero value going to both, so
+    // the observable state is identical either way; we mirror the
+    // disasm order here.
+    this.zeroedAt188 = { x: 0, y: 0 };
+    this.zeroedAt198 = { x: 0, y: 0 };
   }
 }
