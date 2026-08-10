@@ -175,4 +175,103 @@ export class PCInfo {
     // @0x14b52..0x14b59 — return the cached cpufrequency.
     return PCInfo.getCPUFrequency_cpufrequency;
   }
+
+  /** @ProCore __ZZN6PCInfo12getActiveCPUEvE9predicate — dispatch_once_t guard for
+   *  getActiveCPU's static (BSS). 0 = not yet initialised; -1 = block has run
+   *  (the fast-path sentinel compared at @0x14adc `cmpq $-0x1, predicate`). */
+  private static getActiveCPU_predicate: { value: bigint } = { value: 0n };
+
+  /** @ProCore __ZZN6PCInfo12getActiveCPUEvE9activecpu — cached active-CPU count
+   *  (a signed int; the getter reads it with `movl` @0x14ae6). Written by the
+   *  dispatch_once block; defaults to 1 on any query failure. */
+  private static getActiveCPU_activecpu = 0;
+
+  /**
+   * The dispatch_once block `____ZN6PCInfo12getActiveCPUEv_block_invoke`
+   * @ProCore 0x14af9. Disassembly
+   * (raw-port/re/disasm/ProCore.____ZN6PCInfo12getActiveCPUEv_block_invoke.s):
+   *
+   *   0x14af9  pushq %rbp ; movq %rsp,%rbp ; subq $0x10,%rsp     ; frame
+   *   0x14b01  leaq -0x8(%rbp),%rdx ; movq $0x4,(%rdx)           ; size_t oldlenp = 4
+   *   0x14b0c  leaq "hw.activecpu"(%rip),%rdi                    ; name (@0x131b96)
+   *   0x14b13  leaq activecpu(%rip),%rsi                         ; oldp = &activecpu
+   *   0x14b1a  xorl %ecx,%ecx ; xorl %r8d,%r8d                   ; newp = NULL, newlen = 0
+   *   0x14b1f  callq _sysctlbyname                               ; stub 0xdebbe
+   *   0x14b24  testl %eax,%eax ; jne 0x14b38                     ; if r != 0 -> force 1
+   *   0x14b28  cmpq $0x4,-0x8(%rbp) ; jne 0x14b38                ; if returned size != 4 -> force 1
+   *   0x14b2f  cmpl $0x0, activecpu(%rip) ; jg 0x14b42           ; if activecpu > 0 keep, else...
+   *   0x14b38  movl $0x1, activecpu(%rip)                        ; activecpu = 1
+   *   0x14b42  addq $0x10,%rsp ; popq %rbp ; retq
+   *
+   * i.e. `size_t n = 4; if (sysctlbyname("hw.activecpu", &activecpu, &n, NULL, 0)
+   * != 0 || n != 4 || activecpu <= 0) activecpu = 1;` — query the kernel for the
+   * number of active CPUs; on any failure, unexpected width, or non-positive
+   * value, clamp to 1 (there is always at least one CPU). The `jg` at @0x14b36 is
+   * a SIGNED compare against 0 (`cmpl $0x0,activecpu; jg` = taken iff activecpu > 0).
+   */
+  private static getActiveCPU_block(): void {
+    // @0x14b01..0x14b05 — size_t oldlenp = 4 (sizeof(int)).
+    const oldlen = {
+      _v: 4n,
+      get(): bigint {
+        return this._v;
+      },
+      set(v: bigint) {
+        this._v = v;
+      },
+    };
+    // @0x14b13 — oldp = &activecpu (4-byte int result buffer; sysctlbyname writes
+    //   straight into the static in the binary).
+    const result = new Uint8Array(4);
+    // @0x14b0c..0x14b1f — r = sysctlbyname("hw.activecpu", &result, &oldlen, NULL, 0).
+    //   name string @ProCore 0x131b96 = "hw.activecpu".
+    const r = sysctlbyname("hw.activecpu", result, oldlen, null, 0);
+    // The kernel writes a little-endian int32 into `result`; mirror the static read.
+    const dv = new DataView(result.buffer, result.byteOffset, result.byteLength);
+    const value = dv.getInt32(0, true); // native x86-64 little-endian int
+
+    // @0x14b24..0x14b36 — keep only if (r == 0 && returned size == 4 && value > 0).
+    if (r !== 0 || oldlen.get() !== 4n || value <= 0) {
+      // @0x14b38 — activecpu = 1 on any failure / unexpected width / non-positive.
+      PCInfo.getActiveCPU_activecpu = 1;
+      return;
+    }
+    // @0x14b2f jg 0x14b42 (value > 0) — keep the queried value.
+    PCInfo.getActiveCPU_activecpu = value | 0;
+  }
+
+  /**
+   * `PCInfo::getActiveCPU() -> int` @ProCore 0x14adc
+   * (__ZN6PCInfo12getActiveCPUEv).
+   *
+   * Returns the number of active CPUs, computed once and cached via dispatch_once.
+   * Faithful transcription of the fast/slow split
+   * (raw-port/re/disasm/ProCore.__ZN6PCInfo12getActiveCPUEv.s):
+   *
+   *   0x14adc  cmpq $-0x1, predicate(%rip)   ; already initialised?
+   *   0x14ae4  jne  0x14aed                   ; no -> slow path (.cold.1)
+   *   0x14ae6  movl activecpu(%rip),%eax      ; yes -> return cached int
+   *   0x14aec  retq
+   *   ; --- 0x14aed pushq %rbp ; movq %rsp,%rbp ---
+   *   0x14af1  callq getActiveCPU.cold.1      ; .cold.1: dispatch_once(&predicate, block)
+   *   0x14af6  popq %rbp ; jmp 0x14ae6         ; re-read the now-cached value
+   *   ; --- .cold.1 @0xdd396 ---
+   *   0xdd39a  leaq predicate(%rip),%rdi
+   *   0xdd3a1  leaq ___block_literal_global.3(%rip),%rsi
+   *   0xdd3a9  jmp  _dispatch_once            ; dispatch_once(&predicate, block)
+   *
+   * @returns The active-CPU count (int -> JS number). Always >= 1. The one-time
+   *   init reaches the out-of-scope _sysctlbyname boundary (same policy as
+   *   getCPUFrequency); a host that wires the probe fills the static, else the
+   *   first call surfaces that boundary throw.
+   */
+  static getActiveCPU(): number {
+    // @0x14adc..0x14ae4 — fast path: if predicate == -1 (initialised) skip init.
+    if (PCInfo.getActiveCPU_predicate.value !== -1n) {
+      // @0x14aed..0x14af6 — .cold.1: dispatch_once(&predicate, block), then re-read.
+      dispatch_once(PCInfo.getActiveCPU_predicate, PCInfo.getActiveCPU_block);
+    }
+    // @0x14ae6..0x14aec — movl activecpu(%rip),%eax : return the cached int.
+    return PCInfo.getActiveCPU_activecpu | 0;
+  }
 }
