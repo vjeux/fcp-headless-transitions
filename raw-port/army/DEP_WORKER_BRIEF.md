@@ -39,12 +39,13 @@ the gate (as GitHub CI) and merges.
 
 1. `python3 raw-port/army/tools/depgraph.py deps <mangled>` — confirm every dep is `ported`.
 2. `bash raw-port/tools/disasm.sh --sym <mangled> <FW>` — get the exact body.
-3. Work in an ISOLATED checkout, NEVER the canonical tree (the shared `.git` contention is what
-   wedged worktree-add under load). Prefer a private clone or a /tmp worktree:
-       git -C ~/random/final-cut-pro-transitions worktree add -b port/<Class> /tmp/port_<Class> origin/main
-       cd /tmp/port_<Class>
-   Symlink the node_modules so the gate's tsgo works:
-       for d in engine/node_modules raw-port/node_modules venv; do ln -sfn ~/random/final-cut-pro-transitions/$d $d; done
+3. Work in a WARM POOL worktree, NEVER the canonical tree. Do NOT `git worktree add` per unit (that
+   materializes ~2,579 files and triggers the corp Defender scan-storm that pegged the box). Lease a
+   pre-materialized pool worktree — it comes reset to origin/main with a branch `port/<Class>` cut and
+   node_modules already symlinked:
+       WT=$(bash raw-port/army/tools/wt_pool.sh acquire <Class>)   # prints the worktree path
+       cd "$WT"
+   (acquire block-waits for a free slot; the pool + its warm tsgo cache are reused across units.)
 4. Write the REAL body into raw-port/src/<layer>/<Class>.ts (edit tool). Import the ported callees
    from their real files and CALL them. Transcribe every instruction; @0xADDR on the fn + each const.
    ADD-ONLY when extending an existing class file: `git show origin/main:<path>` first and EXTEND it —
@@ -59,6 +60,7 @@ the gate (as GitHub CI) and merges.
    runs `pr_gate.sh <PR#>` (posts the required `faithfulness-gate` commit status) and, if faithful,
    merges the PR server-side via GitHub. Branch protection (strict/up-to-date, linear, enforce_admins)
    guarantees nothing lands without a green gate. `mark_ported.py` is run post-merge by the reviewer.
+   Then FREE the pool worktree for the next unit: `bash raw-port/army/tools/wt_pool.sh release "$WT"`.
 7. If a dep turns out unported, or an indirect/virtual call is unresolved, STOP that unit and claim
    the next (do NOT stub it; the append-only queue won't re-hand it).
 

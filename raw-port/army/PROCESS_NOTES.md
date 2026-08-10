@@ -1,4 +1,9 @@
 
+> HISTORICAL RECORD (not active instructions). The worktree/merge machinery described below
+> (shared tree → per-agent `git worktree add` → serialized wt_merge) was SUPERSEDED on 2026-08-10:
+> the swarm now uses a WARM WORKTREE POOL (`raw-port/army/tools/wt_pool.sh`) + GitHub PR flow. See
+> PR_FLOW.md. Kept for the debugging journey only.
+
 ## Audit 2026-07-27 (~16:40 PDT) — process gaps found (agents fine, infra broken)
 
 WHAT WORKED (keep):

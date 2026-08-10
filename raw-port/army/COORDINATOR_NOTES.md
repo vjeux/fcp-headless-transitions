@@ -1,4 +1,8 @@
 
+> HISTORICAL RECORD (not active instructions). References to wt_merge/wt_setup/`git worktree add`
+> below describe the OLD local-merge process, DELETED 2026-08-10. The swarm now uses a WARM WORKTREE
+> POOL (`raw-port/army/tools/wt_pool.sh`) + GitHub PR flow (PR_FLOW.md). Kept for context only.
+
 ## 2026-07-29 scaled-pool systemic findings (from reviewer-29/30 reports)
 - REVIEWER-TAG COLLISION: coordinator increments reviewer-NN from highest existing, but concurrent ticks can assign the same NN to two live agents. They then write conflicting sidecars on the same file (observed: two reviewer-29 wrote LIKELY_REAL then REJECT on OZChannelGammaFootage_Factory). FIX: label reviewers reviewer-NN-<uuid4> so sidecar `reviewer` field is unique; or coordinator hands out a monotonic slot from a lock file.
 - FALSE-POSITIVE FILE-REGRESSION: a branch cut from an OLD merge-base (before N later files landed on main) shows spurious deletions under 2-dot `git diff origin/main..branch`. Reviewers MUST use 3-dot `origin/main...branch` (merge-base aware). The add/add MERGE CONFLICT in wt_merge is the real backstop — a genuine regression hard-fails the merge (exit 3), so stale-green sidecars cannot actually delete a landed method. Confirmed: PCIsUsableNCLCCode.ts sidecar is stale LIKELY_REAL but main still has operator_lt because the eq-branch merge would conflict.
