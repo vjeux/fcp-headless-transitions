@@ -2,9 +2,9 @@
 
 **As of 2026-08-10, merging happens through GitHub PRs, not the custom local merge machinery.**
 This fixes the perpetually-dirty tree, the 125-worktree explosion, and the stale-base stall.
-`wt_merge.sh`, `wt_setup.sh`'s teardown-merge role, and the `.review.<sha>.json` sidecar convention
-are RETIRED. `gate.sh`, `regression_check.py`, `dup_check.py`, `depclaim.py`, `depgraph.py`,
-`rebase_helper.py` are KEPT (reused below).
+`wt_merge.sh`, `wt_setup.sh`, and the old `brief.py` were DELETED (2026-08-10, infra/ws6-teardown),
+along with the `.review.<sha>.json` sidecar convention. `gate.sh`, `regression_check.py`,
+`dup_check.py`, `depclaim.py`, `depgraph.py`, `rebase_helper.py` are KEPT (reused below).
 
 ## Why not GitHub Actions?
 The faithfulness oracle (`fct/parity`) dlsym's the REAL Final Cut Pro binary — only works on

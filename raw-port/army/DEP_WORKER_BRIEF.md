@@ -32,9 +32,10 @@ stubs by policy (like the CGColorSpace externs already in-tree). Each such throw
     pins the slot to a concrete method, which then becomes a normal dependency). If your disasm has
     one anyway, just STOP on that unit and claim the next — do not stub it (the queue won't re-hand it).
 
-## Port (PR FLOW — 2026-08-10; supersedes wt_merge/wt_setup-done)
-Read `raw-port/army/PR_FLOW.md` once. Merging now happens through GitHub Pull Requests, NOT the old
-local `wt_merge`. You OPEN A PR and STOP — a reviewer runs the gate (as GitHub CI) and merges.
+## Port (PR FLOW — 2026-08-10; the old local wt_merge/wt_setup tools were DELETED)
+Read `raw-port/army/PR_FLOW.md` once. Merging happens through GitHub Pull Requests. The old local
+merge tools (`wt_merge.sh`, `wt_setup.sh`) no longer exist. You OPEN A PR and STOP — a reviewer runs
+the gate (as GitHub CI) and merges.
 
 1. `python3 raw-port/army/tools/depgraph.py deps <mangled>` — confirm every dep is `ported`.
 2. `bash raw-port/tools/disasm.sh --sym <mangled> <FW>` — get the exact body.
@@ -44,8 +45,6 @@ local `wt_merge`. You OPEN A PR and STOP — a reviewer runs the gate (as GitHub
        cd /tmp/port_<Class>
    Symlink the node_modules so the gate's tsgo works:
        for d in engine/node_modules raw-port/node_modules venv; do ln -sfn ~/random/final-cut-pro-transitions/$d $d; done
-   (You may still use `wt_setup.sh <Class>` to create the worktree+symlinks, but its `done` teardown-
-   merge role is RETIRED — do NOT run `wt_setup.sh done`.)
 4. Write the REAL body into raw-port/src/<layer>/<Class>.ts (edit tool). Import the ported callees
    from their real files and CALL them. Transcribe every instruction; @0xADDR on the fn + each const.
    ADD-ONLY when extending an existing class file: `git show origin/main:<path>` first and EXTEND it —

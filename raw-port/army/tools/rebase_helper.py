@@ -3,7 +3,8 @@
 3-way UNION-merging each changed .ts file, WITHOUT touching main.
 
 WHY: stale-base branches (cut before a sibling landed on a shared class file) fail the
-regression gate (wt_merge exit 6) because a naive 3-way git merge would drop main's later
+regression gate (regression_check.py, run inside pr_gate.sh) because a naive 3-way git merge would
+drop main's later
 siblings. But the branch's added symbols and main's added symbols are DISJOINT sets (verified:
 OZRenderParams_setRenderQuality adds setRenderQuality/... ; main added setWidth/setHeight/...),
 so the correct rebase is deterministic: main's current file + the branch's added lines. A
@@ -11,7 +12,7 @@ so the correct rebase is deterministic: main's current file + the branch's added
 NO conflict markers and NO dropped symbols. The full gate + dup_check + regression_check then
 run on the result, so a wrong union can only produce a branch that FAILS the gate — it can
 NEVER corrupt main. This tool PRODUCES a rebased branch `port/<Class>_rebased` and pushes it for
-a normal reviewer merge. It NEVER runs wt_merge and NEVER pushes to main.
+a normal reviewer merge. It NEVER merges to main and NEVER pushes to main.
 
 SAFETY GUARANTEES:
   - Only reads origin/main + origin/port/<Class>; writes a NEW branch; never main.
