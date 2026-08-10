@@ -54,6 +54,10 @@
 //       — OZRenderParams::setDo3DIntersectionAntialiasingDynamic(bool) @Ozone 0x271930
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams38setDo3DIntersectionAntialiasingDynamicEb.s — 10 lines)
+//   * __ZN14OZRenderParams14disableDynamicEv
+//       — OZRenderParams::disableDynamic() @Ozone 0x2716b0
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams14disableDynamicEv.s — 13 lines)
 //   * __ZNK14OZRenderParams20getDestinationDeviceEv
 //       — OZRenderParams::getDestinationDevice() const @Ozone 0x2719d0
 //         (raw-port/re/disasm/
@@ -1268,5 +1272,78 @@ export class OZRenderParams {
     const quality = idx === 0 ? this.renderQualityAt1d0 : this.renderQualityDynamicAt1d4;
     // Result is a zero-extended 32-bit value (movzbl index; movl u32 result).
     return quality >>> 0;
+  }
+
+  /**
+   * `OZRenderParams::disableDynamic()`
+   *   — @Ozone 0x2716b0
+   *   — __ZN14OZRenderParams14disableDynamicEv
+   *
+   * FULL DISASM (13 lines — raw-port/re/disasm/
+   * __ZN14OZRenderParams14disableDynamicEv.s):
+   *
+   *   0x2716b0  pushq  %rbp                        ; prologue
+   *   0x2716b1  movq   %rsp, %rbp
+   *   0x2716b4  cmpb   $0x1, 0x1a8(%rdi)           ; mode-byte @+0x1a8 == 1 ?
+   *   0x2716bb  jne    0x2716e0                    ; no -> do NOTHING, return
+   *   0x2716bd  movups 0x1b0(%rdi), %xmm0          ; xmm0 = this[+0x1b0] (16 bytes)
+   *   0x2716c4  movups %xmm0, 0x18(%rdi)           ; this[+0x018] = that vector
+   *   0x2716c8  xorps  %xmm0, %xmm0                ; xmm0 = (0, 0)
+   *   0x2716cb  movups %xmm0, 0x188(%rdi)          ; this[+0x188] = (0, 0)
+   *   0x2716d2  movups %xmm0, 0x198(%rdi)          ; this[+0x198] = (0, 0)
+   *   0x2716d9  movb   $0x0, 0x1a8(%rdi)           ; mode-byte @+0x1a8 = 0
+   *   0x2716e0  popq   %rbp                        ; epilogue (shared exit)
+   *   0x2716e1  retq                               ; void
+   *   0x2716e2  nopw   %cs:(%rax,%rax)             ; alignment padding, not code
+   *
+   * SEMANTICS — this is the writer that finally names the +0x1a8 latch. The
+   * method is the "leave dynamic mode" transition, and it is IDEMPOTENT-guarded:
+   *
+   *   * Entry gate @0x2716b4 is `cmpb $0x1` — the body runs ONLY when the
+   *     mode-byte is EXACTLY 1 (the same value `setResolutionDynamic` @0x27173e
+   *     and `getRenderQuality` @0x270784 treat as "dynamic"). Any other value
+   *     (already-disabled 0, or anything else) falls straight through to the
+   *     epilogue and the object is left completely untouched.
+   *   * When it does run, it PROMOTES the static resolution slot into the
+   *     downstream cache: the 16-byte `PCVector2<double>` at +0x1b0 (written by
+   *     `setResolution` @0x2716f7) is copied verbatim into +0x18 — i.e. the
+   *     consumer-visible resolution reverts from whatever dynamic value was
+   *     latched there to the authored one. Note it copies from +0x1b0, NOT
+   *     from the dynamic twin at +0x1c0.
+   *   * It then zeroes the SAME two paired slots (+0x188, +0x198) that
+   *     `setResolution` @0x271712/@0x271719, `setResolutionDynamic`
+   *     @0x271755/@0x27175c, `setWidth` @0x2707ad/@0x2707b4 and
+   *     `setDo3DIntersectionAntialiasingDynamic` all zero — the standard
+   *     "invalidate the derived-resolution cache" stamp.
+   *   * Finally it clears the latch itself with a single-BYTE store
+   *     (`movb $0x0`), confirming +0x1a8 is one byte wide, exactly as the
+   *     `cmpb`/`movzbl` readers already implied.
+   *
+   * The three 128-bit `movups` moves are whole-vector copies, so the port
+   * copies BOTH lanes by value (never aliasing the source object) — the
+   * machine moves 16 bytes, it does not share storage.
+   *
+   * ZERO in-scope callees, ZERO externs, ZERO indirect calls, no allocation.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams14disableDynamicEv.s
+   */
+  disableDynamic(this: OZRenderParams): void {
+    // @0x2716b4-0x2716bb  cmpb $0x1,0x1a8(%rdi) ; jne 0x2716e0
+    //   Body runs only when the mode-byte is EXACTLY 1.
+    if ((this.flagByteAt1a8 & 0xff) !== 1) {
+      // @0x2716e0-0x2716e1 — shared epilogue: nothing written.
+      return;
+    }
+    // @0x2716bd-0x2716c4  movups 0x1b0(%rdi),%xmm0 ; movups %xmm0,0x18(%rdi)
+    //   this[+0x018] = this[+0x1b0]  (16-byte copy, by value)
+    this.resolutionAt18 = { x: this.resolutionAt1b0.x, y: this.resolutionAt1b0.y };
+    // @0x2716c8-0x2716cb  xorps %xmm0,%xmm0 ; movups %xmm0,0x188(%rdi)
+    this.zeroedAt188 = { x: 0, y: 0 };
+    // @0x2716d2  movups %xmm0,0x198(%rdi)   (reuses the zeroed xmm0)
+    this.zeroedAt198 = { x: 0, y: 0 };
+    // @0x2716d9  movb $0x0,0x1a8(%rdi)      (single-byte store — clears the latch)
+    this.flagByteAt1a8 = 0;
+    // @0x2716e0-0x2716e1 — epilogue, void return.
   }
 }
