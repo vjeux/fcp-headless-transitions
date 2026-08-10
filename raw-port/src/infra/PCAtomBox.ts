@@ -407,4 +407,25 @@ export class PCAtomBox {
     // @0x008f5b movq %r14,0x8(%rbx) : store the total box size.
     this.size = sum;
   }
+
+  /**
+   * PCAtomBox::setType(unsigned int)
+   * @0xADDR ProCore 0x0000000000008ba8  (__ZN9PCAtomBox7setTypeEj)
+   *
+   * DISASSEMBLY (verbatim):
+   *   0x008ba8  pushq %rbp ; movq %rsp,%rbp        ; frame
+   *   0x008bac  movl  %esi, 0x18(%rdi)             ; *(u32*)(this+0x18) = arg (type)
+   *   0x008baf  popq %rbp ; retq                   ; void
+   *   0x008bb1  nop                                 ; alignment padding
+   *
+   * A plain 32-bit field setter: stores the `unsigned int` type-id argument
+   * (%esi) into the atom's type field at +0x18 — the same field read by
+   * findFirstChild @0x008fcb (`cmpl %ebx,0x18(%rax)`). Zero callees, no externs.
+   * `movl` is a 32-bit store, so we mask the argument to a uint32 to mirror the
+   * machine width exactly (PORTING_SPEC Rule 4).
+   */
+  setType(value: number): void {
+    // @0x008bac — movl %esi,0x18(%rdi) : store the u32 type id at +0x18.
+    this.type = value >>> 0;
+  }
 }
