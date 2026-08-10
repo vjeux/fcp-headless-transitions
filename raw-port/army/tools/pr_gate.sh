@@ -26,7 +26,11 @@ HEAD_SHA=$(gh pr view "$PR" --repo "$REPO_SLUG" --json headRefOid  --jq .headRef
 HEAD_REF=$(gh pr view "$PR" --repo "$REPO_SLUG" --json headRefName --jq .headRefName)
 [ -z "$HEAD_SHA" ] && { echo "PR #$PR not found"; exit 3; }
 echo "PR #$PR  head=$HEAD_REF @ ${HEAD_SHA:0:12}  reviewed=$REVIEWED"
-post_status () { gh api -X POST "repos/$REPO_SLUG/statuses/$HEAD_SHA" -f state="$1" -f context="faithfulness-gate" -f description="$2" >/dev/null 2>&1 && echo "  status: $1 — $2" || echo "  WARN status post failed"; }
+# Post the required `faithfulness-gate` status as the REVIEWER app (falls back to operator auth if
+# the app is not configured). Having the gate come from the reviewer identity — not from whoever's
+# token happened to be handy — is what lets branch protection treat it as an independent check.
+GHAPP_G="$(cd "$(dirname "$0")" && pwd)/ghapp"
+post_status () { bash "$GHAPP_G/gh_as.sh" reviewer api -X POST "repos/$REPO_SLUG/statuses/$HEAD_SHA" -f state="$1" -f context="faithfulness-gate" -f description="$2" >/dev/null 2>&1 && echo "  status: $1 — $2" || echo "  WARN status post failed"; }
 post_status pending "gate running on vjeux-mac"
 
 git fetch -q origin main "+refs/pull/$PR/head:refs/prgate/$PR" 2>/dev/null || git fetch -q origin main "$HEAD_REF" 2>/dev/null
