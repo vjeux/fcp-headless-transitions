@@ -499,6 +499,48 @@ export class OZScene {
   }
 
   /**
+   * OZScene::setCurrentTime(CMTime const&)  @0x4fb80
+   *   __ZN7OZScene14setCurrentTimeERK6CMTime
+   *
+   *   0x4fb80: pushq  %rbp
+   *   0x4fb81: movq   %rsp,%rbp
+   *   0x4fb84: movq   0x10(%rsi),%rax                                      # rax = src->epoch (8 B @+0x10)
+   *   0x4fb88: movq   %rax,0x3c8(%rdi)                                     # this->currentTime.epoch = rax  (@+0x3c8)
+   *   0x4fb8f: movups (%rsi),%xmm0                                         # xmm0 = src->{value, timescale, flags} (16 B @+0x00)
+   *   0x4fb92: movups %xmm0,0x3b8(%rdi)                                    # this->currentTime.{value,timescale,flags} = xmm0 (@+0x3b8)
+   *   0x4fb99: popq %rbp ; retq
+   *   0x4fb9b: nopl (%rax,%rax)
+   *
+   * The exact mirror of getCurrentTime() @0x4fba0. `%rdi` = this, `%rsi` =
+   * the CMTime const& source (no hidden sret — this returns void). It copies
+   * the 24-byte CMTime (16-byte {value,timescale,flags} block via movups from
+   * +0x00, then the 8-byte epoch tail via movq from +0x10) into the scene's
+   * currentTime slot at +0x3b8..+0x3cf.
+   *
+   * The CMTime interface layout (raw-port/src/infra/CMTime.ts) is:
+   *   +0x00 value:int64  +0x08 timescale:int32  +0x0c flags:uint32  +0x10 epoch:int64
+   * so `movups (%rsi)` is exactly {value, timescale, flags} and `movq 0x10(%rsi)`
+   * is exactly epoch.
+   *
+   * ZERO in-scope callees, ZERO externs. Pure field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN7OZScene14setCurrentTimeERK6CMTime.s (10 lines)
+   */
+  setCurrentTime(t: CMTime): void {
+    // @0x4fb84..0x4fb88  movq 0x10(%rsi),%rax ; movq %rax,0x3c8(%rdi)
+    //   Copies the 8-byte epoch tail into +0x3c8.
+    // @0x4fb8f..0x4fb92  movups (%rsi),%xmm0 ; movups %xmm0,0x3b8(%rdi)
+    //   Copies the 16-byte {value, timescale, flags} block into +0x3b8.
+    this.currentTime = {
+      value: t.value,
+      timescale: t.timescale,
+      flags: t.flags,
+      epoch: t.epoch,
+    };
+  }
+
+  /**
    * OZScene::setPlayRange(PCTimeRange const&)  @0x4fb30
    *   __ZN7OZScene12setPlayRangeERK11PCTimeRange
    *
