@@ -11,6 +11,9 @@
 //
 // METHODS PORTED IN THIS FILE (one C++ method = one member citing its @0xADDR):
 //
+//   @Helium 0x625e0  HGRenderQueue::SetSerializeRendersFlag(bool)          (FULL)
+//                    mangled: __ZN13HGRenderQueue23SetSerializeRendersFlagEb
+//                    DECODE:  raw-port/re/disasm/Helium.__ZN13HGRenderQueue23SetSerializeRendersFlagEb.s
 //   @Helium 0x62610  HGRenderQueue::SetOpenGLSupport(bool)                (FULL)
 //                    mangled: __ZN13HGRenderQueue16SetOpenGLSupportEb
 //                    DECODE:  raw-port/re/disasm/Helium.__ZN13HGRenderQueue16SetOpenGLSupportEb.s
@@ -26,7 +29,7 @@
 // Every other member of the class (the ctors @0x60ba0 / @0x61480, the dtors
 // @0x61490 / @0x61c60 / @0x61c70, CreateRenderContextForComputeDevice @0x61c90,
 // AddRenderContext @0x61e00, SetRunMode @0x62560, SetPreferredResource @0x625a0,
-// SetSerializeRendersFlag @0x625e0, SetDebugQueueVerboseMask @0x62620,
+// SetDebugQueueVerboseMask @0x62620,
 // GetRunMode @0x62640, Start @0x62800, Pause @0x62a50, Drain @0x62c90,
 // Shutdown @0x63050, EnqueueRenderJob @0x63600, …) is NOT ported here. This
 // file is ADD-ONLY: each of those lands as its own member, citing its own
@@ -222,5 +225,71 @@ export class HGRenderQueue {
   SetOpenGLSupport(support: boolean): void {
     // @Helium 0x62614: movb %sil, 0x28(%rdi)
     this.openGLSupport = support;
+  }
+
+  /**
+   * `+0x48  bool serializeRenders48` — first of the two bytes that
+   * `SetSerializeRendersFlag` keeps in lock-step (it is the SECOND one the
+   * setter writes: @Helium 0x625e8 `movb %sil, 0x48(%rdi)`).
+   *
+   * Defaults to `true`: the ctor's `movl $0x10101, 0x48(%rbx)` @Helium 0x60c06
+   * is one 4-byte store that lands 0x01 in +0x48, 0x01 in +0x49, 0x01 in
+   * +0x4a and 0x00 in +0x4b. (The next ctor writes are `movw $0x0, 0x4c`
+   * @0x60c0d and `movb $0x1, 0x4e` @0x60c13, which bound this quartet.)
+   */
+  serializeRenders48 = true;
+
+  /**
+   * `+0x49  bool serializeRenders49` — second byte of the same pair, written
+   * FIRST by the setter (@Helium 0x625e4 `movb %sil, 0x49(%rdi)`).
+   *
+   * The two bytes are distinct object slots — the neighbours prove the region
+   * is a run of independent byte flags, not one wider field:
+   *   +0x4a  SetRelaxRenderSerializationForPriorityInversionsFlag(bool)
+   *          @Helium 0x625f4 `movb %sil, 0x4a(%rdi)`
+   *   +0x4b  SetSerializeCustomRenderJobsFlag(bool)
+   *          @Helium 0x62604 `movb %sil, 0x4b(%rdi)`
+   * — so this port keeps them as two fields and writes both, in the binary's
+   * order, rather than collapsing them into one boolean (which would silently
+   * drop one of the two stores). No decoded reader distinguishes them yet, so
+   * they are named by offset instead of being given invented roles.
+   *
+   * Defaults to `true` from the same ctor store @Helium 0x60c06.
+   */
+  serializeRenders49 = true;
+
+  /**
+   * `HGRenderQueue::SetSerializeRendersFlag(bool)` — Helium @0x000625e0
+   * (mangled `__ZN13HGRenderQueue23SetSerializeRendersFlagEb`).
+   *
+   * Full transcription — every instruction of the function, in order
+   * (raw-port/re/disasm/Helium.__ZN13HGRenderQueue23SetSerializeRendersFlagEb.s):
+   *
+   *   0x625e0  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x625e1  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x625e4  movb  %sil, 0x49(%rdi)     ; this->serializeRenders49 = arg
+   *   0x625e8  movb  %sil, 0x48(%rdi)     ; this->serializeRenders48 = arg
+   *   0x625ec  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x625ed  retq                       ; void return
+   *   0x625ee  nop                        ; alignment padding, not executed
+   *
+   * TWO byte stores of the SAME `bool` argument (`%sil`, the low byte of the
+   * second integer argument register under SysV), to TWO different offsets,
+   * in the order +0x49 then +0x48 — both are transcribed, in that order.
+   * The compiler did NOT fuse them into a single 2-byte `movw`, which is
+   * further evidence they are separate declared members rather than one field.
+   *
+   * Like `SetOpenGLSupport` @0x62610 and unlike `SetRunMode` @0x62560 (which
+   * brackets its store with `HGSynchronizable::Lock()` @0x62579 /
+   * `Unlock()` @0x62585), this setter takes NO lock. No callees, no externs,
+   * no indirect calls, no validation, no return value.
+   *
+   * @param serialize the new serialize-renders flag (`%sil`).
+   */
+  SetSerializeRendersFlag(serialize: boolean): void {
+    // @Helium 0x625e4: movb %sil, 0x49(%rdi)
+    this.serializeRenders49 = serialize;
+    // @Helium 0x625e8: movb %sil, 0x48(%rdi)
+    this.serializeRenders48 = serialize;
   }
 }
