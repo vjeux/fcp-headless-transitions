@@ -10,10 +10,13 @@
 //     __ZNK17HGMetalDeviceInfo7isAppleEv
 //   * HGMetalDeviceInfo::isIntel() const           @Helium 0x1c5500
 //     __ZNK17HGMetalDeviceInfo7isIntelEv
+//   * HGMetalDeviceInfo::isAMD() const             @Helium 0x1c54f0
+//     __ZNK17HGMetalDeviceInfo5isAMDEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo7isAppleEv.s
 //   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo7isIntelEv.s
+//   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo5isAMDEv.s
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (6 lines, @0x1c5510..@0x1c551f)
@@ -130,5 +133,42 @@ export class HGMetalDeviceInfo {
     // @0x1c5504-0x1c550b: cmpl $0x8086, 0x20(%rdi) ; sete %al
     //   ZF (sete) is set iff the u32 field equals 0x8086 — strict equality.
     return (this.deviceFamily_at_0x20 >>> 0) === 0x8086;
+  }
+
+  /**
+   * `HGMetalDeviceInfo::isAMD() const` — @Helium 0x1c54f0
+   * (__ZNK17HGMetalDeviceInfo5isAMDEv).
+   *
+   * Faithful transcription of the 6-line disassembly
+   * (raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo5isAMDEv.s):
+   *
+   *   0x1c54f0  pushq %rbp
+   *   0x1c54f1  movq  %rsp, %rbp
+   *   0x1c54f4  cmpl  $0x1002, 0x20(%rdi)  ; *(u32*)(this+0x20) - 0x1002
+   *   0x1c54fb  sete  %al                  ; al = ZF = (field == 0x1002)
+   *   0x1c54fe  popq  %rbp
+   *   0x1c54ff  retq
+   *
+   * Returns whether the u32 at this[+0x20] equals 0x1002 — the PCI vendor id
+   * of Advanced Micro Devices (historically ATI Technologies, whose id AMD
+   * kept after the acquisition). It is the third member of the same family as
+   * `isApple()` (0x106b) and `isIntel()` (0x8086), and it reads the SAME +0x20
+   * slot; the immediate is the only difference between the three bodies.
+   *
+   * The three sit back to back in the text section, exactly 0x10 bytes apart —
+   * isAMD @0x1c54f0, isIntel @0x1c5500, isApple @0x1c5510 — further evidence
+   * that they are sibling one-liners over one shared field.
+   *
+   * Strict equality (`sete`, ZF), NOT a range test: the machine emits `sete`,
+   * never `setae`/`setge`, so we mirror `=== 0x1002` exactly.
+   *
+   * No in-scope callees, no externs, no indirect calls (a pure field compare).
+   * `depgraph.py deps __ZNK17HGMetalDeviceInfo5isAMDEv` reports nothing at all.
+   * The `const` qualifier matches the `__ZNK...` mangling; the body only reads.
+   */
+  isAMD(): boolean {
+    // @0x1c54f4-0x1c54fb: cmpl $0x1002, 0x20(%rdi) ; sete %al
+    //   ZF (sete) is set iff the u32 field equals 0x1002 — strict equality.
+    return (this.deviceFamily_at_0x20 >>> 0) === 0x1002;
   }
 }
