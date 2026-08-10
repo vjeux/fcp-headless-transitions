@@ -107,10 +107,92 @@ function AudioUnitGetProperty(
 }
 
 /**
+ * `_AudioUnitSetProperty` — AudioToolbox out-of-scope extern
+ * (@Flexo 0xd386c5, stub 0x1494644). Sets a property on an AudioUnit and
+ * returns an `OSStatus` (0 = success). Modelled as a boundary stub: without a
+ * live AudioUnit there is no property store to write, so this raises — a loud
+ * gap, per PORTING_SPEC Rule 3 (out-of-scope extern, cites addr). A real host
+ * wires an actual AudioUnit here. Mirrors the `_AudioUnitGetProperty` boundary
+ * above (the read counterpart used by GetUnitChannels).
+ */
+function AudioUnitSetProperty(
+  _inUnit: ComponentInstanceRecord,
+  _inID: number,
+  _inScope: number,
+  _inElement: number,
+  _inData: AudioStreamBasicDescription,
+  _inDataSize: number,
+): number {
+  throw new Error(
+    "_AudioUnitSetProperty @Flexo 0xd386c5 (AudioToolbox extern, stub " +
+      "0x1494644) — out-of-scope Core Audio boundary; a live AudioUnit must " +
+      "be provided by the host to receive the StreamFormat ASBD.",
+  );
+}
+
+/**
  * `FFAudioGraph` — Flexo audio-graph helpers. Only `GetUnitChannels` is ported
  * in this file; other members are separate ledger entries.
  */
 export class FFAudioGraph {
+  /**
+   * `FFAudioGraph::SetUnitFormat(ComponentInstanceRecord*, unsigned int,
+   * AudioStreamBasicDescription const&, unsigned int)` — @Flexo 0xd386b0
+   * (__ZN12FFAudioGraph13SetUnitFormatEP23ComponentInstanceRecordjRK27AudioStreamBasicDescriptionj).
+   *
+   * The write counterpart of GetUnitChannels: set the AudioUnit `unit`'s
+   * StreamFormat (kAudioUnitProperty_StreamFormat = 8) for the given
+   * `scope`/`element` from the caller-supplied ASBD `fmt`, and return the
+   * AudioUnitSetProperty OSStatus.
+   *
+   * FULL DISASM (raw-port/re/disasm/Flexo.__ZN12FFAudioGraph13SetUnitFormatEP23ComponentInstanceRecordjRK27AudioStreamBasicDescriptionj.s — 9 lines):
+   *   0xd386b0  pushq %rbp ; movq %rsp,%rbp
+   *   0xd386b4  movq  %rdx, %r8              ; inData(r8)  = arg3 = &fmt
+   *   0xd386b7  movl  %esi, %edx             ; inScope(edx) = arg2 = scope
+   *   0xd386b9  movl  $0x8, %esi             ; inID(esi)    = 8 (kAudioUnitProperty_StreamFormat)
+   *   0xd386be  movl  $0x28, %r9d            ; inDataSize(r9d) = 0x28 (40 = sizeof ASBD)
+   *   0xd386c4  popq  %rbp
+   *   0xd386c5  jmp   _AudioUnitSetProperty  ; TAIL-CALL (stub 0x1494644)
+   *                                          ;   return AudioUnitSetProperty(
+   *                                          ;     inUnit    = rdi (arg1, the unit),
+   *                                          ;     inID      = 8,
+   *                                          ;     inScope   = edx (arg2, scope),
+   *                                          ;     inElement = ecx (arg4, element; passed through),
+   *                                          ;     inData    = r8  (arg3, &fmt),
+   *                                          ;     inDataSize = 0x28)
+   *
+   * ABI (AudioUnitSetProperty, AudioToolbox):
+   *   OSStatus AudioUnitSetProperty(AudioUnit inUnit /rdi,
+   *     AudioUnitPropertyID inID /esi, AudioUnitScope inScope /edx,
+   *     AudioUnitElement inElement /ecx, const void* inData /r8, UInt32 inDataSize /r9)
+   *
+   * Static method (no `this`): like the sibling GetUnitChannels, the disasm
+   * takes the unit as its first argument (%rdi) with no member access — a
+   * free/static FFAudioGraph helper. The incoming registers are therefore
+   * (rdi=unit, esi=scope, rdx=&fmt, rcx=element); the shuffle drops arg2(scope)
+   * into inScope, sets inID=8 and inDataSize=0x28, and leaves inUnit=rdi and
+   * inElement=ecx untouched, then tail-jumps.
+   *
+   * OUT-OF-SCOPE EXTERNS (modelled at the boundary, PORTING_SPEC Rule 3):
+   *   * _AudioUnitSetProperty (AudioToolbox) @0xd386c5 (stub 0x1494644).
+   *   * ComponentInstanceRecord* (opaque AudioUnit handle) — passed through.
+   *   FRONTIER CALLEES: none in-scope.
+   */
+  static SetUnitFormat(
+    unit: ComponentInstanceRecord,
+    scope: number,
+    fmt: AudioStreamBasicDescription,
+    element: number,
+  ): number {
+    // @0xd386b4 movq %rdx,%r8 : inData = &fmt.
+    // @0xd386b7 movl %esi,%edx : inScope = scope.
+    // @0xd386b9 movl $0x8,%esi : inID = kAudioUnitProperty_StreamFormat.
+    // @0xd386be movl $0x28,%r9d : inDataSize = 40 (sizeof ASBD).
+    // @0xd386c5 jmp _AudioUnitSetProperty(unit, 8, scope, element, &fmt, 40)
+    //   (inUnit = rdi = unit; inElement = ecx = element, passed through).
+    return AudioUnitSetProperty(unit, 0x8, scope >>> 0, element >>> 0, fmt, 0x28);
+  }
+
   /**
    * `FFAudioGraph::GetUnitChannels(ComponentInstanceRecord*, unsigned int,
    * unsigned int)` — @Flexo 0xd38770
