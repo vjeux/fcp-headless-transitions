@@ -101,28 +101,17 @@ SWARM_RESTART.md for the authoritative description. In brief:
   M4 Render/compositor    — the pixel pipeline (largest; Flexo-heavy).
   M5 Full parity          — every reachable unit oracle-verified against dlsym FCP.
 
-## 9. ANTI-SHORTCUT: method-level chunking for big classes (2026-07-28)
-A class with >24 methods is NEVER handed to one agent whole — that forces stub-to-finish shortcuts
-(no one can faithfully transcribe 1,471 methods in one context). claim.py splits it into 20-method
-CHUNKS, each its own claimable unit.
-WORKER FLOW for a chunk (claim.py next prints "...\tCHUNK=<k>"):
-  1. `python3 raw-port/army/tools/claim.py chunk <FW> <Class> <k>` → prints the EXACT ≤20 methods
-     (index, @0xADDR, kind, demangled) you must port, and the target file src/<layer>/<Class>.m<k>.ts.
-  2. Port ONLY those methods into <Class>.m<k>.ts (one file per chunk — distinct files never conflict
-     on merge). Each method fully decoded + @0xADDR cited; gate as usual. Undecoded callee → throw-stub
-     citing its addr (that's the frontier signal, NOT a shortcut).
-  3. EXPORT CONVENTION (so the auto-assembler can wire parts): each <Class>.m<k>.ts exports
-       export const <Class>_m<k>_methods = { "<methodKeyFromClaimChunk>": (self, ...args) => { /* @0xADDR body */ }, ... };
-     (per-class name so the auto-assembler can import it: <Class>_m<k>_methods. Keys are the exact
-      demangled/selector strings printed by `claim.py chunk`.)
-     using the EXACT method key strings printed by `claim.py chunk` (the demangled '-[Class sel]' or
-     C++ 'Class::meth' form). ctor/dtor/layout go in chunk 0 (or the whole-class base pass).
-  4. ASSEMBLY IS AUTOMATED: after chunks land, `python3 raw-port/army/tools/assemble_class.py <FW> <Class>`
-     generates <Class>.ts importing every present chunk and merging their maps into <Class>_METHODS
-     (what H1 objc_msgSend / C++ dispatch reads). It reports MISSING chunk indices. Idempotent — re-run
-     as more chunks land. You do NOT hand-write <Class>.ts. Land your .m<k>.ts, gate it, merge it; the
-     assembler stitches. Partial (some chunks missing) is fine — <Class>_METHODS just has fewer entries.
-  4. `claim.py done <FW> <Class> <k>` (chunk index as 4th arg). fail/release also take the chunk index.
-DEDUP: a chunk is skipped once <Class>.m<k>.ts exists on disk. Big-class chunks sort AFTER whole small
-classes (tier 3) so quick wins still drain first, but the heavies now MAKE PROGRESS instead of bouncing.
-The point: an agent is only ever asked for ≤20 named methods — bounded, gate-checked, no shortcut pressure.
+## 9. ANTI-SHORTCUT: per-method units for big classes
+A class with many methods is NEVER handed to one agent whole — that forces stub-to-finish shortcuts
+(no one can faithfully transcribe 1,471 methods in one context). The ledger is keyed PER METHOD:
+each method (`Class::method@0xADDR`) is its OWN claimable unit with its own status, dispensed
+independently by `depclaim.py next`. A worker ports ONE method (or a small mutual-recursion cycle)
+into the shared `src/<layer>/<Class>.ts` and opens a PR.
+- ADD-ONLY into the class file: `git show origin/main:<path>` first and EXTEND it — never
+  delete/replace a sibling method that already landed (a file-level regression is rejected by the PR
+  gate's regression_check). Un-claimed siblings may appear as @0xADDR-cited throw-stubs (honest file
+  scaffolding — they are their own separate `todo` units, never counted `ported`).
+- The class file grows incrementally as methods land; `depgraph.py`/`mark_ported.py` count `ported`
+  per method, not per class. Partial coverage is fine and expected.
+The point: an agent is only ever asked for ONE named method — bounded, gate-checked, no shortcut
+pressure — and the shared class file accretes real bodies method by method.
