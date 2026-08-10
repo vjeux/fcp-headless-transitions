@@ -82,6 +82,7 @@ cmd_acquire () { # <Class> — worker: cut branch port/<Class> at origin/main
   git -C "$CANON" fetch -q origin main 2>/dev/null || true
   local slot; slot="$(claim_slot "port/$cls")" || return 3
   local wt; wt="$(make_wt "$slot")"
+  log "wt_pool: leased slot $slot -> $wt (port/$cls)"
   reset_clean "$wt"
   git -C "$wt" checkout -q -B "port/$cls" origin/main 2>/dev/null
   link_deps "$wt"
@@ -93,6 +94,7 @@ cmd_acquire_at () { # <SHA> — reviewer: detached checkout at a PR head for gat
   git -C "$CANON" fetch -q origin main 2>/dev/null || true
   local slot; slot="$(claim_slot "gate/$sha")" || return 3
   local wt; wt="$(make_wt "$slot")"
+  log "wt_pool: leased slot $slot -> $wt (gate/${sha:0:12})"
   reset_clean "$wt"
   # ensure the sha is present, then detached-checkout it
   git -C "$wt" fetch -q "$CANON" "$sha" 2>/dev/null || git -C "$CANON" fetch -q origin 2>/dev/null || true
