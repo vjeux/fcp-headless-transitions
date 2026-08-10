@@ -11,9 +11,11 @@
 // SYMBOLS PORTED
 // -----------------------------------------------------------------------------
 //   * HGGLContextPtr::HGGLContextPtr(void*)   @Helium 0x1b3930   (C1 ctor)
+//   * HGGLContextPtr::~HGGLContextPtr()       @Helium 0x1b3950   (D1 dtor)
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZN14HGGLContextPtrC1EPv.s   (7 lines)
+//   raw-port/re/disasm/Helium.__ZN14HGGLContextPtrD1Ev.s    (7 lines)
 //
 // -----------------------------------------------------------------------------
 // STRUCT LAYOUT (recovered fully from this ctor)
@@ -24,6 +26,14 @@
 //                //     movq %rsi, (%rdi)   @0x1b3934
 //                //   This is a thin single-pointer wrapper (a "smart pointer"
 //                //   whose only state is the wrapped GL-context handle).
+//                //
+//                //   Corroborated by the two other enumerated methods, which
+//                //   touch the SAME single slot and no other:
+//                //     ~HGGLContextPtr()  movq $0x0, (%rdi)  @0x1b3954
+//                //     ptr() const        movq (%rdi), %rax  @0x1b3964
+//                //   (raw-port/re/disasm/Helium.__ZNK14HGGLContextPtr3ptrEv.s)
+//                //   sizeof(HGGLContextPtr) == 8 — no other offset is ever
+//                //   loaded or stored by any HGGLContextPtr method.
 // }
 
 /**
@@ -58,4 +68,35 @@ export function HGGLContextPtr_ctor(
 ): void {
   // movq %rsi, (%rdi)  @0x1b3934 — plain single-word store of the argument.
   self.ctx_at0x00 = ctx;
+}
+
+/**
+ * HGGLContextPtr::~HGGLContextPtr()   [D1 complete-object destructor]
+ * @0x00000000001b3950  Helium   mangled: __ZN14HGGLContextPtrD1Ev
+ *
+ * ABI: %rdi = this. No arguments, no return value.
+ *
+ * Disasm (full — raw-port/re/disasm/Helium.__ZN14HGGLContextPtrD1Ev.s):
+ *   pushq   %rbp             # @0x1b3950
+ *   movq    %rsp, %rbp       # @0x1b3951
+ *   movq    $0x0, (%rdi)     # @0x1b3954  this->ctx = NULL
+ *   popq    %rbp             # @0x1b395b
+ *   retq                     # @0x1b395c
+ *   nopl    (%rax)           # @0x1b395d  padding
+ *
+ * Net effect: store the immediate 0 into this+0x0. Nothing else.
+ *
+ * FAITHFULNESS NOTE — this destructor is NON-OWNING. There is no CGLDestroyContext,
+ * no CGLReleaseContext, no `operator delete`, no atomic refcount decrement and no
+ * call of any kind: the whole body is one 7-byte `movq $0x0, (%rdi)` store. So
+ * HGGLContextPtr is a borrowed/observer handle over a context whose lifetime is
+ * owned elsewhere, and the dtor merely clears the slot. Adding any release call
+ * here would be a rewrite, not a transcription.
+ */
+export function HGGLContextPtr_dtor(self: HGGLContextPtr_Fields): void {
+  // movq $0x0, (%rdi)  @0x1b3954 — write the immediate 0 over the wrapped
+  // pointer slot at +0x00. Modelled as null (the JS spelling of a NULL pointer
+  // in the `unknown` opaque-handle slot). No callees, no branches, no frees.
+  self.ctx_at0x00 = null;
+  // popq %rbp @0x1b395b ; retq @0x1b395c — void return.
 }
