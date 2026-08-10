@@ -1818,6 +1818,41 @@ export class OZRenderParams {
   }
 
   /**
+   * `OZRenderParams::wantsHLGToPQPostProcessingStep() const` @Ozone 0x271480
+   * (__ZNK14OZRenderParams30wantsHLGToPQPostProcessingStepEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x271480  pushq  %rbp                    ; frame setup (no TS counterpart)
+   *   0x271481  movq   %rsp, %rbp              ; frame setup (no TS counterpart)
+   *   0x271484  movzbl 0x30c(%rdi), %eax       ; return (u8) this->+0x30c
+   *   0x27148b  popq   %rbp                    ; frame teardown (no TS counterpart)
+   *   0x27148c  retq                           ; return al as bool
+   *   0x27148d  nopl   (%rax)                  ; alignment padding, not executed
+   *
+   * The exact inverse of the landed `setWantsHLGToPQPostProcessingStep(bool)`
+   * @0x271474 (`movb %sil, 0x30c(%rdi)`) on the same one-byte slot: a plain
+   * ZERO-EXTENDING byte load with no mask, no comparison and no lock.
+   *
+   * `movzbl` returns the RAW 0..255 byte, not a normalised 0/1 — a `bool`-typed
+   * caller reads only `%al`, so the port returns the masked byte exactly like
+   * the sibling byte getters `getDoShapeAntialiasing()` @0x2718eb and
+   * `getDoHighQualityResampling()` @0x27187b do, rather than coercing to a
+   * TypeScript boolean (which would erase the distinction between a stored 1
+   * and a stored 2).
+   *
+   * ZERO in-scope callees, ZERO externs, no indirect/virtual dispatch — a pure
+   * field read.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK14OZRenderParams30wantsHLGToPQPostProcessingStepEv.s (6 lines)
+   */
+  wantsHLGToPQPostProcessingStep(this: OZRenderParams): number {
+    // @0x271484  movzbl 0x30c(%rdi),%eax — zero-extending single-byte load.
+    return this.wantsHLGToPQPostProcessingStepAt30c & 0xff;
+  }
+
+  /**
    * `OZRenderParams::disableDynamic()`
    *   — @Ozone 0x2716b0
    *   — __ZN14OZRenderParams14disableDynamicEv
