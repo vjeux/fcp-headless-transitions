@@ -8,6 +8,8 @@
 // Symbols transcribed in THIS file (Helium, x86_64 slice; VAs are the
 // unadjusted VM addresses printed by `otool -tV`):
 //
+//   0x00031290  HGRenderContext::IsGPU() const                         (FULL)
+//   0x00031450  HGRenderContext::SetWorkMode(HGRenderContext::WorkMode) (FULL)
 //   0x00031470  HGRenderContext::GetComputeDevice()                    (FULL)
 //
 // STRUCT LAYOUT — every offset below is cited to the exact instruction it was
@@ -37,7 +39,21 @@
 //                                           (2 words: object ptr + control block).
 //     +0x020  u64   state                [GetState @0x314a4 movl 0x20(%rdi),%eax;
 //                                         ctor @0x3109a movq $0x1,0x20(%rbx)]
-//     +0x024  u32   type                 [GetType @0x31464 movl 0x24(%rdi),%eax]
+//     +0x024  u32   type                 [GetType @0x31464 movl 0x24(%rdi),%eax;
+//                                         the 8-byte ctor store @0x3109a
+//                                         `movq $0x1,0x20(%rbx)` covers +0x20 AND
+//                                         +0x24, so type defaults to 0 (= CPU).
+//                                         Encoding pinned by the three sibling
+//                                         predicates that all test this one slot:
+//                                         IsCPU @0x31284 `cmpl $0x0,0x24(%rdi)` => 0,
+//                                         IsGPU @0x31294 `cmpl $0x1,0x24(%rdi)` => 1,
+//                                         IsGL  @0x312a4 `cmpl $0x2,0x24(%rdi)` => 2.
+//                                         Corroborated by the GPU subclass ctor
+//                                         HGGPURenderContext::HGGPURenderContext(
+//                                           shared_ptr<HGGPUComputeDevice const>
+//                                           const&, bool) @0x3ecf0, which stamps
+//                                         `movl $0x1,0x24(%rbx)` @0x3ed2a right
+//                                         after chaining this class's ctor]
 //     +0x028  u32   workMode             [GetWorkMode @0x31494 movl 0x28(%rdi),%eax;
 //                                         ctor @0x31093 movl $0x2,0x28(%rbx)]
 //     +0x030  u64                        [ctor @0x310d5 movq $0x0,0x30(%rbx)]
@@ -114,6 +130,86 @@ export class HGRenderContext {
    * object identity is the returned reference.
    */
   computeDevice: HGComputeDeviceSharedPtr = { ptr: null, cntrl: null };
+
+  /**
+   * @+0x24 — `u32 type`, the device-class discriminator (0 = CPU, 1 = GPU,
+   * 2 = GL; see the layout table above for the three `cmpl` immediates that
+   * pin the encoding).
+   *
+   * Defaults to 0 because the ctor's 8-byte store @0x3109a
+   * (`movq $0x1, 0x20(%rbx)`) writes 1 into the u32 at +0x20 and 0 into the
+   * u32 at +0x24. The GPU subclass overwrites it with 1 @0x3ed2a.
+   */
+  type: number = 0;
+
+  /**
+   * @+0x28 — `u32 workMode` (`HGRenderContext::WorkMode`).
+   *
+   * Defaults to 2 from the ctor @0x31093 (`movl $0x2, 0x28(%rbx)`); the same
+   * literal is written by the no-arg ctor @0x30f50. Read back verbatim by
+   * `GetWorkMode()` @0x31494 (`movl 0x28(%rdi), %eax`).
+   */
+  workMode: number = 2;
+
+  /**
+   * `HGRenderContext::IsGPU() const` — Helium @0x00031290
+   * (mangled `__ZNK15HGRenderContext5IsGPUEv`).
+   *
+   * Full transcription (6 instructions + padding):
+   *
+   *   0x31290  pushq   %rbp
+   *   0x31291  movq    %rsp, %rbp
+   *   0x31294  cmpl    $0x1, 0x24(%rdi)   ; flags on (this->type - 1)
+   *   0x31298  sete    %al                ; al = (ZF == 1) = (type == 1)
+   *   0x3129b  popq    %rbp
+   *   0x3129c  retq                       ; return al as bool
+   *   0x3129d  nopl    (%rax)             ; alignment padding, not code
+   *
+   * AT&T decode note (PORTING_SPEC Rule 4): `cmpl $0x1, 0x24(%rdi)` computes
+   * `dst - src` = `type - 1`, and `sete` is the ZF=1 condition — so this is an
+   * exact EQUALITY test against the GPU code 1, not a bit test. `sete` writes
+   * the low byte only, which is precisely a SysV-ABI C++ `bool` return.
+   *
+   * Zero callees, zero externs, zero indirect calls.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZNK15HGRenderContext5IsGPUEv.s
+   */
+  IsGPU(): boolean {
+    // @Helium 0x31294: cmpl $0x1, 0x24(%rdi)
+    // @Helium 0x31298: sete %al
+    return (this.type | 0) === 1;
+  }
+
+  /**
+   * `HGRenderContext::SetWorkMode(HGRenderContext::WorkMode)` — Helium
+   * @0x00031450 (mangled `__ZN15HGRenderContext11SetWorkModeENS_8WorkModeE`).
+   *
+   * Full transcription (5 instructions + padding):
+   *
+   *   0x31450  pushq   %rbp
+   *   0x31451  movq    %rsp, %rbp
+   *   0x31454  movl    %esi, 0x28(%rdi)   ; this->workMode = mode  (32-bit store)
+   *   0x31457  popq    %rbp
+   *   0x31458  retq
+   *   0x31459  nopl    (%rax)             ; alignment padding, not code
+   *
+   * A bare 32-bit field store: the enum argument arrives in `%esi` (arg1 after
+   * the `this` pointer in `%rdi`) and is written verbatim to +0x28. There is NO
+   * validation, NO clamp, NO notification of the renderer and no read-back —
+   * the whole method is that one `movl`. The `| 0` mirrors the 32-bit width of
+   * the store (`movl`, not `movq`), matching what `GetWorkMode()` @0x31494
+   * reads back with `movl 0x28(%rdi), %eax`.
+   *
+   * Zero callees, zero externs, zero indirect calls.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN15HGRenderContext11SetWorkModeENS_8WorkModeE.s
+   */
+  SetWorkMode(mode: number): void {
+    // @Helium 0x31454: movl %esi, 0x28(%rdi)
+    this.workMode = mode | 0;
+  }
 
   /**
    * `HGRenderContext::GetComputeDevice()` — Helium @0x00031470.
