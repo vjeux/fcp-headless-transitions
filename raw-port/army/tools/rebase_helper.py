@@ -26,6 +26,9 @@ Usage: rebase_helper.py <Class>
   exit 3 = not stale / nothing to do (branch already merges clean or is a pure dup)
   exit 4 = BAIL: overlapping symbol edits, needs human
   exit 5 = BAIL: union result still regresses or dups or fails gate
+  exit 6 = NEEDS_WORKER_REBASE: add/add on a shared class body — not mechanically unionable;
+           a WORKER must re-apply the branch's net-new methods onto main's current class
+           (rebase_pr.sh <PR#>, pulled from the rebase queue via rebase_claim.sh). NOT a failure — an escalation.
   exit 1 = usage / setup error
 """
 import sys, os, re, subprocess, tempfile, shutil
@@ -78,8 +81,32 @@ def main(argv):
         base_t = show(mb, f, REPO)
         br_t   = show(BR, f, REPO)
         main_t = show("origin/main", f, REPO)
-        if base_t is None or br_t is None:
-            print(f"BAIL: {f} missing at base/branch", file=sys.stderr); return 4
+        if br_t is None:
+            print(f"BAIL: {f} missing on branch", file=sys.stderr); return 4
+        if base_t is None and main_t is not None:
+            # ADD/ADD: the file was created INDEPENDENTLY on both the branch and main after they
+            # forked (no version at the merge-base). If BOTH versions define members INSIDE one
+            # shared `class X { ... }` body (the PCAtomBox case), a text union is unsafe — it would
+            # duplicate the class declaration + any shared method. That is AUTHOR work: a worker must
+            # re-apply the branch's net-new methods onto main's current class body. Signal that
+            # cleanly with exit 6 (NEEDS_WORKER_REBASE) so a worker slot pulls the rebase from the
+            # rebase queue (rebase_claim.sh) instead of looping. Only a file of DISJOINT TOP-LEVEL exports (no shared class body) is
+            # union-safe here; detect the shared-class-body case and escalate.
+            def _class_bodies(t):
+                import re as _r
+                return set(_r.findall(r'export\s+(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)', t or ""))
+            shared_classes = _class_bodies(br_t) & _class_bodies(main_t)
+            if shared_classes:
+                print(f"NEEDS_WORKER_REBASE: {f} — add/add on shared class body {sorted(shared_classes)} "
+                      f"(branch + main both define methods inside it; a worker must re-apply the "
+                      f"branch's net-new methods onto main's current class). Not mechanically unionable.",
+                      file=sys.stderr)
+                return 6
+            base_t = ""   # disjoint top-level exports: empty base -> diff3 unions both sides
+
+
+        if base_t is None:
+            print(f"BAIL: {f} missing at base and not on main", file=sys.stderr); return 4
         if main_t is None:
             # file is new on the branch (not on main) -> just take branch version, no union needed
             merged[f] = br_t

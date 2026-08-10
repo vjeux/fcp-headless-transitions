@@ -23,6 +23,8 @@ export class FFAudioPlayer {
   prerollScale = 0;
   // +0x110  cached preroll time in scaled seconds.
   playbackPrerollSeconds = 0;
+  // +0x123  one-byte "is playing" flag (read by isPlaying via movzbl 0x123(%rdi)).
+  isPlaying_at0x123 = false;
 
   /**
    * FFAudioPlayer::setPlaybackPrerollTime(CMTime time)
@@ -52,5 +54,27 @@ export class FFAudioPlayer {
     const scaled = seconds * this.prerollScale;
     // @0xd131b9  this->playbackPrerollSeconds = scaled.
     this.playbackPrerollSeconds = scaled;
+  }
+
+  /**
+   * FFAudioPlayer::isPlaying() const -> bool
+   * @0xADDR Flexo 0x0000000000d14270  (__ZNK13FFAudioPlayer9isPlayingEv)
+   *
+   * Pure one-byte state query. FULL DECODE
+   * (raw-port/re/disasm/Flexo.__ZNK13FFAudioPlayer9isPlayingEv.s, 7 lines):
+   *
+   *   0xd14270  pushq %rbp
+   *   0xd14271  movq  %rsp,%rbp
+   *   0xd14274  movzbl 0x123(%rdi),%eax   ; eax = (uint8) this->isPlaying (+0x123),
+   *                                       ;   zero-extended to 32 bits = the bool
+   *   0xd1427b  popq  %rbp
+   *   0xd1427c  retq                      ; return eax
+   *
+   * No callees, no branches -- just a zero-extended byte load of the +0x123
+   * flag. The `movzbl` gives a 0/1 result; return it as a bool.
+   */
+  isPlaying(): boolean {
+    // @0xd14274 movzbl 0x123(%rdi),%eax -- zero-extended byte load of the flag.
+    return this.isPlaying_at0x123;
   }
 }

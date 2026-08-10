@@ -57,6 +57,44 @@
 //
 // Dependencies: 0 in-scope, 0 indirect, 1 out-of-scope extern
 // (_AudioUnitGetProperty).
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM — FFAudioGraph::GetUnitSampleRate(ComponentInstanceRecord*, uint, uint)
+//   raw-port/re/disasm/Flexo.__ZN12FFAudioGraph17GetUnitSampleRateEP23ComponentInstanceRecordjj.s
+// -----------------------------------------------------------------------------
+//   0xd387b0  pushq %rbp ; movq %rsp,%rbp ; subq $0x30,%rsp   ; frame + 0x30 stack
+//   0xd387b8  movl  %edx, %ecx                ; ecx = arg3 (element) -> inElement
+//   0xd387ba  movl  %esi, %edx                ; edx = arg2 (scope)   -> inScope
+//   0xd387bc  movl  $0x28, -0x4(%rbp)         ; ioDataSize = 0x28 (40 = sizeof ASBD)
+//   0xd387c3  leaq  -0x30(%rbp), %r8          ; r8 = &outData (stack ASBD buffer)
+//   0xd387c7  leaq  -0x4(%rbp), %r9           ; r9 = &ioDataSize
+//   0xd387cb  movl  $0x8, %esi                ; esi = inID = 8
+//                                             ;   (kAudioUnitProperty_StreamFormat)
+//   0xd387d0  callq _AudioUnitGetProperty     ; stub 0x1494614 — same extern the
+//                                             ;   GetUnitChannels sibling calls
+//   0xd387d5  testl %eax, %eax                ; status == 0 ?
+//   0xd387d7  je    0xd387e2                  ;   zero => success path
+//   0xd387d9  xorps %xmm0, %xmm0              ; FAILURE: xmm0 = +0.0
+//   0xd387dc  addq  $0x30,%rsp ; popq %rbp ; retq
+//   0xd387e2  movsd -0x30(%rbp), %xmm0        ; SUCCESS: xmm0 = *(Float64*)(outData+0x00)
+//                                             ;   = ASBD.mSampleRate
+//   0xd387e7  addq  $0x30,%rsp ; popq %rbp ; retq
+//   0xd387ed  nopl  (%rax)                    ; alignment padding (not code)
+//
+// Identical in shape to the GetUnitChannels sibling 0x40 bytes earlier — same
+// StreamFormat fetch, same 0x28 ioDataSize, same stack ASBD buffer, same
+// _AudioUnitGetProperty stub (0x1494614) — differing in exactly two ways:
+//   (a) it reads the ASBD's FIRST field, mSampleRate at +0x00, with `movsd`
+//       (8-byte Float64, returned in %xmm0) rather than the u32
+//       mChannelsPerFrame at +0x1c returned in %eax; and
+//   (b) the branch polarity is flipped: GetUnitChannels does `jne` to the
+//       zero-return, this one does `je` to the value-return. Both mean
+//       "status != 0 => return zero".
+// The zero returned on failure is `xorps %xmm0,%xmm0` = +0.0 (a Float64 zero),
+// not the integer 0 of the sibling.
+//
+// Dependencies (GetUnitSampleRate): 0 in-scope, 0 indirect, 1 out-of-scope
+// extern (_AudioUnitGetProperty @0xd387d0, stub 0x1494614).
 // -----------------------------------------------------------------------------
 
 /**
@@ -85,7 +123,9 @@ export interface AudioStreamBasicDescription {
 
 /**
  * `_AudioUnitGetProperty` — AudioToolbox out-of-scope extern
- * (@Flexo 0xd38790, stub 0x1494614). Returns an `OSStatus` (0 = success) and
+ * (@Flexo 0xd38790 from GetUnitChannels and @Flexo 0xd387d0 from
+ * GetUnitSampleRate — both `callq` the SAME stub 0x1494614).
+ * Returns an `OSStatus` (0 = success) and
  * fills `outData`. Modelled as a boundary stub: without a live AudioUnit we
  * cannot produce a real StreamFormat, so this raises — a loud gap, per
  * PORTING_SPEC Rule 3 (out-of-scope extern, cites addr). A real host wires an
@@ -107,10 +147,111 @@ function AudioUnitGetProperty(
 }
 
 /**
+ * `_AudioUnitSetProperty` — AudioToolbox out-of-scope extern
+ * (@Flexo 0xd386c5, stub 0x1494644). Sets a property on an AudioUnit and
+ * returns an `OSStatus` (0 = success). Modelled as a boundary stub: without a
+ * live AudioUnit there is no property store to write, so this raises — a loud
+ * gap, per PORTING_SPEC Rule 3 (out-of-scope extern, cites addr). A real host
+ * wires an actual AudioUnit here. Mirrors the `_AudioUnitGetProperty` boundary
+ * above (the read counterpart used by GetUnitChannels).
+ */
+function AudioUnitSetProperty(
+  _inUnit: ComponentInstanceRecord,
+  _inID: number,
+  _inScope: number,
+  _inElement: number,
+  _inData: AudioStreamBasicDescription,
+  _inDataSize: number,
+): number {
+  throw new Error(
+    "_AudioUnitSetProperty @Flexo 0xd386c5 (AudioToolbox extern, stub " +
+      "0x1494644) — out-of-scope Core Audio boundary; a live AudioUnit must " +
+      "be provided by the host to receive the StreamFormat ASBD.",
+  );
+}
+
+/**
  * `FFAudioGraph` — Flexo audio-graph helpers. Only `GetUnitChannels` is ported
  * in this file; other members are separate ledger entries.
+ * FFAudioNode — the +0x30 slice relevant to `IsNodeInputConnected`.
+ *
+ * FFAudioNode's full layout is not decoded here; this models ONLY the one
+ * field that method reads: a libc++ `std::__1::map<uint32, X>` at +0x30
+ * (its per-input connection table). The RB-tree keys are the uint32 input
+ * indices; `IsNodeInputConnected` only needs membership, so the value type
+ * is left opaque (`unknown`). Modelled as a JS `Map<number, unknown>` per the
+ * layer convention for libc++ `__tree`-backed maps (see
+ * CustomPixelFormatRegistry). The offset +0x30 is documented per Rule 5.
+ */
+export interface FFAudioNodeWithInputMap {
+  /** +0x30 : std::map<uint32, X> input-connection table (RB-tree). */
+  inputConnections_at0x30: Map<number, unknown>;
+}
+
+/**
+ * `FFAudioGraph` — Flexo audio-graph helpers. Ports `GetUnitChannels` and
+ * `IsNodeInputConnected` in this file; other members are separate ledger
+ * entries added additively.
  */
 export class FFAudioGraph {
+  /**
+   * `FFAudioGraph::SetUnitFormat(ComponentInstanceRecord*, unsigned int,
+   * AudioStreamBasicDescription const&, unsigned int)` — @Flexo 0xd386b0
+   * (__ZN12FFAudioGraph13SetUnitFormatEP23ComponentInstanceRecordjRK27AudioStreamBasicDescriptionj).
+   *
+   * The write counterpart of GetUnitChannels: set the AudioUnit `unit`'s
+   * StreamFormat (kAudioUnitProperty_StreamFormat = 8) for the given
+   * `scope`/`element` from the caller-supplied ASBD `fmt`, and return the
+   * AudioUnitSetProperty OSStatus.
+   *
+   * FULL DISASM (raw-port/re/disasm/Flexo.__ZN12FFAudioGraph13SetUnitFormatEP23ComponentInstanceRecordjRK27AudioStreamBasicDescriptionj.s — 9 lines):
+   *   0xd386b0  pushq %rbp ; movq %rsp,%rbp
+   *   0xd386b4  movq  %rdx, %r8              ; inData(r8)  = arg3 = &fmt
+   *   0xd386b7  movl  %esi, %edx             ; inScope(edx) = arg2 = scope
+   *   0xd386b9  movl  $0x8, %esi             ; inID(esi)    = 8 (kAudioUnitProperty_StreamFormat)
+   *   0xd386be  movl  $0x28, %r9d            ; inDataSize(r9d) = 0x28 (40 = sizeof ASBD)
+   *   0xd386c4  popq  %rbp
+   *   0xd386c5  jmp   _AudioUnitSetProperty  ; TAIL-CALL (stub 0x1494644)
+   *                                          ;   return AudioUnitSetProperty(
+   *                                          ;     inUnit    = rdi (arg1, the unit),
+   *                                          ;     inID      = 8,
+   *                                          ;     inScope   = edx (arg2, scope),
+   *                                          ;     inElement = ecx (arg4, element; passed through),
+   *                                          ;     inData    = r8  (arg3, &fmt),
+   *                                          ;     inDataSize = 0x28)
+   *
+   * ABI (AudioUnitSetProperty, AudioToolbox):
+   *   OSStatus AudioUnitSetProperty(AudioUnit inUnit /rdi,
+   *     AudioUnitPropertyID inID /esi, AudioUnitScope inScope /edx,
+   *     AudioUnitElement inElement /ecx, const void* inData /r8, UInt32 inDataSize /r9)
+   *
+   * Static method (no `this`): like the sibling GetUnitChannels, the disasm
+   * takes the unit as its first argument (%rdi) with no member access — a
+   * free/static FFAudioGraph helper. The incoming registers are therefore
+   * (rdi=unit, esi=scope, rdx=&fmt, rcx=element); the shuffle drops arg2(scope)
+   * into inScope, sets inID=8 and inDataSize=0x28, and leaves inUnit=rdi and
+   * inElement=ecx untouched, then tail-jumps.
+   *
+   * OUT-OF-SCOPE EXTERNS (modelled at the boundary, PORTING_SPEC Rule 3):
+   *   * _AudioUnitSetProperty (AudioToolbox) @0xd386c5 (stub 0x1494644).
+   *   * ComponentInstanceRecord* (opaque AudioUnit handle) — passed through.
+   *   FRONTIER CALLEES: none in-scope.
+   */
+  static SetUnitFormat(
+    unit: ComponentInstanceRecord,
+    scope: number,
+    fmt: AudioStreamBasicDescription,
+    element: number,
+  ): number {
+    // @0xd386b4 movq %rdx,%r8 : inData = &fmt.
+    // @0xd386b7 movl %esi,%edx : inScope = scope.
+    // @0xd386b9 movl $0x8,%esi : inID = kAudioUnitProperty_StreamFormat.
+    // @0xd386be movl $0x28,%r9d : inDataSize = 40 (sizeof ASBD).
+    // @0xd386c5 jmp _AudioUnitSetProperty(unit, 8, scope, element, &fmt, 40)
+    //   (inUnit = rdi = unit; inElement = ecx = element, passed through).
+    return AudioUnitSetProperty(unit, 0x8, scope >>> 0, element >>> 0, fmt, 0x28);
+  }
+
   /**
    * `FFAudioGraph::GetUnitChannels(ComponentInstanceRecord*, unsigned int,
    * unsigned int)` — @Flexo 0xd38770
@@ -153,5 +294,137 @@ export class FFAudioGraph {
     }
     // @0xd3879d movl -0x14(%rbp),%eax : return ASBD.mChannelsPerFrame (+0x1c).
     return (outData.mChannelsPerFrame ?? 0) >>> 0;
+  }
+
+  /**
+   * `FFAudioGraph::GetUnitSampleRate(ComponentInstanceRecord*, unsigned int,
+   * unsigned int)` — @Flexo 0xd387b0
+   * (__ZN12FFAudioGraph17GetUnitSampleRateEP23ComponentInstanceRecordjj).
+   *
+   * Query the AudioUnit `unit`'s current StreamFormat
+   * (kAudioUnitProperty_StreamFormat = 8) for the given `scope`/`element`, and
+   * return the resulting ASBD's `mSampleRate` (Float64 at +0x00). If the
+   * property fetch returns a nonzero OSStatus, return +0.0.
+   *
+   * Static method (no `this`): the disasm passes %rdi straight through to
+   * `_AudioUnitGetProperty`'s `inUnit` slot and never touches a member, so
+   * arg1 IS the unit — a free/static FFAudioGraph helper, exactly like the
+   * GetUnitChannels and SetUnitFormat siblings. (Were %rdi an implicit
+   * `this`, the unit would have to arrive in %rsi — but %esi is overwritten
+   * with the constant 8 at @0xd387cb before the call, so it cannot be.)
+   *
+   * Full disassembly is quoted in the file header (@0xd387b0..@0xd387ec).
+   * The register shuffle @0xd387b8/@0xd387ba moves (scope=esi, element=edx)
+   * into the (inScope=edx, inElement=ecx) slots of the AudioToolbox ABI.
+   *
+   * NUMERICS: `movsd` @0xd387e2 is a 64-bit *double* load and the value is
+   * returned in %xmm0 — this is Float64 throughout, so NO `Math.fround`
+   * narrowing applies (contrast the f32 paths elsewhere in the port). The
+   * failure return `xorps %xmm0,%xmm0` @0xd387d9 is a Float64 +0.0.
+   *
+   * The stack ASBD buffer at -0x30(%rbp) is NOT zero-initialized before the
+   * call — there is no memset in the 22-line body — so on the success path
+   * every byte read has been written by AudioUnitGetProperty itself.
+   *
+   * OUT-OF-SCOPE EXTERNS (modelled at the boundary, PORTING_SPEC Rule 3):
+   *   * _AudioUnitGetProperty (AudioToolbox) @0xd387d0 (stub 0x1494614) —
+   *     the same extern/stub GetUnitChannels calls; reuses the boundary
+   *     function declared above rather than declaring a second copy.
+   *   * ComponentInstanceRecord* (opaque AudioUnit handle) — passed through.
+   *   FRONTIER CALLEES: none in-scope.
+   */
+  static GetUnitSampleRate(
+    unit: ComponentInstanceRecord,
+    scope: number,
+    element: number,
+  ): number {
+    // @0xd387bc movl $0x28,-0x4(%rbp) : ioDataSize = 40 (sizeof ASBD).
+    const ioDataSize = { value: 0x28 };
+    // @0xd387c3 leaq -0x30(%rbp),%r8 : stack ASBD out buffer (uninitialized).
+    const outData: Partial<AudioStreamBasicDescription> = {};
+    // @0xd387cb movl $0x8,%esi : inID = kAudioUnitProperty_StreamFormat.
+    // @0xd387d0 callq _AudioUnitGetProperty(unit, 8, scope, element, &out, &size).
+    //   (prologue @0xd387b8/@0xd387ba mapped scope->edx=inScope,
+    //    element->ecx=inElement; inUnit stays in rdi = unit).
+    const status = AudioUnitGetProperty(
+      unit,
+      0x8,
+      scope >>> 0,
+      element >>> 0,
+      outData,
+      ioDataSize,
+    );
+    // @0xd387d5 testl %eax,%eax ; @0xd387d7 je 0xd387e2 : status == 0 takes the
+    //   value path; fall-through is the failure path.
+    if (status !== 0) {
+      // @0xd387d9 xorps %xmm0,%xmm0 : return +0.0 (Float64 zero).
+      return 0;
+    }
+    // @0xd387e2 movsd -0x30(%rbp),%xmm0 : return ASBD.mSampleRate (+0x00),
+    //   the Float64 first field of the 40-byte ASBD.
+    return outData.mSampleRate ?? 0;
+  }
+
+  /**
+   * `FFAudioGraph::IsNodeInputConnected(FFAudioNode*, unsigned int)` -> bool
+   * @Flexo 0xd3a5f0
+   * (__ZN12FFAudioGraph20IsNodeInputConnectedEP11FFAudioNodej).
+   *
+   * Static helper (no `this` access): the disasm reads only the FFAudioNode
+   * argument (%rsi) and the uint32 input index (%edx). It is a textbook
+   * libc++ `std::map<uint32, X>::find(key) != end()` inlined as a red-black-
+   * tree lower_bound walk. The map is a MEMBER of FFAudioNode at +0x30:
+   *
+   *   +0x30  std::__1::map<uint32, X>  inputConnections
+   *          (its `__tree` end-node header lives at node+0x30 — the code does
+   *           `addq $0x30,%rsi` to form `end()`, and reads the root pointer
+   *           from `0x30(%rsi)` = header->__left_ = the tree root)
+   *   each __tree_node has its uint32 key at +0x20 and its two child links at
+   *   +0x00 (__left_) / +0x08 (__right_).
+   *
+   * FULL DISASM (raw-port/re/disasm/
+   *   Flexo.__ZN12FFAudioGraph20IsNodeInputConnectedEP11FFAudioNodej.s, 26 lines):
+   *   0xd3a5f4  movq 0x30(%rsi),%rcx      ; rcx = root = header->__left_
+   *   0xd3a5f8  addq $0x30,%rsi           ; rsi = &node->map header (= end())
+   *   0xd3a5fc  testq %rcx,%rcx ; je .fin ; empty tree -> rax stays = rsi (end)
+   *   0xd3a601  movq %rsi,%rax            ; rax = end() (best-so-far / result)
+   *   .loop (0xd3a610):
+   *   0xd3a610  xorl %edi,%edi
+   *   0xd3a612  cmpl %edx,0x20(%rcx)      ; flags on (node->key - edx)
+   *   0xd3a615  setb %dil                 ; dil = (node->key <  edx) ? 1 : 0
+   *   0xd3a619  cmovaeq %rcx,%rax         ; if node->key >= edx : rax = rcx
+   *                                       ;   (remember this candidate; it is
+   *                                       ;    the smallest key seen that is
+   *                                       ;    >= edx = the lower_bound)
+   *   0xd3a61d  movq (%rcx,%rdi,8),%rcx   ; descend: rdi=1 -> __right_ (+0x08),
+   *                                       ;          rdi=0 -> __left_  (+0x00)
+   *   0xd3a621  testq %rcx,%rcx ; jne .loop ; until we fall off a leaf
+   *   .fin_lookup (0xd3a626):
+   *   0xd3a626  cmpq %rsi,%rax ; je .fin  ; rax == end() -> not found
+   *   0xd3a62b  cmpl 0x20(%rax),%edx      ; flags on (edx - rax->key)
+   *   0xd3a62e  jae .found                ; edx >= rax->key ? (with rax->key
+   *                                       ;   >= edx from lower_bound => equal)
+   *   .fin (0xd3a630):
+   *   0xd3a630  movq %rsi,%rax            ; not found -> rax = end()
+   *   .found (0xd3a633):
+   *   0xd3a633  cmpq %rsi,%rax ; setne %al ; return (rax != end()) = found
+   *
+   * Net effect: the classic `map.find(key) != map.end()` — lower_bound(edx)
+   * lands on the first key >= edx; the port is "connected" iff that key
+   * exactly equals edx (i.e. the key is present in the map).
+   *
+   * The red-black tree is a libc++ (`std::__1::__tree`) container — an
+   * out-of-scope STL internal. Per the established convention in this layer
+   * (see CustomPixelFormatRegistry: libc++ `__tree`-backed maps are modelled
+   * as a JS `Map<number, X>`), we model FFAudioNode's +0x30 map as a
+   * `Map<number, unknown>` and mirror the exact `has(key)` result the RB-tree
+   * walk computes. No in-scope callee, no indirect call.
+   */
+  static IsNodeInputConnected(node: FFAudioNodeWithInputMap, inputIndex: number): boolean {
+    // @0xd3a5f4/@0xd3a5f8 : the tree at node+0x30 is our inputConnections map.
+    // The whole RB-tree walk (@0xd3a601..@0xd3a636) computes exactly
+    // `lower_bound(edx) exists && *lower_bound == edx` == `map contains edx`.
+    // @0xd3a612 compares the uint32 key, so match on the unsigned index.
+    return node.inputConnections_at0x30.has(inputIndex >>> 0);
   }
 }
