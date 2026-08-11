@@ -58,7 +58,7 @@
 //   0x31cce  PCString(__CFString const*, __CFBundle*, __CFString const*)  ← NOW PORTED (C2 base; byte-identical to C1 @0x31cec, both routed through fromCFString_CFBundle_CFString)
 //   0x31d0a  PCString(char const*, char const*, char const*)
 //   0x31dde  PCString(char const*, __CFBundle*, char const*)
-//   0x31e7a  PCString(unsigned short const*)
+//   0x31e7a  PCString(unsigned short const*)  ← NOW PORTED (C2 base; byte-identical to C1 @0x31eac, both routed through fromChar16)
 //   0x31f32  PCString(__CFString const*)
 //   0x31f76  PCString(__CFString const*, bool)
 //   0x31fdc  intern(PCString const&)
@@ -166,6 +166,37 @@ function _CFRetain(cf: string | null): string | null {
   // Identity — the disasm's `callq _CFRetain` @0x31f69 returns its
   // input in rax; we mirror that (JS GC subsumes the retain count).
   return cf;
+}
+
+/** _CFStringCreateWithCharacters(alloc=NULL, chars, numChars) — creates
+ *  an immutable CFString from a COUNTED (not NUL-terminated) buffer of
+ *  UTF-16 code units.  Reached through the mach-o symbol stub at
+ *  @ProCore 0xde078; the only transcribed call site is
+ *  PCString(unsigned short const*) @0x31ecf (C1) / @0x31e9d (C2), which
+ *  passes alloc = NULL (`xorl %edi, %edi`), chars = the caller's %rsi
+ *  untouched, and numChars = the code-unit count its own inline scan
+ *  computed in %rdx.
+ *
+ *  Unlike `_CFStringCreateWithCString` above there is no encoding
+ *  argument: the input is already UTF-16, which is CFString's native
+ *  representation.  In this port a CFStringRef is modelled as a JS
+ *  string (see the ABI NOTE in the file header) and a JS string IS a
+ *  sequence of UTF-16 code units, so the faithful model is
+ *  "the first `numChars` units, verbatim" — including unpaired
+ *  surrogates, which CoreFoundation also stores without repair (checked
+ *  against the live function: a lone 0xD83D round-trips unchanged).
+ *  Returns a +1-retained CFStringRef, i.e. the caller owns it. */
+function _CFStringCreateWithCharacters(chars: Uint16Array, numChars: number): string {
+  // @ProCore 0xde078 (symbol stub for: _CFStringCreateWithCharacters).
+  // `subarray` + a value iteration, deliberately: there is no computed index
+  // to read out of range (the caller's `numChars` is the scan's terminator
+  // index, hence < chars.length), so this cannot degrade into the
+  // `undefined -> NaN` silent-wrong-answer class that gate G7 guards.
+  let out = '';
+  for (const unit of chars.subarray(0, numChars)) {
+    out += String.fromCharCode(unit);
+  }
+  return out;
 }
 
 /** _CFStringCompare(a, b, options).  In native code it returns a
@@ -996,5 +1027,143 @@ export class PCString {
     // @0x322c8  jmp 0x322df                     ; -> epilogue
     // @0x322df  movq %r14,%rax; ...; retq
     return buf;
+  }
+
+  /**
+   * PCString::PCString(unsigned short const*) [C1 complete ctor] — @ProCore 0x31eac
+   *   (__ZN8PCStringC1EPKt)
+   * PCString::PCString(unsigned short const*) [C2 base ctor]     — @ProCore 0x31e7a
+   *   (__ZN8PCStringC2EPKt) — byte-identical twin, instruction for instruction
+   *
+   * Builds the CFString from a NUL-TERMINATED buffer of UTF-16 code units. Full
+   * disasm (raw-port/re/disasm/ProCore.__ZN8PCStringC1EPKt.s — the C2 body at
+   * 0x31e7a is the same 19 instructions at a 0x32-lower address):
+   *
+   *   0x31eac  testq  %rsi, %rsi              ; if (chars == NULL)
+   *   0x31eaf  je     0x31edd                 ;   -> the bare retq: RETURNS WITHOUT
+   *                                            ;   WRITING this->ref AT ALL (see below)
+   *   0x31eb1  pushq  %rbp                    ; frame prologue — built only on the
+   *   0x31eb2  movq   %rsp, %rbp              ; non-null path
+   *   0x31eb5  pushq  %rbx
+   *   0x31eb6  pushq  %rax                    ; 16-byte stack alignment padding
+   *   0x31eb7  movq   %rdi, %rbx              ; rbx = this
+   *   0x31eba  movq   $-0x1, %rdx             ; rdx = -1  — the scan cursor
+   *   0x31ec1  cmpw   $0x0, 0x2(%rsi,%rdx,2)  ; compare chars[rdx + 1] against 0
+   *                                            ; (base+2 with a *2 scale IS the +1)
+   *   0x31ec7  leaq   0x1(%rdx), %rdx         ; rdx += 1  [lea does NOT touch flags]
+   *   0x31ecb  jne    0x31ec1                 ; loop while that unit was non-zero
+   *   0x31ecd  xorl   %edi, %edi              ; alloc = NULL (kCFAllocatorDefault)
+   *   0x31ecf  callq  0xde078                 ; _CFStringCreateWithCharacters(
+   *                                            ;   NULL, %rsi = chars, %rdx = count)
+   *   0x31ed4  movq   %rax, (%rbx)            ; this->ref = the new CFStringRef
+   *   0x31ed7  addq   $0x8, %rsp              ; epilogue
+   *   0x31edb  popq   %rbx
+   *   0x31edc  popq   %rbp
+   *   0x31edd  retq
+   *
+   * TWO details that are easy to get wrong, both measured below:
+   *
+   * 1. THE SCAN IS OFF BY ONE ON PURPOSE. `rdx` starts at -1 and the compare
+   *    addresses `chars[rdx + 1]`, so the FIRST unit tested is chars[0]; because
+   *    `leaq` does not disturb flags, the `jne` still reads the compare that ran
+   *    BEFORE the increment. On exit `rdx` therefore holds the INDEX OF THE NUL,
+   *    i.e. exactly the code-unit count, and that register is already the third
+   *    argument to the CF call — the count excludes the terminator. An empty
+   *    string (chars[0] == 0) exits with rdx = 0 after one iteration.
+   * 2. THE NULL-POINTER PATH WRITES NOTHING. `je 0x31edd` jumps to the bare
+   *    `retq` BEFORE the frame is even built, so `this->ref` keeps whatever the
+   *    caller's storage held — in C++ that is uninitialised memory, not null.
+   *    (Verified on the live binary: with the slot pre-poisoned to
+   *    0xDEADBEEFCAFEF00D, 50/50 NULL calls left the poison in place.) The TS
+   *    model reaches this ctor through `fromChar16`, which starts from the
+   *    default ctor's `ref = null` @0x31ab8, so the field is observably null —
+   *    the closest faithful representation available in a language with no
+   *    uninitialised storage, and it is called out here rather than papered over.
+   *
+   * The scan is on 16-bit UNITS (`cmpw`), not bytes: an ASCII string in UTF-16
+   * has a zero high byte in every unit, so a byte-wise scan would stop at
+   * length 0 for "A". Nothing in the body validates surrogate pairing.
+   *
+   * ORACLE: verified against the live ProCore binary. Both entry points are
+   * EXPORTED (`nm -arch x86_64` type `T`: C1 @0x31eac, C2 @0x31e7a), and the CF
+   * callee is real CoreFoundation in-process, so the harness
+   * (raw-port/re/oracle/PCString_ctor_char16_oracle.py) dlopens ProCore under
+   * `arch -x86_64 /usr/bin/python3` — the port cites x86_64 offsets, and the
+   * arm64 slice would be a body it never read — calls the real ctor on a
+   * poisoned 8-byte object, then reads the stored CFStringRef back with the REAL
+   * CFStringGetLength / CFStringGetCharacters, which observes the count the scan
+   * computed directly. THIS function is what the corpus is fed to — the harness
+   * pipes the same buffers through `tsx` into
+   * raw-port/re/oracle/PCString_ctor_char16_driver.ts, so the comparison is
+   * live-binary vs the REAL TypeScript below, not vs a re-implementation of it
+   * (a Python model of the same body is kept as a third opinion, and both agree).
+   * Code units, never JS strings, travel on that wire: the corpus contains lone
+   * surrogates on purpose. 315 cases (empty, 1..299 units, 0xFFFF, 0x0001,
+   * latin-1, CJK, a surrogate PAIR, a LONE high surrogate, a LONE low surrogate,
+   * an EMBEDDED NUL, 64/255-unit strings, and 300 random buffers): 315/315
+   * code-unit-identical to this port; the NULL path left the field untouched
+   * 50/50 (and the port answers `ref === null` there); the C2 twin agreed with C1
+   * on 60/60.
+   * NEGATIVE CONTROLS (measured, same 315 cases): including the terminator in
+   * the count -> 315 wrong; an off-by-one-short count -> 303 wrong; scanning for
+   * a zero BYTE instead of a zero UNIT -> 17 wrong; ignoring the embedded NUL
+   * and taking the whole buffer -> 1 wrong.
+   *
+   * @param chars — the UTF-16 buffer (SysV %rsi), NUL-terminated. `null` models
+   *                the NULL pointer the `testq`/`je` guard tests for.
+   */
+  private _ctor_char16(chars: Uint16Array | null): void {
+    // @0x31eac/@0x31eaf — testq %rsi,%rsi ; je 0x31edd : a NULL pointer returns
+    //   immediately, leaving `this.ref` exactly as the caller's storage had it.
+    //   No store, no CF call, not even a frame.
+    if (chars === null) return;
+    // @0x31eba..@0x31ecb — the NUL scan. Transcribed as the machine runs it:
+    //   cursor starts at -1, each pass tests chars[cursor + 1] and then bumps
+    //   the cursor, and the loop continues while the tested unit was non-zero,
+    //   so on exit `cursor` is the index of the terminator = the unit count.
+    let cursor = -1; // @0x31eba movq $-0x1, %rdx
+    for (;;) {
+      const index = cursor + 1;
+      if (index >= chars.length) {
+        // The machine has NO bounds check here: it would read whatever 16 bits
+        // follow the buffer and keep scanning (unterminated input is UB in C).
+        // That is not modellable in TS, so this is the loud gap PORTING_SPEC
+        // Rule 3 requires rather than a guess — and it keeps the read below in
+        // range, which is what makes the index provably safe instead of
+        // `undefined -> NaN` (gate G7 / OPS_LOG #13).
+        throw new Error(
+          'PCString(unsigned short const*) @ProCore 0x31ec1: the NUL scan ran past ' +
+            'the end of the buffer — the machine reads adjacent memory there and ' +
+            'this port will not invent what it finds; pass a NUL-terminated buffer',
+        );
+      }
+      const unit = chars[index]; // @0x31ec1 cmpw $0x0, 0x2(%rsi,%rdx,2)
+      cursor = index; // @0x31ec7 leaq 0x1(%rdx), %rdx (flags untouched)
+      if (unit === 0) break; // @0x31ecb jne 0x31ec1 — falls out when it WAS zero
+    }
+    // @0x31ecd/@0x31ecf — xorl %edi,%edi (alloc = NULL) ; callq the CF stub with
+    //   %rsi = chars unchanged and %rdx = cursor (the count, terminator excluded).
+    const created = _CFStringCreateWithCharacters(chars, cursor);
+    // @0x31ed4 — movq %rax, (%rbx) : this->ref = the returned CFStringRef.
+    this.ref = created;
+  }
+
+  /**
+   * PCString::PCString(unsigned short const*) — public C1 entry point at
+   * @ProCore 0x31eac (byte-identical C2 twin at @ProCore 0x31e7a). A static
+   * factory for the same reason `fromCFString` @0x31f54 is one: JS has no
+   * overloading, and this ctor's `unsigned short const*` argument is a
+   * DIFFERENT native symbol with a DIFFERENT body from the `char const*` ctor
+   * @0x31ad4 that the polymorphic `constructor(...)`'s string arm routes to
+   * (that one calls _CFStringCreateWithCString and substitutes a sentinel for
+   * an empty input; this one calls _CFStringCreateWithCharacters and has no
+   * sentinel path at all).
+   */
+  static fromChar16(chars: Uint16Array | null): PCString {
+    // The default ctor lays down `this->ref = null` @0x31ab8 into the caller's
+    // storage before the C1 body runs — see the note on the NULL path above.
+    const s = new PCString(); // @0x31ab8 (default ctor sets ref = null)
+    s._ctor_char16(chars); // @0x31eac (C1 char16 ctor body)
+    return s;
   }
 }
