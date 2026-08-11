@@ -109,10 +109,11 @@ const DISPATCH_TIME_FOREVER: bigint = 0xffffffffffffffffn; // @Helium 0x603c2
  * timeout elapses), and returns 0 on completion / non-zero on timeout.
  *
  * TRUE OUT-OF-SCOPE extern (Apple libdispatch, the same runtime as the
- * dispatch_group_create stub above). Modelled as a boundary throw citing
- * @0xADDR; JS has no libdispatch and no blocking primitive, so any caller
- * that needs the real rendezvous must be wired to a JS-side promise/pool
- * adapter rather than routed through this stub.
+ * dispatch_group_create stub above). Modelled as a NO-OP boundary returning 0
+ * and citing @0xADDR — see the body for why a throw would be wrong here and is
+ * right for FFSemaphore.ts. A caller that needs a real rendezvous must be
+ * wired to a JS-side promise/pool adapter rather than routed through this
+ * stub; what it must NOT do is prevent the @0x603ce store from running.
  *
  * @param _group   the dispatch_group_t at Impl+0x00 (%rdi @0x603c2).
  * @param _timeout dispatch_time_t (%rsi) — always DISPATCH_TIME_FOREVER here.
@@ -123,12 +124,24 @@ function dispatch_group_wait(
   _timeout: bigint,
 ): number {
   // @Helium stub 0x3c50ba — _dispatch_group_wait (libdispatch extern).
-  throw new Error(
-    "BufferCopier::finish: _dispatch_group_wait not yet transcribed — " +
-      "called @Helium 0x603c9 via stub 0x3c50ba with timeout " +
-      "DISPATCH_TIME_FOREVER (@0x603c2). TRUE out-of-scope extern (Apple " +
-      "libdispatch runtime).",
-  );
+  //
+  // MODELLED AS A NO-OP RETURNING 0, not as a throw. The discriminator is
+  // whether the machine CONSUMES the wait's result: here nothing tests %rax
+  // after @0x603c9 — the very next instruction is the `movb $0x0, 0x48(%rbx)`
+  // store @0x603ce — so the call's only contribution to this function is the
+  // rendezvous itself. This is the landed FFCentralDecodingUnitManager.ts
+  // shape (@0xdff171: the same `movq $-0x1,%rsi` + wait with the result
+  // discarded, landed as a no-op), not the FFSemaphore.ts shape (@0x12efa5c),
+  // where `testq %rax,%rax ; sete %al` feeds the return value and JS cannot
+  // fabricate an answer — that one is correctly a throw.
+  //
+  // The no-op is also what the timeout means here: a single-threaded JS realm
+  // has no block in flight, so a real DISPATCH_TIME_FOREVER wait on an
+  // un-entered group returns immediately with 0 (measured on the live symbol
+  // by the oracle: an idle group returns at once, an ENTERED group blocks for
+  // the full delay). Returning 0 = "the group drained" is therefore the
+  // faithful boundary value, and the @0x603ce store must run.
+  return 0;
 }
 
 /** BufferCopier::Impl — the 0x50-byte heap-allocated inner object.
@@ -269,7 +282,17 @@ export class HGRenderUtils_BufferCopier {
    *   call to it without changing behaviour.
    *
    * ORACLE — differential against the live Helium binary, 1,004 cases, 0
-   * divergences (raw-port/re/oracle/HGRenderUtils_BufferCopier_finish_oracle.py).
+   * divergences (raw-port/re/oracle/HGRenderUtils_BufferCopier_finish_oracle.py
+   * + HGRenderUtils_BufferCopier_finish_driver.mts). The TS side is THIS FILE,
+   * EXECUTED: every case runs through
+   * `node --experimental-strip-types`, which imports this module and calls
+   * `finish()`. The first version of the harness compared the binary against a
+   * Python restatement instead, which no-op'd the wait while the shipped code
+   * threw in it — so it attested to a model, not to the port, and missed the
+   * flag never being cleared. Its four negative controls now run in the same
+   * node process: the wait modelled as a throw is killed on 500/1000 cases
+   * (every flag == 1 case), a `flag != 0` test on 499, dropping the @0x603ce
+   * store on 500, and an inverted `jne` on 499.
    * The symbol is exported (`nm -arch x86_64` type `T`), so the harness dlopens
    * Helium under `arch -x86_64 /usr/bin/python3` (the port cites x86_64 offsets;
    * calling the arm64 slice would compare against code this port did not
