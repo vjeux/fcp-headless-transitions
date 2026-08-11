@@ -3,8 +3,8 @@
 //
 // The fixed-size header at the front of an optical-flow motion-vector cache
 // file (the struct `OZOpticalFlow::Private::ReadHeader(FILE*, CacheFileHeader&)`
-// @0x4e52d0 fills). SIX accessors and ONE setter are transcribed in this file.
-// The rest of the class (the ctors @0x4e5150/@0x4e5170, setSwap/needsSwap, the
+// @0x4e52d0 fills). SIX accessors and TWO setters are transcribed in this file.
+// The rest of the class (the ctors @0x4e5150/@0x4e5170, needsSwap @0x4e51a0, the
 // two remaining setters setSourceWidth @0x4e51b0 / setSourceHeight @0x4e51d0,
 // setFieldMode @0x4e5250, setResolution @0x4e5220, vectorsHeight @0x4e52a0,
 // hasMaxDisplacements @0x4e52c0) are SEPARATE ledger units and are NOT ported
@@ -26,6 +26,7 @@
 //   @0x4e5240  CacheFileHeader::fieldMode()     __ZNK13OZOpticalFlow7Private15CacheFileHeader9fieldModeEv
 //   @0x4e51f0  CacheFileHeader::setTotalFields(unsigned int)
 //                                               __ZN13OZOpticalFlow7Private15CacheFileHeader14setTotalFieldsEj
+//   @0x4e5190  CacheFileHeader::setSwap(bool)   __ZN13OZOpticalFlow7Private15CacheFileHeader7setSwapEb
 //
 // Source disassembly (re-derived from the binary with
 // `raw-port/tools/disasm.sh --sym <mangled> Ozone`):
@@ -36,6 +37,7 @@
 //   raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader12vectorsWidthEv.s  (22 lines)
 //   raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader9fieldModeEv.s     (9 lines)
 //   raw-port/re/disasm/__ZN13OZOpticalFlow7Private15CacheFileHeader14setTotalFieldsEj.s (7 lines)
+//   raw-port/re/disasm/__ZN13OZOpticalFlow7Private15CacheFileHeader7setSwapEb.s        (7 lines)
 //
 // ---------------------------------------------------------------------------
 // LAYOUT (offsets from the bodies below, corroborated by the sibling
@@ -45,7 +47,12 @@
 //     uint16_t version;      // +0x00  ctor writes `movw $0x6,(%rdi)` @0x4e5154
 //     uint8_t  needsSwap;    // +0x01  the whole body of needsSwap() @0x4e51a4 is
 //                            //        `movzbl 0x1(%rdi),%eax` (the high byte of
-//                            //        that same movw, hence 0 after the ctor)
+//                            //        that same movw, hence 0 after the ctor);
+//                            //        WRITTEN @0x4e5194 (`movb %sil,0x1(%rdi)` —
+//                            //        the setSwap setter ported below, a 1-byte
+//                            //        store, which is what fixes the field's WIDTH
+//                            //        at one byte rather than sharing the u16 at
+//                            //        +0x00)
 //     uint32_t sourceWidth;  // +0x04  read @0x4e51c4 / @0x4e5283 / @0x4e528d / @0x4e5294
 //     uint32_t sourceHeight; // +0x08  read @0x4e51e4
 //     uint32_t totalFields;  // +0x0c  read @0x4e5204; WRITTEN @0x4e51f4
@@ -83,6 +90,18 @@
  * @Ozone 0x4e51c0 (and the four sibling accessor addresses listed above)
  */
 export class OZOpticalFlow__Private__CacheFileHeader {
+  /**
+   * +0x01 — the byte-swap flag, kept as the raw BYTE the machine moves.
+   *
+   * Written by `setSwap(bool)`'s single `movb %sil,0x1(%rdi)` @0x4e5194 (ported
+   * below) and read back by `needsSwap()` @0x4e51a4 with `movzbl 0x1(%rdi),%eax`
+   * — a zero-extending byte load, so the accessor's result is this byte's
+   * unsigned value, not a boolean. The ctor @0x4e5154 writes the u16 0x0006
+   * across +0x00..+0x01, leaving this byte 0 (see the file header), which is the
+   * default used here.
+   */
+  needsSwapAt1 = 0;
+
   /** +0x04 — uint32 source width (`movl 0x4(%rdi),%eax` @0x4e51c4). */
   sourceWidthAt4 = 0;
 
@@ -314,6 +333,47 @@ export class OZOpticalFlow__Private__CacheFileHeader {
   setTotalFields(n: number): void {
     // @0x4e51f4  movl %esi,0xc(%rdi) — 32-bit store of the u32 argument.
     this.totalFieldsAtC = n >>> 0;
+  }
+
+  /**
+   * `CacheFileHeader::setSwap(bool)` — @Ozone 0x4e5190
+   *   __ZN13OZOpticalFlow7Private15CacheFileHeader7setSwapEb
+   *
+   * The mutator for the +0x01 byte-swap flag — the slot `needsSwap()` @0x4e51a0
+   * reads (`movzbl 0x1(%rdi),%eax` @0x4e51a4; its own ledger unit, cited here as
+   * the evidence that pins this offset and width).
+   *
+   * Full transcription — every instruction, in order (7-line disasm at
+   * raw-port/re/disasm/__ZN13OZOpticalFlow7Private15CacheFileHeader7setSwapEb.s):
+   *
+   *   0x4e5190  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x4e5191  movq  %rsp,%rbp             ; frame setup (no TS counterpart)
+   *   0x4e5194  movb  %sil,0x1(%rdi)        ; this->needsSwap = swap (1-BYTE store)
+   *   0x4e5198  popq  %rbp                  ; frame teardown (no TS counterpart)
+   *   0x4e5199  retq
+   *   0x4e519a  nopw  (%rax,%rax)           ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * `movb %sil` — the LOW BYTE of the argument register, and only that byte:
+   *     +0x00's u16 `version` and +0x02.. are untouched. That one-byte width is
+   *     why the field is modelled as a byte rather than folded into the version
+   *     word.
+   *   * the parameter is a C++ `bool`, which the System V x86-64 psABI passes as
+   *     0 or 1 in the low byte of %rsi, so the stored byte is exactly 0 or 1 —
+   *     hence `swap ? 1 : 0` reproduces the store's observable effect (and
+   *     `needsSwap()`'s zero-extended read of it) for every ABI-legal input.
+   *   * NO read-modify-write, NO masking, NO other field touched: the store is
+   *     the entire function. Compare `setResolution` @0x4e5220 /
+   *     `setFieldMode` @0x4e5250, which DO read-modify-write the +0x10 flags
+   *     byte — this one does not, because +0x01 is a whole field of its own.
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps` lists nothing).
+   *
+   * @param swap the new byte-swap flag (`bool`, arriving in %sil).
+   */
+  setSwap(swap: boolean): void {
+    // @0x4e5194  movb %sil,0x1(%rdi) — one-byte store of the bool argument.
+    this.needsSwapAt1 = swap ? 1 : 0;
   }
 
 }
