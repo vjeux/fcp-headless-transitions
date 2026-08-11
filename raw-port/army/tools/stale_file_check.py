@@ -217,6 +217,16 @@ def main(argv):
         print()
 
     if not unacked:
+        # `reverts-ok: all` is the one spelling that switches the guard off without naming what it
+        # covers — and naming what went is the docstring's whole justification for the hatch. So a
+        # blanket acknowledgement prints the per-path bill it just paid, which is what the record
+        # needs when someone reads this run six PRs later (reviewer 2's note on #600).
+        if "all" in acks and not all(p in acks for p, _, _, _ in losses):
+            total = sum(n for _, n, _, _ in losses)
+            print(f"  NOTE: this PASS rests on a blanket `reverts-ok: all`, which covers "
+                  f"{len(losses)} file(s) and {total} deleted line(s):")
+            for p, n, _, _ in losses:
+                print(f"      reverts-ok: {p}      # {n} line(s) — the per-path form the blanket replaced")
         print("  Every deletion above is declared in the commit message -> PASS")
         return 0
 

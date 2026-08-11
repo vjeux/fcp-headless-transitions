@@ -109,7 +109,21 @@ def layer2():
     print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
           "PASS" if ok8 else "FAIL")
     if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8
+    # 2j — the stale-file guard's own suite. `stale_file_check.py` is a HARD gate inside pr_gate,
+    # ABOVE the "no raw-port/src ports to gate" early exit, so it runs on the whole non-src
+    # population — 15 of the 16 open PRs when it landed. A later edit that broke its
+    # still-on-main filter would therefore hard-fail honest PRs across the entire queue, and the one
+    # artifact that could catch that is its test: 9 cases, 4 killed mutants (`pre_image`,
+    # `no_filter`, `no_ack`, `lax_flag`). It shipped with NO caller — prove_all, test_guards,
+    # pr_gate and swarm_doctor all referenced it zero times — which is OPS_LOG row 44's shape ("a
+    # guard that exists, works, and is never called is indistinguishable from no guard at all, and
+    # reads as reassurance"). 0.4s.
+    r9 = run(["bash", os.path.join(TOOLS, "test_stale_file_check.sh")])
+    ok9 = "TEST_STALE_FILE_CHECK: PASS" in r9.stdout
+    print("LAYER 2j (stale-file guard — a deletion main still has is caught, a pure append is not):",
+          "PASS" if ok9 else "FAIL")
+    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
 
 def _reach(spec, expect):
     import tempfile

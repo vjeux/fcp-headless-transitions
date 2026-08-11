@@ -132,6 +132,24 @@ OUT=$(cd "$D" && run main work --ack-al); RC=$?     # note the typo
 check "H  an unrecognised flag REFUSES (exit 2), it does not become a path" 2 "$RC" "unrecognised flag" "$OUT"
 rm -rf "$D"
 
+# ---------------------------------------------------------------- I: a BLANKET ack still names the bill
+# `reverts-ok: all` is the spelling an author under pressure reaches for, and it is the one that
+# switches the guard off without saying what went — which is the opposite of the hatch's stated
+# purpose ("names what went and who is answerable"). It still PASSES; it must also print the
+# per-path list it just waved through, so the record is not silent (reviewer 2's note on #600).
+D=$(newrepo)
+git -C "$D" checkout -qb work
+printf 'line1\nline3 tail of the tool\n' > "$D/raw-port/army/tools/tool.sh"    # a real deletion
+git -C "$D" commit -qam "drop line2
+
+reverts-ok: all"
+OUT=$(cd "$D" && run main work); RC=$?
+check "I  'reverts-ok: all' passes AND prints the per-path bill it covers" 0 "$RC" "blanket" "$OUT"
+echo "$OUT" | grep -q "reverts-ok: raw-port/army/tools/tool.sh" \
+  && { echo "  ok   — I2 the blanket note names the actual path and its line count"; PASS=$((PASS+1)); } \
+  || { echo "  FAIL — I2 the blanket note must name each path it covers"; echo "$OUT" | tail -5; FAIL=$((FAIL+1)); }
+rm -rf "$D"
+
 echo "BASELINE (M0): $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || { echo "TEST_STALE_FILE_CHECK: FAIL"; exit 1; }
 

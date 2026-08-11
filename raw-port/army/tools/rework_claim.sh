@@ -81,10 +81,45 @@ cmd_claim () {
   cand=$(gh pr list --repo "$SLUG" --state open --limit 200 \
       --json number,headRefName,headRefOid,reviewDecision,updatedAt \
       --jq '[.[] | select(.reviewDecision=="CHANGES_REQUESTED")] | sort_by(.updatedAt) | .[]
+            | "\(.number)\t\(.headRefName)\t\(.headRefOid)\trejection"' 2>/dev/null)
+  # ── SECOND ARM: a PR the GATE itself reddened for something only its AUTHOR can fix ──────────
+  # A human REQUEST_CHANGES is not the only way a PR ends up waiting on its author. `pr_gate.sh`'s
+  # stale-file guard posts `faithfulness-gate = failure` with the description "deletes lines that
+  # are on main without a reverts-ok: declaration" — a MECHANICAL verdict, so there is no review to
+  # select on, and the remedy (declare `reverts-ok:` or restore the lines) is authoring. Measured on
+  # PR #600's own review: that state was claimable by NOTHING —
+  #   * `rebase_claim.sh` matches `regression|rebase|add-only|G6|gate reject`, none of which this is,
+  #     and `rebase_pr.sh` has nothing to do here anyway (the branch is not stale, it deletes);
+  #   * `review_claim.sh` treats a FAILURE that is latest-for-head as a fresh verdict and SKIPS it;
+  #   * this queue selected on `reviewDecision` alone.
+  # That is OPS_LOG #33's shape ("a rejected PR belonged to no queue at all") arriving through a new
+  # door, on the non-src population — which is exactly the population that guard gates. So the arm
+  # lives here, in the queue that already owns author-side work, rather than in the rebase queue.
+  # It needs no separate "has the author answered?" test: a status is keyed to the HEAD, so the
+  # first push clears it and the PR drops out of this list by itself.
+  local sfrows n2 b2 s2 d2 row
+  sfrows=$(gh pr list --repo "$SLUG" --state open --limit 200 \
+      --json number,headRefName,headRefOid,statusCheckRollup \
+      --jq '.[] | select([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE")
             | "\(.number)\t\(.headRefName)\t\(.headRefOid)"' 2>/dev/null)
+  while IFS=$'\t' read -r n2 b2 s2; do
+    [ -z "$n2" ] && continue
+    case $'\n'"$cand" in *$'\n'"$n2"$'\t'*) continue ;; esac   # arm 1 already offers it
+    # REST carries the description; GraphQL does not (the same split rebase_claim works around).
+    d2=$(gh api "repos/$SLUG/commits/$s2/statuses" \
+           --jq '[.[]|select(.context=="faithfulness-gate")][0].description' 2>/dev/null)
+    echo "$d2" | grep -qiE 'reverts-ok|deletes lines that are on main' || continue
+    row=$(printf '%s\t%s\t%s\tstale-file' "$n2" "$b2" "$s2")
+    if [ -n "$cand" ]; then cand="$cand
+$row"; else cand="$row"; fi
+  done <<< "$sfrows"
   [ -z "$cand" ] && { echo "NONE"; return 1; }
-  while IFS=$'\t' read -r num br sha; do
+  while IFS=$'\t' read -r num br sha why; do
     [ -z "$num" ] && continue
+    # Default: a row with no reason column is arm 1's (a standing rejection). Stated rather than
+    # assumed, so an older shaped fixture or a partially-updated caller cannot silently turn the
+    # already-reworked test below into a no-op.
+    [ -z "${why:-}" ] && why="rejection"
     # IS THE PR ACTUALLY WAITING ON THE AUTHOR? `reviewDecision` stays CHANGES_REQUESTED until a
     # reviewer dismisses or re-reviews — pushing a fix does NOT clear it. So the filter above also
     # matches every PR that has ALREADY been reworked and is waiting on a REVIEWER, and this queue
@@ -95,15 +130,21 @@ cmd_claim () {
     # author has already answered and the PR belongs to the review queue (`review_claim.sh` selects
     # on the head's faithfulness-gate status, and a freshly pushed head has none, so it is visible
     # there as an ordinary unreviewed head).
+    #
+    # This test applies to a REJECTION only. A `stale-file` row was selected from the status on THIS
+    # head, so it is by construction current — and it may well also carry an older, already-answered
+    # rejection, which is precisely the case the test below would misread as "waiting on a reviewer".
     local rej
-    rej=$(gh api "repos/$SLUG/pulls/$num/reviews" \
-            --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
-    # An EMPTY answer is a transport failure or an API shape change, never a verdict — offer the PR
-    # rather than starving the queue on it (OPS_LOG: a gh "not found" is not information).
-    if [ -n "$rej" ] && [ "$rej" != "null" ] && [ "$rej" != "$sha" ]; then
-      echo "rework_claim: PR #$num already reworked (rejection was on ${rej:0:8}, head is now ${sha:0:8}) — it is waiting on a REVIEWER, skipping" >&2
-      rm -f "$ATT/$num" "$ATT/$num.sha" 2>/dev/null
-      continue
+    if [ "$why" = "rejection" ]; then
+      rej=$(gh api "repos/$SLUG/pulls/$num/reviews" \
+              --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
+      # An EMPTY answer is a transport failure or an API shape change, never a verdict — offer the
+      # PR rather than starving the queue on it (OPS_LOG: a gh "not found" is not information).
+      if [ -n "$rej" ] && [ "$rej" != "null" ] && [ "$rej" != "$sha" ]; then
+        echo "rework_claim: PR #$num already reworked (rejection was on ${rej:0:8}, head is now ${sha:0:8}) — it is waiting on a REVIEWER, skipping" >&2
+        rm -f "$ATT/$num" "$ATT/$num.sha" 2>/dev/null
+        continue
+      fi
     fi
     local af="$ATT/$num" sf="$ATT/$num.sha" n last
     n=$(cat "$af" 2>/dev/null || echo 0); last=$(cat "$sf" 2>/dev/null || echo "")
@@ -116,7 +157,13 @@ cmd_claim () {
     fi
     if lease_free "$num"; then
       echo "$((n+1))" > "$af"; echo "$sha" > "$sf"
-      echo "CLAIMED $num $br   (rework attempt $((n+1))/$CAP on head ${sha:0:8})"
+      # Name WHY it is being handed out: a `stale-file` row carries no reviewer prose, so the
+      # worker's reproducer is the gate's own description, not a review body.
+      if [ "$why" = "stale-file" ]; then
+        echo "CLAIMED $num $br   (rework attempt $((n+1))/$CAP on head ${sha:0:8}; reason: faithfulness-gate says the change deletes lines that are on main — declare 'reverts-ok: <path>' in the commit message or restore them)"
+      else
+        echo "CLAIMED $num $br   (rework attempt $((n+1))/$CAP on head ${sha:0:8})"
+      fi
       return 0
     fi
   done <<< "$cand"
