@@ -3617,6 +3617,29 @@ direction for a reviewer — a wrong REJECT, or a duplicate review.
 
 ---
 
+## Fixed 2026-08-11 — seven ways a TOOL could override a PERSON
+
+The previous batch was tools losing work. This one is narrower and worse: tools **overriding a
+judgement someone had already made**. Each was reported by the agent it happened to.
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 37 | **A mechanical `success` erased a reviewer's rejection.** On #550 a reviewer posted a regression `failure`; six seconds later another agent's gate run posted `success` over it, and the required check went green | GitHub keeps only the LATEST status per context. #270 guarded the opening `pending` against exactly this, but left the worse door open. The distinction that matters is not failure-vs-success but MECHANICAL vs JUDGED: a same-head failure→success flip IS legitimate when `regression_check` clears because main moved | `post_success_unless_rejected` — a gate `success` is refused while an **un-dismissed CHANGES_REQUESTED stands on that head**, naming the rejector. A green mechanical gate is not an answer to a semantic defect. Mechanical flips with no rejection still post freely. **Two corrections from reviewer 1's second pass, both reachable from the tool's own strings.** (a) The first marker set contained `regression` and `rebase needed` — which are pr_gate's OWN descriptions (`regression (rebase needed)`, `regression_check errored rc=N`), so the gate parked its own message and no later run could clear that head, including the re-run that is the documented response to a transient regression_check error; measured over all eight postable REASONs, two REFUSED. A park is now MARKED rather than guessed: reviewers park with a **`JUDGED:` prefix**, and `JUDGED: regression (rebase needed): …` still matches `rebase_claim`'s grep, so routing is unchanged. Case G derives its probes FROM pr_gate's own literals, so the next collision fails the suite when it is written. (b) Both guards answered *nobody rejected this head* when `gh` did not answer at all (stub exiting 7 -> both POST), i.e. a transport hiccup produced the very erasure they exist to prevent; they now return a distinct **could not determine** and the caller WITHHOLDS, because withholding a green status costs a re-run and erasing a verdict is permanent. Case H pins it, with a live-`gh` control so a guard that always withholds also fails |
+| 38 | **An APPROVE bound to code nobody read** — 3 times in 6 PRs; on #384 it landed on a head carrying +119 unreviewed lines, all gates green | `pr_review.sh` resolves the head at CALL time, so a push between "finished verifying" and "signed" moves the signature | `--expect-head <sha>`: the reviewer passes the SHA they leased and verified, and a moved head is a **refusal (exit 5)** that prints both SHAs. Omitting it still works but warns, so no caller breaks mid-swarm |
+| 39 | **A worktree was handed on mid-rebase**, and the next holder's commit landed on the state the rebase had checked out. The only tell was an empty `origin/main...HEAD` diff | `reset --hard` does NOT clear `.git/rebase-merge`; nothing aborted the sequence on release | `reset_clean` aborts rebase/merge/cherry-pick/revert first, and `acquire` refuses to hand out a slot where a sequence somehow survived |
+| 40 | **Leftover `re/disasm/*.s` in a pool slot switched off the G5 blind-spot flag** — one PR gated `0 flags/SUCCESS` in a slot holding a stale `.s` for its symbol and `1 flag/FAILURE` in a clean slot, same body | The scratch is gitignored, per-worktree, and was never cleared on lease. The likeliest author of the residue is the PR's own author, so a worker's leftovers can disable the check aimed at their work | `reset_clean` purges it. It regenerates in ~0.1s |
+| 41 | A reviewer slot leased **its own PR**, wasting the lease and the verification (GitHub then refuses the verdict) | `review_claim` had no author check, and the two obvious ones do not work: `vjeux` spans many agents (filtering it starves the queue), and NO PR is authored by the reviewer app because everything is opened through `pr_submit.sh` as the WORKER app. GitHub does not record WHICH AGENT opened a PR | The authoring agent records it itself: `pr_submit.sh` writes `$STATE/authored/<PR> = $FCT_AGENT_ID` and `review_claim` skips a PR whose stamp equals its own id. **READ THIS BEFORE RELYING ON IT: the skip is live only when `FCT_AGENT_ID` is exported, and nothing in the OS can derive it — two `bash -c` invocations of one agent share no handle.** So `slot_lock.sh acquire` prints the `export FCT_AGENT_ID=<role>-<N>` line, AGENT_ENTRY §2.3 tells every slot to run it, and with it unset BOTH halves say so out loud (`pr_submit` writes no marker at all rather than a `hostname-$$` one that can never match; `review_claim` prints that the skip is inactive). Reviewer 2 measured both states: id unset -> the slot CLAIMED a PR it had authored; id exported -> the same run skipped it and named it. Case F pins the skip itself |
+| 42 | A cited disasm FILENAME still read as a symbol in `regression_check`, producing a regression no rebase could ever clear | #516 fixed the sentence-final period but left `Helium.__ZN….s` yielding a phantom `__ZN….s` | Enumerate the real suffixes (`.cold`/`.eh`/`.stub`/`.part`/`.constprop`), matching `rebase_helper` |
+| 43 | **`gh ... --jq` silently matches nothing when handed jq FLAGS.** row 41's first guard used `gh pr list --jq --arg me "$X" '<prog>'`; gh's `--jq` takes a PROGRAM ONLY, so it printed `unknown arguments`, **exited 0**, and wrote nothing. `rows` came back empty, `cmd_claim` printed `NONE`, and every reviewer slot would have polled an empty queue forever against 25 open PRs — the caller's `2>/dev/null` hiding the message, `prove_all` staying green. Caught by reviewer 1 IN REVIEW, before it shipped | "Nothing matched" and "the command failed to run" are indistinguishable at the call site when the error goes to stderr and the exit code is 0 | Pipe to real `jq` when you need arguments. General defence: **assert end-to-end that a filter still MATCHES SOMETHING** — "silently selects nothing" is invisible to any unit test of the program text. That is `test_guards` case E, which the reviewer asked for by name |
+
+Locked by `verifier/test_guards.py` (prove_all LAYER 2f), cases A-H. **Every case is
+mutation-checked** — and three of them initially could not fail. Case B passed with its own fix deleted because it matched the
+explanatory COMMENT rather than the code (it now parses `reset_clean`'s body with comments stripped),
+and the self-review guard reached review with a query that matched nothing at all. Three times in one
+day a test or a guard asserted something it could not detect the loss of: **write the mutation first,
+and for anything that FILTERS, assert it still selects something.**
+
+---
 ## Open — reported 2026-08-11 by reviewer 3 (a queue filter that strands work in NO queue; an OPS_LOG entry that goes stale before it lands; an undocumented exit code; NEW)
 
 Nine PRs this run (#596, #601, #602, #592, #605, #571, #606, #578, #604 — four landed, three
@@ -4231,3 +4254,64 @@ rejected). Everything below was hit live and every number is measured on this bo
   `arch -x86_64 /usr/bin/python3`, which I reproduced. The reading-only review then missed a real
   lane-indexing defect that the differential kills 22/128 of. **Every `RenderTile_AVX` unit in the
   queue is oracle-able**; "Rosetta has no AVX" is not a reason to sign one on reading.
+
+
+---
+
+## Open — reported 2026-08-11 by worker 2 (the REBASE queue no-ops on every non-`.ts` PR and then CLOSES it; FIX in this change)
+
+- **`rebase_pr.sh` reports `not stale / nothing to rebase` for a PR that is genuinely CONFLICTING,
+  because `rebase_helper.py` returns exit 3 for "this branch changes no `.ts` files" — which is true
+  of every docs/tooling PR in the swarm. The rebase queue then re-offers the PR each cycle, and past
+  its 3-attempt cap `rebase_claim.sh` CLOSES it.** So the loop's end state is: approved work closed,
+  by a queue, for failing to do something whose own tool said there was nothing to do.
+
+  MEASURED END TO END on PR #400 (APPROVED by reviewer 2, +153 lines of OPS_LOG evidence):
+
+      $ gh api …/commits/25f9cc67/statuses --jq '.[0].description'
+      regression (rebase needed): DIRTY on OPS_LOG.md; content APPROVED by reviewer 2
+      $ bash raw-port/army/tools/rebase_pr.sh 400
+      rebase_pr: PR #400  branch=port/opslog_rev4  class=opslog_rev4
+      rebase_pr: PR #400 not stale / nothing to rebase (rebase_helper exit 3)
+
+  and `rebase_claim.sh claim` had handed me that PR seconds earlier. The close comment the cap
+  would post — "Closed after 3 rebase attempts on a stale-base shared-class conflict … the
+  append-only claim queue re-hands this symbol to a fresh worker" — is wrong twice over for this
+  class of PR: there is no shared class body, and there is no symbol to re-hand. Nothing re-creates
+  an OPS_LOG section.
+
+  WHY IT IS INVISIBLE: every message in the chain reads like success. `rebase_helper`'s 3 means
+  "no `.ts` changes" (reviewer 3 filed the undocumented-exit-code half of this today); `rebase_pr`
+  translates it to "not stale / nothing to rebase"; the attempt counter increments silently; and the
+  PR's own gate keeps saying `regression (rebase needed)`, which is the thing nobody acted on.
+
+  FIX (in this change), in the branch that reads that exit code:
+    * ask GitHub whether the PR merges (`gh pr view --json mergeable`), retrying while it answers
+      `UNKNOWN` — a guess there either declares a conflicted PR clean or churns a clean one, and an
+      unanswerable question is reported as unanswered rather than folded into "clean";
+    * if it merges, say so precisely ("changes no .ts files and merges cleanly") and stop;
+    * if it does not, do the work: lease a pool worktree, check out the PR head, **merge**
+      `origin/main` (not rebase) and push **without** `-f`. The result is a descendant of the PR
+      head, so this path can only ADD commits — it cannot drop a file, which is the property the
+      `.ts` paths need a name-list guard to recover (#25/#449);
+    * on a conflict, leave the worktree with the merge in progress and print the steps, including
+      the OPS_LOG-specific rule that a tail collision is two appended sections and **both** are
+      kept, plus the deletion check (`diff --unified=0 origin/main | grep '^-[^-]'` must be empty)
+      before the push.
+  Also `swarm_doctor.py` gains `rebase-actionable`, which asserts the guard is present in
+  `rebase_pr.sh` **on origin/main** and, separately, lists the open PRs in that class right now — so
+  the next occurrence is a line in the doctor's report rather than a worker's afternoon. It FAILS
+  against today's main and passes with this change. Its first live run named **nine** open PRs in
+  that class — #523, #553, #554, #557, #571, #614, #617, #621, #622 — i.e. the queue is not one PR
+  away from this; it is the normal state of every ops PR that has sat long enough to conflict.
+
+  WHAT I DID FOR #400 ITSELF, by hand, before writing any of this: merged current main, resolved the
+  one OPS_LOG tail collision keeping both sections, verified zero deletions against main and that
+  all 153 of the PR's own lines survive, pushed **non-force** (`25f9cc67..c13d91dc`). It is
+  `MERGEABLE` again and back in the review queue.
+
+  RELATED, NOT FIXED HERE: `rebase_claim.sh`'s cap closes PRs on a rationale written for the
+  shared-class-body case. For a PR carrying evidence rather than a symbol, closing is not a re-queue
+  — it is a deletion. The rework queue already learned this (it stops OFFERING and never closes,
+  "a human decides"); the rebase queue should adopt the same rule for any PR whose delta contains no
+  `raw-port/src/**/*.ts`.
