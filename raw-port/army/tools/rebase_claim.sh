@@ -27,22 +27,46 @@ lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
 }
 
 reap_dead_counters () {
-  # SELF-HEAL — see the long note in rework_claim.sh. An attempt counter is the authority to stop
-  # offering work, and nothing cleared it when a PR merged: 64 dead counters had accumulated, and one
-  # (#387, MERGED) read as "stranded at 3/3". A counter inflated by a bug that has since been fixed
-  # also stays at the cap, so the fix alone does not free the work it hid (OPS_LOG #28).
-  local f b n st
+  # SELF-HEAL: an attempt counter must not outlive its PR.
+  #
+  # Counters are the authority to stop offering work, and they are never cleared when a PR merges or
+  # closes — so they accumulate as dead state that reads exactly like stranded work. Measured today:
+  # 64 counters for long-merged PRs, one of which (#387, MERGED) reported as "stranded at 3/3" and
+  # cost a round of investigation. Worse, a counter inflated by a bug that has SINCE BEEN FIXED stays
+  # at the cap and keeps real work invisible — the fix alone does not free the state it created
+  # (OPS_LOG #28), which is why two PRs had to be un-stranded by hand this session.
+  #
+  # THE CAP FILTER WAS THE BUG. This used to check only counters already AT the cap, to bound the
+  # number of API calls — one `gh pr view` each. But swarm_doctor's dead-counters check flags ANY
+  # counter whose PR has merged or closed, so the tool that reports the fault and the tool that
+  # fixes it disagreed by construction: #554 sat at 1/3, merged, and the doctor asked a human to
+  # `rm` it on every run while this function was coded to skip it forever. Every dead counter I
+  # cleared by hand today was under the cap. A counter for a merged PR is garbage at any value.
+  #
+  # Checking them all costs nothing extra because they now go in ONE aliased GraphQL query instead
+  # of one call per counter: 6 counters, 0.575s, one round trip. That is cheaper than the old
+  # capped-only loop was, so the bound the filter existed to provide is no longer needed.
+  local f b nums="" q="" resp k st
   for f in "$ATT"/*; do
     [ -f "$f" ] || continue
     b="$(basename "$f")"; case "$b" in *.sha) continue;; esac
     case "$b" in ''|*[!0-9]*) continue;; esac
-    n=$(cat "$f" 2>/dev/null || echo 0)
-    [ "${n:-0}" -ge "$CAP" ] || continue
-    st=$(gh pr view "$b" --repo "$SLUG" --json state --jq .state 2>/dev/null)
-    if [ "$st" = "MERGED" ] || [ "$st" = "CLOSED" ]; then
-      rm -f "$f" "$f.sha" 2>/dev/null
-      echo "rebase_claim: reaped a dead counter for PR #$b ($st)" >&2
-    fi
+    nums="$nums $b"
+  done
+  [ -z "$nums" ] && return 0
+  for b in $nums; do q="$q p$b: pullRequest(number: $b) { state }"; done
+  resp=$(gh api graphql -f query="query { repository(owner: \"${SLUG%%/*}\", name: \"${SLUG##*/}\") { $q } }" \
+           --jq '.data.repository | to_entries[] | "\(.key) \(.value.state)"' 2>/dev/null)
+  # An unanswered query is not evidence. Reaping on silence would clear a LIVE counter and re-offer
+  # work the cap is deliberately holding back, which is the failure the cap exists to prevent.
+  [ -z "$resp" ] && return 0
+  printf '%s\n' "$resp" | while read -r k st; do
+    b="${k#p}"
+    case "$st" in
+      MERGED|CLOSED)
+        rm -f "$ATT/$b" "$ATT/$b.sha" 2>/dev/null
+        echo "rebase_claim: reaped a dead counter for PR #$b ($st) — it was masquerading as stranded work" >&2 ;;
+    esac
   done
 }
 

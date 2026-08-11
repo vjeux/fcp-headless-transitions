@@ -109,7 +109,16 @@ def layer2():
     print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
           "PASS" if ok8 else "FAIL")
     if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8
+    # 2i — the self-heal that clears attempt counters whose PR has already merged. It only looked at
+    # counters AT the cap, while swarm_doctor flags any dead counter at all, so the tool reporting
+    # the fault and the tool fixing it disagreed by construction and the board could never go green.
+    # Offline, function extracted from the shipped file, stubbed gh. ~0.5s.
+    r9 = run(["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")])
+    ok9 = "test_reap_dead_counters: PASS" in r9.stdout
+    print("LAYER 2i (dead attempt counters — the reaper can reach what the doctor reports):",
+          "PASS" if ok9 else "FAIL")
+    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
 
 def _reach(spec, expect):
     import tempfile
