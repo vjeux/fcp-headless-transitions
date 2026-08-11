@@ -146,6 +146,13 @@ if [ -f "$HELPER" ]; then
   if ! grep -q "timeout=t)" "$HELPER"; then
     bad "could not build the mutant — case 6 proves nothing"
   else
+    # THE MUTANT RUNS AN UNBOUNDED DRIVER ON PURPOSE, so this case must clean up after itself — and
+    # the first version did not. It cleaned with `pkill -f "$R/hang.ts"`, but the child's argv is
+    # `node --experimental-strip-types hang.ts` (relative, because cwd=$R), so the absolute path
+    # never appears in the command line and the pattern matched nothing. Three orphans at 98% CPU
+    # were found minutes after running this suite: the test for leaked hung drivers was itself
+    # leaking a hung driver, once per run. Match on what the process ACTUALLY shows, and assert the
+    # absence afterwards (case 7) rather than trusting the cleanup.
     out="$(cd "$R" && timeout 20 python3 - "$R/mut" <<'PY' 2>&1
 import sys
 sys.path.insert(0, sys.argv[1])
@@ -154,13 +161,28 @@ r = run_driver(["node", "--experimental-strip-types", "hang.ts"], timeout=5)
 print("MUT", r.timed_out)
 PY
 )"; rc=$?
-    pkill -f "$R/hang.ts" 2>/dev/null || true
+    pkill -9 -f "experimental-strip-types hang.ts" 2>/dev/null || true
     if [ "$rc" = 124 ] || ! printf '%s' "$out" | grep -q "MUT True"; then
       ok "mutation: without the bound the harness hangs (case 1 has teeth)"
     else
       bad "mutation: the unbounded helper still returned — case 1 pins nothing" "$out"
     fi
   fi
+fi
+
+# 7. THIS SUITE MUST NOT LEAK. It runs unbounded drivers deliberately, which makes it the single
+#    most likely source of the orphan it exists to prevent — and it WAS one: three `hang.ts`
+#    processes at 98% CPU, one per run, because the cleanup pattern named a path that never appears
+#    in the child's argv. A test that creates the condition it checks for is worse than no test, so
+#    assert the absence on the way out instead of trusting the kill above.
+sleep 1
+leaked="$(pgrep -f 'experimental-strip-types hang.ts' 2>/dev/null | wc -l | tr -d ' ')"
+if [ "${leaked:-0}" != "0" ]; then
+  bad "this suite leaked $leaked hung driver(s) — it has become the bug it tests for" \
+      "$(pgrep -lf 'experimental-strip-types hang.ts' 2>/dev/null | head -2)"
+  pkill -9 -f 'experimental-strip-types hang.ts' 2>/dev/null || true
+else
+  ok "the suite leaves no hung driver behind"
 fi
 
 echo
