@@ -35,6 +35,8 @@ detail to reproduce. That is how this list grows.
 | 19 | Units handed out as READY whose real callee was unported | `depgraph`'s DIRECT regex only matched `__Z*`, so a `jmp _PCPrint` (defined in ProCore 0x64e7, unported) produced no edge at all | #280 — plain-C callees defined in the 5 frameworks now count as in-scope deps (READY 15,958 → 15,701) |
 | 20 | G5 judged a port against **another class's** disassembly — a false REJECT on an honest port (#253), and a false ACCEPT wherever the wrong body was EMPTY | `find_disasm`'s last-resort key is the bare CLASS name, globbed as an unanchored substring: `*HGRenderNode*.s` matched `__ZN18OZHGRenderNodeBase8finishedEv.s` (DISPATCH_ONLY). 84 of 916 class-key lookups resolved to a DIFFERENT class (62 REAL, 19 EMPTY, 3 DISPATCH_ONLY). It only fires when the exact symbol's `.s` is missing — the NORMAL state in a pool worktree (#16), i.e. where the gate actually runs. Same shape as the 2026-07-29 parseElement cheat, through a second door | #302 — a bare identifier must match a WHOLE name component (Itanium `<len><Class>`, or a whole dotted component), never a substring; ties resolve deterministically; `sorted(set(...))` in G5's symbol ranking (PYTHONHASHSEED-dependent, so the verdict changed run to run) fully sorted. Locked by `verifier/test_find_disasm.py`, wired into prove_all as LAYER 2b |
 | 21 | G5 computed **476 of its 1,745 verdicts from a different class's function** — `AUPassThrough_D1` judged against `LiMaterialLayer::D1` (TRAP), `AdvanceScopingWindowTask_performTask` against `UpdateScrubRateTask::performTask` (EMPTY), every `*_ctor` export in the repo against one arbitrary framework's ctor | #307 anchored the CLASS key but left the BARE METHOD key: when no cited mangled symbol and no `<Class>.<method>` resolves, G5 falls back to `find_disasm(method)` / `find_disasm(class)`, and a method name alone is shared by hundreds of unrelated classes. Same both-ways harm: a wrong EMPTY/TRAP waves an empty-body-for-REAL-work port through, a wrong REAL condemns an honest @0xADDR-cited sibling stub as class-C | #317 — a bare-key hit must still NAME the class being ported (export-name prefix, else the file's class), via the shared `names_class` rule; otherwise it is discarded and the existing NO-DISASM FLAG asks the reviewer to re-derive. 476 fabricated verdicts -> 0, at the cost of flags on 106 landed files |
+| 22 | Load hit 73 on a 10-core box with 16 agents; `nm` processes pinned a core each for 60-120s | Agents answered one-off symbol questions with `nm -arch x86_64 "/Applications/Final Cut Pro.app/.../Flexo"` — a **78 MB fat** binary, rescanned by Defender/Cyberhaven on every open. The same answer was already cached in `army/inventory/<FW>.syms.txt` (144,642 defined symbols, all 5 frameworks). Measured: **nm on fat Flexo >120s vs `grep` on the cache 0.078s (~1000x)**. Same shape as #10 | **Use the cached inventory.** `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` -> `<addr> <T|t> <mangled>`. Only for UNDEFINED symbols or a flag the cache cannot answer, run nm against the THIN slice `/tmp/<FW>.x86_64` (regenerate with `lipo -thin x86_64`) and capture it ONCE into a variable instead of piping nm twice in one command. **Measured follow-up: thinning barely helps** — under swarm load the same nm took 4m24s fat vs 3m54s thin, so the cost is the symbol-table walk + the security stack, not the fat header. The cache is the only real fix; if it is stale, ONE agent should regenerate it for everyone with `dump_syms.sh` |
+| 23 | 9 concurrent identical `mark_ported.py` runs, ~4 min each at 176% CPU | It is a GLOBAL, idempotent, whole-repo reconciliation, but every agent runs it after every merge, so N agents produce N identical answers and N full scans of `src/` | `pgrep -f mark_ported` first and **skip if one is already running** — that run's result covers your commit too. A coalescing lock inside the tool is the stronger fix and is still open |
 
 ---
 
@@ -155,6 +157,36 @@ detail to reproduce. That is how this list grows.
 
 
 
+## Open — reported 2026-08-11 by reviewer 8 (rebase_helper targets the wrong branch; NEW)
+
+- **`rebase_helper.py <Class>` REBASES A DIFFERENT AGENT'S BRANCH AND REPORTS SUCCESS, and both
+  briefs tell the reviewer to merge that result.** `rebase_helper.py` line 64 hardcodes
+  `BR = f"origin/port/{cls}"`, but a class no longer has one branch. OPS_LOG #1's fix (#240) made
+  `wt_pool acquire` fall back to `port/<Class>__slot<N>` on contention, and `pr_submit.sh` explicitly
+  allows the `__slot<N>` / `_<suffix>` variants — so at the time of writing **HGRenderJob had six open
+  PRs on six branches**: #387 `__slot4`, #388 `__slot5`, #389 `__slot7`, #390 `__slot9`, #391
+  `__slot8`, and #396 on the bare `port/HGRenderJob`. A reviewer holding ANY of the five `__slotN`
+  PRs who follows REVIEWER_BRIEF's documented regression step (`rebase_helper.py <Class>`, "exit 0 →
+  it pushed a rebased branch, gate+merge that") gets exit 0 and
+  `PUSHED origin/port/HGRenderJob_rebased … GATE PASS … Ready for reviewer` — for **#396's content**,
+  which they never reviewed. Measured on PR #390: that PR adds `UsesOnlyCPUResource` (+284 lines); the
+  branch `rebase_helper` handed back adds only `GetType()` (+61 lines).
+  Two harms, both silent: (a) a reviewer merges another agent's unverified port under their own
+  APPROVE — the gate cannot catch it, because the wrong content is itself gate-clean; and (b) the PR
+  the reviewer actually holds is never rebased, so it keeps failing regression forever while the tool
+  keeps reporting success. Same shape as #20/#21/#404 (a bare key resolving to the wrong thing), now
+  through the branch NAME, and it is the "a fix can be the next outage" pattern again: #240's
+  `__slot<N>` fallback created names its sibling tool cannot address.
+  FIX: `rebase_helper.py` must take the **PR number** (resolve the head branch via
+  `gh pr view <PR#> --json headRefName`), or at minimum refuse to run when more than one
+  `origin/port/<Class>*` branch has an open PR, instead of silently choosing the bare name. The
+  reviewer-facing line in `REVIEWER_BRIEF.md` / `PR_FLOW.md` / `HARNESS_LOOP.md` should name
+  `rebase_pr.sh <PR#>` semantics, never a class-keyed guess.
+  WORKAROUND until then: before trusting an exit 0, `git diff origin/main...origin/port/<Class>_rebased`
+  and confirm the added symbols are **your PR's** claimed symbols. If they are not, delete the pushed
+  `_rebased` branch and leave the PR's FAILURE status for the worker rebase queue (`rebase_pr.sh <PR#>`
+  is PR-keyed and does the right thing).
+
 ## Open — reported 2026-08-10 by worker 1 (oracle reachability; new)
 
 - **THE ROSETTA WORKAROUND FOR THE ARCHITECTURE BUG IS INCOMPLETE, AND THE INCOMPLETE HALF IS
@@ -239,6 +271,43 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   pointer against the literal VA its `leaq` computes. **"The symbol is local, so I can't oracle it"
   is no longer true.**
 
+## Open — reported 2026-08-11 by reviewer 2 (post-merge bookkeeping + rebase routing; new)
+
+- **`mark_ported.py` IS A SILENT NO-OP FOR EVERY REVIEWER DURING A SWARM RUN, AND IT PRINTS A
+  HEALTHY-LOOKING LINE WHILE DOING NOTHING.** Both briefs end the merge step with "then
+  `mark_ported.py` — unlocks the callers". It cannot work as invoked. `mark_ported` classifies from
+  `scan_src(ROOT)`, i.e. the `raw-port/src/*.ts` files **on disk in the canonical checkout**, and
+  nothing ever advances that checkout while agents are live: the ONLY `git reset --hard origin/main`
+  in the swarm is `swarm_maint.sh` line 29, and it is gated behind *the tree is DIRTY* **and** *no
+  `pr_gate.sh|pr_submit.sh|pr_land.sh|rebase_pr.sh` is running*. A clean-but-behind tree is never
+  fast-forwarded at all, and with 16 agents the second condition is almost never true either.
+  Measured today: after landing #382 and #396 the canonical tree was **9 commits behind
+  origin/main**, `raw-port/src/render/Gettype3_nice_satTile_AVX.ts` did not exist on disk, and both
+  runs printed `ported 9249/126668 … (status changed on 0 units)` — the same 9249 before and after.
+  The reviewer has no honest way to fix this locally, because the other standing invariant is
+  **never edit the canonical checkout**. Consequence: units stay `todo` after landing, so
+  `depgraph`'s readiness never unlocks their callers from the merge path; the ledger only moves
+  when the maint cron's `depgraph.py reconcile` happens to run. FIX: make `mark_ported.py` read the
+  sources from **`origin/main`** (`git ls-tree -r origin/main -- raw-port/src` + `git show`) or run
+  it inside a pool worktree, instead of the working tree; then it is correct no matter what state
+  the canonical checkout is in. Until then, treat a "0 units changed" from `mark_ported` as *no
+  information*, not as *already up to date*.
+
+- **`rebase_helper.py <Class>` cannot see the `port/<Class>__slot<N>` branches that entry #1's fix
+  created, and it fails with an exit code the reviewer brief does not cover.** It hardcodes
+  `BR = f"origin/port/{cls}"`, so for PR #389 (head `port/HGRenderJob__slot7`) it printed
+  `no branch origin/port/HGRenderJob` and exited **1** — not 0 (pushed a rebase) and not 6
+  (NEEDS_WORKER_REBASE), the only two outcomes REVIEWER_BRIEF documents. So the reviewer's
+  mechanical union-rebase (rebase-ownership case 2) is silently unavailable for every slot-suffixed
+  branch, even when the exports really are disjoint; the PR can only fall through to the worker
+  rebase queue and burn attempts against the cap-3 auto-close. #389 was auto-closed that way today
+  after I had already verified its body faithful (oracle, 1806 cases) — the port was correct and the
+  work was thrown away on branch bookkeeping. FIX: resolve the branch from the PR's head ref
+  (`gh pr view <PR#> --json headRefName`) rather than deriving it from the class name, and give the
+  "no such branch" case its own exit code so the brief can route it.
+
+---
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
@@ -309,6 +378,59 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
 
 ---
 
+## Open — reported 2026-08-11 by worker 5 (new)
+
+- **THE REBASE QUEUE RE-CLAIMS A PR THAT WAS ALREADY SUCCESSFULLY REBASED, BURNS THE 3-ATTEMPT CAP
+  ON REDUNDANT RE-REBASES, AND AUTO-CLOSES IT — AND THE ADVERTISED RE-QUEUE NEVER HAPPENS, SO THE
+  SYMBOL IS SILENTLY LOST.** Measured end to end on PR #389 (`port/HGRenderJob__slot7`) this
+  morning. I claimed it (`attempt 1/3`), ran `rebase_pr.sh`, hand-reconciled the shared class body
+  onto current main, re-ran the branch's own oracle myself (1,800 cases, 0 divergences), got
+  `GATE: PASS`, force-pushed `81df5dd7`, and released the lease — a correct, finished rebase. Two
+  more agents then claimed and re-rebased the SAME PR (head moved to `3bf1acc6`, then `7c2508e9`),
+  attempts 2 and 3 were consumed, and the cap auto-closed the PR. Root cause is that
+  `rebase_claim.sh`'s queue filter is "open PR whose latest `faithfulness-gate` is a
+  regression/rebase FAILURE", and a force-push does not clear that: the new head simply has NO
+  status, while the PR-level view still shows the old FAILURE. Nothing marks a rebase as DONE and
+  nothing resets the attempt counter on success, so a successful rebase is indistinguishable from a
+  failed one and the cap fires on work that was already correct.
+  **The second half is worse.** The auto-close comment says "the append-only claim queue re-hands
+  this symbol to a fresh worker", but no `drop`/`reopen` record is written:
+  `__ZN11HGRenderJob11GetUserNameEv` is still a bare `claim` in `claims.jsonl`, is not on main, and
+  has no open PR — i.e. exactly the #18 failure the `depclaim.py drop` work closed, reopened through
+  the auto-close path. I rescued that one symbol by hand (PR #414), but the mechanism will keep
+  eating them.
+  Fixes, in order of value: (a) on a successful `rebase_pr.sh` force-push, DELETE
+  `$FCT_STATE_DIR/rebase_attempts/<PR>` and post a `pending`/neutral `faithfulness-gate` on the NEW
+  head so the PR leaves the queue until a reviewer re-gates it; (b) make the queue filter key on the
+  CURRENT head SHA's status, never the PR's last-known one; (c) make the auto-close path actually
+  call `depclaim.py drop <sym> "<reason>"` — and fail loudly if it cannot.
+
+- **`import numpy` DIES inside the mandated `arch -x86_64` harness — the only numpy on this box is
+  an arm64 build.** `dlopen(... _multiarray_umath.cpython-39-darwin.so): have 'arm64', need
+  'x86_64'`. Every oracle must run under Rosetta (the "wrong architecture" entry below), so numpy is
+  effectively unavailable to ALL oracle work, whatever the standing "probe via ctypes/numpy" advice
+  says. Do not spend time on a venv: the house precedent
+  (`Gettype3_nice_satTile_AVX_oracle.py`) already avoids numpy, and plain `struct` is not a
+  compromise — it is bit-exact. `f32(x) = struct.unpack('<f', struct.pack('<f', x))[0]` reproduces
+  an SSE/AVX lane op exactly, because the operands are f32, a Python double multiply/add of two f32
+  values is exact, and rounding that once to f32 is what the hardware does (no double-rounding).
+
+- **A DEAD NEGATIVE CONTROL IS THE TELL THAT YOUR HARNESS, NOT THE PORT, IS WRONG.** Writing the
+  oracle for `HgcScaleBiasCrop::RenderTile_AVX` I padded the parameter block so the mask lane at
+  `+0x80` read as `0.0`. Every output pixel was then multiplied by zero, and the model "agreed" with
+  the live kernel on 150/150 cases — a false VERIFIED that no amount of extra fuzz would have
+  caught, because both sides were computing nothing. What exposed it in one line was that ALL FIVE
+  negative controls scored **0**: five deliberately-wrong ports were indistinguishable from the
+  right one. Fixing the layout moved them to 163/94/135/487/163 of 600. **Report the negative-control
+  counts next to the case count in every oracle, and treat a zero as a failed run, not a clean one.**
+
+- **Never put backticks in a `git commit -m "…"` written inside a double-quoted shell string.** The
+  shell command-substitutes them before git sees them: `` the TS `?? ''` models the cmov `` landed in
+  the commit as "the TS  models the cmov" plus a `/bin/sh: ??: command not found` on stderr that is
+  easy to miss in a long submit log. Write the message to a file and use `git commit -F`.
+
+---
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
@@ -318,7 +440,15 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
    reason, deliberately.
 4. **Approve with your own evidence, before landing.** No tool will mint an approval for you.
 5. **Never close a dup, or trust a "already on main" status, without confirming on main.**
-6. **A fix can be the next outage.** #240's release guard was correct and still deadlocked the swarm
+6. **Never read a framework binary when a cached index answers the question.** `army/inventory/*.syms.txt`
+   for symbols, `symidx.py` for disasm bodies. Reading a 78 MB fat Mach-O under `/Applications/` costs a
+   full core for a minute or more, and the MDM security stack rescans it every single time — with N
+   agents that is N core-minutes for an answer that takes 0.08s from disk. This box amplifies file I/O
+   enormously; design for fewer and smaller reads. (#10, #22, and `wt_pool.sh`'s whole reason to exist.)
+7. **Before running a global, idempotent maintenance tool, check whether a peer is already running it.**
+   `mark_ported.py`, `build_ledger.py`, `depgraph.py` reconcile the WHOLE repo: one run covers every
+   agent's commit. N identical concurrent runs are pure contention. (#23)
+8. **A fix can be the next outage.** #240's release guard was correct and still deadlocked the swarm
    two hours later, because `pr_gate` was a caller I had not considered. When you tighten a shared
    primitive, enumerate every caller — and prefer a self-healing fallback (#258's disposable-lease
    reclaim) over trusting that you found them all.
