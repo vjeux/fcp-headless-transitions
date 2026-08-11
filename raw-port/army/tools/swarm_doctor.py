@@ -101,6 +101,36 @@ def gh_json(args, tries=3):
 
 
 # ── 1. COVERAGE: every open PR must be claimable by SOME queue ──────────────────────────────────
+def check_pr_base():
+    """#46: every reviewer tool in the swarm assumes a PR's base is `main`, and none of them checked.
+
+    `pr_gate.sh` diffs `origin/main...HEAD` and feeds that file list to regression_check/dup_check;
+    `pr_land.sh` merges with `gh pr merge --squash --auto --delete-branch`, which targets the PR's
+    OWN base. For a PR stacked on another PR's branch those answer different questions: the status
+    covers every commit in the stack, and the merge goes somewhere branch protection does not apply,
+    with --delete-branch removing a branch a third PR is based on. Measured when this landed:
+    `grep -c baseRefName` was 0 in review_claim.sh, rework_claim.sh, rebase_claim.sh, swarm_doctor.py
+    and every file under army/tools and army/gate, while #649 -> main, #650 -> tools/lease-ownership
+    and #651 -> tools/review-claim-g5 were all open and all claimable by review_claim.
+
+    Note what this check does NOT do: it does not ask the queues to skip such a PR. A PR no queue
+    offers is stranded, which this log already records three times — the right place to stop is the
+    two tools that would act wrongly (both now refuse), and the right thing here is to make the
+    condition visible. `pr_submit.sh` passes `--base main`, so only a hand-rolled `gh pr create`
+    produces one, which is how every ops/tooling PR is opened."""
+    prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 --json number,baseRefName,headRefName")
+    if prs is None:
+        return record("pr-base", UNKNOWN, f"could not list open PRs to check their base: {err}", "#46")
+    off = [f"#{p['number']} -> {p.get('baseRefName')}" for p in prs
+           if p.get("baseRefName") != "main"]
+    if off:
+        return record("pr-base", FAIL,
+                      f"{len(off)} open PR(s) do not target main, so pr_gate's verdict and pr_land's "
+                      f"merge target disagree: {', '.join(off[:8])} — retarget with "
+                      f"`gh pr edit <n> --base main`", "#46")
+    record("pr-base", OK, f"all {len(prs)} open PR(s) target main")
+
+
 def check_queue_coverage():
     """The generalisation of two separate incidents, both 'work no queue could see'.
 
@@ -777,7 +807,7 @@ def check_ops_contention():
            f"convention landed")
 
 
-CHECKS = [check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
+CHECKS = [check_pr_base, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_no_double_lease, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
           check_brief_flags_exist, check_rebase_actionable,
