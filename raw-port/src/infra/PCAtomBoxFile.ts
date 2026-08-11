@@ -261,9 +261,10 @@ export class PCAtomBoxFile {
   // it is released with `operator delete[]` and the field nulled. Both callees
   // are TRUE OUT-OF-SCOPE externs — libc `_fclose` (@0xde864, the stdio stub)
   // and the C++ runtime `operator delete[]` (__ZdaPv @0xde6ba). Neither lives
-  // in the 5-framework port scope, so each is modelled as a boundary below; the
-  // REAL WORK — the two null-guarded release-then-null sequences — is
-  // transcribed verbatim.
+  // in the 5-framework port scope, so each is modelled as a NO-OP boundary below
+  // (both are lifetime primitives whose return values the machine discards, and
+  // a JS GC owns the surrogates); the REAL WORK — the two null-guarded
+  // release-then-null sequences — is transcribed verbatim and RUNS.
   //
   // Source disasm: raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile15closeOutputFileEv.s (20 lines)
   //
@@ -283,16 +284,28 @@ export class PCAtomBoxFile {
   //   0x24d99  addq $0x8,%rsp ; popq %rbx ; popq %rbp ; retq            ; return void
 
   /** Boundary: libc `fclose` — stdio stub called @ProCore 0x24d76 (_fclose @0xde864).
-   *  Out-of-scope OS/libc; a real runtime replaces this with the actual fclose.
-   *  Returns the FILE* handle to null so the field can be cleared. */
+   *  Out-of-scope OS/libc, and a LIFETIME/OWNERSHIP primitive: the machine
+   *  DISCARDS its return value (nothing reads %eax after the call at 0x24d76 —
+   *  the next instruction is the `movq $0x0, 0x50(%rbx)` store), so the only
+   *  observable effect of the call inside this function is that the stream is
+   *  released. A JS runtime owns the surrogate handle through GC, so the
+   *  faithful boundary model is a NO-OP and the caller's nulling store runs.
+   *  Same policy as the landed `__ZdaPv` boundary in
+   *  raw-port/src/infra/PCGenBlockRef.ts and the stated policy in
+   *  raw-port/src/infra/PCCFRef_CFArray.ts. */
   private __fclose(_file: object | null): void {
-    throw new Error("_fclose @0xde864 (libc extern) not modelled in port scope");
+    // @ProCore 0x24d76 callq 0xde864 ## symbol stub for: _fclose — no-op boundary.
   }
 
   /** Boundary: C++ runtime `operator delete[]` — __ZdaPv called @ProCore 0x24d8c
-   *  (@0xde6ba). Out-of-scope C++ runtime; a real runtime frees the array here. */
+   *  (@0xde6ba). Out-of-scope C++ runtime, and a LIFETIME/OWNERSHIP primitive:
+   *  its return type is void and the next instruction is the
+   *  `movq $0x0, 0x58(%rbx)` store, so releasing the array is its whole effect.
+   *  In a GC runtime that is a NO-OP — dropping the reference in the caller is
+   *  what makes the buffer unreachable — which is exactly how the landed
+   *  raw-port/src/infra/PCGenBlockRef.ts models this same stub address. */
   private __operatorDeleteArray(_ptr: object | null): void {
-    throw new Error("operator delete[] __ZdaPv @0xde6ba (C++ runtime extern) not modelled in port scope");
+    // @ProCore 0x24d8c callq 0xde6ba ## symbol stub for: __ZdaPv — no-op boundary.
   }
 
   /**
@@ -301,6 +314,17 @@ export class PCAtomBoxFile {
    *
    * Closes the output FILE* (+0x50) and frees the output buffer (+0x58), nulling
    * each field, both under a null-guard. Returns void.
+   *
+   * DIFFERENTIAL EVIDENCE (against the live ProCore binary, not a restatement):
+   * raw-port/re/oracle/PCAtomBoxFile_closeOutputFile_oracle.py snapshots a
+   * poisoned 0x100-byte receiver arena, sets +0x50 from a real fopen and +0x58
+   * from operator new[], calls this symbol at slide + 0x24d64 under
+   * `arch -x86_64 /usr/bin/python3` (prologue bytes 55 48 89 e5 53 50 checked
+   * first), and byte-diffs the arena. All four open/closed combinations: both
+   * qwords become 0, ZERO bytes outside them move, and the TS port agrees 4/4.
+   * Controls, evaluated in the same node process: boundaries-that-throw kills
+   * 3/4, dropping the 0x24d91 store kills 2/4, inverting both null-guards kills
+   * 3/4 (the fourth case has nothing open, so it cannot discriminate).
    */
   closeOutputFile(): void {
     // @0x24d6d movq 0x50(%rdi),%rdi ; @0x24d71 testq %rdi,%rdi ; @0x24d74 je -> skip
