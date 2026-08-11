@@ -34,7 +34,28 @@ echo "== G2 typecheck =="
 # changed file + its dependents (~1.2s cold -> ~0.2s warm) instead of the whole 1,478-file project.
 # Cache lives at raw-port/.gate.tsbuildinfo (gitignored). --incremental degrades gracefully to a full
 # check when the cache is cold/absent, so this is safe in a fresh checkout too.
-( cd "$REPO/raw-port" && node_modules/.bin/tsgo --noEmit --incremental \
+# TYPECHECK THE TREE THE FILE LIVES IN, NOT THE TREE THIS SCRIPT LIVES IN.
+# $REPO derives from dirname $0, so running the CANONICAL gate.sh against a worktree file printed
+# GATE: PASS while typechecking a COMPLETELY DIFFERENT tree. That is how #305 shipped a file with a
+# duplicate method: the author's local gate called it green, and the reviewer's gate — run from the
+# worktree that actually held the code — rejected it. A gate that reports on the wrong tree is worse
+# than no gate, because it is trusted.
+# Derive the project root from the first .ts argument and refuse if it disagrees with $REPO.
+G2_REPO="$REPO"
+for f in "$@"; do
+  case "$f" in *.ts) ;; *) continue ;; esac
+  [ -f "$f" ] || continue
+  fdir="$(cd "$(dirname "$f")" && pwd)"
+  case "$fdir" in
+    */raw-port/src*) G2_REPO="${fdir%%/raw-port/src*}" ;;
+  esac
+  break
+done
+if [ "$G2_REPO" != "$REPO" ]; then
+  echo "  NOTE: target file lives under $G2_REPO, not $REPO — typechecking the FILE's tree."
+  echo "        (run the worktree's own gate.sh from inside the worktree to avoid this entirely)"
+fi
+( cd "$G2_REPO/raw-port" && node_modules/.bin/tsgo --noEmit --incremental \
     --tsBuildInfoFile .gate.tsbuildinfo -p tsconfig.json ) || { echo "  tsgo FAILED"; FAIL=1; }
 
 echo "== G4 oracle (bit-exact vs live FCP for touched parity nodes) =="
