@@ -213,6 +213,36 @@ function FxColorDescription_isHDR(_desc: FxColorDescription): number {
 }
 
 /**
+ * `FxColorDescription::setCGColorSpace(CGColorSpace*)` — TRUE OUT-OF-SCOPE
+ * extern.
+ *
+ * Entered through the Ozone symbol stub @0x6de3d6, TAIL-JUMPED from
+ * `OZRenderParams::setOutputColorSpace(CGColorSpace*)` @Ozone 0x27154c.
+ * `nm -m -arch x86_64` reports
+ * `__ZN18FxColorDescription15setCGColorSpaceEP12CGColorSpace` as
+ * `(undefined) external … (from ProAppsFxSupport)` in Ozone, and it is defined
+ * in NONE of ProCore/ProChannel/Helium/Flexo — the same port-scope boundary as
+ * the `getCGColorSpace()` / `isSDR()` / `isHDR()` stubs above, so there is no
+ * in-scope FCP body to transcribe. Per PORTING_SPEC Rule 3 it throws @0x6de3d6,
+ * the deferred boundary address.
+ *
+ * The setter owns the refcount transfer on the CoreGraphics handle (the
+ * retain/release pair the in-scope `setWorkingColorDescription` @0x271240
+ * performs field-by-field); none of that happens in the Ozone body below —
+ * it only forwards.
+ */
+function FxColorDescription_setCGColorSpace(
+  _desc: FxColorDescription,
+  _colorSpace: CGColorSpaceRef | null,
+): void {
+  throw new Error(
+    "FxColorDescription::setCGColorSpace(CGColorSpace*) — ProAppsFxSupport " +
+      "extern, out-of-scope; entered via Ozone symbol stub @0x6de3d6 " +
+      "(tail-jumped @Ozone 0x27154c). Not transcribed.",
+  );
+}
+
+/**
  * `OZRenderParams` — the render-params bag. Only the fields touched by
  * `setResolution` are decoded at this layer; the rest of the object is
  * OPAQUE (undecoded) and is intentionally NOT modelled here — future
@@ -2201,5 +2231,58 @@ export class OZRenderParams {
     // @0x2713e5-0x2713ee  movq %rbx,%rdi ; jmp FxColorDescription::isHDR
     //   TAIL CALL: the callee's %al is returned verbatim, un-normalised.
     return FxColorDescription_isHDR(working);
+  }
+
+  /**
+   * `OZRenderParams::setOutputColorSpace(CGColorSpace*)` @Ozone 0x271540
+   * (__ZN14OZRenderParams19setOutputColorSpaceEP12CGColorSpace).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x271540  pushq  %rbp                    ; frame setup (no TS counterpart)
+   *   0x271541  movq   %rsp, %rbp              ; frame setup (no TS counterpart)
+   *   0x271544  addq   $0x2e8, %rdi            ; rdi = &this->output (+0x2e8)
+   *   0x27154b  popq   %rbp                    ; frame teardown BEFORE the tail jump
+   *   0x27154c  jmp    FxColorDescription::setCGColorSpace(CGColorSpace*)
+   *                                            ; stub 0x6de3d6 — TAIL CALL
+   *   0x271551  nopw   %cs:(%rax,%rax)         ; alignment padding, not executed
+   *
+   * A pure FORWARDER: it retargets the receiver from `this` to the embedded
+   * OUTPUT `FxColorDescription` sub-object at +0x2e8 and tail-jumps the extern
+   * setter. `%rsi` (the `CGColorSpace*` argument) is never touched, so the
+   * caller's pointer — NULL included — is passed through byte-for-byte; the
+   * tail jump means the callee returns directly to this function's caller.
+   *
+   * The +0x2e8 receiver is the OUTPUT description, NOT the working one: the
+   * same slot `getOutputColorDescription()` @0x27151a (`leaq 0x2e8(%rdi),%r14`)
+   * and the default ctor @0x27019a take the address of. The working-side
+   * sibling is `getWorkingColorSpace()` @0x271424, which uses `addq $0x2c0`.
+   *
+   * NO refcount work happens HERE — there is no `PCCFRefTraits<CGColorSpace*>::
+   * retain`/`release` call in this body (contrast `setWorkingColorDescription`
+   * @0x271240, which does the release/retain dance inline). Whatever ownership
+   * transfer the handle needs is entirely inside the extern callee.
+   *
+   * FRONTIER CALLEE: `FxColorDescription::setCGColorSpace(CGColorSpace*)` is a
+   * TRUE out-of-scope extern (ProAppsFxSupport — see the boundary stub above).
+   * It is the only call in the body; zero in-scope callees (`depgraph.py deps`
+   * lists none), no indirect and no virtual dispatch.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams19setOutputColorSpaceEP12CGColorSpace.s
+   *   (7 lines)
+   */
+  setOutputColorSpace(
+    this: OZRenderParams,
+    colorSpace: CGColorSpaceRef | null,
+  ): void {
+    // @0x271544  addq $0x2e8,%rdi — retarget the receiver to the OUTPUT
+    //            colour-description sub-object.
+    // @0x27154c  jmp FxColorDescription::setCGColorSpace — TAIL CALL, the
+    //            CGColorSpace* argument forwarded untouched in %rsi.
+    return FxColorDescription_setCGColorSpace(
+      this.outputColorDescriptionAt2e8,
+      colorSpace,
+    );
   }
 }
