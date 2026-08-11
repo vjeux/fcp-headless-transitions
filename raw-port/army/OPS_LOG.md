@@ -419,6 +419,23 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   `for (let i = 0; i < s.length; i++) out.push(s.charCodeAt(i))`. Related to the existing JSON/NaN
   note above: **exchange code units, never JS strings, on an oracle wire.**
 
+- **A THIRD input-mangling trap: `ctypes.c_float(python_float)` QUIETS A SIGNALLING NaN.** Building a
+  float argument from Python goes through a C double, so 0x7f800001 arrives at the callee as
+  0x7fc00001. Measured on `HGMultiTexBlend<5>::setWeight` @Helium 0x110bc0: 10 of 120 cases reported
+  a divergence against a port that was byte-for-byte correct, and the "wrong" value was wrong before
+  the call, not after it. Same family as the two above — the harness corrupted the case, then blamed
+  the port. Fix: build the argument bit-exactly —
+  `cf = ctypes.c_float(); ctypes.memmove(ctypes.byref(cf), struct.pack('<I', bits), 4)` — and pass
+  `cf`. General rule now confirmed three different ways: **on an oracle boundary, move BIT PATTERNS,
+  never language-level floats** — into the callee, out of the callee, and across the TS wire.
+
+- **Do not put an allocator-reuse check in an oracle's VERDICT.** For a dtor/free unit the obvious
+  second signal — "the next same-size malloc returns the same address" — is RUN-DEPENDENT: the same
+  unmodified harness measured 0, 12, 57 and 64 of 64 across four consecutive runs
+  (`HeapAllocator_anon_D0_oracle.py`). `malloc_size(p) == 0` is stable (64/64 every run, and False
+  for a live block, so it still discriminates). Report reuse if you like, but a verdict that includes
+  it fails correct code about half the time.
+
 - **The two OPEN Ozone/`nm` items above now have a drop-in fix: `raw-port/re/oracle/ozone_loader.py`**
   (landed with the OZLightingFolder_Factory port). `load_framework(fw)` preloads the `@rpath` chain
   depth-first so Ozone/Flexo load outside the app bundle with no env vars; `nm_addr(fw, sym)` uses
