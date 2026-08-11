@@ -12,6 +12,7 @@ scratch copy and the case must go red, because a guard you have never watched fa
   E  review_claim's queue query must still SELECT something                (a filter that matches nothing)
   F  review_claim's self-review skip must actually SKIP                    (a guard that cannot fire)
   G  pr_gate must not post success over a reviewer's PARKED failure        (a verdict erased by a peer)
+  H  pr_gate's verdict guards must WITHHOLD when gh does not answer       (a hiccup erases the verdict)
 
 C and F run entirely offline against copies in a tempdir with a stubbed `gh_as.sh`. That is not
 squeamishness: C used to drive the REAL `pr_review.sh` at the first open PR it could find, so its
@@ -231,8 +232,93 @@ with tempfile.TemporaryDirectory() as td:
             fails.append("G. an ordinary mechanical failure is treated as a reviewer park")
         if guard_says("success", "gate PASS (G0-G5 clean, 0 flags)") != "POST":
             fails.append("G. an existing green status is treated as a park")
+        # THE REAL SHAPE OF "no status at all". `last` of an empty array is null, and jq renders
+        # "\(.state)" on null as the literal string "null", so the tool sees "null\tnull" — not the
+        # empty string this case used to feed. Both must reach POST; feeding the real one makes the
+        # case right on purpose rather than by luck (reviewer 1).
         if guard_says("", "") != "POST":
             fails.append("G. a head with no status at all is treated as a park")
+        if guard_says("null", "null") != "POST":
+            fails.append("G. a head whose status list is EMPTY (jq emits null\tnull) is treated as a park")
+
+        # NO STRING pr_gate CAN POST MAY LOOK LIKE A PARK — the collision that made this rework
+        # necessary. `PARK_MARKERS` used to contain `regression` and `rebase needed`, which match the
+        # script's own `regression (rebase needed)` and `regression_check errored rc=$rc`, so the
+        # gate parked its own message and no later run could clear that head — including the re-run
+        # that is the documented response to a transient regression_check error. The previous
+        # version of this case probed `G5 cheat: 3 cheat(s)`, a string the tool cannot produce, so it
+        # tested the right property against a value drawn from outside the tool's vocabulary and
+        # passed while the collision was live (§3 of the earlier rejection, landing one file over).
+        # So take the DESCRIPTIONS FROM THE TOOL: every REASON and every literal handed to
+        # post_status/post_success_unless_rejected. A future collision then fails here, when it is
+        # written, instead of stranding a PR.
+        markers = re.search(r"^PARK_MARKERS='([^']+)'", src_pg, re.M)
+        own = set(re.findall(r'REASON="([^"]*)"', src_pg))
+        own |= set(re.findall(r'post_success_unless_rejected "([^"]*)"', src_pg))
+        own |= set(re.findall(r'post_status\s+\w+\s+"([^"]*)"', src_pg))
+        probes = []
+        for d in sorted(own):
+            d = (d.replace("$rc", "1").replace("${rc}", "1")
+                  .replace("$FLAGS", "2").replace("${FLAGS}", "2"))
+            if not d or '"' in d or "$" in d or "`" in d:
+                continue                      # not a literal we can safely stand up in a probe
+            probes.append(d)
+        if not markers:
+            fails.append("G. could not read PARK_MARKERS out of pr_gate.sh")
+        elif len(probes) < 4:
+            fails.append(f"G. only found {len(probes)} postable descriptions in pr_gate.sh — the "
+                         "extraction has drifted from the script and is no longer evidence")
+        else:
+            for d in probes:
+                if re.search(markers.group(1), d, re.I):
+                    fails.append(f"G. pr_gate's OWN status description {d!r} matches PARK_MARKERS — "
+                                 "the gate parks its own message and no later run can clear that head")
+                elif guard_says("failure", d) != "POST":
+                    fails.append(f"G. pr_gate's own mechanical failure {d!r} is treated as a "
+                                 "reviewer park")
+
+# ── H: pr_gate's verdict guards must WITHHOLD when gh does not answer ───────────────────────────
+# Reviewer 1 drove both guards with a stub `gh_as.sh` that exits 7 and prints nothing: both answered
+# "no rejection here" and the caller posted success. That is the exact outcome the guards exist to
+# prevent — a green required check over a live rejection — produced by a transport hiccup, and the
+# incident rate is not hypothetical: a server-side GraphQL error hit 1 in 4 consecutive runs on this
+# box today. The asymmetry decides the direction: withholding a green status costs a re-run, erasing
+# a verdict is permanent. So each guard must report "could not determine" (exit 2) distinctly from
+# "determined: nothing there" (exit 1), and the caller must refuse on both.
+# Offline, against extracted copies of the tool's own functions — same technique as G.
+with tempfile.TemporaryDirectory() as td:
+    src_pg = open(os.path.join(TOOLS, "pr_gate.sh")).read()
+    rev_fn = re.search(r'^reviewer_rejected_this_head \(\) \{.*?^\}', src_pg, re.S | re.M)
+    park_fn = re.search(r"^PARK_MARKERS='[^']+'\nparked_failure_on_this_head \(\) \{.*?^\}",
+                        src_pg, re.S | re.M)
+    if not rev_fn or not park_fn:
+        fails.append("H. could not extract the two verdict guards from pr_gate.sh")
+    else:
+        stub = os.path.join(td, "gh_as.sh")
+
+        def guards_say(stub_body):
+            open(stub, "w").write(stub_body)
+            os.chmod(stub, 0o755)
+            script = (rev_fn.group(0) + "\n" + park_fn.group(0) +
+                      f'\nGHAPP_G={td}; REPO_SLUG=x/y; PR=1; HEAD_SHA=deadbeef\n'
+                      'reviewer_rejected_this_head >/dev/null; echo "REV=$?"\n'
+                      'parked_failure_on_this_head >/dev/null; echo "PARK=$?"')
+            return sh(script).stdout.split()
+
+        dead = guards_say('#!/bin/bash\necho "server error" >&2\nexit 7\n')
+        if "REV=2" not in dead:
+            fails.append(f"H. reviewer_rejected_this_head reports 'no rejection' when gh FAILS "
+                         f"(got {dead}) — a hiccup then posts success over a live rejection")
+        if "PARK=2" not in dead:
+            fails.append(f"H. parked_failure_on_this_head reports 'no park' when gh FAILS "
+                         f"(got {dead}) — same erasure, through the park door")
+        # CONTROL: with gh answering normally the same functions must say "nothing there" (1), or
+        # the case above would pass on a guard that withholds unconditionally — which would wedge
+        # every PR in the swarm and is the failure mode of the fix, not of the bug.
+        live = guards_say('#!/bin/bash\ncase "$*" in *reviews*) echo "[]";; *) printf "success\\tgate PASS";; esac\n')
+        if "REV=1" not in live or "PARK=1" not in live:
+            fails.append(f"H. with gh answering normally the guards must report 'nothing there', "
+                         f"not withhold (got {live}) — a guard that always withholds is not a guard")
 
 # ── F: review_claim's self-review skip must actually SKIP ───────────────────────────────────────
 # Reviewer 2 measured this guard as DORMANT at the previous head: nothing sets FCT_AGENT_ID, so its

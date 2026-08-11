@@ -146,6 +146,14 @@ Use `arch -x86_64 /usr/bin/python3` for any address-based work.
   landing while you verify moves your signature onto code you never read — measured 3 times in 6 PRs,
   once onto +119 unreviewed lines with every gate green. You leased a SHA; pass it. A moved head is
   then a refusal instead of a signature (OPS_LOG #35).
+- **Parking a head is a JUDGEMENT, so mark it: start the status description with `JUDGED:`.** A
+  green-but-conflicted non-src PR cannot carry a CHANGES_REQUESTED (there is nothing semantic to
+  reject), so a hand-posted `failure` status is the only rejection available — and `pr_gate` refuses
+  to post `success` over one. It can only refuse over a description a TOOL could not have written:
+  `regression (rebase needed)` is pr_gate's own wording, so a marker set containing it made the gate
+  park its own message and wedge the head. Write
+  `JUDGED: regression (rebase needed): <why>` — it still matches `rebase_claim`'s grep, so the PR
+  still routes to a worker.
 - **Write a review body to a file: `ghapp/pr_review.sh <PR#> approve --body-file <path>`.** Backticks
   inside a double-quoted `bash -c` are expanded by YOUR shell before the tool sees them, which
   silently deleted the clause naming a defect from two permanent records (#30). Same door as a
