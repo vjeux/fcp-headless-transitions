@@ -3964,6 +3964,154 @@ one, because the advice that causes it is advice several dispatch prompts are gi
   copy, which is the first bullet of this entry wearing a different hat.
 ---
 
+## Open — reported 2026-08-11 by worker 4 (a force-push that published nothing, two workers reworking one PR, and what `vrcpps` actually returns under Rosetta; NEW)
+
+Eleven units this run (7 ports: #606 #609 #610 #612 #613 #618 #620; 6 rebases: #568 #554 #400
+#114 #571 #607; 5 rework pushes: #600 twice, #578, #599, #553). Everything below was hit live
+and every number is measured on this box today.
+
+- **A HEREDOC INTERPRETER THAT DIES INSIDE `bash -c` DOES NOT STOP THE `git push -f` THAT
+  FOLLOWS IT, AND I PUBLISHED AN EMPTY BRANCH OVER A PR'S CONTENT.** Mine, on #571, and it was
+  visible for about a minute. The block was `set -uo pipefail` — deliberately, since `-e` makes
+  a grep that finds nothing fatal — and the sequence was: `python3 <<'EOF'` appends an approved
+  OPS_LOG entry; `git add`; `git commit`; `git push -f`. The python raised (my key extraction
+  assumed a `##` heading and that entry is an addendum bullet), printed a traceback, and
+  execution CONTINUED. `git commit` then said *"nothing to commit, working tree clean"* and
+  exited non-zero, which also did not stop anything, and `git push -f` published a branch
+  identical to `origin/main`. The PR briefly showed **zero changed files**; the reviewer would
+  have seen an empty diff on an APPROVED entry.
+
+  This is the log's own *"read the gate's EXIT STATUS, not its output"* arriving through a new
+  door, and note what makes it hard to see: **every command in between printed something
+  plausible.** The traceback scrolls past, `nothing to commit` reads like an idempotent re-run,
+  and the `git diff --name-status` I ran as a check printed the file list of the PREVIOUS
+  successful step. Reading output rather than statuses is exactly what fails here.
+
+  RULES: put `|| exit 1` on any heredoc interpreter whose output the next command depends on
+  (`python3 - <<'EOF' … EOF` **|| exit 1**), and before a force-push assert the delta is what
+  you meant — `test "$(git diff --name-only origin/main...HEAD | wc -l)" != "0"`. An empty
+  three-dot delta is never a rebase you meant to publish. I now do both, and the recovery is
+  cheap only because the content was still in `/tmp`.
+
+- **TWO WORKERS REWORKED THE SAME PR AND THE SECOND PUSH SILENTLY REPLACED THE FIRST'S
+  IMPLEMENTATION WHILE KEEPING ITS TEST — so the PR shipped a suite that failed on its own
+  head, and a reviewer spent a full run rediscovering why.** On #600 I pushed a 201-line
+  `stale_file_check.py` plus `test_stale_file_check.sh` at 11:19. A peer then pushed a commit
+  ON TOP of mine that rewrote the checker to 72 lines and left my test file **byte-identical**.
+  Measured against that head, the shipped suite was **5/8** — the three failing cases were the
+  three behaviours the rewrite dropped (the `reverts-ok:` acknowledgement, the multiset removal,
+  the still-on-main intersection). `pr_gate.sh`'s failure text in the same PR advertised an
+  escape hatch (`without a reverts-ok: declaration`) that the committed checker did not
+  implement. Reviewer 1 then independently measured exactly the same 5/8 and wrote it up.
+
+  Neither of us did anything wrong by the rules: I released the rework lease when I pushed (as
+  the brief requires), which is precisely when the PR becomes claimable again. The lease
+  protects the EDIT, and the thing that needs protecting is the ANSWER — a PR whose head has
+  moved past its rejection is waiting on a reviewer, and `rework_claim` says so and skips it,
+  but nothing stops a second worker who claimed it in the window, or who is running an older
+  copy of the tool without that skip.
+
+  WHAT ACTUALLY HELPED, and it is the general rule: **when you take over a PR someone else has
+  touched, run its own test suite before you change anything.** 5/8 on the head I was handed is
+  a fact I got in nine seconds and it decided everything after it. And when you find that you
+  ARE the peer who was overwritten: do not force-push it back. I posted the measurement, named
+  the three functions to restore, and let the queue hand it to me again — which it did, an hour
+  later, with a fresh reviewer rejection agreeing. Ping-ponging one file between two workers is
+  the failure, not the fix.
+  FIX WORTH MAKING: `rework_claim` could refuse a PR whose head is newer than the last
+  `CHANGES_REQUESTED` *by author*, not just by SHA, and `pr_submit`/a force-push could warn when
+  the branch's previous head was authored by a different agent id.
+
+- **`rework_claim` HANDED ME AN ALREADY-ANSWERED PR BECAUSE `gh` BLIPPED — the "offer rather
+  than starve" fallback is right, and it means the CALLER must re-verify.** It skipped #578 four
+  times ("rejection was on c717d44f, head is now 8625267f") and then claimed it. The reason is
+  in the tool and is deliberate: `rej=$(gh api …/reviews --jq '…last|.commit_id')`, and *"an
+  EMPTY answer is a transport failure or an API shape change, never a verdict — offer the PR
+  rather than starving the queue"*. I caught the blip in the act one command later:
+
+      Post "https://api.github.com/graphql": tls: failed to verify certificate:
+        x509: certificate signed by unknown authority
+      (the next three tries all returned 8625267f70a49f…)
+
+  So an intermittent TLS failure inside the skip check is indistinguishable from "no rejection
+  recorded", and the queue re-offers work that is finished. Cost me a claim and a read; it would
+  cost a worker who starts editing immediately a duplicate of the entry above.
+  RULE: **on a rework claim, compare the last `CHANGES_REQUESTED`'s `commit_id` to the head
+  yourself before touching anything** — one `gh api` call, and it is the same check the tool
+  makes, just not through a single-shot query. FIX: retry the query two or three times before
+  falling back to offering, which is the same repair reviewer 2 asked for in `test_guards` case
+  E on #553 today. Same root, three tools: an unattributable empty answer folded into a value.
+
+- **WHAT `vrcpps` ACTUALLY RETURNS ON THIS MACHINE, measured rather than assumed — and why the
+  landed "model it as IEEE 1/x" choice is right but its error is bigger than the instruction's
+  bound at the OUTPUT.** Porting the AVX bilateral kernel (#609) I needed to know what the
+  hardware estimate does under Rosetta, and the kernel itself is the instrument: the params
+  block is the harness's to fill, so setting the correction slot to 1.0 and the mix weight to 1
+  makes the output the raw estimate for a chosen input.
+
+      x        live rcpps(x)      IEEE 1/x        ULP    rel err
+      1.0      0.999755859        1               4096   2.441e-04
+      2.0      0.49987793         0.5             4096   2.441e-04
+      3.0      0.333251953        0.333333343     2731   2.442e-04
+      10.0     0.0999755859       0.100000001     3277   2.442e-04
+      0.001    999.875            999.999939      2047   1.249e-04
+      worst relative error 2.442e-04 vs the VRCPPS guarantee 1.5*2^-12 = 3.662e-04
+
+  Three things worth keeping. (1) The estimate is **biased low** and its low mantissa bits are
+  cleared — a table, not a rounding. (2) It is NOT exact for powers of two: `rcpps(1.0)` returns
+  `1 - 2^-12`, so the "use only exactly-representable reciprocals and the deviation disappears"
+  intuition is false, and a corpus built on that assumption reports a divergence class it cannot
+  explain. (3) The compiler's `1 + 2^-12 + 2^-23` correction multiply is not decoration: applied
+  to the machine's estimate it lands on `f32(1/x)` exactly in 10 of the 12 inputs I probed —
+  i.e. the ESTIMATE plus the correction is the IEEE reciprocal, which is why modelling `vrcpps`
+  as `1/x` and then applying the same correction leaves a systematic ~2049-ULP offset in every
+  affected lane rather than a random one.
+  WHAT TO DO WITH IT: keep the landed modelling choice (the exact bit pattern is
+  implementation-defined and unportable), but **isolate it** — build one corpus class in which
+  the reciprocal cannot reach the output (in my kernel, the two premultiplied inputs' colour
+  channel set to 0) and require THAT class to be 100% bit-exact. On #609 that class is 540/540
+  while the whole corpus is 2,046/2,160, which turns "115 lanes differ, we think because of
+  rcpps" into "everything except the estimate is exact, and here is the estimate's measured
+  error".
+
+- **AN EXHAUSTED INPUT DOMAIN LETS YOU PROVE A SURVIVING MUTANT IS EQUIVALENT INSTEAD OF
+  GUESSING — and two of them turned out to be facts about the binary worth knowing.** The rule
+  in this log is "a dead negative control means your harness is blind OR your mutant is
+  equivalent — say which", and it is usually answered by argument. On #612
+  (`PCPixel4<…ChannelOrder 4>::unpremultiply`) it can be answered by exhaustion: the output byte
+  at +0x0k depends only on (alpha, b[k]), so 256 x 256 IS the whole domain. Eight mutants, six
+  killed, and the two survivors are then provable rather than plausible:
+    * dropping the `+ 1e-07` bias changes NOTHING — it could only matter if `(value + 0.5)`
+      landed within 1e-07 below an integer, and over the whole domain it never does. The
+      compiler emitted a term that cannot affect this pixel type.
+    * removing the `alpha == 255` early exit changes nothing either: `inv` is then exactly 1.0f
+      and the ladder returns each channel unchanged, so the `je` @0x48072 is a fast path, not a
+      special case.
+  The harness now carries an EXPECTED-EQUIVALENT list with those reasons and **fails if a
+  survivor is not on it**, which keeps the escape hatch from becoming a shrug. Where a domain is
+  small, exhausting it is cheaper than arguing about it: the sweep is 86,048 live calls and runs
+  in seconds.
+
+- **`numpy` IS UNUSABLE UNDER `arch -x86_64` ON THIS BOX, which matters because the standing
+  advice is to probe C behaviour "via ctypes/numpy".** The installed wheel is arm64-only:
+  `ImportError: … _multiarray_umath.cpython-39-darwin.so (mach-o file, but is an incompatible
+  architecture (have 'arm64', need 'x86_64'))`. Since every address-based oracle MUST run under
+  Rosetta, numpy is unavailable in exactly the harnesses that want it. Use `struct` instead —
+  `struct.unpack("<f", struct.pack("<f", x))[0]` is the f32 rounding, and `<I`/`<f` round-trips
+  are the bit patterns. Two lines, no dependency, and it keeps floats crossing as bit patterns
+  rather than as JSON numbers, which the log already asks for.
+
+- **Three corroborations, since a second measurement is what turns an anecdote into a
+  property.** (a) The G5 flag NAMES THE WRONG ADDRESS, fourth and fifth instances: on
+  `src/infra/CMTime.ts` four exports were flagged for `@ProCore 0xde3d2` — the CMTimeMultiply
+  stub, cited by a different member — including `CMTimeSubtract` and `CMTimeConvertScale`.
+  (b) The canonical checkout really does run stale tools: mine was **46 commits behind
+  `origin/main`** at 11:12 today, and the first thing that fixed was `rework_claim`'s
+  already-answered skip, which the canonical copy does not have. Lease a pool worktree and run
+  the tools from THERE, including the queue tools. (c) `slot_lock.sh heartbeat <role> <N>` works
+  (`BEAT worker-4`, exit 0) — but running `slot_lock.sh` with NO arguments still prints a usage
+  line that omits `heartbeat`, which is how the "it does not exist" entry got written in the
+  first place. The usage string is one line and should list it.
 ## Open — reported 2026-08-11 by reviewer 3 (a signing flag that DELETES your evidence; a stale rework diff; and how to answer a dead control)
 
 Ten PRs this run (#46, #105, #149, #352, #554, #143, #538, #335, #564, #154, #563 — nine landed, one
