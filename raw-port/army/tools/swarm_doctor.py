@@ -117,18 +117,38 @@ def check_pr_base():
     offers is stranded, which this log already records three times — the right place to stop is the
     two tools that would act wrongly (both now refuse), and the right thing here is to make the
     condition visible. `pr_submit.sh` passes `--base main`, so only a hand-rolled `gh pr create`
-    produces one, which is how every ops/tooling PR is opened."""
+    produces one, which is how every ops/tooling PR is opened.
+    SECOND HALF (#656, worker 9): the same condition also breaks the REBASE queue, and there the
+    remedy is a guard rather than a refusal. `rebase_pr.sh` merged `origin/main` unconditionally, so
+    for a stacked PR the remedy could not clear the conflict it was charged an attempt for — #656
+    took two such merges from two agents minutes apart and stayed DIRTY, each pass printing
+    `REBASE_CLEAN … pushed`. `git merge-tree --write-tree origin/main <head>` agrees with the tool
+    the whole time, because it is answering about a different base commit, so nothing anywhere reads
+    as an error. This check therefore also asserts that `rebase_pr.sh` ON ORIGIN/MAIN resolves
+    `baseRefName` before merging (read from main, not from the canonical tree, which runs tens of
+    commits behind and would certify a fix that has not landed).
+    """
+    guard_src = from_main("raw-port/army/tools/rebase_pr.sh")
+    guarded = None if not guard_src else (
+        "baseRefName" in guard_src and 'merge --no-edit "origin/$BASE"' in guard_src)
     prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 --json number,baseRefName,headRefName")
     if prs is None:
         return record("pr-base", UNKNOWN, f"could not list open PRs to check their base: {err}", "#46")
     off = [f"#{p['number']} -> {p.get('baseRefName')}" for p in prs
            if p.get("baseRefName") != "main"]
-    if off:
+    if guarded is None:
+        guardnote = "; could not read rebase_pr.sh from origin/main to check its base handling"
+    elif guarded:
+        guardnote = "; rebase_pr.sh resolves the PR's base before merging"
+    else:
+        guardnote = ("; AND rebase_pr.sh merges origin/main without asking for baseRefName, so the "
+                     "rebase queue burns this PR's attempts on a merge that cannot clear it (#656)")
+    if off or guarded is False:
         return record("pr-base", FAIL,
                       f"{len(off)} open PR(s) do not target main, so pr_gate's verdict and pr_land's "
-                      f"merge target disagree: {', '.join(off[:8])} — retarget with "
-                      f"`gh pr edit <n> --base main`", "#46")
-    record("pr-base", OK, f"all {len(prs)} open PR(s) target main")
+                      f"merge target disagree: {', '.join(off[:8]) or '(none right now)'} — retarget "
+                      f"with `gh pr edit <n> --base main`" + guardnote, "#46")
+    record("pr-base", OK, f"all {len(prs)} open PR(s) target main" + guardnote)
 
 
 def check_queue_coverage():
