@@ -36,7 +36,7 @@ if [ "${1:-}" = "--sym" ]; then
   # at ~4 slots. The index is proven byte-identical to the awk below (tools/verify_symidx.py checks
   # all ~45.8k symbol bodies), and falls back to the awk scan if anything is off.
   if ! python3 "$ROOT/tools/symidx.py" slice "$FW" "$SYM" > "$OUT" 2>/dev/null; then
-    awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+    awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/^([A-Za-z_$][^ \t]*|[-+]\[[^]]*\]):$/{exit} f{print}' "$DIS" > "$OUT"
   fi
   if [ ! -s "$OUT" ]; then
     OBJDUMP="$(command -v llvm-objdump || command -v objdump || echo /usr/bin/objdump)"
@@ -83,7 +83,7 @@ if [ "${NHIT:-0}" -gt 1 ]; then
 fi
 # Indexed lookup (see the --sym branch above for why); identical bytes, with the awk scan as fallback.
 if ! python3 "$ROOT/tools/symidx.py" slice "$FW" "$SYM" > "$OUT" 2>/dev/null; then
-  awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+  awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/^([A-Za-z_$][^ \t]*|[-+]\[[^]]*\]):$/{exit} f{print}' "$DIS" > "$OUT"
 fi
 # GUARD + AUTO-ICF-FALLBACK: otool -tV sometimes emits NO label for a symbol (ICF identical-code-
 # folding, or a linear-sweep that decoded the prior region into this entry so the true start has no

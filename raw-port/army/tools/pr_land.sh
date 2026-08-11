@@ -43,8 +43,23 @@ for round in 1 2 3 4 5 6; do
   # and pr_land REQUIRES that approval to exist on the CURRENT head. This also enforces
   # "verify before merge" client-side: a stale approval on an older SHA does not count.
   if [ -f "${FCT_STATE_DIR:-$HOME/.fct-pool}/ghapp/reviewer.json" ]; then
-    HEAD_SHA=$(ghr pr view "$PR" --repo "$SLUG" --json headRefOid --jq .headRefOid 2>/dev/null)
-    REVJSON=$(ghr api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null)
+    # DISTINGUISH "no approval" FROM "the lookup failed". During a burst of TLS errors this printed
+    # "no APPROVED review on the current head ." — with an EMPTY SHA — seconds after an approval had
+    # succeeded, and an unchanged retry merged fine. That message would convince a reviewer its
+    # verdict had not registered and send it to re-review or abandon a correct PR. A transient API
+    # failure must never render as a verdict. Retry, and refuse to speak if we still cannot see.
+    HEAD_SHA=""; REVJSON=""
+    for _try in 1 2 3; do
+      HEAD_SHA=$(ghr pr view "$PR" --repo "$SLUG" --json headRefOid --jq .headRefOid 2>/dev/null)
+      REVJSON=$(ghr api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null)
+      [ -n "$HEAD_SHA" ] && [ -n "$REVJSON" ] && break
+      sleep 3
+    done
+    if [ -z "$HEAD_SHA" ] || [ -z "$REVJSON" ]; then
+      echo "pr_land: could not read PR #$PR review state after 3 tries (transient API failure)."
+      echo "  NOT a verdict about the PR — retry when the API settles."
+      exit 6
+    fi
     # HARD STOP ON AN OUTSTANDING REJECTION. All reviewer slots share ONE bot identity, so GitHub's
     # per-user "latest review wins" does NOT protect us: slot B's APPROVE silently supersedes slot A's
     # CHANGES_REQUESTED. That is how a rejected port landed — reviewer-06 rejected #221, a peer
