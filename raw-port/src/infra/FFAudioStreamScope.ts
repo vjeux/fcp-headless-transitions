@@ -42,10 +42,10 @@
 //      both ends of the pre-render bracket, which is a coherent thing for a class to do and not a
 //      coincidence two separate decode failures would produce.
 //
-// So the faithful port is a function that does nothing — NOT a throw, and not an invented
-// side effect. There is no callee to defer to (no `call`, no `jmp`, no vtable slot) and nothing to
-// be incomplete about: an "unimplemented" throw here would be strictly LESS faithful than the empty
-// body, because the machine returns normally and any caller relying on that would break.
+// So the faithful port is a function that does nothing — NOT a raise, and not an invented side
+// effect. There is no callee to defer to (no `call`, no `jmp`, no vtable slot) and nothing to defer
+// ABOUT: a deferral stub @Flexo 0xe6cc50 would be strictly LESS faithful than the empty body,
+// because the machine returns normally and any caller relying on that return would break.
 //
 // DIFFERENTIAL vs the live binary — raw-port/re/oracle/FFAudioStreamScope_ScopePreRenderEnd_
 // {oracle.py,driver.mts}. The claim to test for a void, empty method is "it changes nothing", so the
