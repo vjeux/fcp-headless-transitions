@@ -40,7 +40,9 @@ it). Merges go through GitHub PRs on `vjeux/fcp-headless-transitions`.
 > **Before you start: read `OPS_LOG.md`.** It lists the failures agents keep rediscovering (silent
 > detached HEAD, stale-lease theft, abandoned-branch stacking, dup_check false positives, the
 > `call_once` READY-but-blocked trap) and which are already fixed. If you hit something that is not
-> in it, put it in your exit report so it can be fixed once instead of re-debugged by everyone.
+> in it, file it as its own file with `bash raw-port/army/tools/new_ops_entry.sh "<short title>"`
+> (one finding per file under `raw-port/army/ops/`, so two agents' reports cannot conflict) and put
+> it in your exit report too, so it can be fixed once instead of re-debugged by everyone.
 
 ## The five load-bearing invariants (a new harness MUST preserve all five)
 --------------------------------------------------------------------------------
