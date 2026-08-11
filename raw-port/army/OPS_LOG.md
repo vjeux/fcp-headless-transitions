@@ -28,14 +28,20 @@ detail to reproduce. That is how this list grows.
 | 13 | A port passed every gate and still returned 24 where FCP returns 232 | out-of-range index → `undefined` → `undefined-1` = NaN → `NaN & mask` = **0**, a plausible wrong number with no throw | #255 — **G7** flags new non-null-asserted computed table reads |
 | 14 | Real ports condemned as duplicates (#108/#110/#197, one click from being closed) | `dup_check` matched `__Z*` text tokens; address-only files yielded zero units, which v2 read as "duplicate" | #252 — v3: externs excluded, no-units is INCONCLUSIVE not DUP |
 | 11 | Reviewers could not use GitHub's review system | One identity authored and reviewed every PR; GitHub forbids self-review, so verdicts degraded to status+comment | #204/#206/#210 — worker and reviewer **GitHub Apps** |
+| 15 | The gate told reviewers to "rerun --reviewed" — an instruction that could never work | `REVIEW_NEEDED` was filed as a hard error but `--reviewed` only cleared *flags*; silently blocked correct PRs (#228, #231, much of the reject backlog) | #265 — REVIEW_NEEDED is a flag (real cheats stay hard errors) |
+| 16 | `prove_all` could not pass inside a pool worktree, yet every reviewer is told to run it at startup and sign nothing without it | `raw-port/re/disasm/` is gitignored, so Layer-3 fixtures are absent in a fresh worktree → `UNKNOWN` | #265 — layer3 regenerates its fixtures (cheap since #148) |
+| 17 | A concurrent gate run erased another agent's verdict (reviewer-03's REJECT on #82 vanished) | GitHub keeps only the latest status per context; an opening `pending` overwrote a settled `failure` | #270 — pending is posted only when no verdict exists |
+| 18 | **Every honest refusal to fake a port permanently deleted that symbol from the queue** — 5,799 claims, 0 reopens | `depclaim next` skips claimed symbols and nothing removed claims; `reopen` was documented as human-only and named in no brief | #280 — `depclaim.py drop <sym> "<reason>"` requeues + records; documented in both worker briefs |
+| 19 | Units handed out as READY whose real callee was unported | `depgraph`'s DIRECT regex only matched `__Z*`, so a `jmp _PCPrint` (defined in ProCore 0x64e7, unported) produced no edge at all | #280 — plain-C callees defined in the 5 frameworks now count as in-scope deps (READY 15,958 → 15,701) |
 
 ---
 
 ## Open — known, not yet fixed
 
-- **`depgraph.py` does not trace `std::call_once` proxy/lambda initializers**, so units are handed out
-  READY while their real init chain has unported deps. Claims are append-only, so each occurrence
-  **permanently burns the symbol**. Reported by 3 workers.
+- **`depgraph.py` does not trace `std::call_once` proxy/lambda initializers**, nor function pointers
+  handed to `pthread_create`/`dispatch_group_async_f`, so units are still handed out READY while their
+  real call chain has unported deps. No longer *destructive* — #280 makes the unit requeueable with
+  `depclaim.py drop` — but still wasted worker time. Reported by 5 workers.
 - **Silent-wrong-answer class — partly closed.** #255 added G7, which FLAGS new non-null-asserted
   computed table reads so a reviewer must clear them. The stronger fix is still open: `autoreg.py` /
   `autosig.py` already implement "auto-oracle every exported `T` symbol", but **the gate never
