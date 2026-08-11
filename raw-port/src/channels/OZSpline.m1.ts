@@ -61,6 +61,7 @@
 // ── Frontier callees still stubbed here (each cites @0xADDR) ───────────────────────────
 //   OZSplineNode::getFrameDuration() const                  @0x?? (called from getStep @0x2dcb7)
 //   OZSpline::getValidVertexIter(void*)                     @0x2fdac
+//     ^ NO LONGER STUBBED — transcribed in this file (OZSpline_getValidVertexIter, @0x2fdac).
 //   OZSpline::getVertexIter(void*)                          @0x2fe2? (paired with getValidVertexIter)
 //   OZSpline::getNextValidVertex(iter&, void**, CMTime&)    @0x2fb?? (called from @0x2dfc5)
 //   OZSpline::getPreviousValidVertex(CMTime, void**, CMTime, bool)  @0x2e94c (below, this file — stubbed)
@@ -93,6 +94,21 @@ export interface OZSplineFieldsM1 {
   cachedFirstValid: OZVertexHandleM1 | null;
   /** +0x50 secondary end sentinel — used by cached-iter getNextValidVertex. */
   cachedValidListEndSentinel?: unknown;
+  /** +0x48..+0x50 — the array getValidVertexIter @0x2fdac returns an iterator INTO
+   *  (`movq 0x48(%rdi), %rcx` @0x2fdb0, `movq 0x50(%rdi), %rdx` @0x2fdfa) and the one its linear
+   *  fallback scans. Absent on an object built without it = the zero-initialised spline, where
+   *  begin == end == null, i.e. an empty range — which is exactly what the machine sees. */
+  validIterResultVertices?: OZVertexHandleM1[];
+  /** +0x58..+0x60 — the array getValidVertexIter's three cached-index fast paths COMPARE against
+   *  (`movq 0x58(%rdi), %rdx` @0x2fdb4, `movq 0x60(%rdi), %r8` @0x2fdbf). Deliberately a
+   *  different range from the one above; see that function's decode notes. */
+  validIterSearchVertices?: OZVertexHandleM1[];
+  /** +0x80 — the memoised index getValidVertexIter probes and writes back (`movq 0x80(%rdi),
+   *  %rax` @0x2fdb8; stores @0x2fe1b/@0x2fe2e/@0x2fe43). A 64-bit word compared BOTH unsigned
+   *  (`jae`) and signed (`jle`), so negative values are meaningful. NOTE: this disproves the
+   *  OZSpline.m0.ts guess that +0x78..+0x88 is a fourth vector's begin/end/cap — an element
+   *  COUNT is stored here. */
+  validIterCachedIndex?: number;
   /** +0x70 cachedListValid flag (u8). When 1, the "cached" branch runs; when 0, the linear scan. */
   cachedListValid: number;
   /** +0x78 / +0x88 payload cleared by setDirty(true). Opaque here. */
@@ -621,9 +637,187 @@ function _OZSpline_refreshValidVerticesList(sp: OZSplineFieldsM1): void {
   throw new Error("OZSpline::refreshValidVerticesList @ProChannel (called from setDirty @0x2f64a) not yet transcribed");
 }
 
+/**
+ * `cmpq %r8, %rXX ; jae` — the UNSIGNED "index is in range" test used three times by
+ * `OZSpline_getValidVertexIter` (@0x2fdcd, @0x2fde1, @0x2fdf1). `count` is a length and is never
+ * negative, so an index that is negative as a signed JS number stands for the enormous unsigned
+ * value the machine would compare, and correctly fails the test.
+ */
+function _unsignedBelowM1(index: number, count: number): boolean {
+  return index >= 0 && index < count;
+}
+
+/**
+ * OZSpline::getValidVertexIter(void*) -> void**   @ProChannel 0x2fdac
+ *   (__ZN8OZSpline18getValidVertexIterEPv)
+ *
+ * Full transcription of the 46-instruction body — this REPLACES the throw-stub that previously
+ * stood here (the address it deferred is now transcribed). Looks `cur` up with a memoised index,
+ * probing `cachedIndex`, then `cachedIndex - 1`, then `cachedIndex + 1` in the +0x58 array, and
+ * falls back to a linear scan of the +0x48 array.
+ *
+ * FULL DISASM (raw-port/re/disasm/ProChannel.__ZN8OZSpline18getValidVertexIterEPv.s):
+ *
+ *   0x2fdac  pushq %rbp                          ; frame prologue
+ *   0x2fdad  movq  %rsp, %rbp
+ *   0x2fdb0  movq  0x48(%rdi), %rcx              ; rcx = resultBegin
+ *   0x2fdb4  movq  0x58(%rdi), %rdx              ; rdx = searchBegin
+ *   0x2fdb8  movq  0x80(%rdi), %rax              ; rax = cachedIndex            (the hint)
+ *   0x2fdbf  movq  0x60(%rdi), %r8               ; r8  = searchEnd
+ *   0x2fdc3  subq  %rdx, %r8                     ; r8  = searchEnd - searchBegin   (bytes)
+ *   0x2fdc6  sarq  $0x3, %r8                     ; r8  = searchCount               (elements)
+ *   0x2fdca  cmpq  %r8, %rax                     ; flags on (hint - searchCount)
+ *   0x2fdcd  jae   0x2fdd5                       ; UNSIGNED >= -> hint out of range, skip
+ *   0x2fdcf  cmpq  %rsi, (%rdx,%rax,8)           ; searchBegin[hint] == v ?
+ *   0x2fdd3  je    0x2fe4c                       ;   -> leaq (%rcx,%rax,8) ; ret  (NO write-back)
+ *   0x2fdd5  testq %rax, %rax                    ; flags on hint & hint
+ *   0x2fdd8  jle   0x2fdea                       ; SIGNED <= 0 -> skip the hint-1 probe
+ *   0x2fdda  leaq  -0x1(%rax), %r9               ; r9 = hint - 1
+ *   0x2fdde  cmpq  %r8, %r9
+ *   0x2fde1  jae   0x2fdea                       ; UNSIGNED >= searchCount -> skip
+ *   0x2fde3  cmpq  %rsi, -0x8(%rdx,%rax,8)       ; searchBegin[hint-1] == v ?
+ *   0x2fde8  je    0x2fe3f                       ;   -> write back r9 and return it
+ *   0x2fdea  leaq  0x1(%rax), %r9                ; r9 = hint + 1
+ *   0x2fdee  cmpq  %r8, %r9
+ *   0x2fdf1  jae   0x2fdfa                       ; UNSIGNED >= searchCount -> skip
+ *   0x2fdf3  cmpq  %rsi, 0x8(%rdx,%rax,8)        ; searchBegin[hint+1] == v ?
+ *   0x2fdf8  je    0x2fe3f                       ;   -> write back r9 and return it
+ *   0x2fdfa  movq  0x50(%rdi), %rdx              ; rdx = resultEnd   (rdx is REUSED here)
+ *   0x2fdfe  movq  %rdx, %r8
+ *   0x2fe01  movq  %rcx, %rax                    ; cursor = resultBegin
+ *   0x2fe04  subq  %rcx, %r8                     ; r8 = resultEnd - resultBegin  (bytes)
+ *   0x2fe07  je    0x2fe24                       ; EMPTY result range -> shared write-back
+ *   0x2fe09  cmpq  %rsi, (%rax)                  ; *cursor == v ?                  [loop head]
+ *   0x2fe0c  je    0x2fe24                       ;   -> found
+ *   0x2fe0e  addq  $0x8, %rax                    ; ++cursor
+ *   0x2fe12  cmpq  %rdx, %rax
+ *   0x2fe15  jne   0x2fe09                       ; loop while cursor != resultEnd
+ *   0x2fe17  sarq  $0x3, %r8                     ; r8 = resultCount
+ *   0x2fe1b  movq  %r8, 0x80(%rdi)               ; cachedIndex = resultCount    (NOT FOUND)
+ *   0x2fe22  jmp   0x2fe3a                       ;   -> return resultBegin
+ *   0x2fe24  movq  %rax, %rsi                    ; (found, or empty) rsi = cursor
+ *   0x2fe27  subq  %rcx, %rsi
+ *   0x2fe2a  sarq  $0x3, %rsi                    ; rsi = index
+ *   0x2fe2e  movq  %rsi, 0x80(%rdi)              ; cachedIndex = index
+ *   0x2fe35  cmpq  %rdx, %rax
+ *   0x2fe38  jne   0x2fe50                       ; cursor != resultEnd -> return cursor
+ *   0x2fe3a  movq  %rcx, %rax                    ; else return resultBegin
+ *   0x2fe3d  jmp   0x2fe50
+ *   0x2fe3f  leaq  (%rcx,%r9,8), %rax            ; hint+-1 hit: iterator = resultBegin + r9*8
+ *   0x2fe43  movq  %r9, 0x80(%rdi)               ; cachedIndex = r9
+ *   0x2fe4a  jmp   0x2fe50
+ *   0x2fe4c  leaq  (%rcx,%rax,8), %rax           ; exact-hint hit: resultBegin + hint*8
+ *   0x2fe50  popq  %rbp                          ; epilogue
+ *   0x2fe51  retq
+ *
+ * DECODE NOTES (AT&T; a compare computes `dst - src`, per PORTING_SPEC):
+ *  - The three range checks are `jae` = UNSIGNED, so a negative cached index reads as an
+ *    enormous unsigned value and fails all of them; that is why a separate SIGNED
+ *    `testq %rax,%rax ; jle` guards the hint-1 probe. Swapping either family for the other
+ *    changes the answer, and the oracle measures exactly that.
+ *  - The exact-hint hit at @0x2fe4c returns WITHOUT writing +0x80 (it is already that value);
+ *    both neighbour hits DO write it @0x2fe43. That asymmetry is observable, because +0x80 is
+ *    read by the next call, so an "obviously harmless" unconditional store would be a rewrite.
+ *  - NOT FOUND (the scan runs off the end) sets cachedIndex = resultCount and returns
+ *    resultBegin — NOT the end iterator (@0x2fe1b then `jmp 0x2fe3a`). A caller therefore cannot
+ *    tell "absent" from "found at index 0" by the return value. It looks like a bug; a faithful
+ *    port keeps it, and the oracle confirms it against the live binary.
+ *  - The fast paths index the +0x58 array while the returned iterator and the linear fallback
+ *    belong to the +0x48 array. That is not a mis-read: the sibling OZSpline::getVertexIter
+ *    @0x2d49c is the same code shape one slot-set over (result base +0x28, hint +0x78, searched
+ *    range +0x10/+0x18), so the asymmetry is systematic in this class.
+ *
+ * RETURN VALUE: the machine returns a `void**` that is always `resultBegin + k*8`, so this port
+ * returns `k`, the index into the +0x48 array — the same information given the base, and the
+ * form m1's caller already expects.
+ *
+ * DIFFERENTIAL against the live binary (exported: `000000000002fdac T` in
+ * raw-port/army/inventory/ProChannel.syms.txt, so dlsym reaches it; run under
+ * `arch -x86_64 /usr/bin/python3` because every address above is an x86_64 offset and the arm64
+ * slice is a different function, per OPS_LOG):
+ * raw-port/re/oracle/OZSpline_getValidVertexIter_oracle.py builds synthetic splines in a
+ * 0xEE-poisoned object — two independent arrays of 0..5 pointer identities drawn from a small
+ * pool so hits, misses and cross-array disagreements all occur, and a cached index spanning
+ * negative, in-range and past-the-end values — and checks BOTH observable outputs: the returned
+ * index and the value written back to +0x80:
+ *   cases=5920  divergences=0
+ * and the corpus is measured to be DISCRIMINATING rather than vacuous — six plausible mis-reads
+ * of this body are each rejected by it:
+ *    460/5920 wrong — fast paths search the +0x48 array instead of +0x58
+ *    148/5920 wrong — hint bounded by the +0x48 count instead of the +0x58 one
+ *   2764/5920 wrong — not-found returns the END iterator instead of begin
+ *    254/5920 wrong — neighbour probes dropped (hint-1 / hint+1)
+ *    337/5920 wrong — neighbour hits do NOT write back +0x80
+ *     78/5920 wrong — hint+1 probe also gated by the SIGNED hint > 0 test
+ * The third of those is the important one: it is the live binary, not an argument from style,
+ * that says a miss returns `begin`.
+ *
+ * @param sp  the OZSpline slots this method touches (see OZSplineFieldsM1).
+ * @param cur the vertex pointer to find (SysV %rsi), compared by identity.
+ * @returns the index `k` such that the machine returns `resultBegin + k*8`.
+ */
+export function OZSpline_getValidVertexIter(
+  sp: OZSplineFieldsM1,
+  cur: OZVertexHandleM1,
+): number {
+  // @0x2fdb0/@0x2fdb4/@0x2fdb8 — the base loads. An OZSplineFieldsM1 built without these slots
+  // models the zero-initialised spline (begin == end == null), i.e. two empty ranges and a zero
+  // index — exactly what the machine reads out of such an object.
+  const hint = sp.validIterCachedIndex ?? 0;
+  const search = sp.validIterSearchVertices ?? [];
+  // @0x2fdbf..0x2fdc6 — searchCount = (searchEnd - searchBegin) >> 3.
+  const searchCount = search.length;
+
+  // @0x2fdca/@0x2fdcd/@0x2fdcf/@0x2fdd3 — the exact-hint probe; returns without touching +0x80.
+  if (_unsignedBelowM1(hint, searchCount) && search[hint] === cur) {
+    return hint; // @0x2fe4c leaq (%rcx,%rax,8)
+  }
+
+  // @0x2fdd5/@0x2fdd8 — SIGNED `testq ; jle`: only a strictly positive hint has a predecessor.
+  if (hint > 0) {
+    const prev = hint - 1; // @0x2fdda leaq -0x1(%rax), %r9
+    // @0x2fdde/@0x2fde1 unsigned bound, @0x2fde3 reads searchBegin[hint-1].
+    if (_unsignedBelowM1(prev, searchCount) && search[prev] === cur) {
+      sp.validIterCachedIndex = prev; // @0x2fe43 movq %r9, 0x80(%rdi)
+      return prev; // @0x2fe3f leaq (%rcx,%r9,8)
+    }
+  }
+
+  // @0x2fdea..0x2fdf8 — the successor probe: no signed guard, just the unsigned bound on hint+1.
+  const next = hint + 1;
+  if (_unsignedBelowM1(next, searchCount) && search[next] === cur) {
+    sp.validIterCachedIndex = next; // @0x2fe43
+    return next; // @0x2fe3f
+  }
+
+  // @0x2fdfa..0x2fe15 — the linear fallback, over the +0x48..+0x50 array this time.
+  const result = sp.validIterResultVertices ?? [];
+  const resultCount = result.length;
+  if (resultCount === 0) {
+    // @0x2fe07 je 0x2fe24 with the cursor still at resultBegin: index 0 is stored, and because
+    // the cursor equals resultEnd the `jne` at @0x2fe38 falls through to `movq %rcx,%rax`.
+    sp.validIterCachedIndex = 0; // @0x2fe2e
+    return 0; // @0x2fe3a
+  }
+  for (let i = 0; i < resultCount; i++) {
+    if (result[i] === cur) {
+      // @0x2fe0c je 0x2fe24 — found: the cursor is strictly before resultEnd, so @0x2fe38's
+      // `jne` is taken and the cursor itself is returned.
+      sp.validIterCachedIndex = i; // @0x2fe2e
+      return i;
+    }
+  }
+  // @0x2fe17/@0x2fe1b — ran off the end: cachedIndex = resultCount ...
+  sp.validIterCachedIndex = resultCount;
+  // ... and @0x2fe22 jumps to @0x2fe3a, which returns resultBegin — index 0, NOT the end.
+  return 0;
+}
+
 function _OZSpline_getValidVertexIter(sp: OZSplineFieldsM1, cur: OZVertexHandleM1): number {
-  void sp; void cur;
-  throw new Error("OZSpline::getValidVertexIter @ProChannel 0x2fdac not yet transcribed");
+  // Retained as the internal call name used by OZSpline_getNextValidVertex above; it is no
+  // longer a throw-stub — @ProChannel 0x2fdac is transcribed in
+  // OZSpline_getValidVertexIter (directly above).
+  return OZSpline_getValidVertexIter(sp, cur);
 }
 
 function _OZSpline_cachedValidListAt(sp: OZSplineFieldsM1, idx: number): OZVertexHandleM1 | null {
