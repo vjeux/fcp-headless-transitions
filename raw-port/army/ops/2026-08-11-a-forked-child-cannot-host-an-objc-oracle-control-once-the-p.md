@@ -55,9 +55,30 @@ child = subprocess.run(["arch", "-x86_64", "/usr/bin/python3", os.path.abspath(_
 
 Three things this must get right, all of them easy to miss:
 
-* **`arch -x86_64` again.** `sys.executable` under `arch -x86_64 /usr/bin/python3` is still
-  `/usr/bin/python3`, so a plain `[sys.executable, __file__]` relaunches the child NATIVELY — the
-  slice trap, re-entering through the door marked "child process". Name the arch explicitly.
+* **Name `arch -x86_64` in the child argv anyway — but NOT for the reason this entry first gave.**
+  The first revision asserted that `sys.executable` under `arch -x86_64 /usr/bin/python3` is
+  `/usr/bin/python3` and that `[sys.executable, __file__]` therefore relaunches the child NATIVELY.
+  **Both halves are false on this box, and I had inferred them rather than measured them.**
+  Reviewer 2 blocked on it and re-measured; I then re-measured with one more row than either of us
+  had run, and the row is the interesting one:
+
+      PARENT machine=x86_64
+      PARENT sys.executable=/Applications/Xcode_26.2.0_17C52_fb.app/Contents/Developer/usr/bin/python3
+      via sys.executable    -> CHILD machine=x86_64
+      via /usr/bin/python3  -> CHILD machine=x86_64
+      via arch -x86_64      -> CHILD machine=x86_64
+      via arch -arm64       -> CHILD machine=arm64      <- the preference is overridable, not a lock
+
+  So, measured: (a) `sys.executable` is the **Xcode** interpreter, not the `/usr/bin/python3` shim
+  the command line names — worth knowing on its own for any harness that re-enters itself, because
+  `[sys.executable, …]` runs a DIFFERENT binary than the one you typed; (b) the x86_64 preference
+  **is inherited** by every spawn form, so the child stays Rosetta whether or not you ask; and
+  (c) it is a preference and not a lock — an explicit `arch -arm64` from the same parent gets a
+  native child. Name the arch anyway, because it costs nothing and does not depend on inheritance
+  holding for a parent that was started some other way.
+  **The hazard worth carrying away is the MIRROR of the one I wrote down:** a child spawned from a
+  Rosetta parent silently STAYS x86_64 even when you wanted it native. The slice trap has a
+  return direction, and this is it.
 * **A crash must stay reportable.** Check `returncode` and parse a tagged line
   (`USDZ_CONTROL=<n>`); if either is missing, print INCONCLUSIVE for that control and let it count
   against the verdict. An unavailable control is a fact about the run, not a line to skip.
@@ -109,6 +130,24 @@ D. CONTROL 2 — the REAL override of this same virtual,
 VERIFIED: live Ozone returns 1 on every arena and the port returns true; the arena is untouched;
 both controls produced other values (planted 0/1/7/255/42, override 0); the mutant dies on every
 case.                                              # exit 0
+```
+
+```
+# the arch/executable measurement, after reviewer 2 blocked the first revision's inferred version
+$ arch -x86_64 /usr/bin/python3 /tmp/w5_archprobe.py
+PARENT machine=x86_64
+PARENT sys.executable=/Applications/Xcode_26.2.0_17C52_fb.app/Contents/Developer/usr/bin/python3
+PARENT argv0-real=/Applications/Xcode_26.2.0_17C52_fb.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9
+via sys.executable    -> CHILD machine=x86_64
+via arch -x86_64      -> CHILD machine=x86_64
+via /usr/bin/python3  -> CHILD machine=x86_64
+via arch -arm64       -> CHILD machine=arm64
+$ /usr/bin/python3 /tmp/w5_archprobe.py          # the same file, native parent, for contrast
+PARENT machine=arm64
+via sys.executable    -> CHILD machine=arm64
+via arch -x86_64      -> CHILD machine=x86_64
+via /usr/bin/python3  -> CHILD machine=arm64
+via arch -arm64       -> CHILD machine=arm64
 ```
 
 ```
