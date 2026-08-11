@@ -106,7 +106,20 @@ carry almost all of the benefit:
 Oracle your port whenever the symbol is callable: every recent real defect was throw-free and passed
 every static gate. Exported (`nm` `T`) symbols are dlsym-able; Ozone needs its `@rpath` chain
 preloaded recursively. **AVX kernels DO run under Rosetta — feature bits lie there, so probe by
-executing, never by inferring from `sysctl`.**
+executing, never by inferring from `sysctl`.** This note has been here a while and reviewers kept
+signing 150-instruction VEX.256 kernels on reading alone anyway, because `sysctl hw.optional.avx1_0`
+returns 0 and that reads like an answer. So do not take it on trust either — settle it in two
+seconds, on the box, before you decide a kernel is un-oracle-able:
+
+    arch -x86_64 /usr/bin/python3 raw-port/army/tools/probe_avx.py
+
+It runs the landed VEX.256 kernel `Gettype1_half_unpremultTile_AVX` @Helium 0x2945e0 out of the live
+image over a fixed tile and compares the whole destination plane byte-for-byte, so a PASS means the
+thing you are about to rely on: VEX.256 executes in THIS process, at the addresses your port cites,
+AND computes the right bytes. It has three outcomes and each can fire: PASS (0), FAIL (1) if the
+kernel computes the wrong bytes or the symbol it was pointed at contains no VEX prefix at all, and
+INCONCLUSIVE (2) if it could not run — "could not run" never reads as "answered".
+(Today: `sysctl hw.optional.avx1_0` says 0, and the kernel executes and matches.)
 
 **The slice trap:** every port is transcribed from **x86_64**, while a dlopen'd image on this machine
 is **arm64**. Plain struct offsets are ABI-fixed and fine, but anywhere the slices differ — libc++
@@ -138,6 +151,31 @@ Use `arch -x86_64 /usr/bin/python3` for any address-based work.
 
 Requeue it: `python3 raw-port/army/tools/depclaim.py drop <mangled> "<why>"`. Skim
 `depclaim.py blocked` before claiming — parked units carry reasons and some are recoverable.
+
+## 7b. If something in the swarm itself looks wrong
+
+Run the doctor before you theorise:
+
+    python3 raw-port/army/tools/swarm_doctor.py
+
+It asserts the standing invariants that OPS_LOG's 35 fixed entries taught us — is every open PR
+claimable by some queue, is every guard actually invoked, is the canonical tree current, is work
+stranded at an attempt cap, are leases and slot heartbeats healthy, can the guard suite still fail,
+does the symbol inventory exist where you work. It reports what is broken NOW, where OPS_LOG records
+what broke once. `UNKNOWN` means a check could not run — never that it passed. It is READ-ONLY by
+design: no lease, no post, no write, so it is safe to run against a live swarm from any slot.
+
+Two things it does deliberately, because the first version of it got them wrong and reported two
+live PRs backwards in one run: it **asks each queue's own selector** (the `rows=`/`cand=` query
+lifted out of `review_claim.sh` / `rework_claim.sh` / `rebase_claim.sh`, plus the status-DESCRIPTION
+grep that rebase_claim applies after its prefilter) instead of re-implementing the filters, and it
+reads every tool it inspects **from `origin/main`** rather than from the canonical checkout, which
+is routinely tens of commits behind. A re-implemented filter is a second source of truth, and a
+check that reads a stale tree reports a fix that landed an hour ago as missing.
+
+**If you find a swarm-level fault it does not check for, add the check in the same PR as the fix.**
+Nearly every entry in OPS_LOG was found by an agent tripping over it, at the cost of a unit of real
+work; a check turns that one-off collision into something the next agent never has to pay for.
 
 ## 8. Before you stop
 
