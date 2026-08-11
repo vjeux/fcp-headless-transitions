@@ -717,6 +717,66 @@ def check_rebase_actionable():
            + live)
 
 
+def check_rebase_branch_naming():
+    """The union rebase must be able to FIND the branch it just pushed.
+
+    THE INCIDENT (2026-08-11, worker 1, on #660 `port/OZChannelBase__slot3`): `rebase_helper.py`
+    derives the CLASS from the PR — stripping `__slot<N>` — and pushes `port/<Class>_rebased`.
+    `rebase_pr.sh` re-derived that name from the BRANCH, stripping only `_rebased`, so it looked for
+    `port/<Class>__slot<N>_rebased`. That ref does not exist: `git diff` fataled, the empty side made
+    `comm` report EVERY file as missing, and the last guard printed "REFUSING to force-push — the
+    rebased branch is missing files the PR has" about a union that was sitting on the remote,
+    gate-green, complete. The PR returned to the queue unchanged, and at 3/3 attempts the rebase
+    queue CLOSES it (#28's shape, on work that was already done).
+
+    It is invisible on `port/<Class>` PRs, where the two spellings coincide — and `__slot<N>` is the
+    NORMAL shape under contention (#240 creates it whenever a class is being worked in two slots).
+
+    Two halves:
+      * the GUARD — does `rebase_pr.sh` on origin/main take the branch name from rebase_helper's own
+        output, or does it still compose one out of `$CLS`/`$BR`? Two derivations of one name is the
+        bug; asking the tool that pushed it is the fix.
+      * the LIVE state — `port/*_rebased` refs on the remote. The success path force-pushes the union
+        onto the PR branch and DELETES that temp ref, so a lingering one is a rebase that was
+        computed, pushed, and never landed. Each is a worker unit spent for nothing and a PR one
+        attempt closer to being auto-closed.
+    """
+    src = from_main("raw-port/army/tools/rebase_pr.sh")
+    if not src:
+        return record("rebase-branch-naming", UNKNOWN,
+                      "could not read rebase_pr.sh from origin/main", "#660")
+    m = re.search(r'if \[ "\$rc" = 0 \]; then(.*?)\nfi\n', src, re.S)
+    if not m:
+        return record("rebase-branch-naming", UNKNOWN,
+                      "could not locate rebase_pr.sh's rebase_helper-exit-0 branch — it has been "
+                      "restructured; re-read it rather than trusting this check", "#660")
+    block = m.group(1)
+    recomposed = re.search(r'port/\$\{?CLS\}?_rebased', block)
+    asks_helper = "_rh.log" in block
+
+    orphans, err = None, None
+    # A newline-delimited name list, not JSON, so `sh` rather than `gh_json`.
+    r = sh(f"gh api repos/{SLUG}/branches?per_page=100 --jq '.[].name'")
+    if r.returncode == 0:
+        orphans = [b for b in r.stdout.split() if b.endswith("_rebased")]
+    else:
+        err = (r.stderr or "").strip() or "no answer"
+
+    live = ("could not list branches (%s)" % err) if orphans is None else (
+        "no orphan port/*_rebased branch on the remote" if not orphans else
+        "ORPHAN union branches on the remote right now (each is a completed rebase that never "
+        "landed): " + ", ".join(sorted(orphans)))
+
+    if recomposed or not asks_helper:
+        return record("rebase-branch-naming", FAIL,
+                      "rebase_pr.sh re-derives the rebased branch name instead of taking it from "
+                      "rebase_helper's output, so every PR on a `port/<Class>__slot<N>` branch "
+                      "refuses its own completed union as 'missing files' and burns a rebase "
+                      "attempt; " + live, "#660")
+    record("rebase-branch-naming", OK,
+           "rebase_pr.sh takes the union branch name from rebase_helper's own output; " + live)
+
+
 # How many commits the window must hold before a percentage over it means anything. Below this the
 # check reports ok and says how far it has filled: 20% of five commits is one commit.
 OPS_WINDOW_MIN = 40
@@ -784,7 +844,7 @@ def check_ops_contention():
 CHECKS = [check_pr_base, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
-          check_brief_flags_exist, check_rebase_actionable,
+          check_brief_flags_exist, check_rebase_actionable, check_rebase_branch_naming,
           check_ops_contention]
 
 
