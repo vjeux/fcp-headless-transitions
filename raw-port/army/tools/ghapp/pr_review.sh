@@ -257,6 +257,52 @@ if printf '%s' "$resp" | grep -q '"state"'; then
   exit 0
 fi
 
+# A PR AUTHORED BY THE REVIEWER APP CAN NEVER BE APPROVED BY ANY REVIEWER, so say so plainly rather
+# than letting each slot rediscover it by burning a lease. GitHub refuses a self-review, and every
+# reviewer slot shares this one app identity — so such a PR is structurally unmergeable: no queue can
+# claim it (swarm_doctor reports it as an orphan), and it sits open forever. Two are open right now,
+# both OPS_LOG reports a reviewer filed with raw `gh pr create` instead of pr_submit.sh, which pushes
+# as the WORKER app precisely so that author != reviewer.
+if printf '%s' "$resp" | grep -qiE 'own pull request|not approve your own'; then
+  # ONE PRINCIPAL, TWO NAMES — this is the whole reason the first version of this block was dead
+  # code. `pulls/<n>/reviews` calls the reviewer `vjeux-reviewer[bot]`, which is what $ME is built
+  # from and is correct for the idempotence check above; `pulls/<n>` reports the same principal as
+  # the AUTHOR `app/vjeux-reviewer`. Comparing the second against the first is false on exactly the
+  # PRs this message exists for (#601, #604), so the reader got the generic "apps not configured"
+  # message — the one this block replaces. Accept every spelling instead of picking one.
+  ME_SLUG="${ME%\[bot\]}"
+  AUTHOR=$("$ROOT/gh_as.sh" reviewer pr view "$PR" --repo "$SLUG" --json author --jq .author.login 2>/dev/null)
+  # THREE STATES, NOT TWO. "the author is someone else" and "I could not read the author" are
+  # different facts, and folding the second into the first is this file's recurring bug. GitHub has
+  # already told us that whoever we are acting as authored this PR, so the dead end is certain even
+  # when the lookup fails; what an unreadable author costs us is only the app-vs-operator
+  # distinction, and the message says so rather than guessing.
+  MINE=other
+  case "${AUTHOR:-}" in
+    "app/$ME_SLUG"|"$ME_SLUG[bot]"|"$ME_SLUG") MINE=yes ;;
+    "")                                        MINE=unknown ;;
+  esac
+  if [ "$MINE" = unknown ]; then
+    echo "pr_review: could not read PR #$PR's author (gh did not answer), so the remedy below is the" >&2
+    echo "  likely one rather than the confirmed one: GitHub's refusal proves that whoever this" >&2
+    echo "  script is acting as authored the PR. If the apps are NOT configured you are acting as the" >&2
+    echo "  operator and the fix is setup_apps.py, not a re-file." >&2
+  fi
+  if [ "$MINE" = yes ] || [ "$MINE" = unknown ]; then
+    cat >&2 <<EOM
+pr_review: PR #$PR was authored by the REVIEWER app (${AUTHOR:-could not read the author}), so NO reviewer can ever approve it —
+  every reviewer slot shares this identity and GitHub refuses a self-review. It is structurally
+  unmergeable and invisible to every queue.
+  This happens when a reviewer files a PR with raw \`gh pr create\`. Use pr_submit.sh, which pushes
+  as the WORKER app for exactly this reason (author != reviewer).
+  To rescue THIS one: re-push the branch as the worker app and open a fresh PR —
+      bash raw-port/army/tools/ghapp/git_push_as.sh worker -q -u origin <branch> --force-with-lease
+      bash raw-port/army/tools/ghapp/gh_as.sh worker pr create --base main --head <branch> ...
+  then close #$PR with a pointer to the replacement.
+EOM
+    exit 3
+  fi
+fi
 if printf '%s' "$resp" | grep -qiE 'own pull request|not approve your own'; then
   cat >&2 <<EOF
 pr_review: REFUSED — GitHub says this identity authored PR #$PR, so it cannot review it.
