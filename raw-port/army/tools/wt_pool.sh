@@ -42,6 +42,22 @@ link_deps () {
   for d in raw-port/node_modules venv; do
     [ -e "$CANON/$d" ] && ln -sfn "$CANON/$d" "$wt/$d" 2>/dev/null
   done
+  # The symbol inventory (army/inventory/<FW>.syms.txt) is gitignored regenerable state, so a
+  # worktree gets an EMPTY inventory dir — and the mandated fast path ("grep the cache, never nm the
+  # 78MB framework binary", OPS_LOG #22) then dies with FileNotFoundError right where every agent
+  # works. Agents that hit that fall back to nm, which is the multi-minute core-hog the cache exists
+  # to avoid: the guidance and the filesystem disagreed, and the filesystem won. Symlink the canonical
+  # copies in, per file rather than by directory: a per-directory `ln -sfn` onto an existing real dir
+  # silently nests the link INSIDE it, which is the trap this avoids. Note `ln -sfn` DOES replace a
+  # real file a worktree generated for itself — verified, not assumed — and that is the behaviour we
+  # want: the canonical inventory is the complete 5-framework set, while an ad-hoc local slice is
+  # whatever one agent happened to need.
+  if [ -d "$CANON/raw-port/army/inventory" ]; then
+    mkdir -p "$wt/raw-port/army/inventory" 2>/dev/null
+    for f in "$CANON"/raw-port/army/inventory/*.syms.txt; do
+      [ -e "$f" ] && ln -sfn "$f" "$wt/raw-port/army/inventory/$(basename "$f")" 2>/dev/null
+    done
+  fi
 }
 
 make_wt () { # create pool worktree #N if missing; echo its path
