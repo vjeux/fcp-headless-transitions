@@ -54,6 +54,10 @@
 //       — OZRenderParams::setDo3DIntersectionAntialiasingDynamic(bool) @Ozone 0x271930
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams38setDo3DIntersectionAntialiasingDynamicEb.s — 10 lines)
+//   * __ZN14OZRenderParams12setImageTypeE11PCImageType
+//       — OZRenderParams::setImageType(PCImageType) @Ozone 0x270800
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams12setImageTypeE11PCImageType.s — 10 lines)
 //   * __ZN14OZRenderParams14disableDynamicEv
 //       — OZRenderParams::disableDynamic() @Ozone 0x2716b0
 //         (raw-port/re/disasm/
@@ -310,6 +314,17 @@ export class OZRenderParams {
    * mirrors it directly.
    */
   reducedResolutionMediaAt1e6: number = 0;
+
+  /**
+   * @Ozone offset +0x140 — a 4-byte integer written by
+   * `setImageType(PCImageType)` @0x270804 via `movl %esi, 0x140(%rdi)`.
+   * `PCImageType` is an enum, so the ABI argument is already 32 bits in
+   * `%esi`; the `movl` proves the class slot is 4 bytes wide too, and the
+   * live binary confirms it — a poisoned-arena differential shows exactly
+   * bytes [+0x140,+0x144) change and +0x144 (widthAt144, the adjacent
+   * slot) does not. Modelled as `number`, which covers int32 exactly.
+   */
+  imageTypeAt140: number = 0;
 
   /**
    * @Ozone offset +0x144 — a 4-byte integer written by
@@ -992,6 +1007,74 @@ export class OZRenderParams {
     this.zeroedAt198 = { x: 0, y: 0 };
 
     // @0x2707db-0x2707dc — epilogue + retq.
+  }
+
+  /**
+   * `OZRenderParams::setImageType(PCImageType)`
+   *   — @Ozone 0x270800
+   *   — __ZN14OZRenderParams12setImageTypeE11PCImageType
+   *
+   * Faithful line-for-line transcription of the 10-line disassembly:
+   *   0x270800  pushq  %rbp                        ; frame prologue
+   *   0x270801  movq   %rsp, %rbp
+   *   0x270804  movl   %esi, 0x140(%rdi)           ; this->+0x140 = (int32) arg
+   *   0x27080a  xorps  %xmm0, %xmm0                ; xmm0 = 0
+   *   0x27080d  movups %xmm0, 0x188(%rdi)          ; this->+0x188 = (0, 0)
+   *   0x270814  movups %xmm0, 0x198(%rdi)          ; this->+0x198 = (0, 0)
+   *   0x27081b  popq   %rbp                        ; frame epilogue
+   *   0x27081c  retq
+   *   0x27081d  nopl   (%rax)                      ; alignment padding
+   *
+   * The same codegen shape as `setWidth` @0x2707a0 and `setHeight`
+   * @0x2707c0 — one scalar store followed by the two 16-byte zero writes
+   * that invalidate the offset-cache pair at +0x188/+0x198 — so the image
+   * type is treated as a resolution-affecting property: changing it drops
+   * whatever those two slots held. It does NOT touch the three resolution
+   * cache slots (+0x18, +0x1b0, +0x1c0), matching `setWidth`/`setHeight`.
+   *
+   * `PCImageType` is an enum, so unlike `setWidth(long)` the argument is
+   * already 32 bits wide in `%esi` and the `movl` narrows nothing; the
+   * `| 0` below mirrors the 4-byte width of the SLOT, which is what the
+   * store proves. Values outside int32 cannot reach this setter through
+   * the C++ signature.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure field
+   * writes.
+   *
+   * ORACLE (raw-port/re/oracle/OZRenderParams_setImageType_oracle.py,
+   * `arch -x86_64 /usr/bin/python3`): the symbol is exported (`T`), so it
+   * was called for real. The object was allocated as a 1 KiB arena filled
+   * with a per-byte-varying poison, `dlsym` was checked against
+   * `slide + 0x270800` by comparing the ten prologue bytes
+   * (`554889e589b740010000`), and the arena was diffed BYTE FOR BYTE after
+   * each call. Ten enum values (0,1,2,3,7,-1, 0x12345678, INT32_MAX,
+   * INT32_MIN, 0x01020304): 10/10 match, and the only bytes that changed
+   * in the whole KiB were [+0x140,+0x144) and [+0x188,+0x1a8) — the second
+   * range being the two 16-byte zero stores, adjacent and therefore
+   * reported as one span. Three mutated expectations were scored beside
+   * it and all three were killed 10/10: an 8-byte store at +0x140, only 8
+   * zero bytes at +0x188, and +0x1a0..+0x1a8 left untouched. So the store
+   * WIDTH, the zero EXTENT, and the absence of any other write are each
+   * measured facts rather than readings of the mnemonic.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams12setImageTypeE11PCImageType.s
+   *   (10 lines)
+   */
+  setImageType(imageType: number): void {
+    // @0x270804  movl %esi,0x140(%rdi)
+    //   4-byte store of the PCImageType enum argument. `| 0` mirrors the
+    //   int32 width of the slot (measured: bytes [+0x140,+0x144) only).
+    this.imageTypeAt140 = imageType | 0;
+
+    // @0x27080a  xorps  %xmm0,%xmm0        ; xmm0 = 0
+    // @0x27080d  movups %xmm0,0x188(%rdi)  ; this->+0x188 = (0, 0)
+    this.zeroedAt188 = { x: 0, y: 0 };
+
+    // @0x270814  movups %xmm0,0x198(%rdi)  ; this->+0x198 = (0, 0)
+    this.zeroedAt198 = { x: 0, y: 0 };
+
+    // @0x27081b-0x27081c — epilogue + retq.
   }
 
   /**
