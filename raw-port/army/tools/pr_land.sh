@@ -10,12 +10,69 @@
 # after N rounds (prints REBASE-RACE so the caller can retry later). NEVER force-merges;
 # only merges when the required status is green and GitHub reports it mergeable.
 set -uo pipefail
-PR="${1:?usage: pr_land.sh <PR#> [--reviewed]}"; REVIEWED="${2:-}"
+PR="${1:?usage: pr_land.sh <PR#> [--reviewed] [--keep-status \"<why>\"]}"
+# --keep-status "<why>": land WITHOUT re-gating, preserving the status already on the head.
+#
+# WHY: this script re-runs pr_gate on every round, which OVERWRITES whatever status is there. That is
+# right when the gate is the authority, and wrong in the one case where a person out-ranks it: a
+# reviewer who has DISPROVED a mechanical failure. It happened repeatedly today — regression_check
+# reporting a dropped symbol that was really a regex artefact, and a conflicted non-src PR whose gate
+# never ran regression at all. `--reviewed` does not help: it covers G5 flags only. The reviewer's
+# sole recourse was to hand-post a status and race pr_land to the merge.
+# The reason is REQUIRED and is echoed into the run, so "I skipped the gate" can never be silent.
+#
+# The options are parsed as a LOOP rather than off $2, because `pr_land.sh <PR> --reviewed
+# --keep-status "why"` silently ignored the second flag when only $2 was inspected — a flag that
+# does nothing is worse than one that errors (reviewer 1 on #557).
+KEEP_STATUS=""
+REVIEWED=""
+shift
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --reviewed)    REVIEWED="--reviewed"; shift ;;
+    --keep-status) KEEP_STATUS="${2:?--keep-status requires a reason: what did you verify that the gate got wrong?}"; shift 2 ;;
+    "")            shift ;;
+    *)             echo "pr_land: unknown option '$1' (expected --reviewed or --keep-status \"<why>\")" >&2; exit 2 ;;
+  esac
+done
+if [ -n "$KEEP_STATUS" ]; then
+  # --keep-status out-ranks --reviewed: it means "do not run the gate at all", so there is no flag
+  # set for the gate to clear.
+  REVIEWED=""
+  echo "pr_land: --keep-status — NOT re-gating PR #$PR. Reviewer's stated reason:"
+  echo "         $KEEP_STATUS"
+fi
 SLUG="vjeux/fcp-headless-transitions"; CANON="$HOME/random/final-cut-pro-transitions"; cd "$CANON"
 # Act as the REVIEWER GitHub App: it posts the gate status, signs the APPROVE, and merges. Distinct
 # from the worker app that authored the PR, which is what makes a real review verdict possible.
 GHAPP="$CANON/raw-port/army/tools/ghapp"
 ghr () { bash "$GHAPP/gh_as.sh" reviewer "$@"; }
+
+# THE MERGE TARGET IS THE PR'S OWN BASE, SO CHECK IT BEFORE ANYTHING ELSE.
+#
+# The merge below is `gh pr merge --squash --auto --delete-branch`, which merges into whatever the
+# PR names as its base — NOT into main. Branch protection (the required `faithfulness-gate`, linear
+# history, enforce_admins) exists on `main` and on nothing else, so landing a PR whose base is
+# another PR's branch bypasses every one of those checks, deletes a branch that is a third PR's
+# base, and reports success. Everything else in this file — carry_tree_identity, signed_head_of,
+# the whole update-branch loop — is written against `origin/main` and silently answers a different
+# question for such a PR.
+#
+# Refuse instead of "fixing" it: retargeting a stack from here would change what the author's
+# reviewer approved. This is a hard stop, one API call, and the message carries the one command
+# that resolves it. `FCT_ALLOW_NONMAIN_BASE=1` exists only so the test can exercise the other side.
+LAND_BASE=$(ghr pr view "$PR" --repo "$SLUG" --json baseRefName --jq .baseRefName 2>/dev/null)
+if [ -n "$LAND_BASE" ] && [ "$LAND_BASE" != "main" ] && [ "${FCT_ALLOW_NONMAIN_BASE:-0}" != "1" ]; then
+  echo "pr_land: REFUSING to merge PR #$PR — its base is '$LAND_BASE', not 'main'."
+  echo "  \`gh pr merge\` would merge into '$LAND_BASE', where no branch protection applies, and"
+  echo "  --delete-branch would remove a branch another open PR may be based on."
+  echo "  Retarget it first (this needs no code change):"
+  echo "    gh pr edit $PR --repo $SLUG --base main"
+  exit 4
+fi
+# An empty answer is NOT a pass — but it is also not proof of a stacked base, and failing closed on
+# a TLS blip would wedge every merge. Say so and continue; the gate still has to be green below.
+[ -z "$LAND_BASE" ] && echo "pr_land: WARNING — could not read PR #$PR's base branch; proceeding on the gate alone." || true
 # carry_tree_identity <approved-sha> <head-sha>
 # Prints the two tree hashes and exits 0 only when the head's tree is EXACTLY what merging the
 # approved content into current origin/main produces. A missing object, an unreadable commit or a
@@ -79,6 +136,29 @@ for round in 1 2 3 4 5 6; do
   [ "$st" = "CLOSED" ] && { echo "pr_land: PR #$PR CLOSED (not merged)"; exit 1; }
   ms=$(ghr pr view "$PR" --repo "$SLUG" --json mergeStateStatus --jq .mergeStateStatus 2>/dev/null)
   echo "pr_land round $round: state=$st mergeState=$ms"
+  # THE KEEP-STATUS CHECK HAPPENS BEFORE `update-branch`, and that ORDER is the whole point.
+  # `update-branch` mints a new commit and statuses are per-SHA, so checking afterwards reads a head
+  # nobody verified: the reviewer's status is already gone, the check sees 'none', and the run
+  # refuses — which is how the flag came to be inoperative on 4 of the 4 PRs it was written for
+  # (all of them BEHIND; reviewer 1 measured it on #557). Checking first means the refusal is about
+  # the status the reviewer actually verified.
+  if [ -n "$KEEP_STATUS" ]; then
+    cur=$(ghr api "repos/$SLUG/commits/$(ghr pr view "$PR" --repo "$SLUG" --json headRefOid --jq .headRefOid)/status" \
+            --jq '[.statuses[]?|select(.context=="faithfulness-gate")]|last|.state // ""' 2>/dev/null)
+    if [ "$cur" != "success" ]; then
+      echo "pr_land: --keep-status but the head's faithfulness-gate is '${cur:-none}', not success — refusing."
+      exit 1
+    fi
+    if [ "$ms" = "BEHIND" ]; then
+      # Refusing rather than updating: the update would discard the very status being preserved, and
+      # this flag preserves a verdict — it does not mint one on a head nobody has looked at.
+      echo "pr_land: --keep-status but PR #$PR is BEHIND. Updating the branch would create a new head"
+      echo "         and DISCARD the 'success' status you verified (statuses are per-SHA), leaving a"
+      echo "         head nobody reviewed. Refusing. Bring the branch up to date, re-verify the new"
+      echo "         head, and re-run — or land it without --keep-status."
+      exit 1
+    fi
+  fi
   if [ "$ms" = "BEHIND" ]; then
     # REMEMBER WHAT WAS APPROVED BEFORE WE MOVE THE HEAD — as INSURANCE, not as the mechanism.
     #
@@ -110,7 +190,13 @@ print(a[-1]['commit_id'] if a else '')
     for _ in 1 2 3 4 5 6 7 8; do sleep 3; nms=$(ghr pr view "$PR" --repo "$SLUG" --json mergeStateStatus --jq .mergeStateStatus 2>/dev/null); [ "$nms" != "BEHIND" ] && break; done
   fi
   # (re)gate the current head, posting the required status
-  bash raw-port/army/tools/pr_gate.sh "$PR" $REVIEWED >/tmp/pr_land_gate_$PR.log 2>&1
+  if [ -n "$KEEP_STATUS" ]; then
+    # Already validated above, before anything could move the head. Trust it; do not touch it.
+    echo "pr_land: keeping existing 'success' status on the head (not re-gating)"
+    echo "PR_GATE: PASS (status preserved by reviewer)" > /tmp/pr_land_gate_$PR.log
+  else
+    bash raw-port/army/tools/pr_gate.sh "$PR" $REVIEWED >/tmp/pr_land_gate_$PR.log 2>&1
+  fi
   grep -qE 'PR_GATE: (PASS|FAIL|NEEDS-REVIEW)' /tmp/pr_land_gate_$PR.log; tail -1 /tmp/pr_land_gate_$PR.log
   if grep -q 'PR_GATE: FAIL' /tmp/pr_land_gate_$PR.log; then echo "pr_land: gate FAIL — not merging"; exit 1; fi
   if grep -q 'PR_GATE: NEEDS-REVIEW' /tmp/pr_land_gate_$PR.log; then echo "pr_land: needs reviewer --reviewed re-derivation"; exit 2; fi
