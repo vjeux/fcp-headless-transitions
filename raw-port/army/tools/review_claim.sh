@@ -30,19 +30,10 @@ cmd_claim () {
   # mergeable. That is exactly how #243 reached one merge from landing while its own TS diverged from
   # the live symbol on 8 of 106 cases (issue #285). A green mechanical gate is not a verdict; only a
   # reviewer's APPROVE is. PRs already APPROVED or CHANGES_REQUESTED on their head are left alone.
-  #
-  # THE VERDICT FILTER APPLIES TO EVERY BRANCH, NOT JUST `SUCCESS`. It used to read
-  #     .s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or (.s=="SUCCESS" and .d!="CHANGES_REQUESTED")
-  # so a PR whose gate was NONE/PENDING was offered again REGARDLESS of a standing rejection — a
-  # reviewer was re-handed a PR six minutes after rejecting it (#571), and a freshly force-pushed
-  # rework has no status at all, which is exactly the PENDING/NONE case. That wastes the lease, and
-  # worse, invites a second verdict on a PR whose author is mid-fix: the duplicate-review race of
-  # #7/#224 through a new door. The rework queue owns a CHANGES_REQUESTED PR until its author
-  # answers; the gate's state does not change whose turn it is.
   local rows
   rows=$(gh pr list --repo "$SLUG" --state open --limit 100 \
       --json number,headRefOid,statusCheckRollup,reviewDecision \
-      --jq '.[] | {n:.number, sha:.headRefOid, d:(.reviewDecision // ""), s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select((.d!="APPROVED" and .d!="CHANGES_REQUESTED") and (.s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or .s=="SUCCESS")) | "\(.n)\t\(.sha)"' 2>/dev/null)
+      --jq '.[] | {n:.number, sha:.headRefOid, d:(.reviewDecision // ""), s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select(.s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or (.s=="SUCCESS" and .d!="APPROVED" and .d!="CHANGES_REQUESTED")) | "\(.n)\t\(.sha)"' 2>/dev/null)
   [ -z "$rows" ] && { echo "NONE"; return 1; }
   # randomize so parallel reviewers don't collide on the same first row
   rows=$(printf '%s\n' "$rows" | sort -R 2>/dev/null || printf '%s\n' "$rows")
@@ -55,6 +46,30 @@ cmd_claim () {
     # eb6f6086 (issue #224); the same race also merged #223/#225/#231 out from under that reviewer.
     # A PR under review is under review no matter how its head moves — one reviewer at a time. The
     # lease is released after each verdict, so a genuinely new head still gets re-reviewed next pass.
+    # WHOSE TURN IS IT? Use the SAME discriminator rework_claim uses, so the two queues cannot
+    # disagree — the head SHA the rejection was recorded against.
+    #
+    # My first attempt at this (#602) filtered out every CHANGES_REQUESTED PR regardless of head, on
+    # the reasoning that a rejected PR belongs to its author. Reviewer 3 measured it against the live
+    # queue: all NINE PRs it removed had already been answered, rework_claim SKIPS exactly those, and
+    # they would have fallen into NO queue at all — manufacturing the orphan condition swarm_doctor
+    # exists to detect. `reviewDecision` stays CHANGES_REQUESTED until a reviewer re-reviews, so it
+    # says nothing about whether the author has responded; only the head SHA does.
+    #
+    #   head moved past the rejection -> the author answered  -> REVIEWER's turn -> claim it
+    #   head still AT the rejection   -> the author is mid-fix -> WORKER's turn  -> skip it
+    #
+    # An empty answer is a transport failure, never a verdict: offer the PR rather than starve.
+    if [ "$(gh pr view "$num" --repo "$SLUG" --json reviewDecision --jq .reviewDecision 2>/dev/null)" = "CHANGES_REQUESTED" ]; then
+      local rejsha
+      rejsha=$(gh api "repos/$SLUG/pulls/$num/reviews" \
+                 --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
+      if [ -n "$rejsha" ] && [ "$rejsha" != "null" ] && [ "$rejsha" = "$sha" ]; then
+        echo "review_claim: PR #$num was rejected on this very head (${sha:0:8}) and the author has not" >&2
+        echo "  answered yet — it belongs to the rework queue, skipping" >&2
+        continue
+      fi
+    fi
     local lk="$LEAS/pr-${num}"
     if mkdir "$lk" 2>/dev/null; then
       echo "$(date +%s) $sha" > "$lk/held"; echo "CLAIMED $num $sha"; return 0; fi
