@@ -87,9 +87,18 @@ wt_has_work () {
   # lease but not a reviewer's. Real work is source; a cache is not.
   [ -n "$(git -C "$wt" status --porcelain -- raw-port/src 2>/dev/null)" ] && return 0
   [ -n "$(git -C "$wt" status --porcelain -- raw-port/re 2>/dev/null | grep -v ' raw-port/re/disasm/')" ] && return 0
-  # HEAD reachable from some origin/* ref => pushed => nothing to lose
-  if [ -n "$(git -C "$wt" rev-list -n1 origin/main..HEAD 2>/dev/null)" ]; then
-    [ -z "$(git -C "$wt" branch -r --contains HEAD 2>/dev/null)" ] && return 0
+  # HEAD reachable from some origin/* ref => pushed => nothing to lose.
+  # ONLY MEANINGFUL ON A BRANCH. A reviewer's `acquire-at <SHA>` leaves a DETACHED HEAD at a PR head;
+  # once that PR squash-merges and its branch is deleted, the commit stops being contained in any
+  # remote branch — so this test called it "unpushed work" on a tree whose `git status` is empty, and
+  # `release` refused. The slot then leaked, and it leaked HARDER THE BETTER REVIEWERS DID: every
+  # successful merge stranded the worktree that verified it (three times in one shift, reported as
+  # OPS_LOG #401; the same POOL_FULL endgame as #12). A detached HEAD holds no work by construction —
+  # it is a checkout of a commit that already exists on the server. Only an unpushed BRANCH can.
+  if git -C "$wt" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    if [ -n "$(git -C "$wt" rev-list -n1 origin/main..HEAD 2>/dev/null)" ]; then
+      [ -z "$(git -C "$wt" branch -r --contains HEAD 2>/dev/null)" ] && return 0
+    fi
   fi
   return 1
 }
