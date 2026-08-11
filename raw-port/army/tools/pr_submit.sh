@@ -17,6 +17,10 @@ BR="$CUR"
 
 # rebase onto latest main so the PR is not stale-base (branch protection requires up-to-date anyway)
 git fetch -q origin main 2>&1 | tail -1
+# Drop remote-tracking refs for branches that were deleted server-side after their PR merged. Without
+# this, the next push to a REUSED class branch name fails with "! [rejected] (stale info)" — reported
+# by 3 separate workers, each of whom debugged it from scratch.
+git remote prune origin >/dev/null 2>&1 || true
 git rebase -q origin/main 2>&1 | tail -2 || { echo "REBASE CONFLICT on $BR — resolve or use rebase_helper.py"; exit 4; }
 
 bash "$GHAPP/git_push_as.sh" worker -q -u origin "$BR" --force-with-lease 2>&1 | tail -2
