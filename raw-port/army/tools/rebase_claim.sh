@@ -51,12 +51,41 @@ cmd_claim () {
   git fetch -q origin main 2>/dev/null || true
   # candidate PRs whose LATEST faithfulness-gate is FAILURE
   local cand
+  # TWO WAYS A PR NEEDS A REBASE; this queue could only see one of them.
+  #
+  #  (a) the gate said so — a regression/rebase FAILURE (handled below by description).
+  #  (b) GITHUB SAYS THE BRANCH CONFLICTS (mergeStateStatus DIRTY). For a PR touching no
+  #      raw-port/src, pr_gate short-circuits to SUCCESS without running regression_check at all —
+  #      so a conflicted docs/tooling PR is GREEN, invisible here, and review_claim will not re-offer
+  #      it either because it is already APPROVED. It then sits open forever.
+  #
+  # That is not hypothetical: swarm_doctor has been reporting APPROVED, green, DIRTY PRs as orphans
+  # no queue can claim for most of today (#523, #554, #571, #600), and reviewers were unsticking them
+  # by HAND-POSTING a fake `regression (rebase needed)` status just to make this filter see them.
+  # Ask GitHub whether the branch conflicts instead of inferring it from a status nobody posted.
   cand=$(gh pr list --repo "$SLUG" --state open --limit 100 \
-      --json number,headRefName,headRefOid,statusCheckRollup \
-      --jq '.[] | select([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE") | "\(.number)\t\(.headRefName)\t\(.headRefOid)"' 2>/dev/null)
+      --json number,headRefName,headRefOid,statusCheckRollup,mergeStateStatus \
+      --jq '.[] | select(([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE") or .mergeStateStatus=="DIRTY") | "\(.number)\t\(.headRefName)\t\(.headRefOid)\t\(.mergeStateStatus)"' 2>/dev/null)
   [ -z "$cand" ] && { echo "NONE"; return 1; }
-  while IFS=$'\t' read -r num br sha; do
+  while IFS=$'\t' read -r num br sha ms; do
     [ -z "$num" ] && continue
+    # A DIRTY branch needs a rebase whatever the gate says — the conflict IS the evidence, so skip
+    # the description check for it (the gate may even be green; see the note above).
+    if [ "${ms:-}" = "DIRTY" ]; then
+      af="$ATT/$num"; sf="$ATT/$num.sha"; n=$(cat "$af" 2>/dev/null || echo 0)
+      last=$(cat "$sf" 2>/dev/null || echo "")
+      [ -n "$last" ] && [ "$last" != "$sha" ] && { n=0; echo 0 > "$af"; }
+      if [ "${n:-0}" -ge "$CAP" ]; then
+        approved=$(gh pr view "$num" --repo "$SLUG" --json reviewDecision --jq .reviewDecision 2>/dev/null)
+        [ "$approved" = "APPROVED" ] && { n=0; echo 0 > "$af"; } || continue
+      fi
+      if lease_free "$num"; then
+        echo "$((n+1))" > "$af"; echo "$sha" > "$sf"
+        echo "CLAIMED $num $br   (conflicts with main; attempt $((n+1))/$CAP on head ${sha:0:8})"
+        return 0
+      fi
+      continue
+    fi
     # confirm the failure reason is a regression/rebase (REST has the description; GraphQL doesn't)
     local desc; desc=$(gh api "repos/$SLUG/commits/$sha/statuses" \
       --jq '[.[]|select(.context=="faithfulness-gate")][0].description' 2>/dev/null)
