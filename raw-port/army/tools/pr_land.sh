@@ -47,6 +47,32 @@ SLUG="vjeux/fcp-headless-transitions"; CANON="$HOME/random/final-cut-pro-transit
 # from the worker app that authored the PR, which is what makes a real review verdict possible.
 GHAPP="$CANON/raw-port/army/tools/ghapp"
 ghr () { bash "$GHAPP/gh_as.sh" reviewer "$@"; }
+
+# THE MERGE TARGET IS THE PR'S OWN BASE, SO CHECK IT BEFORE ANYTHING ELSE.
+#
+# The merge below is `gh pr merge --squash --auto --delete-branch`, which merges into whatever the
+# PR names as its base — NOT into main. Branch protection (the required `faithfulness-gate`, linear
+# history, enforce_admins) exists on `main` and on nothing else, so landing a PR whose base is
+# another PR's branch bypasses every one of those checks, deletes a branch that is a third PR's
+# base, and reports success. Everything else in this file — carry_tree_identity, signed_head_of,
+# the whole update-branch loop — is written against `origin/main` and silently answers a different
+# question for such a PR.
+#
+# Refuse instead of "fixing" it: retargeting a stack from here would change what the author's
+# reviewer approved. This is a hard stop, one API call, and the message carries the one command
+# that resolves it. `FCT_ALLOW_NONMAIN_BASE=1` exists only so the test can exercise the other side.
+LAND_BASE=$(ghr pr view "$PR" --repo "$SLUG" --json baseRefName --jq .baseRefName 2>/dev/null)
+if [ -n "$LAND_BASE" ] && [ "$LAND_BASE" != "main" ] && [ "${FCT_ALLOW_NONMAIN_BASE:-0}" != "1" ]; then
+  echo "pr_land: REFUSING to merge PR #$PR — its base is '$LAND_BASE', not 'main'."
+  echo "  \`gh pr merge\` would merge into '$LAND_BASE', where no branch protection applies, and"
+  echo "  --delete-branch would remove a branch another open PR may be based on."
+  echo "  Retarget it first (this needs no code change):"
+  echo "    gh pr edit $PR --repo $SLUG --base main"
+  exit 4
+fi
+# An empty answer is NOT a pass — but it is also not proof of a stacked base, and failing closed on
+# a TLS blip would wedge every merge. Say so and continue; the gate still has to be green below.
+[ -z "$LAND_BASE" ] && echo "pr_land: WARNING — could not read PR #$PR's base branch; proceeding on the gate alone." || true
 # carry_tree_identity <approved-sha> <head-sha>
 # Prints the two tree hashes and exits 0 only when the head's tree is EXACTLY what merging the
 # approved content into current origin/main produces. A missing object, an unreadable commit or a

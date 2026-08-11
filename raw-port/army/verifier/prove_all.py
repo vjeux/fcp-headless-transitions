@@ -121,7 +121,18 @@ def layer2():
     print("LAYER 2i (queue coverage — the doctor follows the queues instead of disagreeing):",
           "PASS" if ok9 else "FAIL")
     if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
+    # 2j — THE PR'S BASE. Nothing in the swarm read `baseRefName`: pr_gate diffs `origin/main...HEAD`
+    # while pr_land merges into the PR's OWN base, so a PR stacked on another PR's branch got a green
+    # status covering three PRs' commits and would have been merged where no branch protection
+    # applies. Both tools now refuse; this pins both refusals AND the two decisions inside them (the
+    # gate posts no status, so the PR stays claimable; pr_land fails OPEN on an unanswered query, so
+    # a TLS blip cannot wedge every merge). Offline, guards extracted from the shipped files. ~1s.
+    r10 = run(["bash", os.path.join(TOOLS, "test_pr_base_is_main.sh")])
+    ok10 = "test_pr_base_is_main: PASS" in r10.stdout
+    print("LAYER 2j (a PR's base must be main — the gate and the merge target must agree):",
+          "PASS" if ok10 else "FAIL")
+    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
 
 def _reach(spec, expect):
     import tempfile
