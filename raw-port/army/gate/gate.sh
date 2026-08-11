@@ -58,6 +58,24 @@ python3 "$ROOT/army/gate/g5_impl_gate.py" "$@"
 G5=$?
 [ "$G5" = 2 ] && { echo "  G5 REJECT"; FAIL=1; }
 
+echo "== G6 add-only (no landed symbol may be deleted) =="
+# G6 catches the ONE loss mode G0-G5 are all blind to: a change that REMOVES a ported symbol which
+# is already merged on origin/main. Fired for real on 2026-08-10 — commit ef8ffc72 regenerated
+# HGRenderContext.ts and silently deleted another worker's landed IsGPU. The file still typechecked,
+# the new method was faithful, and every other gate passed; only a human noticing saved it. Same
+# signature as stacking on a stale PR-less port/<Class> branch whose file predates landed methods.
+python3 "$ROOT/army/gate/addonly_gate.py" "$@"
+[ $? = 2 ] && { echo "  G6 REJECT"; FAIL=1; }
+
+echo "== G7 undefined-index (silent-wrong-answer class) =="
+# G7 flags NEW non-null-asserted computed table reads. This is the ONE class that passed every other
+# gate and was still wrong: #154 RGBtoRGBA returned 24 where live FCP returns 232, because an
+# out-of-range read gave `undefined`, `undefined - 1` gave NaN, and `NaN & 0xffffffff` collapsed to 0
+# — a plausible wrong number with no throw for G5 to find. Flags (not rejects): ~68 such sites are
+# already landed and most are probably bounded, but pr_gate holds the status red while a flag stands,
+# so a reviewer must prove the index is in range or match the machine's out-of-range behavior.
+python3 "$ROOT/army/gate/undef_index_gate.py" "$@"
+
 echo ""
 [ "$FAIL" = 0 ] && echo "GATE: PASS ✅" || echo "GATE: REJECT ❌ (fix the above; shortcuts do not land)"
 exit $FAIL

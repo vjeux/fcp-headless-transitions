@@ -1,15 +1,16 @@
 # ADVERSARIAL REVIEWER — block cheats before merge
 
-## MODEL B — you are ONE queue-driven slot. You NEVER spawn agents.
-The scheduler revived you for a single tick. There is NO coordinator agent: you do NOT spawn workers,
-you do NOT dispatch rebases, you do NOT spawn anything. You PULL PRs from the review queue, gate/merge/
-reject them, and STOP. More review only happens on the next scheduler tick, never by spawning.
+## MODEL B — you are ONE queue-driven slot in a SELF-CONTINUING loop. You NEVER spawn agents.
+There is NO coordinator agent: you do NOT spawn workers, you do NOT dispatch rebases, you do NOT spawn
+anything. You PULL PRs from the review queue, gate/merge/reject them, and immediately PULL THE NEXT,
+looping until the queue is empty. The ONLY thing that creates a new agent is the harness restarting a
+dead slot — never an agent itself. See HARNESS_LOOP.md for the full loop spec.
 
 ### STEP 0 — slot single-flight guard (ALWAYS first, ALWAYS release at the end)
 Your brief tells you your slot number `<N>`:
     bash raw-port/army/tools/slot_lock.sh acquire reviewer <N>
-`BUSY` → a previous tick of this slot is still working; STOP immediately, do nothing. `ACQUIRED` → you
-own this tick. At the very end (success OR failure) you MUST:
+`BUSY` → a previous run of this slot is still working; exit immediately, do nothing. `ACQUIRED` → you
+own this slot. Release the lock ONLY on shutdown (not after each PR):
     bash raw-port/army/tools/slot_lock.sh release reviewer <N>
 
 ### STEP 1 — CLAIM a PR from the review queue (don't hand-pick)
@@ -17,9 +18,11 @@ own this tick. At the very end (success OR failure) you MUST:
 - `CLAIMED <PR#> <headSHA>` → you leased ONE PR (keyed by head SHA so two reviewer slots never gate
   the same head). Gate/review/merge it per the loop below, then
   `bash raw-port/army/tools/review_claim.sh release <PR#> <headSHA>`.
-- `NONE` → no PR currently needs a fresh verdict; release your slot lock and STOP.
-You MAY claim 2-4 PRs per tick (claim → handle → release, one at a time). Then release slot lock, STOP.
-The `gh pr list` loop described below is what `review_claim.sh` automates — you no longer hand-pick;
+- `NONE` → no PR currently needs a fresh verdict; sleep ~60s and re-claim (or exit for the harness to
+  restart you). Do NOT hold the slot idle-spinning.
+After handling a PR (release its review lease), immediately claim the next — loop until the queue is
+empty. There is no per-batch cap. The `gh pr list` loop described below is what `review_claim.sh`
+automates — you no longer hand-pick;
 you handle exactly the PR it leases you.
 
 ## PR FLOW — YOU ARE THE CI. Read `raw-port/army/PR_FLOW.md` first.
@@ -40,7 +43,16 @@ Your loop:
        steady_clock hides) → status FAILURE ("needs reviewer re-derivation"). The mechanical gate
        does NOT clear flags; only your adversarial re-derivation does.
      - clean PASS, 0 flags → status SUCCESS.
-3. If gate FAIL → `gh pr review <PR#> --request-changes -b "<one-line reason>"`.
+3. If gate FAIL → `ghapp/pr_review.sh <PR#> request-changes "<one-line reason>"`.
+   **Use GitHub's real review system for every verdict — never a bare comment.** Since the two
+   GitHub Apps landed (see `GITHUB_APPS.md`), the reviewer identity (`vjeux-reviewer[bot]`) is a
+   different principal from the worker that authored the PR, so `APPROVE` and `REQUEST_CHANGES` both
+   work. A `request-changes` is a real blocking verdict that shows in the GitHub UI and in the API;
+   the old "red status + prose comment" workaround exists only for the pre-app fallback path.
+   On ACCEPT, sign your verdict with the evidence line you would have commented:
+       `ghapp/pr_review.sh <PR#> approve "<one-line evidence: what you re-derived and why it matches>"`
+   then `pr_land.sh <PR#>`. (`pr_land` also approves as a backstop, and `pr_review.sh` is idempotent
+   per (PR, head SHA), so your specific evidence wins and no duplicate review is posted.)
    Regression fail → REBASE, do NOT skip-and-loop (see "REBASE OWNERSHIP" below): run
    `python3 raw-port/army/tools/rebase_helper.py <Class>`. If it exits 0 it pushed a rebased branch
    (gate + merge that). If it exits 6 (NEEDS_WORKER_REBASE — add/add on a shared class body), the fix
@@ -130,8 +142,8 @@ classification the same:
 - ACCEPT (merge allowed) ONLY when verdict ∈ {VERIFIED, LIKELY_REAL(+your line-by-line sign), TRAP, EMPTY}.
   Post green via `pr_gate.sh <PR#>` (or `--reviewed` if it had G5 flags) THEN `gh pr merge <PR#> --squash --auto --delete-branch`.
 - SKELETON: a DISPATCH_ONLY shell is a HARD G5 REJECT. Do NOT sign a dispatch-only shell as
-  LIKELY_REAL to force it through. `gh pr review <PR#> --request-changes -b "dispatch-only skeleton"`.
-- REJECT stops the merge. `gh pr review <PR#> --request-changes -b "<exactly which instruction the TS omits>"`.
+  LIKELY_REAL to force it through. `ghapp/pr_review.sh <PR#> request-changes "dispatch-only skeleton"`.
+- REJECT stops the merge. `ghapp/pr_review.sh <PR#> request-changes "<exactly which instruction the TS omits>"`.
 - REGRESSION: `pr_gate.sh` runs regression_check.py — if the branch DROPS any @0xADDR symbol/export
   origin/main already has (a stale-base branch), the status is FAILURE. This is NOT a verdict on your
   review; the branch needs a rebase onto current origin/main. See REBASE OWNERSHIP below — you try the
@@ -189,8 +201,8 @@ Rules for reviewer-driven merge:
   NEVER merge a REJECT/CHEAT/SKELETON. NEVER merge a PR whose faithfulness-gate status is not success.
 - `pr_gate.sh` re-runs gate.sh (hardened G5) on the BRANCH body with the TRUSTED tools from
   origin/main — it is an independent backstop, so even a mistaken ACCEPT cannot post green on a cheat.
-  If it posts FAILURE after you thought it was fine, your ACCEPT was WRONG — `gh pr review
-  --request-changes` and move on.
+  If it posts FAILURE after you thought it was fine, your ACCEPT was WRONG —
+  `ghapp/pr_review.sh <PR#> request-changes "<why>"` and move on.
 - Regression FAILURE (branch DROPS a symbol origin/main already has) is not a faithfulness fault — the
   branch needs a rebase. Do NOT "comment and skip" forever (that loops). Run `rebase_helper.py <Class>`:
   exit 0 → it pushed a rebased branch, gate+merge that; exit 6 (NEEDS_WORKER_REBASE) → post the

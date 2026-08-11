@@ -26,12 +26,14 @@
 //   0x000f2d40  HGRenderer::GetROI(HGNode*)            (cached-path FULL)
 //   0x000f2d80  HGRenderer::GetFlags(HGNode*, int)             (FULL)
 //   0x000f2dd0  HGRenderer::GetInput(HGNode*, int)             (FULL — tail-jmp to GetOutput)
+//   0x000ef3e0  HGRenderer::SetOwningRenderQueue(HGRenderQueue*)       (FULL)
 //
 // STRUCT LAYOUT (recovered from accessor asm — every offset cited @0xADDR
 // on the field it belongs to):
 //   HGRenderer {
 //     +0x000  vptr
 //     +0x008..0x23c ...HGObject/base fields, ExternalResource, DepthManager, etc.
+//     +0x120  pthread_rwlock_t             [RenderCheckPoint @0xea603 leaq]
 //     +0x240  u32   pixelFormat            [GetOutputFormat @0xec295; GetParameter #1 @0xea3b7]
 //     +0x244  u32   param_244              [GetParameter #10 @0xea401]
 //     +0x248  u32   param_248              [GetParameter #0  @0xea3af]
@@ -45,8 +47,10 @@
 //     +0x268  u32   param_268              [GetParameter #6  @0xea3e1]
 //     +0x26c  u32   param_26c              [GetParameter #15 @0xea42e]
 //     +0x274  u32   param_274              [GetParameter #27 @0xea481]
-//     +0x27c  u32   param_27c              [GetParameter #9  @0xea3f9]
-//     +0x280  u32   param_280              [GetParameter #3  @0xea3c7]
+//     +0x27c  u32   param_27c              [GetParameter #9  @0xea3f9;
+//                                           RenderCheckPoint result @0xea61c]
+//     +0x280  u32   param_280              [GetParameter #3  @0xea3c7;
+//                                           RenderCheckPoint gate @0xea5fa]
 //     +0x284  u32   param_284              [GetParameter #20 @0xea45a]
 //     +0x288  u32   param_288              [GetParameter #21 @0xea462]
 //     +0x28c  u32   param_28c              [GetParameter #31 @0xea4a1]
@@ -235,6 +239,30 @@ export type HGRendererParameterKind =
   (typeof HGRendererParameter)[keyof typeof HGRendererParameter];
 
 /**
+ * `_pthread_rwlock_rdlock(pthread_rwlock_t*)` — libSystem (POSIX threads),
+ * reached through the Helium stub at 0x3c5588; called @0xea60d by
+ * `HGRenderer::RenderCheckPoint()`.
+ *
+ * Out-of-scope extern modeled as a documented boundary stub, the same way
+ * `HGLogger.ts` models `_pthread_mutex_lock`: the single-threaded JS runtime
+ * has no thread to suspend, so the call is a no-op that exists to keep the
+ * instruction's provenance visible. A future multi-threaded port must
+ * replace it with a real reader-writer lock.
+ */
+function pthread_rwlock_rdlock(_rwlock: unknown): void {
+  // @0xea60d  callq _pthread_rwlock_rdlock  (stub 0x3c5588) — boundary no-op.
+}
+
+/**
+ * `_pthread_rwlock_unlock(pthread_rwlock_t*)` — libSystem (POSIX threads),
+ * reached through the Helium stub at 0x3c558e; called @0xea615 by
+ * `HGRenderer::RenderCheckPoint()`. Boundary stub, as above.
+ */
+function pthread_rwlock_unlock(_rwlock: unknown): void {
+  // @0xea615  callq _pthread_rwlock_unlock  (stub 0x3c558e) — boundary no-op.
+}
+
+/**
  * Live HGRenderer state modeled with the field offsets recovered above.
  * Only the fields actually read by ported methods are declared here; the
  * others exist in the C++ object but have no readers in the ported surface
@@ -258,6 +286,27 @@ export class HGRenderer {
    * method reads it yet, so it is modeled as an opaque value (null default).
    */
   externalResource448: unknown = null;
+
+  /**
+   * @+0x440 — opaque `HGRenderQueue*` back-pointer to the render queue that
+   * owns this renderer, written verbatim by
+   * `HGRenderer::SetOwningRenderQueue(HGRenderQueue*)`
+   * (@Helium 0xef3e4 `movq %rsi, 0x440(%rdi)`). Distinct from the
+   * external-resource slot at +0x448. `HGRenderQueue` is not yet ported, and
+   * no ported method reads this field, so it is modeled as an opaque value
+   * (null default) exactly like `externalResource448`.
+   */
+  owningRenderQueue440: unknown = null;
+
+  /**
+   * @+0x120 — `pthread_rwlock_t`. Its address is taken by
+   * `HGRenderer::RenderCheckPoint()` @Helium 0xea603
+   * (`leaq 0x120(%rbx), %r14`) and handed straight to
+   * `_pthread_rwlock_rdlock` @0xea60d / `_pthread_rwlock_unlock` @0xea615.
+   * Only the address is ever used, never the contents, so the lock is
+   * modeled as an opaque identity object.
+   */
+  rwlock120: unknown = {};
 
   /**
    * u32-keyed parameter block at 0x240..0x2b0 + 0x340. Modeled as a
@@ -995,5 +1044,92 @@ export class HGRenderer {
   SetExternalResource(resource: unknown): void {
     // @Helium 0xef404: movq %rsi, 0x448(%rdi)
     this.externalResource448 = resource;
+  }
+
+  /**
+   * `HGRenderer::SetOwningRenderQueue(HGRenderQueue*)` — Helium @0x000ef3e0.
+   *
+   * Stores the `HGRenderQueue*` argument verbatim into the field at
+   * `this + 0x440`. Full transcription (5 instructions + padding):
+   *
+   *   0xef3e0  pushq   %rbp
+   *   0xef3e1  movq    %rsp, %rbp
+   *   0xef3e4  movq    %rsi, 0x440(%rdi)   ; this->owningRenderQueue440 = arg
+   *   0xef3eb  popq    %rbp
+   *   0xef3ec  retq
+   *   0xef3ed  nopl    (%rax)              ; alignment padding, not code
+   *
+   * Zero callees, zero externs, zero indirect calls, no null check — a pure
+   * pointer store (the frame push/pop is the only other work, and has no
+   * observable effect in a JS port). `HGRenderQueue` is not yet ported, so
+   * the pointer is held opaquely (see the +0x440 field declaration above).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN10HGRenderer20SetOwningRenderQueueEP13HGRenderQueue.s
+   */
+  SetOwningRenderQueue(queue: unknown): void {
+    // @Helium 0xef3e4: movq %rsi, 0x440(%rdi)
+    this.owningRenderQueue440 = queue;
+  }
+
+  /**
+   * `HGRenderer::RenderCheckPoint()` — Helium @0x000ea5f0.
+   *
+   * Faithful transcription of
+   * raw-port/re/disasm/Helium.__ZN10HGRenderer16RenderCheckPointEv.s:
+   *
+   *   0xea5f0  pushq %rbp
+   *   0xea5f1  movq  %rsp, %rbp
+   *   0xea5f4  pushq %r14
+   *   0xea5f6  pushq %rbx
+   *   0xea5f7  movq  %rdi, %rbx                  ; %rbx = this
+   *   0xea5fa  cmpl  $0x0, 0x280(%rdi)           ; param_280 == 0 ?
+   *   0xea601  je    0xea61a                     ;   -> skip the barrier
+   *   0xea603  leaq  0x120(%rbx), %r14           ; %r14 = &this->rwlock120
+   *   0xea60a  movq  %r14, %rdi
+   *   0xea60d  callq _pthread_rwlock_rdlock      ; stub 0x3c5588
+   *   0xea612  movq  %r14, %rdi
+   *   0xea615  callq _pthread_rwlock_unlock      ; stub 0x3c558e
+   *   0xea61a  xorl  %eax, %eax                  ; %eax = 0
+   *   0xea61c  cmpl  0x27c(%rbx), %eax           ; flags on 0 - param_27c
+   *   0xea622  sbbl  %eax, %eax                  ; %eax = -CF
+   *   0xea624  popq  %rbx / popq %r14 / popq %rbp / retq
+   *
+   * TWO independent halves, joined only by falling through:
+   *
+   * 1. THE BARRIER. When `param_280` (+0x280, the field `GetParameter #3`
+   *    @0xea3c7 exposes) is non-zero, the renderer takes the read side of the
+   *    rwlock at +0x120 and immediately drops it. Acquiring and releasing a
+   *    READ lock with an empty critical section is the standard "wait for any
+   *    in-flight writer to finish" barrier — that is the whole point of the
+   *    check-point. Nothing is read or written under the lock.
+   *
+   * 2. THE RESULT. `xorl %eax,%eax ; cmpl 0x27c(%rbx),%eax ; sbbl %eax,%eax`
+   *    is the classic branchless "non-zero -> all ones" idiom. In AT&T order
+   *    `cmpl 0x27c(%rbx), %eax` computes `%eax - param_27c` = `0 - param_27c`,
+   *    so the borrow flag CF is set exactly when `param_27c != 0` (unsigned
+   *    `0 < x`). `sbbl %eax,%eax` then evaluates `%eax - %eax - CF` = `-CF`,
+   *    giving 0xffffffff when `param_27c` is non-zero and 0 when it is zero.
+   *    The return is therefore a full-width MASK, not a 0/1 boolean.
+   *
+   * Note the two fields are distinct: +0x280 gates the barrier, +0x27c
+   * produces the result. Neither is touched by the other half.
+   *
+   * @returns `-1` (0xffffffff) when `param_27c` is non-zero, else `0`.
+   */
+  RenderCheckPoint(): number {
+    // @0xea5fa  cmpl $0x0, 0x280(%rdi) ; @0xea601 je 0xea61a
+    if ((this.paramBlock[0x280] | 0) !== 0) {
+      // @0xea603  leaq 0x120(%rbx), %r14 — the lock's ADDRESS is the argument.
+      const rwlock = this.rwlock120;
+      // @0xea60d  callq _pthread_rwlock_rdlock
+      pthread_rwlock_rdlock(rwlock);
+      // @0xea615  callq _pthread_rwlock_unlock — empty critical section: this
+      // is a barrier against in-flight writers, not a guarded read.
+      pthread_rwlock_unlock(rwlock);
+    }
+    // @0xea61c  cmpl 0x27c(%rbx), %eax  with %eax = 0 (@0xea61a xorl) — CF is
+    // set iff param_27c != 0; @0xea622 sbbl %eax,%eax yields -CF.
+    return (this.paramBlock[0x27c] | 0) !== 0 ? -1 : 0;
   }
 }

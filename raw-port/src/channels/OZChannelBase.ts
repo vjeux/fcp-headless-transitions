@@ -368,6 +368,90 @@ export class OZChannelBase {
   }
 
   /**
+   * OZChannelBase::getChannelRoot() const.
+   * @ProChannel 0x4a58a..0x4a5b9
+   * (__ZNK13OZChannelBase14getChannelRootEv)
+   *
+   * A SEPARATE exported symbol from `getChannelRootBase()` @0x4a426 above,
+   * with a byte-for-byte identical body at its own addresses (the linker did
+   * NOT ICF-fold them — `nm` lists both 0x4a426 and 0x4a58a). It is
+   * transcribed here independently rather than delegating to its twin, so the
+   * ledger entry for THIS address carries its own instruction-level citation.
+   *
+   * FULL DISASM (raw-port/re/disasm/
+   * ProChannel.__ZNK13OZChannelBase14getChannelRootEv.s — 14 lines):
+   *
+   *   0x4a58a  pushq  %rbp                              ; prologue
+   *   0x4a58b  movq   %rsp, %rbp
+   *   0x4a58e  testq  %rdi, %rdi                        ; ZF = (cur == NULL)
+   *   0x4a591  je     0x4a59f                           ; NULL -> bail
+   *   0x4a593  testb  $0x20, 0x39(%rdi)                 ; flag byte +0x39 & 0x20
+   *   0x4a597  jne    0x4a5a3                           ; set -> cross-cast
+   *   0x4a599  movq   0x30(%rdi), %rdi                  ; cur = cur->parent (+0x30)
+   *   0x4a59d  jmp    0x4a58e                           ; loop back-edge
+   *   0x4a59f  xorl   %eax, %eax                        ; bail: result = NULL
+   *   0x4a5a1  popq   %rbp
+   *   0x4a5a2  retq
+   *   0x4a5a3  leaq   __ZTI13OZChannelBase(%rip), %rsi           ; srcType
+   *   0x4a5aa  leaq   __ZTI23OZChannelObjectRootBase(%rip), %rdx ; dstType
+   *   0x4a5b1  xorl   %ecx, %ecx                        ; hint = 0
+   *   0x4a5b3  popq   %rbp                              ; epilogue-before-tailcall
+   *   0x4a5b4  jmp    0xacea0                           ## symbol stub: ___dynamic_cast
+   *   0x4a5b9  nop                                      ; padding, not executed
+   *
+   * SEMANTICS: walk the parent chain from `this` through +0x30, stopping at
+   * the FIRST node whose flag byte at +0x39 has bit 0x20 set, and cross-cast
+   * THAT node with `dynamic_cast<OZChannelObjectRootBase*>`. If the walk
+   * reaches a NULL parent first, return NULL.
+   *
+   * Note the back-edge at @0x4a59d targets @0x4a58e — the NULL test — so the
+   * check is re-run on every iteration (including on the parent just loaded),
+   * which the `while (cur !== null)` below reproduces. The final transfer is a
+   * TAIL-JMP (`jmp`, not `callq`) into ___dynamic_cast, so this frame's result
+   * IS the cast's result — nothing is post-processed.
+   *
+   * DEPENDENCIES: none in-scope. The one external is `___dynamic_cast`
+   * @ProChannel stub 0xacea0 — libc++abi, a TRUE out-of-scope extern, routed
+   * through the SAME `dynamic_cast_to_OZChannelObjectRootBase_stub` boundary
+   * this file already uses for `getChannelRootBase()` @0x4a450 and
+   * `getAncestorRootBase()` (identical srcType/dstType/hint triple).
+   */
+  getChannelRoot(): OZChannelObjectRootBase | null {
+    // @0x4a58e — the receiver is the initial walk cursor. As in the twin
+    // above this is a LOOP (`jmp 0x4a58e` back-edge @0x4a59d), not recursion.
+    let cur: OZChannelBase | null = this;
+
+    // @0x4a58e..0x4a59d — the loop body.
+    while (cur !== null) {
+      // @0x4a58e  testq %rdi,%rdi ; @0x4a591 je 0x4a59f
+      //   Re-checked each turn by the while-condition (the back-edge lands on
+      //   this test, so the parent loaded below is tested before use).
+
+      // @0x4a593  testb $0x20, 0x39(%rdi) ; @0x4a597 jne 0x4a5a3
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const flagByte: number = (cur as any).__flag_byte_at_0x39 as number;
+      if ((flagByte & 0x20) !== 0) {
+        // @0x4a5a3..0x4a5b4 — the cross-cast tail:
+        //   leaq typeinfo(OZChannelBase) -> %rsi           (srcType)
+        //   leaq typeinfo(OZChannelObjectRootBase) -> %rdx (dstType)
+        //   xorl %ecx,%ecx                                 (hint = 0)
+        //   jmp  0xacea0                                   (tail-call)
+        return dynamic_cast_to_OZChannelObjectRootBase_stub(cur);
+      }
+
+      // @0x4a599  movq 0x30(%rdi), %rdi ; @0x4a59d jmp 0x4a58e
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parent = (cur as any).__parent_folder_at_0x30 as
+        | OZChannelBase
+        | null;
+      cur = parent;
+    }
+
+    // @0x4a59f..0x4a5a2 — the bail path: xorl %eax,%eax ; popq %rbp ; retq.
+    return null;
+  }
+
+  /**
    * OZChannelBase::getAncestorRootBase() const.
    * @ProChannel 0x4a818..0x4a866
    * (__ZNK13OZChannelBase19getAncestorRootBaseEv)

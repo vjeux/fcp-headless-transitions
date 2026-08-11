@@ -151,6 +151,12 @@ export interface PCSharedMutexHandle {
 /** PCWorkingGamutValue — 32-bit enum passed by value. Opaque u32 here. */
 export type PCWorkingGamutValue = number;
 
+/** `PCColorGamutValue` — 32-bit enum passed by value (the `setViewGamut`
+ *  argument arrives in `%esi` and is stored with a 32-bit `movl` @Ozone
+ *  0x81e84, which is what fixes the width). Opaque u32 here: no decoded code
+ *  compares it against any enumerator, so no names are invented. */
+export type PCColorGamutValue = number;
+
 /** OZSceneNode opaque — return type of getNode() after dynamic_cast. */
 export interface OZSceneNodeHandle {
   readonly __ozSceneNode: true;
@@ -264,6 +270,47 @@ export class OZScene {
    * getRawWorkingGamut inside the shared-mutex.
    */
   rawWorkingGamutCache: PCWorkingGamutValue = 0;
+
+  /**
+   * +0xd0 — toneMappingMode : u32 (an enum code).
+   *
+   * The one and only slot `getToneMappingMode() const` @Ozone 0x81e90 reads,
+   * via `movl 0xd0(%rdi), %eax` @0x81e94 — a 32-bit load returned directly
+   * in `%eax`. That instruction fixes the WIDTH (4 bytes) and the OFFSET; it
+   * does not reveal the enumerator set, so no enum type is invented here and
+   * the value is modelled as a plain `number` holding the raw 32 bits.
+   *
+   * `movl` into a full 32-bit register is width-exact and sign-agnostic (the
+   * upper 32 bits of `%rax` are zeroed by the 32-bit write), so the returned
+   * value is the unsigned 32-bit word; the getter below preserves that with
+   * `>>> 0`. The setter for this slot is a separate ledger unit and is NOT
+   * decoded here — nothing about who writes it is claimed.
+   *
+   * Note this sits immediately after `rawWorkingGamutCache` (+0xc8, u32) and
+   * the slot at +0xcc, which is consistent with a run of small colour-pipeline
+   * settings caches on the scene object. (+0xcc is now decoded — see
+   * `viewGamut_at_0xcc` below, grounded by `setViewGamut` @0x81e84 and
+   * `getViewGamut` @0x81e54 — so this adjacency is no longer just an
+   * observation.)
+   */
+  toneMappingMode_at_0xd0: number = 0;
+
+  /**
+   * +0xcc — viewGamut : PCColorGamutValue (u32).
+   *
+   * The scene's VIEW gamut, the sibling of the working gamut cached at +0xc8.
+   * Two one-instruction accessors pin the slot and its width:
+   *   `OZScene::setViewGamut(PCColorGamutValue)` @Ozone 0x81e84
+   *     `movl %esi, 0xcc(%rdi)`   — 32-bit store of the by-value enum;
+   *   `OZScene::getViewGamut() const` @Ozone 0x81e54
+   *     `movl 0xcc(%rdi), %eax`   — the matching 32-bit load.
+   * Neither takes a lock (contrast `getRawWorkingGamut` @0x81da0, which reads
+   * +0xc8 under the shared lock @0x81db6), and neither validates the value.
+   *
+   * Modelled as a plain `number` holding the raw 32 bits, like
+   * `rawWorkingGamutCache`.
+   */
+  viewGamut_at_0xcc: PCColorGamutValue = 0;
 
   /**
    * +0x480 — timeRange : PCTimeRange (0x30 bytes).
@@ -400,6 +447,79 @@ export class OZScene {
   }
 
   /**
+   * OZScene::setViewGamut(PCColorGamutValue)  @Ozone 0x81e80
+   *   __ZN7OZScene12setViewGamutE17PCColorGamutValue
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZN7OZScene12setViewGamutE17PCColorGamutValue.s):
+   *
+   *   0x81e80  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x81e81  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x81e84  movl  %esi, 0xcc(%rdi)     ; this->viewGamut_at_0xcc = v
+   *   0x81e8a  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x81e8b  retq                       ; void return
+   *   0x81e8c  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * A bare 32-bit field store and NOTHING else. Three things it deliberately
+   * does not do, each visible by their absence from the four-instruction body:
+   *   • no LOCK — contrast the working-gamut pair on the neighbouring +0xc8
+   *     slot, where `getRawWorkingGamut` @0x81da0 reads under `lock_shared`
+   *     (@0x81db1) and `setRawWorkingGamut` @0x81de0 writes under the
+   *     exclusive `lock` (@0x81df7);
+   *   • no FORWARDING to the `OZSceneSettings` sub-object at +0x90 — this
+   *     value lives directly on the scene, unlike the raw working gamut;
+   *   • no validation of the enum and no change notification.
+   *
+   * The 32-bit `movl` of `%esi` (the by-value `PCColorGamutValue` argument) is
+   * what fixes the slot's width; `getViewGamut() const` @0x81e54 reads the same
+   * offset back with the matching `movl 0xcc(%rdi), %eax` (its own ledger unit,
+   * not ported here). The port stores the value `>>> 0` to keep the exact 32
+   * bits the register holds.
+   *
+   * ZERO callees, ZERO externs, no indirect/virtual dispatch.
+   *
+   * @param v the new view gamut (`%esi`).
+   */
+  setViewGamut(v: PCColorGamutValue): void {
+    // @0x81e84: movl %esi, 0xcc(%rdi) — 32-bit store, no lock, no forwarding.
+    this.viewGamut_at_0xcc = v >>> 0;
+  }
+
+  /**
+   * OZScene::getViewGamut() const  @Ozone 0x81e50
+   *   __ZNK7OZScene12getViewGamutEv
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZNK7OZScene12getViewGamutEv.s):
+   *
+   *   0x81e50  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x81e51  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x81e54  movl  0xcc(%rdi), %eax     ; return this->viewGamut_at_0xcc
+   *   0x81e5a  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x81e5b  retq                       ; return %eax (u32)
+   *   0x81e5c  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * The exact inverse of `setViewGamut` @0x81e84 (`movl %esi, 0xcc(%rdi)`) on
+   * the same slot, and like it: NO LOCK (contrast `getRawWorkingGamut`
+   * @0x81da0, which reads the neighbouring +0xc8 cache under `lock_shared`
+   * @0x81db1), NO forwarding to the `OZSceneSettings` sub-object at +0x90, no
+   * mask and no validation — the raw 32-bit word, verbatim.
+   *
+   * `movl` into a 32-bit register zero-extends into `%rax`, so the ABI result
+   * is the unsigned 32-bit word; the port preserves that with `>>> 0`, exactly
+   * as `getRawWorkingGamut` does for +0xc8.
+   *
+   * ZERO callees, ZERO externs, no indirect/virtual dispatch — a pure field
+   * read.
+   *
+   * @returns the scene's view gamut (u32).
+   */
+  getViewGamut(): PCColorGamutValue {
+    // @0x81e54: movl 0xcc(%rdi), %eax — 32-bit load, zero-extended.
+    return this.viewGamut_at_0xcc >>> 0;
+  }
+
+  /**
    * OZScene::dynamicRangeTrackingEnabled() const  @0x62db0
    *   __ZNK7OZScene27dynamicRangeTrackingEnabledEv
    *
@@ -496,6 +616,48 @@ export class OZScene {
     //   Copies the 8-byte epoch tail from +0x3c8.
     const t = this.currentTime;
     return { value: t.value, timescale: t.timescale, flags: t.flags, epoch: t.epoch };
+  }
+
+  /**
+   * OZScene::setCurrentTime(CMTime const&)  @0x4fb80
+   *   __ZN7OZScene14setCurrentTimeERK6CMTime
+   *
+   *   0x4fb80: pushq  %rbp
+   *   0x4fb81: movq   %rsp,%rbp
+   *   0x4fb84: movq   0x10(%rsi),%rax                                      # rax = src->epoch (8 B @+0x10)
+   *   0x4fb88: movq   %rax,0x3c8(%rdi)                                     # this->currentTime.epoch = rax  (@+0x3c8)
+   *   0x4fb8f: movups (%rsi),%xmm0                                         # xmm0 = src->{value, timescale, flags} (16 B @+0x00)
+   *   0x4fb92: movups %xmm0,0x3b8(%rdi)                                    # this->currentTime.{value,timescale,flags} = xmm0 (@+0x3b8)
+   *   0x4fb99: popq %rbp ; retq
+   *   0x4fb9b: nopl (%rax,%rax)
+   *
+   * The exact mirror of getCurrentTime() @0x4fba0. `%rdi` = this, `%rsi` =
+   * the CMTime const& source (no hidden sret — this returns void). It copies
+   * the 24-byte CMTime (16-byte {value,timescale,flags} block via movups from
+   * +0x00, then the 8-byte epoch tail via movq from +0x10) into the scene's
+   * currentTime slot at +0x3b8..+0x3cf.
+   *
+   * The CMTime interface layout (raw-port/src/infra/CMTime.ts) is:
+   *   +0x00 value:int64  +0x08 timescale:int32  +0x0c flags:uint32  +0x10 epoch:int64
+   * so `movups (%rsi)` is exactly {value, timescale, flags} and `movq 0x10(%rsi)`
+   * is exactly epoch.
+   *
+   * ZERO in-scope callees, ZERO externs. Pure field writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN7OZScene14setCurrentTimeERK6CMTime.s (10 lines)
+   */
+  setCurrentTime(t: CMTime): void {
+    // @0x4fb84..0x4fb88  movq 0x10(%rsi),%rax ; movq %rax,0x3c8(%rdi)
+    //   Copies the 8-byte epoch tail into +0x3c8.
+    // @0x4fb8f..0x4fb92  movups (%rsi),%xmm0 ; movups %xmm0,0x3b8(%rdi)
+    //   Copies the 16-byte {value, timescale, flags} block into +0x3b8.
+    this.currentTime = {
+      value: t.value,
+      timescale: t.timescale,
+      flags: t.flags,
+      epoch: t.epoch,
+    };
   }
 
   /**
@@ -799,6 +961,98 @@ export class OZScene {
   }
 
   /**
+   * Frontier: `__dynamic_cast(node, &__ZTI11OZSceneNode, &__ZTI<Target>, 0)` — the
+   * Itanium C++ ABI RTTI helper `___dynamic_cast`, called via @Ozone symbol stub
+   * 0x6dfd0e FIVE times by isRootNode (@0x52906/0x52926/0x52943/0x52960/0x5297d).
+   * Returns non-null iff `node` is-a `<Target>`. Provided by libc++abi and NOT
+   * transcribed here (out-of-scope C++ runtime extern); a faithful port delegates to
+   * whatever RTTI/lineage mechanism the surrogate stands up. Mirrors the peer
+   * ozSGOnodeValidator's `cxx_dynamic_cast_stub`. The exact target typeinfo is cited so
+   * the frontier gap stays visible.
+   */
+  private static _dynamicCastSceneNodeTo(
+    _node: OZSceneNodeHandle,
+    _dstTypeInfoName: string,
+  ): OZSceneNodeHandle | null {
+    throw new Error(
+      "OZScene::isRootNode __dynamic_cast @Ozone stub 0x6dfd0e (___dynamic_cast — " +
+        "libc++abi RTTI helper, not yet transcribed) — src=__ZTI11OZSceneNode, dst=" +
+        _dstTypeInfoName +
+        " (call sites @0x52906 -> OZProjectNode, @0x52926 -> OZGroup, @0x52943 -> " +
+        "OZCamera, @0x52960 -> OZLight, @0x5297d -> OZRig)",
+    );
+  }
+
+  /**
+   * OZScene::isRootNode(OZSceneNode*)  @Ozone 0x528e0
+   *   (__ZN7OZScene10isRootNodeEP11OZSceneNode)
+   *
+   * Predicate: returns true iff `node` is non-null AND dynamic_casts successfully to
+   * ONE of the five "root-eligible" scene-node subclasses — OZProjectNode, OZGroup,
+   * OZCamera, OZLight, or OZRig. A null node returns false; otherwise the first
+   * successful cast short-circuits to true, and the final cast's success feeds the
+   * `setne` result.
+   *
+   * DECODE (raw-port/re/disasm/__ZN7OZScene10isRootNodeEP11OZSceneNode.s):
+   *   0x528e0  pushq %rbp ; movq %rsp,%rbp ; pushq %r14 ; pushq %rbx    ; frame
+   *   0x528e7  testq %rsi,%rsi ; je 0x5298b                             ; node==null -> r14=0
+   *   0x528f0  movq  %rsi,%rbx                                          ; rbx = node
+   *   ;; Check #1 — is-a OZProjectNode?
+   *   0x528f3  leaq __ZTI11OZSceneNode(%rip),%rsi                       ; src typeinfo
+   *   0x528fa  leaq __ZTI13OZProjectNode(%rip),%rdx                     ; dst typeinfo
+   *   0x52901  movq %rbx,%rdi ; 0x52904 xorl %ecx,%ecx (hint=0)
+   *   0x52906  callq ___dynamic_cast
+   *   0x5290b  movb $0x1,%r14b                                          ; presume true
+   *   0x5290e  testq %rax,%rax ; jne 0x5298e                            ; is-a -> return 1
+   *   ;; Check #2 — is-a OZGroup?
+   *   0x52913  leaq __ZTI11OZSceneNode ; 0x5291a leaq __ZTI7OZGroup ; movq %rbx,%rdi ; hint=0
+   *   0x52926  callq ___dynamic_cast ; 0x5292b testq ; jne 0x5298e      ; is-a -> return 1
+   *   ;; Check #3 — is-a OZCamera?
+   *   0x52930  leaq __ZTI11OZSceneNode ; 0x52937 leaq __ZTI8OZCamera ; movq %rbx,%rdi ; hint=0
+   *   0x52943  callq ___dynamic_cast ; 0x52948 testq ; jne 0x5298e      ; is-a -> return 1
+   *   ;; Check #4 — is-a OZLight?
+   *   0x5294d  leaq __ZTI11OZSceneNode ; 0x52954 leaq __ZTI7OZLight ; movq %rbx,%rdi ; hint=0
+   *   0x52960  callq ___dynamic_cast ; 0x52965 testq ; jne 0x5298e      ; is-a -> return 1
+   *   ;; Check #5 — is-a OZRig?  (final; result feeds setne)
+   *   0x5296a  leaq __ZTI11OZSceneNode ; 0x52971 leaq __ZTI5OZRig ; movq %rbx,%rdi ; hint=0
+   *   0x5297d  callq ___dynamic_cast
+   *   0x52982  testq %rax,%rax ; 0x52985 setne %r14b                    ; r14b = (rax != 0)
+   *   0x52989  jmp 0x5298e
+   *   0x5298b  xorl %r14d,%r14d                                          ; null-node path -> 0
+   *   0x5298e  movl %r14d,%eax ; pop ; retq                              ; return r14b
+   *
+   * The ONLY callee is `___dynamic_cast` (libc++abi RTTI extern) — every cast goes
+   * through the frontier helper above. No in-scope callees.
+   */
+  isRootNode(node: OZSceneNodeHandle | null): boolean {
+    // @0x528e7 testq %rsi,%rsi ; je -> a null node is never a root node.
+    if (node === null || node === undefined) {
+      // @0x5298b xorl %r14d,%r14d -> return false.
+      return false;
+    }
+    // @0x528f3..0x5290e Check #1: is-a OZProjectNode (dst typeinfo __ZTI13OZProjectNode).
+    //   `movb $0x1,%r14b` presumes true; a non-null cast returns immediately.
+    if (OZScene._dynamicCastSceneNodeTo(node, "__ZTI13OZProjectNode") !== null) {
+      return true; // @0x5290e jne 0x5298e (r14b == 1)
+    }
+    // @0x52913..0x5292e Check #2: is-a OZGroup (__ZTI7OZGroup).
+    if (OZScene._dynamicCastSceneNodeTo(node, "__ZTI7OZGroup") !== null) {
+      return true; // @0x5292e jne 0x5298e
+    }
+    // @0x52930..0x5294b Check #3: is-a OZCamera (__ZTI8OZCamera).
+    if (OZScene._dynamicCastSceneNodeTo(node, "__ZTI8OZCamera") !== null) {
+      return true; // @0x5294b jne 0x5298e
+    }
+    // @0x5294d..0x52968 Check #4: is-a OZLight (__ZTI7OZLight).
+    if (OZScene._dynamicCastSceneNodeTo(node, "__ZTI7OZLight") !== null) {
+      return true; // @0x52968 jne 0x5298e
+    }
+    // @0x5296a..0x52985 Check #5 (final): is-a OZRig (__ZTI5OZRig). `setne %r14b`
+    //   sets the result to (cast != null).
+    return OZScene._dynamicCastSceneNodeTo(node, "__ZTI5OZRig") !== null;
+  }
+
+  /**
    * Frontier: mirror of the CMTime validity check at setTimeRange @0x4fa66-@0x4fa6f.
    * The check is `(src[+0x24] & 0x1d) == 1` — bit 0 = "Valid", bit 2/3/4 mask
    * ensures no "positive-infinity/negative-infinity/indefinite" flags are set.
@@ -823,5 +1077,91 @@ export class OZScene {
     console.error(
       "OZScene::setTimeRange range is not numeric, setting num frames to 1.",
     );
+  }
+
+  /**
+   * `OZScene::getToneMappingMode() const`
+   *   — @Ozone 0x81e90
+   *   — __ZNK7OZScene18getToneMappingModeEv
+   *
+   * Faithful line-for-line transcription of the 5-instruction body — a
+   * single 32-bit field read, no branch, no callee:
+   *
+   *   0x81e90  pushq %rbp                    ; frame prologue
+   *   0x81e91  movq  %rsp, %rbp
+   *   0x81e94  movl  0xd0(%rdi), %eax        ; eax = *(u32*)(this + 0xd0)
+   *   0x81e9a  popq  %rbp                    ; frame epilogue
+   *   0x81e9b  retq                          ; return eax
+   *   0x81e9c  nopl  (%rax)                  ; alignment padding
+   *
+   * System-V x86_64: `%rdi` = `this` (the method is `const`, so nothing is
+   * written), `%eax` is the return register. `movl` is the 32-bit form, so
+   * exactly 4 bytes are read and the write to `%eax` zeroes the upper half
+   * of `%rax` — the result is the unsigned 32-bit word at +0xd0, which
+   * `>>> 0` reproduces.
+   *
+   * The return type is an enum code in C++ (the name says "mode"), but the
+   * disassembly shows only a raw 32-bit load, so this port returns `number`
+   * rather than inventing an enumerator set.
+   *
+   * Zero in-scope callees, zero externs, no indirect or virtual calls.
+   * Confirmed via `depgraph.py deps __ZNK7OZScene18getToneMappingModeEv`
+   * (no dependency rows).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK7OZScene18getToneMappingModeEv.s (7 lines)
+   */
+  getToneMappingMode(): number {
+    // @0x81e90..0x81e91 — prologue (no TS-visible effect).
+    // @0x81e94           — movl 0xd0(%rdi), %eax: read the u32 at +0xd0.
+    // @0x81e9a..0x81e9b — epilogue + retq (return eax).
+    return this.toneMappingMode_at_0xd0 >>> 0;
+  }
+
+  /**
+   * `OZScene::setToneMappingMode(PCToneMappingMode)`
+   *   — @Ozone 0x81ea0
+   *   — __ZN7OZScene18setToneMappingModeE17PCToneMappingMode
+   *
+   * Faithful line-for-line transcription of the 5-instruction body — the
+   * exact mirror of `getToneMappingMode()` @0x81e90: one 32-bit store, no
+   * branch, no read-back, no callee:
+   *
+   *   0x81ea0  pushq %rbp                    ; frame prologue
+   *   0x81ea1  movq  %rsp, %rbp
+   *   0x81ea4  movl  %esi, 0xd0(%rdi)        ; *(u32*)(this + 0xd0) = (u32)mode
+   *   0x81eaa  popq  %rbp                    ; frame epilogue
+   *   0x81eab  retq                          ; void
+   *   0x81eac  nopl  (%rax)                  ; alignment padding
+   *
+   * System-V x86_64: `%rdi` = `this`, `%esi` = the `PCToneMappingMode`
+   * argument (a 32-bit enum passed in the low half of the second integer
+   * register). `movl` stores exactly those 4 bytes at +0xd0 — the same slot
+   * the getter reads @0x81e94 — with no masking, no range check and no
+   * normalisation, so the port stores the raw 32 bits via `>>> 0`.
+   *
+   * The parameter is typed `number`, not an enum: `PCToneMappingMode` has no
+   * transcribed definition anywhere in the port yet (its enumerators are not
+   * observable from this instruction), and the machine copies whatever 32
+   * bits arrive. Typing it as a TS enum would assert a value set this unit
+   * has no evidence for.
+   *
+   * Returns void — %rax is never written before `retq`.
+   *
+   * Zero in-scope callees, zero externs, no indirect or virtual calls.
+   * Confirmed via `depgraph.py deps
+   * __ZN7OZScene18setToneMappingModeE17PCToneMappingMode` (no dependency
+   * rows).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN7OZScene18setToneMappingModeE17PCToneMappingMode.s
+   *   (7 lines)
+   */
+  setToneMappingMode(mode: number): void {
+    // @0x81ea0..0x81ea1 — prologue (no TS-visible effect).
+    // @0x81ea4           — movl %esi, 0xd0(%rdi): store the 32-bit argument
+    //                      into the u32 field at +0xd0.
+    this.toneMappingMode_at_0xd0 = mode >>> 0;
+    // @0x81eaa..0x81eab — epilogue + retq (no return value).
   }
 }

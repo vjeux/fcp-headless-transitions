@@ -48,6 +48,26 @@ export class OZScene {
       default: break;
     }
   }
+
+  /**
+   * `OZScene::updateInvalidFreezeNodeIDs()` — @Ozone 0x311ce0
+   *
+   * Full disassembly (re/disasm/__ZN7OZScene26updateInvalidFreezeNodeIDsEv.s):
+   *   0x311ce0  pushq %rbp                 ; frame prologue
+   *   0x311ce1  movq  %rsp, %rbp
+   *   0x311ce4  popq  %rbp                 ; frame epilogue
+   *   0x311ce5  retq                       ; return void
+   *   0x311ce6  nopw  %cs:(%rax,%rax)      ; alignment padding (not executed)
+   *
+   * A REAL no-op in the shipping binary: it establishes and tears down a
+   * stack frame and returns immediately, never touching `this` (rdi is
+   * untouched) and calling nothing. Transcribed faithfully as an empty
+   * body. Kept as a distinct method to preserve the FCP class boundary —
+   * this WAS a method on OZScene, even though its body compiled to nothing.
+   */
+  updateInvalidFreezeNodeIDs(): void {
+    // no-op (@Ozone 0x311ce0 — push rbp; mov rbp,rsp; pop rbp; ret)
+  }
 }
 
 // =============================================================================
@@ -454,4 +474,389 @@ export function OZScene_getDependantNodes(
   // 0x58def  xorl %eax, %eax         — miss (best.key > key strictly, so
   //                                   the JAE at 0x58ded didn't fire).
   return map.get(key32) ?? null;
+}
+
+
+// ---------------------------------------------------------------------------
+// OZScene::setNeedsDesperationMode(bool) @Ozone 0x7ec30
+//   __ZN7OZScene23setNeedsDesperationModeEb
+//   DECODE: raw-port/re/disasm/__ZN7OZScene23setNeedsDesperationModeEb.s
+// ---------------------------------------------------------------------------
+
+/**
+ * The single slot this unit touches.
+ *
+ * `+0x660  std::atomic<bool> needsDesperationMode` — the "renderer had to fall
+ * back to the low-memory / low-quality path for this scene" latch that
+ * GLRenderer's desperation machinery (`GLRenderer::enterDesperationMode(OZScene*)`
+ * @Ozone 0x239000, `GLRenderer::leaveDesperationMode(OZScene*)` @0x2390f0,
+ * `GLRenderer::inDesperationMode()` @0x235460) drives.
+ *
+ * Grounding — every `0x660(<this>)` access on an OZScene in the Ozone slice:
+ *   OZScene::OZScene(OZDocument*)            @0x4cf21 `movb $0x0, 0x660(%r13)`
+ *                                             (default = false)
+ *   OZScene::OZScene(OZScene const&,
+ *                    OZDocument*)            @0x4da85 `movzbl 0x660(%r13),%eax`
+ *                                             @0x4da8d `movb %al, 0x660(%r12)`
+ *                                             (copy ctor propagates the byte)
+ *   OZScene::setNeedsDesperationMode(bool)   @0x7ec36 `xchgb %al, 0x660(%rdi)`
+ *   OZScene::inDesperationMode() const       @0x7ec44 `movzbl 0x660(%rdi),%eax`
+ * One byte wide (`movb`/`movzbl`/`xchgb` throughout). Modelled as `number`
+ * (0..255) rather than `boolean` so the exact stored byte — which the setter
+ * below can leave as any value the caller passed — stays observable, exactly
+ * as `inDesperationMode()`'s `movzbl` would see it.
+ */
+export interface OZSceneDesperationField {
+  /** `+0x660` — the atomic desperation-mode byte (see the interface doc). */
+  needsDesperationMode_at0x660: number;
+}
+
+/**
+ * `OZScene::setNeedsDesperationMode(bool)` — @Ozone 0x0007ec30
+ * (mangled `__ZN7OZScene23setNeedsDesperationModeEb`).
+ *
+ * FULL DISASM (7 lines — every instruction, in order):
+ *
+ *   0x7ec30  pushq %rbp                 ; prologue
+ *   0x7ec31  movq  %rsp, %rbp
+ *   0x7ec34  movl  %esi, %eax           ; eax = the bool argument
+ *   0x7ec36  xchgb %al, 0x660(%rdi)     ; ATOMIC swap: al <-> this[+0x660]
+ *   0x7ec3c  andb  $0x1, %al            ; al = OLD byte & 1
+ *   0x7ec3e  popq  %rbp
+ *   0x7ec3f  retq                       ; return that old value
+ *
+ * This is `std::atomic<bool>::exchange`, not a plain store:
+ *
+ *  * `xchg` with a MEMORY operand is implicitly LOCKed on x86 (no `lock`
+ *    prefix is emitted or needed), i.e. the read-modify-write is atomic and
+ *    carries full sequential-consistency fencing. A plain `movb` — what the
+ *    sibling one-line setters in this file compile to — would NOT.
+ *  * The instruction is a SWAP: the argument byte goes into +0x660 and the
+ *    PREVIOUS byte comes back in `%al`.
+ *  * `andb $0x1, %al` @0x7ec3c then narrows that old byte to its low bit and
+ *    leaves it in the return register, so despite the `set…` name the function
+ *    RETURNS the previous flag (`bool`). The mask is the C++ `bool` narrowing
+ *    libc++ applies to a loaded `atomic<bool>` — note it applies ONLY to the
+ *    returned value; the byte actually STORED is the caller's argument
+ *    unmasked, since `%al` was written from `%esi` @0x7ec34 before the swap.
+ *
+ * The port therefore mirrors both halves: it stores the caller's byte verbatim
+ * and returns `old & 1`. Callers that want the classic "did I flip it?" idiom
+ * get exactly what the binary gives them.
+ *
+ * ZERO in-scope callees, zero externs, zero indirect calls, no branches. The
+ * atomicity has no JS counterpart (single-threaded), so the swap is expressed
+ * as a read-then-write pair in the order the instruction performs them.
+ *
+ * @param self the `OZScene` — `this` (%rdi).
+ * @param needsDesperationMode the new flag — `%sil`/`%esi` (arg 1).
+ * @returns the PREVIOUS flag, masked to its low bit (`andb $0x1` @0x7ec3c).
+ */
+export function OZScene_setNeedsDesperationMode(
+  self: OZSceneDesperationField,
+  needsDesperationMode: boolean | number,
+): boolean {
+  // @0x7ec34  movl %esi, %eax — the argument byte, as the machine sees it.
+  const incoming =
+    typeof needsDesperationMode === "boolean"
+      ? needsDesperationMode
+        ? 1
+        : 0
+      : needsDesperationMode & 0xff;
+
+  // @0x7ec36  xchgb %al, 0x660(%rdi) — atomic swap: read the old byte out and
+  // write the incoming byte in, in one indivisible step.
+  const old = self.needsDesperationMode_at0x660 & 0xff;
+  self.needsDesperationMode_at0x660 = incoming;
+
+  // @0x7ec3c  andb $0x1, %al — the RETURNED old value is masked to its low bit
+  // (the stored byte above is NOT masked).
+  // @0x7ec3f  retq
+  return (old & 0x1) !== 0;
+}
+
+// ---------------------------------------------------------------------------
+// OZScene::end_all() — the "all descendants" iterator family
+// ---------------------------------------------------------------------------
+
+/**
+ * The sret struct `OZScene::begin_all()` @0x4f120 / `OZScene::end_all()`
+ * @0x4f160 return. It is NOT the same shape as {@link OZSceneChildIterator}
+ * (the direct-children iterator built by `begin()` @0x63760 / `end()`
+ * @0x637a0): every slot after the three leading pointers sits 0x10 bytes
+ * higher, and the flag at +0x28 is written as a DWORD (`movl $0x0`) where the
+ * child iterator's flag at +0x18 is written as a BYTE (`movb $0x0`). Both the
+ * offsets and the store widths below are read straight off `end_all`:
+ *
+ *   dst+0x00 : movq %rsi, (%rdi)             @0x4f18b  (end: the sentinel)
+ *   dst+0x08 : movq %rcx, 0x8(%rdi)          @0x4f18e  (first-child snapshot)
+ *   dst+0x10 : movq %rsi, 0x10(%rdi)         @0x4f192  (the sentinel)
+ *   dst+0x18 : movups %xmm0, 0x18(%rdi)      @0x4f180  (16 zero bytes)
+ *   dst+0x28 : movl $0x0, 0x28(%rdi)         @0x4f196  (4 zero bytes)
+ *   dst+0x30 : movups %xmm0, 0x30(%rdi)      @0x4f17c  (16 zero bytes)
+ *   dst+0x40 : movups %xmm0, 0x40(%rdi)      @0x4f178  (16 zero bytes)
+ *   dst+0x50 : movl $0x3f800000, 0x50(%rdi)  @0x4f184  (fp32 1.0)
+ *   dst+0x54 : END of writes (84 bytes total).
+ *
+ * The three zeroed 16-byte runs stay opaque `Uint8Array`s for the same reason
+ * the child iterator's do: they are written as raw `movups`, and naming
+ * fields inside them would need peer disasm that is not ported yet.
+ */
+export interface OZSceneAllIterator {
+  /**
+   * +0x00: current-position pointer.
+   * `end_all()` stores `rsi = this+0x3D0 = &childListSentinel_at0x3D0` here
+   * (@0x4f18b); `begin_all()` @0x4f14b stores `rcx = *(this+0x3D8)` instead.
+   * That single instruction is the ONLY difference between the two functions.
+   */
+  cur_at0x00: OZSceneChildListNode;
+  /**
+   * +0x08: mirror of `*(this+0x3D8)` = firstChildPtr_at0x3D8 — the list head
+   * captured (@0x4f167) BEFORE `rsi` is rewritten to the sentinel address.
+   * Both `begin_all` (@0x4f14e) and `end_all` (@0x4f18e) store the same value.
+   */
+  firstChildAtSnapshot_at0x08: OZSceneChildListNode;
+  /** +0x10: end-sentinel pointer = `this + 0x3D0` (@0x4f192 / @0x4f152). */
+  endSentinel_at0x10: OZSceneChildListNode;
+  /** +0x18..+0x27: zeroed 16 bytes (`movups %xmm0` @0x4f180). */
+  zeroBlock_at0x18: Uint8Array; // length === 16, all bytes 0
+  /**
+   * +0x28: 32-bit zero (`movl $0x0, 0x28(%rdi)` @0x4f196). Note the DWORD
+   * width — the child iterator's corresponding flag is a single `movb`.
+   */
+  flag_at0x28: number;
+  /**
+   * +0x2C..+0x2F: 4 bytes neither function writes. Kept `undefined` so
+   * reading them is a runtime error rather than a silent zero.
+   */
+  pad_0x2C_to_0x2F?: undefined;
+  /** +0x30..+0x3F: zeroed 16 bytes (`movups %xmm0` @0x4f17c). */
+  zeroBlock_at0x30: Uint8Array; // length === 16, all bytes 0
+  /** +0x40..+0x4F: zeroed 16 bytes (`movups %xmm0` @0x4f178). */
+  zeroBlock_at0x40: Uint8Array; // length === 16, all bytes 0
+  /**
+   * +0x50: float32 1.0 (0x3F800000), stored with a 32-bit
+   * `movl $0x3f800000, 0x50(%rdi)` @0x4f184 — a genuine fp32 immediate, so the
+   * port fround-clamps it exactly as the child iterator's +0x40 weight does.
+   */
+  weight_at0x50: number; // fp32; always 1.0f at construction
+}
+
+/**
+ * OZScene::end_all()
+ * @0x000000000004f160  Ozone   mangled: __ZN7OZScene7end_allEv
+ *
+ * ABI: sret struct-return. The caller passes an 84-byte
+ * {@link OZSceneAllIterator} slot in %rdi; `this` = `OZScene*` arrives in
+ * %rsi; the sret pointer is returned in %rax.
+ *
+ * Full transcription — every instruction, in order
+ * (raw-port/re/disasm/__ZN7OZScene7end_allEv.s):
+ *
+ *   0x4f160  pushq  %rbp                     ; frame setup (no TS counterpart)
+ *   0x4f161  movq   %rsp, %rbp               ; frame setup (no TS counterpart)
+ *   0x4f164  movq   %rdi, %rax               ; return value = the sret slot
+ *   0x4f167  movq   0x3d8(%rsi), %rcx        ; rcx = *(this+0x3D8) = first child
+ *   0x4f16e  addq   $0x3d0, %rsi             ; rsi = this+0x3D0 = &sentinel
+ *   0x4f175  xorps  %xmm0, %xmm0             ; xmm0 = 0
+ *   0x4f178  movups %xmm0, 0x40(%rdi)        ; dst[0x40..0x4F] = 0
+ *   0x4f17c  movups %xmm0, 0x30(%rdi)        ; dst[0x30..0x3F] = 0
+ *   0x4f180  movups %xmm0, 0x18(%rdi)        ; dst[0x18..0x27] = 0
+ *   0x4f184  movl   $0x3f800000, 0x50(%rdi)  ; dst[0x50] = fp32 1.0
+ *   0x4f18b  movq   %rsi, (%rdi)             ; dst[0x00] = sentinel  <-- END
+ *   0x4f18e  movq   %rcx, 0x8(%rdi)          ; dst[0x08] = first child
+ *   0x4f192  movq   %rsi, 0x10(%rdi)         ; dst[0x10] = sentinel
+ *   0x4f196  movl   $0x0, 0x28(%rdi)         ; dst[0x28] = 0 (DWORD)
+ *   0x4f19d  popq   %rbp                     ; frame teardown (no TS counterpart)
+ *   0x4f19e  retq                            ; return %rax (the sret slot)
+ *   0x4f19f  nop                             ; alignment padding, not executed
+ *
+ * `begin_all()` @0x4f120 is byte-identical except for ONE instruction: at
+ * @0x4f14b it does `movq %rcx, (%rdi)` (dst[0x00] = FIRST CHILD) where this
+ * function does `movq %rsi, (%rdi)` @0x4f18b (dst[0x00] = SENTINEL). Same
+ * relationship as `begin()` @0x63787 vs `end()` @0x637c7 on the direct-child
+ * iterator — so this is the past-the-end position of the same iterator shape.
+ *
+ * Note the ORDER the machine uses: `rcx` is loaded from +0x3D8 BEFORE `rsi` is
+ * advanced to `this+0x3D0` (@0x4f167 then @0x4f16e), which is why the snapshot
+ * at dst+0x08 is the list head and not something derived from the sentinel.
+ *
+ * Nothing is read THROUGH `rcx` or the sentinel address — `end_all` is pure
+ * pointer arithmetic plus a fixed byte-shape build, so it has ZERO callees,
+ * zero externs and no indirect dispatch.
+ */
+export function OZScene_end_all(
+  self: OZSceneRuntime,
+  out: OZSceneAllIterator,
+): OZSceneAllIterator {
+  // The three 16-byte zero runs are caller-owned storage in the C++ sret slot;
+  // if they are not sized right, the movups-simulation below would silently
+  // truncate, so refuse loudly (same guard style as OZScene_begin).
+  if (!(out.zeroBlock_at0x18 instanceof Uint8Array) || out.zeroBlock_at0x18.length !== 16) {
+    throw new Error(
+      "OZScene_end_all: out.zeroBlock_at0x18 must be a 16-byte Uint8Array " +
+        "(sret iterator slot @0x18..0x27). @0x4f180 stores 16 bytes here.",
+    );
+  }
+  if (!(out.zeroBlock_at0x30 instanceof Uint8Array) || out.zeroBlock_at0x30.length !== 16) {
+    throw new Error(
+      "OZScene_end_all: out.zeroBlock_at0x30 must be a 16-byte Uint8Array " +
+        "(sret iterator slot @0x30..0x3F). @0x4f17c stores 16 bytes here.",
+    );
+  }
+  if (!(out.zeroBlock_at0x40 instanceof Uint8Array) || out.zeroBlock_at0x40.length !== 16) {
+    throw new Error(
+      "OZScene_end_all: out.zeroBlock_at0x40 must be a 16-byte Uint8Array " +
+        "(sret iterator slot @0x40..0x4F). @0x4f178 stores 16 bytes here.",
+    );
+  }
+
+  // @0x4f167  rcx = *(this + 0x3D8) = firstChildPtr_at0x3D8 (captured FIRST).
+  const rcx: OZSceneChildListNode = self.firstChildPtr_at0x3D8;
+  // @0x4f16e  rsi = this + 0x3D0 = &childListSentinel_at0x3D0. (No pointer
+  //           arithmetic in TS — the referenced node stands in for the
+  //           address; peers compare sentinel-ness by identity.)
+  const rsi_plus_3d0: OZSceneChildListNode = self.childListSentinel_at0x3D0;
+
+  // Stores, in binary order:
+  //   @0x4f175: xorps %xmm0, %xmm0             (xmm0 = 0)
+  //   @0x4f178: movups %xmm0, 0x40(%rdi)
+  out.zeroBlock_at0x40.fill(0);
+  //   @0x4f17c: movups %xmm0, 0x30(%rdi)
+  out.zeroBlock_at0x30.fill(0);
+  //   @0x4f180: movups %xmm0, 0x18(%rdi)
+  out.zeroBlock_at0x18.fill(0);
+  //   @0x4f184: movl $0x3f800000, 0x50(%rdi) — 0x3F800000 IS the IEEE-754
+  //   fp32 encoding of 1.0, stored 32-bit wide, so fround it.
+  out.weight_at0x50 = Math.fround(1.0);
+  //   @0x4f18b: movq %rsi, (%rdi)   -> dst[0x00] = sentinel (the END position;
+  //             this is the one instruction begin_all @0x4f14b differs on).
+  out.cur_at0x00 = rsi_plus_3d0;
+  //   @0x4f18e: movq %rcx, 0x8(%rdi) -> dst[0x08] = first-child snapshot
+  out.firstChildAtSnapshot_at0x08 = rcx;
+  //   @0x4f192: movq %rsi, 0x10(%rdi) -> dst[0x10] = sentinel
+  out.endSentinel_at0x10 = rsi_plus_3d0;
+  //   @0x4f196: movl $0x0, 0x28(%rdi) -> dst[0x28] = 0 (DWORD, not a byte)
+  out.flag_at0x28 = 0;
+
+  // SysV: %rax already holds the sret out-ptr (set @0x4f164).
+  return out;
+}
+
+
+// ---------------------------------------------------------------------------
+// OZScene::begin_all() @Ozone 0x4f120
+//   __ZN7OZScene9begin_allEv
+//   DECODE: raw-port/re/disasm/__ZN7OZScene9begin_allEv.s
+// ---------------------------------------------------------------------------
+
+/**
+ * `OZScene::begin_all()`
+ * @0x000000000004f120  Ozone   mangled: __ZN7OZScene9begin_allEv
+ *
+ * The BEGIN endpoint of the "all descendants" iterator family whose END
+ * endpoint (`end_all()` @0x4f160) is ported directly above; both build the
+ * same {@link OZSceneAllIterator} sret struct, which is reused unchanged here.
+ *
+ * ABI: sret struct-return — the destination slot arrives in `%rdi`, the
+ * receiver (`this`) in `%rsi`, and the sret pointer is handed back in `%rax`
+ * (`movq %rdi, %rax` @0x4f124).
+ *
+ * FULL DISASM (16 lines — every instruction, in order,
+ * raw-port/re/disasm/__ZN7OZScene9begin_allEv.s):
+ *
+ *   0x4f120  pushq  %rbp                        ; prologue
+ *   0x4f121  movq   %rsp, %rbp
+ *   0x4f124  movq   %rdi, %rax                  ; return value = the sret slot
+ *   0x4f127  movq   0x3d8(%rsi), %rcx           ; rcx = *(this+0x3D8) = first child
+ *   0x4f12e  addq   $0x3d0, %rsi                ; rsi = this+0x3D0 = &sentinel
+ *   0x4f135  xorps  %xmm0, %xmm0                ; xmm0 = 0
+ *   0x4f138  movups %xmm0, 0x40(%rdi)           ; dst[0x40..0x4F] = 0
+ *   0x4f13c  movups %xmm0, 0x30(%rdi)           ; dst[0x30..0x3F] = 0
+ *   0x4f140  movups %xmm0, 0x18(%rdi)           ; dst[0x18..0x27] = 0
+ *   0x4f144  movl   $0x3f800000, 0x50(%rdi)     ; dst[0x50] = fp32 1.0
+ *   0x4f14b  movq   %rcx, (%rdi)                ; dst[0x00] = FIRST CHILD
+ *   0x4f14e  movq   %rcx, 0x8(%rdi)             ; dst[0x08] = first-child snapshot
+ *   0x4f152  movq   %rsi, 0x10(%rdi)            ; dst[0x10] = &sentinel
+ *   0x4f156  movl   $0x0, 0x28(%rdi)            ; dst[0x28] = 0  (DWORD)
+ *   0x4f15d  popq   %rbp
+ *   0x4f15e  retq
+ *   0x4f15f  nop                                ; alignment padding, not executed
+ *
+ * It is byte-identical to `end_all()` @0x4f160 except for ONE instruction:
+ *   begin_all @0x4f14b  `movq %rcx, (%rdi)`   -> cur = the FIRST CHILD
+ *   end_all   @0x4f18b  `movq %rsi, (%rdi)`   -> cur = the SENTINEL
+ * Everything else — the capture order (`rcx` read @0x4f127 BEFORE `%rsi` is
+ * rewritten @0x4f12e), the three `movups` zero runs, the fp32 1.0 at +0x50,
+ * the +0x08 snapshot, the +0x10 sentinel and the DWORD zero at +0x28 — matches
+ * instruction for instruction at the corresponding addresses. That is exactly
+ * the begin/end relationship the direct-children pair `begin()` @0x63760 /
+ * `end()` @0x637a0 has on the smaller iterator.
+ *
+ * Neither pointer is dereferenced: the body is pure pointer arithmetic plus a
+ * fixed byte-shape build, so it has ZERO callees, zero externs, zero indirect
+ * calls and no branches.
+ *
+ * @param self the receiver (`%rsi`).
+ * @param out  the caller-provided sret slot (`%rdi`).
+ * @returns `out` — the value `%rax` carries back.
+ */
+export function OZScene_begin_all(
+  self: OZSceneRuntime,
+  out: OZSceneAllIterator,
+): OZSceneAllIterator {
+  // The three 16-byte zero runs are caller-owned storage in the C++ sret slot;
+  // if they are not sized right the movups-simulation below would silently
+  // truncate, so refuse loudly (same guard style as OZScene_end_all above).
+  if (!(out.zeroBlock_at0x18 instanceof Uint8Array) || out.zeroBlock_at0x18.length !== 16) {
+    throw new Error(
+      "OZScene_begin_all: out.zeroBlock_at0x18 must be a 16-byte Uint8Array " +
+        "(sret iterator slot @0x18..0x27). @0x4f140 stores 16 bytes here.",
+    );
+  }
+  if (!(out.zeroBlock_at0x30 instanceof Uint8Array) || out.zeroBlock_at0x30.length !== 16) {
+    throw new Error(
+      "OZScene_begin_all: out.zeroBlock_at0x30 must be a 16-byte Uint8Array " +
+        "(sret iterator slot @0x30..0x3F). @0x4f13c stores 16 bytes here.",
+    );
+  }
+  if (!(out.zeroBlock_at0x40 instanceof Uint8Array) || out.zeroBlock_at0x40.length !== 16) {
+    throw new Error(
+      "OZScene_begin_all: out.zeroBlock_at0x40 must be a 16-byte Uint8Array " +
+        "(sret iterator slot @0x40..0x4F). @0x4f138 stores 16 bytes here.",
+    );
+  }
+
+  // @0x4f127  rcx = *(this + 0x3D8) = firstChildPtr_at0x3D8 (captured FIRST,
+  //           before %rsi is rewritten).
+  const rcx: OZSceneChildListNode = self.firstChildPtr_at0x3D8;
+  // @0x4f12e  rsi = this + 0x3D0 = &childListSentinel_at0x3D0. (No pointer
+  //           arithmetic in TS — the referenced node stands in for the
+  //           address; peers compare sentinel-ness by identity.)
+  const rsi_plus_3d0: OZSceneChildListNode = self.childListSentinel_at0x3D0;
+
+  // Stores, in binary order:
+  //   @0x4f135: xorps %xmm0, %xmm0        (xmm0 = 0)
+  //   @0x4f138: movups %xmm0, 0x40(%rdi)
+  out.zeroBlock_at0x40.fill(0);
+  //   @0x4f13c: movups %xmm0, 0x30(%rdi)
+  out.zeroBlock_at0x30.fill(0);
+  //   @0x4f140: movups %xmm0, 0x18(%rdi)
+  out.zeroBlock_at0x18.fill(0);
+  //   @0x4f144: movl $0x3f800000, 0x50(%rdi) — 0x3F800000 IS the IEEE-754
+  //   fp32 encoding of 1.0, stored 32-bit wide, so fround it.
+  out.weight_at0x50 = Math.fround(1.0);
+  //   @0x4f14b: movq %rcx, (%rdi)  — THE distinguishing store: begin_all's
+  //   cursor starts at the FIRST CHILD (end_all @0x4f18b stores the sentinel).
+  out.cur_at0x00 = rcx;
+  //   @0x4f14e: movq %rcx, 0x8(%rdi)
+  out.firstChildAtSnapshot_at0x08 = rcx;
+  //   @0x4f152: movq %rsi, 0x10(%rdi)
+  out.endSentinel_at0x10 = rsi_plus_3d0;
+  //   @0x4f156: movl $0x0, 0x28(%rdi)  — DWORD-wide zero (the child iterator's
+  //   corresponding flag is a single movb; this family uses movl).
+  out.flag_at0x28 = 0;
+
+  // SysV: %rax already holds the sret out-ptr (set @0x4f124).
+  return out;
 }
