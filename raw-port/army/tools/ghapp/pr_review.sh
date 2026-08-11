@@ -296,8 +296,11 @@ pr_review: PR #$PR was authored by the REVIEWER app (${AUTHOR:-could not read th
   This happens when a reviewer files a PR with raw \`gh pr create\`. Use pr_submit.sh, which pushes
   as the WORKER app for exactly this reason (author != reviewer).
   To rescue THIS one: re-push the branch as the worker app and open a fresh PR —
-      bash raw-port/army/tools/ghapp/git_push_as.sh worker -q -u origin <branch> --force-with-lease
+      bash raw-port/army/tools/ghapp/git_push_as.sh worker -q -u origin <branch>
       bash raw-port/army/tools/ghapp/gh_as.sh worker pr create --base main --head <branch> ...
+  (No force flag here: the branch named above has an open PR by construction — it is #$PR — and
+  git_push_as.sh now REFUSES a force at an open PR's head. The re-push is a no-op fast-forward
+  anyway: same commits, different pushing identity, so nothing needs rewriting.)
   then close #$PR with a pointer to the replacement.
 EOM
     exit 3

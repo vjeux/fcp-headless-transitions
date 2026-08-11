@@ -28,6 +28,7 @@ Every case also byte-diffs the whole poisoned arena afterwards: the accessor mus
 NO stores, and a probe that only compared return values could not see an over-write.
 """
 import ctypes, json, os, platform, subprocess, sys
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 FCP = "/Applications/Final Cut Pro.app/Contents"
 OZONE = FCP + "/Frameworks/Ozone.framework/Versions/A/Ozone"
@@ -278,7 +279,7 @@ if os.path.exists(DRIVER):
     payload_in = json.dumps([{"case": t["case"], "index": t["index"], "kinds": t["kinds"]}
                              for t in TRACE])
     r = subprocess.run(["node", "--experimental-strip-types", DRIVER],
-                       input=payload_in, capture_output=True, text=True)
+                       input=payload_in, capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if r.returncode != 0:
         check("D the TypeScript port runs", False, (r.stderr or "")[-300:])
     else:

@@ -1,3 +1,4 @@
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 #!/usr/bin/env python3
 """Gettype1_half_satTile_AVX @Helium 0x275cf0 — live differential, and the
 measurement that settles the `vrcpps` question review left open.
@@ -162,7 +163,7 @@ def main():
         proc = subprocess.run(["node", "--experimental-strip-types", DRIVER],
                               input=json.dumps({"stateBits": state_bits, "srcBits": r["src"],
                                                 "width": r["width"], "height": r["height"]}),
-                              capture_output=True, text=True, cwd=HERE)
+                              capture_output=True, text=True, cwd=HERE, timeout=DRIVER_TIMEOUT)
         if proc.returncode != 0:
             raise SystemExit("TS driver failed:\n" + proc.stderr[-2000:])
         ts = json.loads(proc.stdout)["dstBits"]

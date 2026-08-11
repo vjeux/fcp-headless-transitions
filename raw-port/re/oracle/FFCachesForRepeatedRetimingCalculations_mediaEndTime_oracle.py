@@ -29,6 +29,7 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 SRC = os.path.join(REPO, "src")
 sys.path.insert(0, HERE)
 import ozone_loader as oz                                        # noqa: E402
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 FW = "Flexo"
 SYM = "__ZN39FFCachesForRepeatedRetimingCalculations12mediaEndTimeEP16FFRetimingEffect"
@@ -131,7 +132,7 @@ def ts_side(td):
     r = subprocess.run(["node", "--experimental-strip-types",
                         os.path.join(HERE,
                                      "FFCachesForRepeatedRetimingCalculations_mediaEndTime_driver.mts")],
-                       input=json.dumps(req), capture_output=True, text=True)
+                       input=json.dumps(req), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if r.returncode != 0:
         sys.exit("node driver failed:\n" + r.stdout[-2000:] + r.stderr[-2000:])
     return json.loads(r.stdout)
