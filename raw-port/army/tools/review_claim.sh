@@ -24,10 +24,16 @@ cmd_claim () {
   # eligible = the newest faithfulness-gate status is missing OR is 'pending' (still needs a real gate).
   # A SUCCESS/FAILURE that is the LATEST status for the current head is 'fresh' -> skip (already gated;
   # merge/reject is handled by the same reviewer tick that gated it, or a human).
+  # ALSO claim GREEN-BUT-UNREVIEWED PRs. The filter used to select only NONE/PENDING/EXPECTED, so a
+  # PR whose faithfulness-gate had gone green — e.g. re-gated by pr_land, or gated by a reviewer that
+  # died before signing — was NEVER handed to a reviewer again. It sat green, unreviewed, and
+  # mergeable. That is exactly how #243 reached one merge from landing while its own TS diverged from
+  # the live symbol on 8 of 106 cases (issue #285). A green mechanical gate is not a verdict; only a
+  # reviewer's APPROVE is. PRs already APPROVED or CHANGES_REQUESTED on their head are left alone.
   local rows
   rows=$(gh pr list --repo "$SLUG" --state open --limit 100 \
-      --json number,headRefOid,statusCheckRollup \
-      --jq '.[] | {n:.number, sha:.headRefOid, s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select(.s=="NONE" or .s=="PENDING" or .s=="EXPECTED") | "\(.n)\t\(.sha)"' 2>/dev/null)
+      --json number,headRefOid,statusCheckRollup,reviewDecision \
+      --jq '.[] | {n:.number, sha:.headRefOid, d:(.reviewDecision // ""), s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select(.s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or (.s=="SUCCESS" and .d!="APPROVED" and .d!="CHANGES_REQUESTED")) | "\(.n)\t\(.sha)"' 2>/dev/null)
   [ -z "$rows" ] && { echo "NONE"; return 1; }
   # randomize so parallel reviewers don't collide on the same first row
   rows=$(printf '%s\n' "$rows" | sort -R 2>/dev/null || printf '%s\n' "$rows")
