@@ -181,10 +181,21 @@ def check_queue_coverage():
     Change a filter and this check follows it, instead of silently disagreeing with it.
     """
     prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 "
-                       "--json number,reviewDecision,mergeStateStatus,statusCheckRollup")
+                       "--json number,reviewDecision,mergeStateStatus,statusCheckRollup,baseRefName")
     if prs is None:
         return record("queue-coverage", UNKNOWN, f"could not list PRs: {err}", "#33/#41")
-    open_nums = {pr["number"] for pr in prs}
+    # A PR whose base is NOT main is deliberately outside every queue (the three selectors filter on
+    # `.baseRefName=="main"`), because no worker or reviewer ACTION can make it reach main: merging
+    # it writes onto a peer's branch, and pr_gate/pr_land now refuse it outright (#46). It is not an
+    # orphan of the coverage kind this check is about — its remedy is an unstacking DECISION no
+    # queue can perform — so it is excluded here and owned by `check_pr_base` above, which names it
+    # with the right reason and the right remedy (`gh pr edit <n> --base main`). Counting it here
+    # too would report the same PR twice under a description that is true and useless, and would
+    # bury the real orphans this check exists to surface. The pairing is load-bearing in the other
+    # direction as well: skipping such a PR in the queues is only safe BECAUSE check_pr_base still
+    # names it every run — a queue that silently drops work is #33.
+    off_main = {pr["number"] for pr in prs if (pr.get("baseRefName") or "main") != "main"}
+    open_nums = {pr["number"] for pr in prs} - off_main
 
     def numbers_from(tool, var):
         """Run the tool's OWN selector; return (numbers, row-fields by number, error).
@@ -465,6 +476,105 @@ def check_orphan_drivers():
                       f"(`kill -9 <pid>`) and give the harness a timeout (oracle_driver.run_driver)",
                       "#47")
     record("orphan-drivers", OK, f"no oracle driver has been running longer than {max_min}m")
+def check_lease_ownership():
+    """#45: a worker's cleanup sweep ran `rework_claim.sh release <PR>` on a lease ANOTHER agent had
+    taken 39 seconds earlier, because release was an unconditional `rm -rf`. The peer kept working a
+    PR it no longer held and the queue was free to hand the same PR to a third agent — the
+    duplicate-work race the leases exist to prevent, arriving through the cleanup path.
+
+    `wt_pool.sh release` closed this hole for worktree slots long before the queues copied the
+    pattern without it, which is the reason to check all three together: the fix is only worth
+    anything if it is present everywhere a lease can be freed, and the next queue added to the swarm
+    will be written by copying one of these files."""
+    releasers = {
+        "raw-port/army/tools/rework_claim.sh": "rework queue",
+        "raw-port/army/tools/rebase_claim.sh": "rebase queue",
+        "raw-port/army/tools/wt_pool.sh": "worktree pool",
+        # The review queue is the fourth path, and it was the one left out of the first cut of this
+        # check — with three entries the OK line reads "all 3 release paths check ownership", which
+        # a reader takes for "every lease path" and does not go and count. A check whose scope is
+        # narrower than its sentence is how #44 happened; it is also the file a future queue is
+        # most likely to be copied from, so leaving it unguarded preserves the pattern this removes.
+        "raw-port/army/tools/review_claim.sh": "review queue",
+    }
+    unguarded, unread, drifted = [], [], []
+    for rel, what in releasers.items():
+        src = from_main(rel)
+        if not src:
+            unread.append(what)
+            continue
+        # CODE ONLY. test_guards case B passed against a deleted line because the script's own
+        # explanatory comment repeated the words the check grepped for — and the comment block
+        # this very fix added is a long paragraph about ownership sitting directly above the code
+        # it describes. Stripping comments is the difference between checking the fix and checking
+        # the story about the fix.
+        code = "\n".join(l for l in src.split("\n") if not l.strip().startswith("#"))
+        if "FCT_AGENT_ID" not in code or "owner" not in code:
+            unguarded.append(what)
+            continue
+        # ...AND THE THREE STAMPS MUST AGREE, not merely all exist. Reviewer 2 caught the first cut
+        # of this fix shipping two of them as `[ -n "$FCT_AGENT_ID" ] && echo … > owner` with no
+        # else: on the STALE-RECLAIM path — which reuses a directory that already has an owner file
+        # — an ID-less reclaim then leaves the DEAD agent's id naming a lease it does not hold. Slot
+        # ids are reused by design here, so that agent returns and the guard authorises exactly the
+        # release it exists to refuse while refusing everyone else. Presence was never the property;
+        # "the file names the CURRENT holder or nothing" is, and its whole weight rests on a clear.
+        if not re.search(r"rm -f [^\n]*owner", code):
+            drifted.append(what)
+    if unread:
+        return record("lease-ownership", UNKNOWN,
+                      f"could not read {', '.join(unread)} from origin/main — cannot tell a guarded "
+                      "release from an unguarded one", "#45")
+    if unguarded:
+        return record("lease-ownership", FAIL,
+                      f"release path frees a lease without checking who owns it: "
+                      f"{', '.join(unguarded)} — any agent's cleanup can free any other's lease "
+                      f"[origin/main {MAIN_SHA}]", "#45")
+    if drifted:
+        return record("lease-ownership", FAIL,
+                      f"the claim path never CLEARS a stale owner in: {', '.join(drifted)} — an "
+                      "ID-less reclaim of a stale lease leaves the previous holder named on it, so "
+                      "the guard authorises that agent when its slot restarts and refuses the agent "
+                      f"actually holding it [origin/main {MAIN_SHA}]", "#45")
+    # Live state, second half: after the guard lands, a lease with no owner is one taken by a caller
+    # with no FCT_AGENT_ID. Those are releasable by anyone by design (fail-open), so they are not a
+    # fault — but they are the population the guard does not cover, and if it is ALL of them the
+    # guard is dormant, which is #44 again. Reported, never silently omitted.
+    # When did the stamping land? Anything leased before that instant predates the guard.
+    _r = sh("git log -1 --format=%ct origin/main -- raw-port/army/tools/wt_pool.sh")
+    since = int(_r.stdout.strip()) if _r.returncode == 0 and _r.stdout.strip().isdigit() else 0
+    total = owned = young = 0
+    for sub in ("rework_leases", "rebase_leases", "leases", "review_leases"):
+        d = os.path.join(STATE, sub)
+        if not os.path.isdir(d):
+            continue
+        for pr in os.listdir(d):
+            total += 1
+            owner = os.path.join(d, pr, "owner")
+            if os.path.isfile(owner) and open(owner).read().strip() not in ("", "unknown"):
+                owned += 1
+            # AGE MATTERS, AND THE CUTOFF IS THE FIX ITSELF. Every lease alive when the stamping
+            # landed was taken by the old claim path and can never grow an owner file; calling that
+            # a fault would put the board red for a whole lease cycle over a condition nobody can
+            # act on — the false-FAIL that made a GitHub blip read as "the verifier is broken" in
+            # test_guards case E. A wall-clock window would be a guess at when the fix landed; the
+            # commit date of the file that does the stamping IS when it landed, so a lease older
+            # than that is not evidence of anything and a lease younger than it is evidence.
+            for f in ("held", "holder"):
+                p = os.path.join(d, pr, f)
+                if os.path.exists(p):
+                    if since and os.path.getmtime(p) > since:
+                        young += 1
+                    break
+    if owned == 0 and young >= 3:
+        return record("lease-ownership", FAIL,
+                      f"every release path is guarded, but none of the {young} lease(s) taken since the "
+                      "stamping landed records an owner — the claim path has stopped stamping (or "
+                      "the slots are running without FCT_AGENT_ID), so the guard cannot fire on anything "
+                      f"now held [origin/main {MAIN_SHA}]", "#45/#44")
+    record("lease-ownership", OK,
+           f"all {len(releasers)} release paths check ownership; {owned}/{total} live lease(s) name an "
+           f"owner ({young} taken since the fix landed) [origin/main {MAIN_SHA}]", "#45")
 
 
 # ── 3. The canonical checkout must be current ───────────────────────────────────────────────────
@@ -583,31 +693,52 @@ def check_no_double_lease():
 
 # ── 6. Slot locks must carry a heartbeat ────────────────────────────────────────────────────────
 def check_heartbeats():
-    """#32: the lock recorded only `<epoch> pid-agent`, written once at acquire, so the 90-minute
-    stale-reclaim measured TICK AGE rather than idleness — a healthy long-running reviewer looked
-    exactly like a corpse, and a holder that died at minute 5 held the slot for the full 90."""
+    """A slot held by an agent that is gone is worse than a slot nobody holds: the roster still
+    reads full, so nothing refills it and the swarm quietly shrinks.
+
+    #32 gave the lock a heartbeat so its mtime measures IDLENESS rather than tick age. What was
+    missing is anybody looking at that mtime before the reclaim window expires — this check said
+    `16 slot(s) beating` about a fleet containing a corpse whose agent had exited 44 minutes
+    earlier, because it only complained past 90 minutes, which is also when the lock reclaims
+    itself. A check that fires exactly when the problem is already fixing itself reports nothing.
+
+    THE RECORDED PID IS NOT LIVENESS, and this is the note that stops the next person from
+    "improving" this check into an outage. The lock's second field used to be `pid-$$` — the pid of
+    the `slot_lock.sh` shell, which exits milliseconds later. Measured on a full 16-slot swarm:
+    every single recorded pid was dead, including a slot that had beaten 2 seconds before. An agent
+    is a model session; no local process outlives one `bash -c`. Testing that pid would free every
+    slot at once. The mtime is the only signal.
+
+    Thresholds, from that same measurement: live slots had all beaten within 6 minutes (median
+    ~100s, max 343s); the dead one sat at 44 minutes. FAIL at 20 leaves a 3x margin over the worst
+    live slot and still names the corpse ~25 minutes before the lock would free itself.
+    """
     slots = os.path.join(STATE, "slots")
     if not os.path.isdir(slots):
         return record("heartbeats", OK, "no slots held")
-    stale, noheart = [], []
+    dead_min = int(os.environ.get("SLOT_DEAD_MIN", "20"))
+    reclaim_min = int(os.environ.get("SLOT_STALE_MIN", "45"))
+    ages, dead = {}, []
     for s in sorted(os.listdir(slots)):
         held = os.path.join(slots, s, "held")
         if not os.path.exists(held):
             continue
-        body = open(held, errors="replace").read().strip()
-        age_min = (time.time() - os.path.getmtime(held)) / 60
-        if "pid-agent" in body:
-            noheart.append(s)
-        if age_min > 90:
-            stale.append(f"{s} ({age_min:.0f}m since last beat)")
-    msg = []
-    if stale:
-        msg.append(f"stale beyond the reclaim window: {', '.join(stale)}")
-    if noheart:
-        msg.append(f"no real pid (pre-heartbeat tool): {', '.join(noheart)}")
-    if stale:
-        return record("heartbeats", FAIL, "; ".join(msg), "#32")
-    record("heartbeats", OK, "; ".join(msg) or f"{len(os.listdir(slots))} slot(s) beating")
+        age = (time.time() - os.path.getmtime(held)) / 60
+        ages[s] = age
+        if age > dead_min:
+            dead.append(f"{s} ({age:.0f}m)")
+    if not ages:
+        return record("heartbeats", OK, "no slots held")
+    oldest = max(ages, key=ages.get)
+    spread = f"{len(ages)} slot(s), oldest beat {ages[oldest]:.0f}m ({oldest})"
+    if dead:
+        return record("heartbeats", FAIL,
+                      f"{len(dead)} slot(s) have not beaten in over {dead_min}m and are almost "
+                      f"certainly held by an agent that has exited: {', '.join(dead)} — the roster "
+                      f"still reads full, so nothing refills them. Clear the lock "
+                      f"(`rm -rf $FCT_STATE_DIR/slots/<slot>`) and respawn that slot; the lock "
+                      f"would otherwise free itself only at {reclaim_min}m. [{spread}]", "#32")
+    record("heartbeats", OK, spread)
 
 
 # ── 7. The tests that guard all this must still be able to FAIL ─────────────────────────────────
@@ -1140,7 +1271,7 @@ def _prove_all_runs(ps_out):
     return runs
 
 
-CHECKS = [check_pr_base, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
+CHECKS = [check_pr_base, check_lease_ownership, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_no_double_lease, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
           check_brief_flags_exist, check_rebase_actionable, check_rebase_branch_naming,
@@ -1152,9 +1283,22 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quiet", action="store_true", help="print only problems (for cron)")
     ap.add_argument("--json", action="store_true")
+    # Run one check by name. Added because the heartbeats check is pure filesystem and its test
+    # should not have to make a dozen network calls to exercise it — and because an agent chasing
+    # one FAIL should not pay for the other ten.
+    ap.add_argument("--only", default="", help="comma-separated check names, e.g. --only heartbeats")
     args = ap.parse_args()
 
-    for c in CHECKS:
+    checks = CHECKS
+    if args.only:
+        want = {w.strip() for w in args.only.split(",") if w.strip()}
+        checks = [c for c in CHECKS if c.__name__.replace("check_", "").replace("_", "-") in want
+                  or c.__name__ in want]
+        if not checks:
+            print(f"swarm_doctor: no check matches --only {args.only!r}; known: "
+                  + ", ".join(c.__name__.replace("check_", "").replace("_", "-") for c in CHECKS))
+            return 2
+    for c in checks:
         try:
             c()
         except Exception as e:

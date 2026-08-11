@@ -14,6 +14,8 @@
 //     __ZNK13HGGPURenderer18UsingSharedStorageEv
 //   * HGGPURenderer::GetMetalHandler() const     @Helium 0x11d30
 //     __ZNK13HGGPURenderer15GetMetalHandlerEv
+//   * HGGPURenderer::GetMaxTileArea() const      @Helium 0x15d90
+//     __ZNK13HGGPURenderer14GetMaxTileAreaEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZN13HGGPURenderer15GetMetalContextEv.s
@@ -499,5 +501,127 @@ export class HGGPURenderer {
   GetRenderEvent(): HGMetalSharedEvent | null {
     // @0x11eb4  movq 0x530(%rdi), %rax — the whole body: one load, returned unchanged.
     return this.renderEvent_at_0x530;
+  }
+
+  /**
+   * @Helium offset +0x294 — int32, the renderer's DEFAULT PAGE SIZE in pixels: the edge length of
+   * the square tile the renderer pages with.
+   *
+   * The name and the width come from the writer, not from this getter.
+   * `HGGPURenderer::InitDefaultPageSize()` @Helium 0x9ee0 is the only function that stores here,
+   * and it is the whole story of the slot (quoted as evidence; it is its own ledger unit):
+   *
+   *   0x9f9c  leaq __ZN15HG_RENDERER_ENV15FORCE_PAGE_SIZEE(%rip),%rax  ; the env override
+   *   0x9fa3  movl (%rax),%eax
+   *   0x9fa5  cmpl $-0x1,%eax ; je 0x9fb5     ; -1 means "not forced"
+   *   0x9faa  movl %eax,0x294(%rbx)           ; forced: store it verbatim, skip everything below
+   *   0x9fb8  callq HGMetalDeviceInfo::isIntel() const
+   *   0x9fc1  movl $0x22b,0x294(%rbx)         ; Intel      ->  555
+   *   0x9fe1  movl $0x1388,0x294(%rbx)        ; else, by memory size: 5000
+   *   0x9ffb  movl $0xbb8,0x294(%rbx)         ;                      3000
+   *   0xa015  movl $0x5dc,0x294(%rbx)         ;                      1500
+   *   0xa026  movl $0x2ee,0x294(%rbx)         ;                       750
+   *   0xa035  movl 0x4e0(%rbx),%ecx           ; then CLAMP to the neighbour at +0x4e0
+   *   0xa03b  cmpl %ecx,%eax ; jle 0xa045     ; SIGNED compare (jle): value - limit
+   *   0xa03f  movl %ecx,0x294(%rbx)           ; too big -> store the limit instead
+   *
+   * So: a 32-bit slot, written with `movl`, clamped with a SIGNED `jle`, and reachable by an
+   * env-var override that stores an arbitrary int32 — which is why this is modelled as a SIGNED
+   * int32 (`| 0`), exactly like the sibling `maxMultiSamples_at_0x590` whose `cmovl` says the same
+   * thing. Every value the non-override path can leave here is a small positive tile edge
+   * (750..5000, or 555 on Intel), but the port does not narrow the field to that: the machine does
+   * not.
+   *
+   * Two other decoded sites read the slot, and neither disagrees: `GetParameter` @0xd54c returns it
+   * for one `HGRendererParameter` case (`movl 0x294(%rdi),%eax ; retq`), and `PageInit` @0x15bf8
+   * loads it into `%ebx` while laying out pages. Each is its own ledger unit and neither is ported
+   * here.
+   */
+  defaultPageSize_at_0x294 = 0;
+
+  /**
+   * `HGGPURenderer::GetMaxTileArea() const` — @Helium 0x15d90
+   *   `__ZNK13HGGPURenderer14GetMaxTileAreaEv`  (inventory: `T`, exported)
+   *
+   * FULL transcription — every instruction, in order:
+   *
+   *   0x15d90  pushq %rbp                     ; frame setup (no TS counterpart)
+   *   0x15d91  movq  %rsp,%rbp                ; frame setup (no TS counterpart)
+   *   0x15d94  movl  0x294(%rdi),%eax         ; eax = (int32)this[+0x294]   — the page size
+   *   0x15d9a  imull %eax,%eax                ; eax = eax * eax   (low 32 bits kept)
+   *   0x15d9d  addl  %eax,%eax                ; eax = eax + eax   (low 32 bits kept)
+   *   0x15d9f  popq  %rbp                     ; frame teardown (no TS counterpart)
+   *   0x15da0  retq                           ; the u32 in %eax is the return value
+   *   0x15da1  nopw  %cs:(%rax,%rax)          ; alignment padding, not executed
+   *
+   * The whole body is `2 * pageSize * pageSize` — the area of a square tile of that edge, doubled.
+   * There is no branch, no callee, no read of any other field, and no store: the object is
+   * untouched (asserted by byte-diff in the oracle, not assumed from `const`).
+   *
+   * WIDTH IS THE WHOLE OF THE DIFFICULTY, so it is spelled out. `imull %eax,%eax` is the two-operand
+   * form: it keeps the LOW 32 bits of the product and discards the high half — the same low 32 bits
+   * whether the operands are read as signed or unsigned, which is why the multiply needs no
+   * signedness decision at all. `addl` likewise wraps at 32 bits. So the result is
+   * `(2 * x * x) mod 2^32`, and it can be zero for a non-zero field: at x = 0x10000 the product is
+   * 2^32 ≡ 0, and 0x8000 gives 2^31 — both are in the oracle's corpus. `Math.imul` is exactly the
+   * two-operand `imull`, and `| 0` is exactly the `addl`'s 32-bit truncation.
+   *
+   * THE RETURN IS UNSIGNED, which is a fact about the CALLERS rather than about this body, because
+   * `%eax` is just 32 bits either way. Every one of the eleven call sites feeds the result to
+   * `hg_clip(HGTransform&, HGRect, HGRect, double, float, float, double, int*, int, int,
+   * unsigned int)` as its LAST parameter — the `unsigned int` one:
+   *
+   *   0x33254  callq __ZNK13HGGPURenderer14GetMaxTileAreaEv   (HGAnisotropicSampler::GetROI)
+   *   0x33259  movl %eax,%r14d
+   *   0x3329a  pushq %r14                     ; the last stack argument of hg_clip
+   *   0x3329f  callq __ZL7hg_clipR11HGTransform6HGRectS1_dffdPiiij
+   *
+   * Hence `>>> 0` on the way out. A `| 0` there would hand back a NEGATIVE tile area for any page
+   * size at or above 46341 (2*46341^2 > 2^31), which the env override can produce; the oracle's
+   * `signedReturn` mutant is exactly that reading and it dies.
+   *
+   * DEPENDENCIES: none (`depgraph.py deps __ZNK13HGGPURenderer14GetMaxTileAreaEv` lists nothing).
+   *
+   * ORACLE — EXECUTED against live Final Cut Pro, and against THIS FILE, not read:
+   *   raw-port/re/oracle/HGGPURenderer_GetMaxTileArea_oracle.py
+   *   raw-port/re/oracle/HGGPURenderer_GetMaxTileArea_driver.mts
+   * The symbol is exported (`T`), so it is dlsym'd rather than called by address, under
+   * `arch -x86_64 /usr/bin/python3` — the port is transcribed from the x86_64 slice and a natively
+   * loaded image is arm64 (the slice trap). Before anything is called, the resolved address is
+   * asserted to be slide+0x15d90 and the 17 mapped opcode bytes to be
+   * `554889e58b87940200000fafc001c05dc3`, which is the listing above; either check failing is
+   * INCONCLUSIVE, never a pass. A 0x600-byte arena poisoned with 0xEE stands in for the renderer,
+   * with the int32 at +0x294 planted per case. The TS side is this committed module, driven through
+   * `raw-port/node_modules/.bin/tsx`, and every value crosses the wire as a DECIMAL STRING so that
+   * no JSON numeric coercion can decide which 32-bit reading is right.
+   *
+   * MEASURED 2026-08-11 at Helium slide 0x10b7ae000 — VERIFIED, 0 checks failed:
+   *   * VALUES: 16 int32 page sizes, live == port on every one. The interesting rows are
+   *     32768 -> 2147483648 (the result's sign bit set, which is what makes the return's
+   *     unsignedness observable), 65536 -> 0 (a non-zero page size whose tile area wraps to zero),
+   *     46340 -> 4294791200 vs 46341 -> 9266 (either side of the wrap), 0x7fffffff -> 2, -1 -> 2,
+   *     and -2147483648 -> 0.
+   *   * PURITY: the arena is byte-identical after every call — the method really does write nothing.
+   *   * OFFSET: with DIFFERENT values planted at +0x290 and +0x298 (7/9, -1/0x7fffffff, 5000/5000)
+   *     the answer still follows +0x294 on all three, so the offset is pinned by measurement rather
+   *     than by reading the displacement.
+   *   * MUTANTS, each declaring its expected verdict in advance: `signedReturn` (`| 0` out) dies on
+   *     2/16, `noWrap` (2*x*x in doubles) on 5/16, `squareOnly` (the `addl` missed) on 13/16,
+   *     `doubleThenSquare` ((2x)^2) on 13/16 — and `unsignedField` (the load read `>>> 0`) is
+   *     declared INDISTINGUISHABLE and measured to diverge on 0/16, because `imull` keeps the low
+   *     32 bits of the product and those bits do not depend on the reading. A harness that
+   *     "killed" that one would be measuring something other than this function.
+   *
+   * @returns `(2 * pageSize * pageSize) mod 2^32`, as an unsigned 32-bit value.
+   */
+  GetMaxTileArea(): number {
+    // @0x15d94  movl 0x294(%rdi),%eax — the signed int32 page size, read 32 bits wide.
+    const eax = this.defaultPageSize_at_0x294 | 0;
+    // @0x15d9a  imull %eax,%eax — two-operand: the LOW 32 bits of the product.
+    const sq = Math.imul(eax, eax);
+    // @0x15d9d  addl %eax,%eax — 32-bit add, wrapping.
+    const doubled = (sq + sq) | 0;
+    // @0x15da0  retq — %eax read by every caller as the `unsigned int` argument of hg_clip.
+    return doubled >>> 0;
   }
 }
