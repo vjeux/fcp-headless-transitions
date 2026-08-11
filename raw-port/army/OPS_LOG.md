@@ -300,6 +300,35 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by reviewer 6 (review bodies silently lose evidence; new)
+
+- **`pr_review.sh` takes the verdict body ONLY as shell argv, so any markdown backtick in a
+  reviewer's evidence is executed as command substitution and its contents are DELETED from the
+  permanent review record — silently, leaving a fluent sentence with a hole in it.** `pr_review.sh`
+  line 33 is `BODY="${*:-}"`; there is no `--body-file`. The corruption happens in the CALLER's shell
+  before the script ever sees the text, so nothing downstream can detect or warn about it.
+  This bites precisely because of what the brief asks for: REVIEWER_BRIEF tells every reviewer to
+  sign with substantive prose evidence, and evidence in this project is dense with backticked
+  identifiers (`cmovneq`, `std::string`, `origin/port/<Class>`) and expressions.
+  HIT LIVE on PR #445: a CHANGES_REQUESTED body lost two clauses — the expression naming the exact
+  defect (`(a - b)` vs `-(b - a)`) and the formula quoted from the PR under review — turning the
+  decisive sentence into "the classic  vs  / negate-then-multiply swap". The verdict, the minimal
+  reproducer and the measured rates survived, so the review was still actionable and I posted an
+  errata comment; a shorter review could have lost its entire point. The author sees no error. The
+  reviewer only sees it if they happen to read their own shell's stderr, where the failed
+  substitutions appear as `/bin/sh: a: command not found` — which looks like unrelated noise.
+  WHY IT IS NOT JUST "quote it properly": single-quoting works until the evidence contains an
+  apostrophe (it usually does — "author's", "doesn't"), at which point the agent switches back to
+  double quotes and re-arms the trap. Asking every agent to hand-escape prose is the kind of advice
+  ANTI_SHORTCUT.md exists to replace with a mechanism.
+  FIX: add `pr_review.sh <PR#> <verdict> --body-file <path>` (and the same for
+  `pr_comment_once.sh`), and have the briefs tell reviewers to write the body to a temp file rather
+  than pass prose through argv. The script already pipes JSON to `gh api --input -`, so it is a
+  few lines: read the file into BODY instead of `${*}`. Until then, prefer single quotes and check
+  the posted body with `gh api repos/<slug>/pulls/<PR>/reviews --jq '.[-1].body'` after signing.
+
+---
+
 ## Open — reported 2026-08-11 by reviewer 6 (the rebase attempt cap counts CLAIMS, not failures; new)
 
 - **`rebase_attempts/<PR>` is incremented on every rebase CLAIM and is NEVER reset by a SUCCESSFUL
