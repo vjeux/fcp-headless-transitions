@@ -42,6 +42,83 @@ shift 2
 # the permanent record — and the reviewer cannot see it happen, because the posted review still looks
 # plausible. Hit at least three times today (#445, #481, and a depclaim drop reason).
 # A file has no shell in its path: write the body with the file tool, pass the path.
+# --expect-head may appear before or after the body form; pull it out first.
+#
+# A FLAG'S VALUE IS AS DANGEROUS AS ITS NAME. The refusal below covers an unknown flag NAME, but the
+# same evidence-destroying shapes come from a flag whose VALUE is missing or empty — which is what an
+# unquoted or unset variable produces, and that is exactly the slip this whole change is about:
+#   * `--body-file "$EVIDENCE"` with EVIDENCE unset consumed the empty value, re-emitted the flag,
+#     failed the post-loop `-n "$2"` test and fell through to the `BODY="$*"` this change exists to
+#     kill — posting a 12-character review reading "--body-file ". Exit 0, success line, evidence
+#     gone, and the readback check cannot see it because the mangling happened BEFORE the send.
+#   * `--expect-head $SHA` with SHA empty left one positional, so `shift 2` shifted NOTHING (a failed
+#     shift is not fatal under `set -uo pipefail`) and the loop SPUN FOREVER — wedging a reviewer
+#     slot with its review lease and slot lock both held, silently.
+#   * `--expect-head ""` turned the binding OFF while the caller believed it was on, announced only
+#     by a stderr line that reads as though the flag was never passed. A guard that appears to be on
+#     and is off is the failure class this PR is about.
+# So each arm demands its value and refuses an empty one, before anything else runs.
+EXPECT_HEAD=""
+BODY_FILE=""
+NPOS=0
+_args=(); while [ $# -gt 0 ]; do
+  case "$1" in
+    --expect-head)
+      [ $# -ge 2 ] || { echo "pr_review: --expect-head requires a SHA" >&2; exit 2; }
+      [ -n "$2" ]  || { echo "pr_review: --expect-head was given an EMPTY sha (unset variable?)" >&2; exit 2; }
+      EXPECT_HEAD="$2"; shift 2 ;;
+    --body-file)
+      [ $# -ge 2 ] || { echo "pr_review: --body-file requires a path" >&2; exit 2; }
+      [ -n "$2" ]  || { echo "pr_review: --body-file was given an EMPTY path (unset variable?)" >&2; exit 2; }
+      BODY_FILE="$2"; shift 2 ;;
+    --)            shift; while [ $# -gt 0 ]; do _args+=("$1"); NPOS=$((NPOS+1)); shift; done ;;
+    --*)
+      # AN UNRECOGNISED FLAG MUST NOT BECOME THE REVIEW BODY.
+      # It did: `pr_review.sh <PR> request-changes --expect-head <sha> --body-file <path>`, run
+      # against a copy of this script WITHOUT --expect-head, fell through to `BODY="$*"` and posted a
+      # 91-character review reading "--expect-head … --body-file …". Eleven KB of differential — the
+      # evidence the verdict rested on — was destroyed, at exit 0, behind a success line that looked
+      # correct. The reviewer found it only by reading the posted body back.
+      # It is the cruellest shape of this class: following the CURRENT advice ("always pass
+      # --expect-head") is what destroys the record, on any host still running the older tool. I
+      # reproduced it by accident one minute after reading the report.
+      # A verdict body is evidence. Refuse rather than guess.
+      cat >&2 <<EOM
+pr_review: unknown option "$1".
+  Refusing, because an unrecognised flag would otherwise be posted AS THE REVIEW BODY and your
+  evidence silently discarded (that happened; 11KB of a differential was lost this way, at exit 0).
+  Supported: --expect-head <sha>, --body-file <path>, or a literal body as the final argument.
+  If this flag is real but unknown here, you are running an OLDER pr_review.sh than your brief
+  describes: git log -1 --format=%h -- raw-port/army/tools/ghapp/pr_review.sh
+EOM
+      exit 2 ;;
+    *) _args+=("$1"); NPOS=$((NPOS+1)); shift ;;
+  esac
+done
+
+# A LITERAL BODY AND A --body-file ARE TWO ANSWERS TO ONE QUESTION, so pick neither. Before this,
+# whichever came FIRST in argv won and the other was silently discarded — and when the literal came
+# first the discarded one was the file, so the review body became
+# "real evidence text --body-file /tmp/body.md": the flag itself entered the permanent record and
+# the 11KB of differential behind the path did not. That is the headline bug of this change arriving
+# through argv ORDER rather than through an unknown flag, and it exits 0 with a plausible success
+# line like every other member of the family.
+if [ -n "$BODY_FILE" ] && [ "$NPOS" -gt 0 ]; then
+  cat >&2 <<EOM
+pr_review: refusing — you passed BOTH --body-file "$BODY_FILE" and a literal body.
+  One of them would be silently discarded, and which one depends on the order they appear in.
+  Pass the evidence one way: --body-file <path> (preferred; no shell touches the text), or a single
+  literal body as the final argument.
+EOM
+  exit 2
+fi
+# --body-file is re-emitted FIRST, so the reader below sees it wherever the caller put it.
+if [ -n "$BODY_FILE" ]; then
+  set -- --body-file "$BODY_FILE"
+else
+  set -- ${_args[@]+"${_args[@]}"}
+fi
+
 if [ "${1:-}" = "--body-file" ] && [ -n "${2:-}" ]; then
   [ -r "$2" ] || { echo "pr_review: cannot read body file $2" >&2; exit 2; }
   BODY="$(cat "$2")"
@@ -68,6 +145,29 @@ esac
 
 HEAD_SHA=$("$ROOT/gh_as.sh" reviewer pr view "$PR" --repo "$SLUG" --json headRefOid --jq .headRefOid 2>/dev/null)
 [ -n "$HEAD_SHA" ] || { echo "pr_review: cannot read head SHA for PR #$PR" >&2; exit 4; }
+
+# --expect-head <sha>: BIND THE VERDICT TO THE CODE THAT WAS ACTUALLY REVIEWED.
+# This script resolves the head at CALL time, so a push landing between "I finished verifying" and
+# "I signed" moves the signature onto code nobody read. Measured by one reviewer at 3 occurrences in
+# 6 PRs; on #384 an APPROVE bound to a head carrying +119 unreviewed lines, with every gate green.
+# The reviewer knows which SHA they verified — they leased it. Pass it, and a moved head becomes a
+# refusal instead of a signature. Omitting it still works (and warns), because a hard requirement
+# would break every existing caller mid-swarm.
+if [ -n "${EXPECT_HEAD:-}" ]; then
+  if [ "$EXPECT_HEAD" != "$HEAD_SHA" ]; then
+    cat >&2 <<EOM
+pr_review: REFUSING — PR #$PR moved while you were verifying it.
+  you verified : ${EXPECT_HEAD:0:12}
+  current head : ${HEAD_SHA:0:12}
+  Your evidence describes the first; signing would attach it to the second. Re-verify the new head
+  (the diff between them is what you have not read), then sign with --expect-head <new sha>.
+EOM
+    exit 5
+  fi
+else
+  echo "pr_review: note — no --expect-head given, so this verdict binds to whatever the head is NOW" >&2
+  echo "  (${HEAD_SHA:0:12}). If a push landed while you were verifying, you are signing unread code." >&2
+fi
 
 # --- idempotence: has THIS reviewer identity already ruled on THIS head? ----------------------
 # NOTE: a GitHub App installation token CANNOT call /user — apps are not users, and that request
@@ -107,7 +207,16 @@ print(json.dumps({'commit_id':'$HEAD_SHA','event':'$EVENT','body':sys.argv[1]}))
 
 if printf '%s' "$resp" | grep -q '"state"'; then
   state=$(printf '%s' "$resp" | python3 -c "import json,sys;print(json.load(sys.stdin).get('state',''))" 2>/dev/null)
-  echo "pr_review: PR #$PR @ ${HEAD_SHA:0:8} -> $state (as ${ME:-app})"
+  # READ THE BODY BACK. Every way a body has been lost here — the caller's shell expanding
+  # backticks, an unknown flag captured as the body — exits 0 with a plausible success line, so
+  # comparing what GitHub stored against what we sent is the only reliable signal.
+  sent=${#BODY}
+  got=$(printf '%s' "$resp" | python3 -c "import json,sys;print(len(json.load(sys.stdin).get('body') or ''))" 2>/dev/null || echo "")
+  if [ -n "$got" ] && [ "$got" != "$sent" ]; then
+    echo "pr_review: WARNING — GitHub stored $got chars but $sent were sent; your evidence may have" >&2
+    echo "  been mangled in transit. Read it back: gh pr view $PR --json reviews --jq '.reviews[-1].body'" >&2
+  fi
+  echo "pr_review: PR #$PR @ ${HEAD_SHA:0:8} -> $state (as ${ME:-app}, body ${sent} chars)"
   exit 0
 fi
 
