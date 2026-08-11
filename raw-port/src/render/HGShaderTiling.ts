@@ -33,6 +33,31 @@
  */
 export class HGShaderTiling {
   // Field mirror. All uint32. Access via `>>> 0` to model unsigned semantics.
+  /**
+   * @0x00..@0x1c — EIGHT consecutive uint32 axis slots, `axisSlot[i]` at
+   * `+4*i`. Read by the free function `tile_hoist` @Helium 0xc78f0, which
+   * tests each against 0xffffffff (`cmpl $-0x1, 0x<4i>(%rcx)` @0xc790b,
+   * @0xc7924, @0xc7937, @0xc794a, @0xc795d, @0xc7970, @0xc7983, @0xc7995) —
+   * i.e. 0xffffffff is this array's "unset" sentinel. The 32-bit compare
+   * operand is what pins each element's width, and the eight offsets 0x00,
+   * 0x04, 0x08, 0x0c, 0x10, 0x14, 0x18, 0x1c pin the extent. Slot i pairs
+   * with bit i of `tile_mask` @0x34.
+   *
+   * Modelled as a fixed 8-element array of u32; unset slots hold 0xffffffff.
+   * Nothing here claims what an axis slot MEANS — only that tile_hoist reads
+   * eight of them and treats 0xffffffff as absent.
+   */
+  axisSlots_at_0x00: number[] = [0, 0, 0, 0, 0, 0, 0, 0];
+
+  /**
+   * @0x20 uint32 — a NINTH slot with the same 0xffffffff sentinel, but NOT
+   * covered by `tile_mask`: `tile_hoist` tests it on its own
+   * (`cmpl $-0x1, 0x20(%rcx)` @0xc799f) and pairs it with flag bit 0x20 of
+   * byte 0x2b instead of with a mask bit. Kept as its own field rather than
+   * as `axisSlots[8]` precisely because the binary treats it differently.
+   */
+  extraSlot_at_0x20: number = 0;
+
   flags: number = 0;      // @0x28
   base: number = 0;       // @0x30
   tile_mask: number = 0;  // @0x34
