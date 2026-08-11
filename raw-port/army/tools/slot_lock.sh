@@ -10,7 +10,7 @@
 #
 # This is NOT the worktree lease (wt_pool leases). It's a coarser "is slot K of role R already
 # mid-tick" guard, held for the whole tick. Atomic mkdir; auto-reclaims a lock older than
-# SLOT_STALE_MIN (default 90) minutes (a dead agent).
+# SLOT_STALE_MIN (default 45) minutes (a dead agent).
 #
 #   slot_lock.sh acquire <role> <n>   -> mkdir lock; exit 0 = acquired (you own the tick),
 #                                        exit 1 = BUSY (another run of this slot is live; you must exit)
@@ -24,14 +24,26 @@
 # who you are. Unset, the skip is inert and both tools say so out loud rather than pretending.
 set -uo pipefail
 POOL="${FCT_STATE_DIR:-$HOME/.fct-pool}"; LKDIR="$POOL/slots"; mkdir -p "$LKDIR"
-STALE="${SLOT_STALE_MIN:-90}"
+# 90 minutes was a guess made before there was any data. Measured across a full 16-slot swarm:
+# every LIVE slot had beaten within 6 minutes (median ~100s, max 343s), while the one slot whose
+# agent had exited sat at 44 minutes. The two populations do not overlap anywhere near 45, and at 90
+# a dead agent held its slot for an hour and a half — the swarm shrank while the roster still read
+# full, which is precisely how "we keep losing agents" stayed invisible.
+STALE="${SLOT_STALE_MIN:-45}"
 role="${2:-}"; n="${3:-}"
 case "${1:-}" in
   acquire)
     [ -z "$role" ] || [ -z "$n" ] && { echo "usage: slot_lock.sh acquire <role> <n>" >&2; exit 2; }
     lk="$LKDIR/${role}-${n}"
     if mkdir "$lk" 2>/dev/null; then
-      echo "$(date +%s) pid-$$ $(hostname -s 2>/dev/null)" > "$lk/held"
+      # NOT A PID. This used to record `pid-$$`, which is the pid of THIS `slot_lock.sh` shell —
+      # a process that exits milliseconds later. An agent here is a model session, not a local
+      # process; nothing on this box outlives a single `bash -c`. Measured: all 16 slots recorded a
+      # DEAD pid, including one that had beaten 2 seconds earlier. So the field was not merely
+      # useless, it was an invitation — any reader who "fixed" the missing liveness check by testing
+      # that pid would have freed every slot in the swarm at once, mid-unit. The honest fields are
+      # who holds it and when it last beat; liveness comes from the mtime and nowhere else.
+      echo "$(date +%s) agent-${role}-${n} $(hostname -s 2>/dev/null)" > "$lk/held"
       echo "${role}-${n}" > "$lk/agent_id"
       echo "ACQUIRED ${role}-${n}"
       # TELL THE AGENT ITS ID, HERE, because this is the one command every slot runs first and
@@ -68,7 +80,11 @@ case "${1:-}" in
     ;;
   status)
     ls -1 "$LKDIR" 2>/dev/null | while read -r s; do
-      echo "  $s  held $(cat "$LKDIR/$s/held" 2>/dev/null)"; done
+      _h="$LKDIR/$s/held"; _b="$(cat "$_h" 2>/dev/null)"
+      _age=$(( ( $(date +%s) - $(stat -f %m "$_h" 2>/dev/null || stat -c %Y "$_h" 2>/dev/null || date +%s) ) / 60 ))
+      # The beat age is the only liveness signal there is, so print it rather than making every
+      # reader compute it from an epoch.
+      echo "  $s  held $_b  (last beat ${_age}m ago${_age:+$([ "$_age" -ge "$STALE" ] && echo " — RECLAIMABLE")})"; done
     [ -z "$(ls -A "$LKDIR" 2>/dev/null)" ] && echo "  (no slot locks held)"
     ;;
   *) echo "usage: slot_lock.sh {acquire <role> <n>|release <role> <n>|status}" >&2; exit 2;;

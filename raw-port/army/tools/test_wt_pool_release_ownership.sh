@@ -68,6 +68,81 @@ rm -rf "$R/.fct-pool/leases/7"
 HOME="$R" bash "$POOL_SH" release "$R/.fct-pool/wt/7" --force "port/TestOwner" >/dev/null 2>&1
 check survive "an unleased slot is never reset (the #3 guard)"
 
+# ── The tag guard above is OPT-IN, and no caller opts in ────────────────────────────────────────
+# Measured on origin/main: rebase_pr.sh calls release in four places, pr_gate's cleanup trap calls
+# it, DEP_WORKER_BRIEF and HARNESS_LOOP tell agents to call it — none of them passes an expect-tag.
+# So cases 1-2 above pin a guard that, in production, could never fire: the pr_gate trap that wiped
+# worker 1's slot passed no tag and would pass none today. Cases 5-9 pin the same protection keyed
+# on FCT_AGENT_ID, which is stamped at claim time and needs nothing from the caller.
+
+setup_owned () { # <owner> [holder-age-min]
+  setup
+  echo "$1" > "$R/.fct-pool/leases/7/owner"
+  [ -n "${2:-}" ] && touch -t "$(date -v-"$2"M +%Y%m%d%H%M 2>/dev/null || date -d "$2 minutes ago" +%Y%m%d%H%M)" \
+      "$R/.fct-pool/leases/7/holder"
+  return 0
+}
+
+# 5. THE INCIDENT, WITH NO TAG PASSED: a peer's live slot must survive another agent's --force.
+setup_owned worker-01
+HOME="$R" FCT_AGENT_ID=reviewer-03 bash "$POOL_SH" release "$R/.fct-pool/wt/7" --force >/dev/null 2>&1
+check survive "another agent's --force release is refused with no tag passed"
+[ -d "$R/.fct-pool/leases/7" ] && echo "  OK    the peer keeps its lease as well" \
+  || { echo "  FAIL  the peer's lease was freed"; fails=$((fails+1)); }
+
+# 6. TEETH: the owning agent can still abandon its own slot.
+setup_owned worker-01
+HOME="$R" FCT_AGENT_ID=worker-01 bash "$POOL_SH" release "$R/.fct-pool/wt/7" --force >/dev/null 2>&1
+check gone "the owning agent's own --force release still resets the tree"
+
+# 7. NOT A ONE-WAY DOOR: a lease stale enough for claim_slot to reclaim is free for anyone to
+#    release. Otherwise a dead agent's slot could never be recovered by hand and the pool walks into
+#    the POOL_FULL deadlock of #12 — the failure this guard must not cause while preventing another.
+setup_owned worker-01 300
+HOME="$R" FCT_AGENT_ID=reviewer-03 bash "$POOL_SH" release "$R/.fct-pool/wt/7" --force >/dev/null 2>&1
+check gone "a stale (dead-holder) lease is releasable by anyone"
+
+# 8. FAIL OPEN when the releaser has no identity — a cleanup path that cannot name itself must still
+#    be able to free a slot, exactly as review_claim's self-review skip fails open.
+setup_owned worker-01
+HOME="$R" FCT_AGENT_ID= bash "$POOL_SH" release "$R/.fct-pool/wt/7" --force >/dev/null 2>&1
+check gone "with FCT_AGENT_ID unset the release still works"
+
+# 9. MUTATION. Cases 5-8 would pass just as happily against a release that never looks at the owner
+#    file (5 is the only one that goes the other way), so strip the guard and require 5 to go red.
+#    A guard nobody has watched fail is not evidence — the rule this suite exists to enforce.
+MUT="$R/wt_pool_mutated.sh"
+rm -f "$MUT"
+python3 - "$POOL_SH" "$MUT" 2>/dev/null <<'EOF'
+import re, sys
+src = open(sys.argv[1]).read()
+out = re.sub(r'  local owner; owner=.*?\n  fi\n', '', src, flags=re.S)
+assert out != src, "mutation matched nothing"
+open(sys.argv[2], "w").write(out)
+EOF
+if ! bash -n "$MUT" 2>/dev/null; then
+  echo "  FAIL  mutation produced an unparseable script — case 9 proves nothing"; fails=$((fails+1))
+else
+  setup_owned worker-01
+  HOME="$R" FCT_AGENT_ID=reviewer-03 bash "$MUT" release "$R/.fct-pool/wt/7" --force >/dev/null 2>&1
+  if [ -f "$R/.fct-pool/wt/7/raw-port/src/render/InProgress.ts" ]; then
+    echo "  FAIL  with the ownership guard REMOVED the peer's work still survived — cases 5-8 are"
+    echo "        passing for some other reason and pin nothing"; fails=$((fails+1))
+  else
+    echo "  OK    mutation: removing the guard destroys the peer's work (case 5 has teeth)"
+  fi
+fi
+
+# 10. Every lease write must go through stamp_holder, or a future claim path silently stops
+#     recording an owner and the guard goes dormant one slot at a time. Code only, comments stripped
+#     (a check that greps a file's own explanatory prose passes against the deleted line).
+POOL_CODE="$(grep -v '^[[:space:]]*#' "$POOL_SH")"
+if printf '%s' "$POOL_CODE" | grep -q '> "\$lk/holder"'; then
+  echo "  FAIL  a lease is stamped without stamp_holder — that slot will record no owner"; fails=$((fails+1))
+else
+  echo "  OK    all lease stamps go through stamp_holder ($(printf '%s' "$POOL_CODE" | grep -c 'stamp_holder "\$lk"') site(s))"
+fi
+
 echo
 if [ "$fails" = 0 ]; then echo "test_wt_pool_release_ownership: PASS"; else
   echo "test_wt_pool_release_ownership: FAIL ($fails)"; fi

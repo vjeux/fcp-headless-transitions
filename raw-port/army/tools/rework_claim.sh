@@ -36,6 +36,21 @@ STATE="${FCT_STATE_DIR:-$HOME/.fct-pool}"; LEAS="$STATE/rework_leases"; ATT="$ST
 mkdir -p "$LEAS" "$ATT"
 CAP="${REWORK_ATTEMPT_CAP:-3}"; LEASE_MIN="${REWORK_LEASE_MIN:-90}"
 
+stamp_owner () { # <leasedir> : record the CLAIMANT — or REMOVE a name that is no longer the holder.
+  # The `else rm -f` is the whole point, and the first cut of this patch did not have it. The
+  # STALE-RECLAIM branch below reuses a directory that already carries an owner file, so a reclaim
+  # by a caller with no FCT_AGENT_ID would leave the DEAD agent's id sitting on a lease it does not
+  # hold. This harness reuses slot ids by design (HARNESS_LOOP invariant 2: one fixed slot per
+  # process, and the only thing that creates an agent is the harness restarting a dead slot), so
+  # that agent comes back — and the release guard would then authorise the returning `worker-9` to
+  # free a lease held by someone else while refusing every other identified agent. A guard whose key
+  # names the wrong agent is worse than none, because the refusals it does emit read as proof that
+  # it works. So the file always names the CURRENT holder, or nothing at all.
+  # Identical rule to `wt_pool.sh::stamp_holder`; the three copies are pinned to agree by
+  # test_guards case I (behaviour) and swarm_doctor's `lease-ownership` check (all three paths).
+  if [ -n "${FCT_AGENT_ID:-}" ]; then echo "$FCT_AGENT_ID" > "$1/owner"; else rm -f "$1/owner"; fi
+}
+
 lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
   local lk="$LEAS/$1"
   # ── THE OTHER WORKER QUEUE'S LEASE COUNTS TOO ─────────────────────────────────────────────────
@@ -56,9 +71,9 @@ lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
     echo "rework_claim: PR #$1 is already leased by the REBASE queue — skipping (a rejected PR that also conflicts is in both queues; one worker is enough)" >&2
     return 1
   fi
-  mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; return 0; }
+  mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; stamp_owner "$lk"; return 0; }
   if [ -n "$(find "$lk/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
-    echo "$(date +%s)" > "$lk/held"; return 0; fi
+    echo "$(date +%s)" > "$lk/held"; stamp_owner "$lk"; return 0; fi
   return 1
 }
 
@@ -112,9 +127,13 @@ cmd_claim () {
   local cand
   # Oldest first: a rejection that has sat longest is the one whose reviewer evidence is most at risk
   # of being re-derived from scratch by somebody else.
+  # `.baseRefName=="main"`: reworking a PR that cannot reach main is not wasted so much as
+  # MISDIRECTED — the fix would land on a peer's branch. Such a PR needs an unstacking decision
+  # (retarget, or land the parent first), which is a human's call, not a worker's. See the same
+  # clause in review_claim.sh.
   cand=$(gh pr list --repo "$SLUG" --state open --limit 200 \
-      --json number,headRefName,headRefOid,reviewDecision,updatedAt \
-      --jq '[.[] | select(.reviewDecision=="CHANGES_REQUESTED")] | sort_by(.updatedAt) | .[]
+      --json number,headRefName,headRefOid,reviewDecision,updatedAt,baseRefName \
+      --jq '[.[] | select(.baseRefName=="main") | select(.reviewDecision=="CHANGES_REQUESTED")] | sort_by(.updatedAt) | .[]
             | "\(.number)\t\(.headRefName)\t\(.headRefOid)\trejection"' 2>/dev/null)
   # ── SECOND ARM: a PR the GATE itself reddened for something only its AUTHOR can fix ──────────
   # A human REQUEST_CHANGES is not the only way a PR ends up waiting on its author. `pr_gate.sh`'s
@@ -131,10 +150,13 @@ cmd_claim () {
   # lives here, in the queue that already owns author-side work, rather than in the rebase queue.
   # It needs no separate "has the author answered?" test: a status is keyed to the HEAD, so the
   # first push clears it and the PR drops out of this list by itself.
+  # `.baseRefName=="main"` for the SAME reason as arm 1 above (landed on main while this branch was
+  # open): a fix aimed at a PR that cannot reach main lands on a peer's branch. The clause has to be
+  # on BOTH arms or this one re-opens the hole arm 1 just closed.
   local sfrows n2 b2 s2 d2 row
   sfrows=$(gh pr list --repo "$SLUG" --state open --limit 200 \
-      --json number,headRefName,headRefOid,statusCheckRollup \
-      --jq '.[] | select([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE")
+      --json number,headRefName,headRefOid,baseRefName,statusCheckRollup \
+      --jq '.[] | select(.baseRefName=="main") | select([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE")
             | "\(.number)\t\(.headRefName)\t\(.headRefOid)"' 2>/dev/null)
   while IFS=$'\t' read -r n2 b2 s2; do
     [ -z "$n2" ] && continue
@@ -227,7 +249,24 @@ $row"; else cand="$row"; fi
 
 case "${1:-claim}" in
   claim)   cmd_claim ;;
-  release) rm -rf "$LEAS/${2:?usage: rework_claim.sh release <PR>}" 2>/dev/null; echo "RELEASED rework lease ${2}" ;;
+  release)
+  # OWNERSHIP: a release must only free YOUR OWN lease.
+  #
+  # `rm -rf` on a lease nobody checked ownership of means any agent can free any other's — and an
+  # end-of-run cleanup sweep did exactly that today, deleting a peer's lease taken 39 seconds
+  # earlier. It is the same hole `wt_pool.sh release` had and closed, arriving here through the
+  # queues. The peer then works a PR it no longer holds, and a second agent can claim it
+  # underneath — the duplicate-work race the leases exist to prevent.
+  #
+  # Fails OPEN on an unowned lease (one written before this landed, or by a caller with no
+  # FCT_AGENT_ID): a stuck lease is worse than an occasional double-free, and the stale reclaim
+  # still bounds it.
+    _pr="${2:?usage: rework_claim.sh release <PR>}"; _lk="$LEAS/$_pr"; _own=$(cat "$_lk/owner" 2>/dev/null || echo "")
+    if [ -n "$_own" ] && [ "$_own" != "unknown" ] && [ -n "${FCT_AGENT_ID:-}" ] && [ "$_own" != "$FCT_AGENT_ID" ]; then
+      echo "rework_claim: lease on PR #$_pr is held by $_own, not ${FCT_AGENT_ID}; NOT releasing another agents lease" >&2
+      exit 0
+    fi
+    rm -rf "$_lk" 2>/dev/null; echo "RELEASED rework lease $_pr" ;;
   status)
     echo "rework leases:"; ls -1 "$LEAS" 2>/dev/null | while read -r p; do
       echo "  PR#$p  held $(cat "$LEAS/$p/held" 2>/dev/null)"; done

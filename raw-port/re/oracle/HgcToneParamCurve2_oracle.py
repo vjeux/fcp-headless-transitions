@@ -1,3 +1,4 @@
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 #!/usr/bin/env python3
 """HgcToneParamCurve2::RenderTile_AVX @Helium 0x3764d0 — live differential.
 
@@ -91,7 +92,7 @@ def is_nan(bits):
 
 def run_ts(module_path, payload):
     proc = subprocess.run(["node", "--experimental-strip-types", DRIVER, module_path],
-                          input=json.dumps(payload), capture_output=True, text=True, cwd=HERE)
+                          input=json.dumps(payload), capture_output=True, text=True, cwd=HERE, timeout=DRIVER_TIMEOUT)
     if proc.returncode != 0:
         raise SystemExit("TS driver failed (%s):\n%s" % (module_path, proc.stderr[-2000:]))
     return json.loads(proc.stdout)

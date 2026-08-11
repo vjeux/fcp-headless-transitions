@@ -18,6 +18,21 @@ STATE="${FCT_STATE_DIR:-$HOME/.fct-pool}"; LEAS="$STATE/rebase_leases"; ATT="$ST
 mkdir -p "$LEAS" "$ATT"
 CAP="${REBASE_ATTEMPT_CAP:-3}"; LEASE_MIN="${REBASE_LEASE_MIN:-90}"
 
+stamp_owner () { # <leasedir> : record the CLAIMANT — or REMOVE a name that is no longer the holder.
+  # The `else rm -f` is the whole point, and the first cut of this patch did not have it. The
+  # STALE-RECLAIM branch below reuses a directory that already carries an owner file, so a reclaim
+  # by a caller with no FCT_AGENT_ID would leave the DEAD agent's id sitting on a lease it does not
+  # hold. This harness reuses slot ids by design (HARNESS_LOOP invariant 2: one fixed slot per
+  # process, and the only thing that creates an agent is the harness restarting a dead slot), so
+  # that agent comes back — and the release guard would then authorise the returning `worker-9` to
+  # free a lease held by someone else while refusing every other identified agent. A guard whose key
+  # names the wrong agent is worse than none, because the refusals it does emit read as proof that
+  # it works. So the file always names the CURRENT holder, or nothing at all.
+  # Identical rule to `wt_pool.sh::stamp_holder`; the three copies are pinned to agree by
+  # test_guards case I (behaviour) and swarm_doctor's `lease-ownership` check (all three paths).
+  if [ -n "${FCT_AGENT_ID:-}" ]; then echo "$FCT_AGENT_ID" > "$1/owner"; else rm -f "$1/owner"; fi
+}
+
 lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
   local lk="$LEAS/$1"
   # THE OTHER WORKER QUEUE'S LEASE COUNTS TOO — see the long note in rework_claim.sh. A PR that is
@@ -30,9 +45,9 @@ lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
     echo "rebase_claim: PR #$1 is already leased by the REWORK queue — skipping (a rejected PR that also conflicts is in both queues; one worker is enough)" >&2
     return 1
   fi
-  mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; return 0; }
+  mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; stamp_owner "$lk"; return 0; }
   if [ -n "$(find "$lk/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
-    echo "$(date +%s)" > "$lk/held"; return 0; fi
+    echo "$(date +%s)" > "$lk/held"; stamp_owner "$lk"; return 0; fi
   return 1
 }
 
@@ -112,9 +127,13 @@ cmd_claim () {
   # exactly the same reason this one is, and the two cannot disagree about what is DIRTY.
   gh pr list --repo "$SLUG" --state open --limit 100 --json number,mergeStateStatus >/dev/null 2>&1
   sleep 1
+  # `.baseRefName=="main"`: a rebase onto main is not the remedy for a PR that is not TARGETING main
+  # — see the same clause in review_claim.sh. #656 was handed out here while based on #651's branch;
+  # its DIRTY is a conflict with that peer branch, and "rebase it onto main" would either fail or
+  # publish four stacked PRs' content under one number.
   cand=$(gh pr list --repo "$SLUG" --state open --limit 100 \
-      --json number,headRefName,headRefOid,statusCheckRollup,mergeStateStatus \
-      --jq '.[] | select(([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE") or .mergeStateStatus=="DIRTY") | "\(.number)\t\(.headRefName)\t\(.headRefOid)\t\(.mergeStateStatus)"' 2>/dev/null)
+      --json number,headRefName,headRefOid,statusCheckRollup,mergeStateStatus,baseRefName \
+      --jq '.[] | select(.baseRefName=="main") | select(([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE") or .mergeStateStatus=="DIRTY") | "\(.number)\t\(.headRefName)\t\(.headRefOid)\t\(.mergeStateStatus)"' 2>/dev/null)
   [ -z "$cand" ] && { echo "NONE"; return 1; }
   while IFS=$'\t' read -r num br sha ms; do
     [ -z "$num" ] && continue
@@ -204,7 +223,24 @@ cmd_claim () {
 
 case "${1:-claim}" in
   claim)   cmd_claim;;
-  release) rm -rf "$LEAS/${2:?usage: release <PR>}" 2>/dev/null; echo "released lease $2";;
+  release)
+  # OWNERSHIP: a release must only free YOUR OWN lease.
+  #
+  # `rm -rf` on a lease nobody checked ownership of means any agent can free any other's — and an
+  # end-of-run cleanup sweep did exactly that today, deleting a peer's lease taken 39 seconds
+  # earlier. It is the same hole `wt_pool.sh release` had and closed, arriving here through the
+  # queues. The peer then works a PR it no longer holds, and a second agent can claim it
+  # underneath — the duplicate-work race the leases exist to prevent.
+  #
+  # Fails OPEN on an unowned lease (one written before this landed, or by a caller with no
+  # FCT_AGENT_ID): a stuck lease is worse than an occasional double-free, and the stale reclaim
+  # still bounds it.
+    _pr="${2:?usage: rebase_claim.sh release <PR>}"; _lk="$LEAS/$_pr"; _own=$(cat "$_lk/owner" 2>/dev/null || echo "")
+    if [ -n "$_own" ] && [ "$_own" != "unknown" ] && [ -n "${FCT_AGENT_ID:-}" ] && [ "$_own" != "$FCT_AGENT_ID" ]; then
+      echo "rebase_claim: lease on PR #$_pr is held by $_own, not ${FCT_AGENT_ID}; NOT releasing another agents lease" >&2
+      exit 0
+    fi
+    rm -rf "$_lk" 2>/dev/null; echo "released lease $_pr" ;;
   status)
     echo "rebase leases:"; ls -1 "$LEAS" 2>/dev/null | while read -r p; do echo "  PR#$p held $(cat "$LEAS/$p/held" 2>/dev/null)"; done
     echo "attempt counts:"; ls -1 "$ATT" 2>/dev/null | while read -r p; do echo "  PR#$p = $(cat "$ATT/$p" 2>/dev/null)/$CAP"; done

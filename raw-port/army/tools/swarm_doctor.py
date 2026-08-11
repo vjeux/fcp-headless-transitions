@@ -181,10 +181,21 @@ def check_queue_coverage():
     Change a filter and this check follows it, instead of silently disagreeing with it.
     """
     prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 "
-                       "--json number,reviewDecision,mergeStateStatus,statusCheckRollup")
+                       "--json number,reviewDecision,mergeStateStatus,statusCheckRollup,baseRefName")
     if prs is None:
         return record("queue-coverage", UNKNOWN, f"could not list PRs: {err}", "#33/#41")
-    open_nums = {pr["number"] for pr in prs}
+    # A PR whose base is NOT main is deliberately outside every queue (the three selectors filter on
+    # `.baseRefName=="main"`), because no worker or reviewer ACTION can make it reach main: merging
+    # it writes onto a peer's branch, and pr_gate/pr_land now refuse it outright (#46). It is not an
+    # orphan of the coverage kind this check is about — its remedy is an unstacking DECISION no
+    # queue can perform — so it is excluded here and owned by `check_pr_base` above, which names it
+    # with the right reason and the right remedy (`gh pr edit <n> --base main`). Counting it here
+    # too would report the same PR twice under a description that is true and useless, and would
+    # bury the real orphans this check exists to surface. The pairing is load-bearing in the other
+    # direction as well: skipping such a PR in the queues is only safe BECAUSE check_pr_base still
+    # names it every run — a queue that silently drops work is #33.
+    off_main = {pr["number"] for pr in prs if (pr.get("baseRefName") or "main") != "main"}
+    open_nums = {pr["number"] for pr in prs} - off_main
 
     def numbers_from(tool, var):
         """Run the tool's OWN selector; return (numbers, row-fields by number, error).
@@ -403,6 +414,169 @@ def check_guards_wired():
            f"all {len(guards)} guards are invoked by a caller [origin/main {MAIN_SHA}]", "#44")
 
 
+def check_orphan_drivers():
+    """#47: a mutant that never terminates burns a core until someone notices by hand.
+
+    Two `tsx` driver processes were found at ~98% CPU, one 2h31m old (66 CPU-minutes), both mutants
+    of the same unit. The mutation disabled a pointer advance, so the walk compared the same node
+    forever — correct behaviour for a mutant, and nothing scored it. 69 of 69 driver-spawning calls
+    in the repo passed no timeout, so the parent blocked forever, the agent finished its shift, and
+    the orphan outlived everything.
+
+    THIS CHECK IS THE HALF THAT COVERS AD-HOC HARNESSES, and that is the point: both processes came
+    from `/tmp/w5_mut_*/driver.ts`, written by an agent during a shift and never in the repo. No
+    amount of fixing checked-in oracles could have caught them. A process is evidence about itself.
+
+    Threshold: a driver older than DRIVER_MAX_MIN (default 10). The slowest healthy driver measured
+    here is ~1s; the AVX corpora run in seconds. Ten minutes is three orders of magnitude of margin,
+    and still catches a hang ~2h20m earlier than a human noticing the fans.
+    """
+    max_min = int(os.environ.get("FCT_DRIVER_MAX_MIN", "10"))
+    # `etime`, not `etimes`. BSD ps has no `etimes` (that is a Linux/procps extension) and rejects
+    # the whole command — so the first version of this check returned UNKNOWN on every run, on the
+    # only platform the swarm runs on. It read as "could not measure" rather than as "wrong flag",
+    # which is the polite kind of broken: no crash, no accusation, and no coverage.
+    r = sh("ps -Ao pid,etime,pcpu,args")
+    if r.returncode != 0 or not r.stdout.strip():
+        return record("orphan-drivers", UNKNOWN,
+                      f"could not read the process table: {(r.stderr or '').strip()[:80]}", "#47")
+
+    def _secs(et):
+        """[[DD-]HH:]MM:SS -> seconds. BSD ps drops leading zero fields, so all three shapes occur."""
+        days = 0
+        if "-" in et:
+            d, et = et.split("-", 1)
+            days = int(d)
+        bits = [int(x) for x in et.split(":")]
+        while len(bits) < 3:
+            bits.insert(0, 0)
+        return days * 86400 + bits[0] * 3600 + bits[1] * 60 + bits[2]
+
+    old = []
+    for line in r.stdout.splitlines()[1:]:
+        parts = line.split(None, 3)
+        if len(parts) < 4:
+            continue
+        pid, etime, pcpu, args = parts
+        try:
+            etimes = _secs(etime)
+        except ValueError:
+            continue
+        # A DRIVER, not any node: the harnesses run `node ... driver.ts` / `.mts`, and tsx drivers
+        # carry the preflight shim. Matching bare `node` would accuse the editor and the dev server.
+        if not re.search(r'driver\.m?ts|tsx/dist/preflight|reach_worker', args):
+            continue
+        if etimes > max_min * 60:
+            old.append(f"pid {pid} ({etimes//60}m, {pcpu}% cpu)")
+    if old:
+        return record("orphan-drivers", FAIL,
+                      f"{len(old)} oracle driver(s) running longer than {max_min}m — a mutant that "
+                      f"does not terminate is a kill, not a pending result, and it holds a core "
+                      f"until someone kills it by hand: {', '.join(old[:4])}. Kill them "
+                      f"(`kill -9 <pid>`) and give the harness a timeout (oracle_driver.run_driver)",
+                      "#47")
+    record("orphan-drivers", OK, f"no oracle driver has been running longer than {max_min}m")
+def check_lease_ownership():
+    """#45: a worker's cleanup sweep ran `rework_claim.sh release <PR>` on a lease ANOTHER agent had
+    taken 39 seconds earlier, because release was an unconditional `rm -rf`. The peer kept working a
+    PR it no longer held and the queue was free to hand the same PR to a third agent — the
+    duplicate-work race the leases exist to prevent, arriving through the cleanup path.
+
+    `wt_pool.sh release` closed this hole for worktree slots long before the queues copied the
+    pattern without it, which is the reason to check all three together: the fix is only worth
+    anything if it is present everywhere a lease can be freed, and the next queue added to the swarm
+    will be written by copying one of these files."""
+    releasers = {
+        "raw-port/army/tools/rework_claim.sh": "rework queue",
+        "raw-port/army/tools/rebase_claim.sh": "rebase queue",
+        "raw-port/army/tools/wt_pool.sh": "worktree pool",
+        # The review queue is the fourth path, and it was the one left out of the first cut of this
+        # check — with three entries the OK line reads "all 3 release paths check ownership", which
+        # a reader takes for "every lease path" and does not go and count. A check whose scope is
+        # narrower than its sentence is how #44 happened; it is also the file a future queue is
+        # most likely to be copied from, so leaving it unguarded preserves the pattern this removes.
+        "raw-port/army/tools/review_claim.sh": "review queue",
+    }
+    unguarded, unread, drifted = [], [], []
+    for rel, what in releasers.items():
+        src = from_main(rel)
+        if not src:
+            unread.append(what)
+            continue
+        # CODE ONLY. test_guards case B passed against a deleted line because the script's own
+        # explanatory comment repeated the words the check grepped for — and the comment block
+        # this very fix added is a long paragraph about ownership sitting directly above the code
+        # it describes. Stripping comments is the difference between checking the fix and checking
+        # the story about the fix.
+        code = "\n".join(l for l in src.split("\n") if not l.strip().startswith("#"))
+        if "FCT_AGENT_ID" not in code or "owner" not in code:
+            unguarded.append(what)
+            continue
+        # ...AND THE THREE STAMPS MUST AGREE, not merely all exist. Reviewer 2 caught the first cut
+        # of this fix shipping two of them as `[ -n "$FCT_AGENT_ID" ] && echo … > owner` with no
+        # else: on the STALE-RECLAIM path — which reuses a directory that already has an owner file
+        # — an ID-less reclaim then leaves the DEAD agent's id naming a lease it does not hold. Slot
+        # ids are reused by design here, so that agent returns and the guard authorises exactly the
+        # release it exists to refuse while refusing everyone else. Presence was never the property;
+        # "the file names the CURRENT holder or nothing" is, and its whole weight rests on a clear.
+        if not re.search(r"rm -f [^\n]*owner", code):
+            drifted.append(what)
+    if unread:
+        return record("lease-ownership", UNKNOWN,
+                      f"could not read {', '.join(unread)} from origin/main — cannot tell a guarded "
+                      "release from an unguarded one", "#45")
+    if unguarded:
+        return record("lease-ownership", FAIL,
+                      f"release path frees a lease without checking who owns it: "
+                      f"{', '.join(unguarded)} — any agent's cleanup can free any other's lease "
+                      f"[origin/main {MAIN_SHA}]", "#45")
+    if drifted:
+        return record("lease-ownership", FAIL,
+                      f"the claim path never CLEARS a stale owner in: {', '.join(drifted)} — an "
+                      "ID-less reclaim of a stale lease leaves the previous holder named on it, so "
+                      "the guard authorises that agent when its slot restarts and refuses the agent "
+                      f"actually holding it [origin/main {MAIN_SHA}]", "#45")
+    # Live state, second half: after the guard lands, a lease with no owner is one taken by a caller
+    # with no FCT_AGENT_ID. Those are releasable by anyone by design (fail-open), so they are not a
+    # fault — but they are the population the guard does not cover, and if it is ALL of them the
+    # guard is dormant, which is #44 again. Reported, never silently omitted.
+    # When did the stamping land? Anything leased before that instant predates the guard.
+    _r = sh("git log -1 --format=%ct origin/main -- raw-port/army/tools/wt_pool.sh")
+    since = int(_r.stdout.strip()) if _r.returncode == 0 and _r.stdout.strip().isdigit() else 0
+    total = owned = young = 0
+    for sub in ("rework_leases", "rebase_leases", "leases", "review_leases"):
+        d = os.path.join(STATE, sub)
+        if not os.path.isdir(d):
+            continue
+        for pr in os.listdir(d):
+            total += 1
+            owner = os.path.join(d, pr, "owner")
+            if os.path.isfile(owner) and open(owner).read().strip() not in ("", "unknown"):
+                owned += 1
+            # AGE MATTERS, AND THE CUTOFF IS THE FIX ITSELF. Every lease alive when the stamping
+            # landed was taken by the old claim path and can never grow an owner file; calling that
+            # a fault would put the board red for a whole lease cycle over a condition nobody can
+            # act on — the false-FAIL that made a GitHub blip read as "the verifier is broken" in
+            # test_guards case E. A wall-clock window would be a guess at when the fix landed; the
+            # commit date of the file that does the stamping IS when it landed, so a lease older
+            # than that is not evidence of anything and a lease younger than it is evidence.
+            for f in ("held", "holder"):
+                p = os.path.join(d, pr, f)
+                if os.path.exists(p):
+                    if since and os.path.getmtime(p) > since:
+                        young += 1
+                    break
+    if owned == 0 and young >= 3:
+        return record("lease-ownership", FAIL,
+                      f"every release path is guarded, but none of the {young} lease(s) taken since the "
+                      "stamping landed records an owner — the claim path has stopped stamping (or "
+                      "the slots are running without FCT_AGENT_ID), so the guard cannot fire on anything "
+                      f"now held [origin/main {MAIN_SHA}]", "#45/#44")
+    record("lease-ownership", OK,
+           f"all {len(releasers)} release paths check ownership; {owned}/{total} live lease(s) name an "
+           f"owner ({young} taken since the fix landed) [origin/main {MAIN_SHA}]", "#45")
+
+
 # ── 3. The canonical checkout must be current ───────────────────────────────────────────────────
 def check_tree_current():
     """Measured 107 commits behind for most of one session. Every agent reads OPS_LOG, AGENT_ENTRY
@@ -519,31 +693,52 @@ def check_no_double_lease():
 
 # ── 6. Slot locks must carry a heartbeat ────────────────────────────────────────────────────────
 def check_heartbeats():
-    """#32: the lock recorded only `<epoch> pid-agent`, written once at acquire, so the 90-minute
-    stale-reclaim measured TICK AGE rather than idleness — a healthy long-running reviewer looked
-    exactly like a corpse, and a holder that died at minute 5 held the slot for the full 90."""
+    """A slot held by an agent that is gone is worse than a slot nobody holds: the roster still
+    reads full, so nothing refills it and the swarm quietly shrinks.
+
+    #32 gave the lock a heartbeat so its mtime measures IDLENESS rather than tick age. What was
+    missing is anybody looking at that mtime before the reclaim window expires — this check said
+    `16 slot(s) beating` about a fleet containing a corpse whose agent had exited 44 minutes
+    earlier, because it only complained past 90 minutes, which is also when the lock reclaims
+    itself. A check that fires exactly when the problem is already fixing itself reports nothing.
+
+    THE RECORDED PID IS NOT LIVENESS, and this is the note that stops the next person from
+    "improving" this check into an outage. The lock's second field used to be `pid-$$` — the pid of
+    the `slot_lock.sh` shell, which exits milliseconds later. Measured on a full 16-slot swarm:
+    every single recorded pid was dead, including a slot that had beaten 2 seconds before. An agent
+    is a model session; no local process outlives one `bash -c`. Testing that pid would free every
+    slot at once. The mtime is the only signal.
+
+    Thresholds, from that same measurement: live slots had all beaten within 6 minutes (median
+    ~100s, max 343s); the dead one sat at 44 minutes. FAIL at 20 leaves a 3x margin over the worst
+    live slot and still names the corpse ~25 minutes before the lock would free itself.
+    """
     slots = os.path.join(STATE, "slots")
     if not os.path.isdir(slots):
         return record("heartbeats", OK, "no slots held")
-    stale, noheart = [], []
+    dead_min = int(os.environ.get("SLOT_DEAD_MIN", "20"))
+    reclaim_min = int(os.environ.get("SLOT_STALE_MIN", "45"))
+    ages, dead = {}, []
     for s in sorted(os.listdir(slots)):
         held = os.path.join(slots, s, "held")
         if not os.path.exists(held):
             continue
-        body = open(held, errors="replace").read().strip()
-        age_min = (time.time() - os.path.getmtime(held)) / 60
-        if "pid-agent" in body:
-            noheart.append(s)
-        if age_min > 90:
-            stale.append(f"{s} ({age_min:.0f}m since last beat)")
-    msg = []
-    if stale:
-        msg.append(f"stale beyond the reclaim window: {', '.join(stale)}")
-    if noheart:
-        msg.append(f"no real pid (pre-heartbeat tool): {', '.join(noheart)}")
-    if stale:
-        return record("heartbeats", FAIL, "; ".join(msg), "#32")
-    record("heartbeats", OK, "; ".join(msg) or f"{len(os.listdir(slots))} slot(s) beating")
+        age = (time.time() - os.path.getmtime(held)) / 60
+        ages[s] = age
+        if age > dead_min:
+            dead.append(f"{s} ({age:.0f}m)")
+    if not ages:
+        return record("heartbeats", OK, "no slots held")
+    oldest = max(ages, key=ages.get)
+    spread = f"{len(ages)} slot(s), oldest beat {ages[oldest]:.0f}m ({oldest})"
+    if dead:
+        return record("heartbeats", FAIL,
+                      f"{len(dead)} slot(s) have not beaten in over {dead_min}m and are almost "
+                      f"certainly held by an agent that has exited: {', '.join(dead)} — the roster "
+                      f"still reads full, so nothing refills them. Clear the lock "
+                      f"(`rm -rf $FCT_STATE_DIR/slots/<slot>`) and respawn that slot; the lock "
+                      f"would otherwise free itself only at {reclaim_min}m. [{spread}]", "#32")
+    record("heartbeats", OK, spread)
 
 
 # ── 7. The tests that guard all this must still be able to FAIL ─────────────────────────────────
@@ -914,37 +1109,66 @@ def check_ops_contention():
            f"convention landed")
 
 
+def prove_all_layer_labels(src):
+    """The sub-layer labels `prove_all.py` declares, for EITHER shape of that file.
+
+    Kept as a module-level function so a suite can drive it directly with source text, which is the
+    only way to exercise the duplicate branch without planting a duplicate on main.
+
+    THIS EXISTS BECAUSE THE CHECK WENT BLIND ON A LANDED REFACTOR, SILENTLY. The original pattern
+    was `print("LAYER 2<letter>` — correct for the thirteen hand-numbered blocks it was written
+    against, and matching NOTHING once prove_all became a `LAYER2 = [(label, desc, cmd, token), …]`
+    table (the fix three ops entries had asked for). The check then reported UNKNOWN on every run,
+    which is honest — `found no LAYER labels … it is not evidence of anything` — and permanent: an
+    UNKNOWN that no correct state can clear is a check that has stopped checking while still
+    occupying a line in the report. Measured on 2026-08-11 by reviewer 2, against a main whose
+    fifteen labels were all perfectly distinct.
+
+    So: read the CURRENT shape first, fall back to the legacy one, and return [] only when neither
+    is recognisable — that last case is the caller's UNKNOWN, and it stays UNKNOWN rather than
+    becoming OK, because "selects nothing" must never read as "all distinct".
+    """
+    # CURRENT SHAPE — the row table. Sliced to the LAYER2 literal so an unrelated `("2x", …)` tuple
+    # elsewhere in the file cannot be counted as a layer.
+    table = re.search(r'^LAYER2 = \[(.*?)^\]', src, re.S | re.M)
+    if table:
+        rows = re.findall(r'^\s*\(\s*"([^"]+)"\s*,\s*$', table.group(1), re.M)
+        if rows:
+            return rows
+    # LEGACY SHAPE — hand-numbered print() calls. Bare labels are excluded here on purpose: `LAYER 3`
+    # is legitimately printed twice in that shape (a heading and a verdict), so counting it would
+    # FAIL against a healthy tree. The table has no such duplicate-by-design, which is why its rows
+    # are read whole.
+    return re.findall(r'print\(\s*"LAYER (\d+[a-z])\b', src)
+
+
 def check_layer_letters():
-    """No two prove_all layers may claim the same letter.
+    """No two prove_all layers may claim the same label.
 
-    Every suite is wired into `prove_all.layer2()` by appending a hand-numbered `rN`/`okN` pair, a
-    hand-CHOSEN `LAYER 2<letter>` label, and one more `and okN` to the single `return` line. There
-    is no allocator for the letter and no way for two open PRs to see each other's choice, so two
-    authors pick the same one routinely: main's list went 2h -> 2i -> 2j in ninety minutes today,
-    and PR #650 needed THREE letters in one hour (2i taken by queue-coverage while it waited, then
-    2j taken by #670 in the eight minutes between its re-approval and its merge).
+    HISTORY, because it explains both the check and its repair. Every suite used to be wired into
+    `prove_all.layer2()` by appending a hand-numbered `rN`/`okN` pair, a hand-CHOSEN `LAYER
+    2<letter>` label, and one more `and okN` to a single `return` line. There was no allocator, so
+    two authors picked the same letter routinely — main's list went 2h -> 2i -> 2j in ninety
+    minutes, and PR #650 needed THREE letters in one hour. The collision surfaced only at rebase
+    time, and the tempting resolution was the dangerous one: "take mine" on that hunk REVERTED the
+    peer's landed layer, the file still parsed, and the suite still passed with a layer missing.
 
-    The collision is only ever discovered at rebase time — the three-dot diff is clean on both
-    sides — and the tempting resolution is the dangerous one: "take mine" on that hunk REVERTS the
-    peer's landed layer, the file still parses, the suite still passes with a layer missing, and G6
-    add-only cannot see it because it only inspects the .ts file handed to gate.sh.
+    Main has since made the layers a `LAYER2` table of rows, which removed the `rN`/`okN` pair and
+    the shared `return` line — so the merge conflict is gone and prove_all now refuses a duplicate
+    itself before running anything. Two labels can still collide in the table (two rows, two PRs,
+    one string), and this check is the version of that question the BOARD can answer without
+    running the suite, from `origin/main` rather than from a possibly-stale checkout.
 
-    So: report a duplicate label as a FAIL naming the letter. This does not remove the append point
-    (see the ops entry filed with this check for the two ways to do that); it makes the next
-    collision a line in this report instead of two reviewer rounds.
+    It reads whichever shape the file is in (see `prove_all_layer_labels`), because the first thing
+    the refactor did to this check was blind it: the old pattern matched nothing and the check
+    reported UNKNOWN, permanently, on a perfectly healthy main.
     """
     src = from_main("raw-port/army/verifier/prove_all.py")
     if not src:
         return record("layer-letters", UNKNOWN,
                       "could not read prove_all.py from origin/main — cannot say whether two "
                       "layers claim one letter")
-    # ONLY the lettered sub-layers (2b, 2c, ... 2z). The bare top-level labels are excluded on
-    # purpose: `LAYER 3` is legitimately printed TWICE on main — once as a heading before the
-    # per-fixture rows and once as its verdict — so counting it would make this check FAIL against
-    # a healthy main, which is the "a red that correct behaviour cannot clear" defect this file's
-    # own ops-contention check was rejected for. Measured: with a bare-label pattern, main reports
-    # `3 (x2)`. The lettered labels are the ones with no allocator and the real collisions.
-    labels = re.findall(r'print\(\s*"LAYER (\d+[a-z])\b', src)
+    labels = prove_all_layer_labels(src)
     if not labels:
         # The pattern found nothing, which is either a rewrite or a broken regex — and "selects
         # nothing" must never read as "all distinct" (test_guards case E's lesson, one file over).
@@ -961,20 +1185,120 @@ def check_layer_letters():
     record("layer-letters", OK, f"{len(labels)} layer label(s), all distinct")
 
 
-CHECKS = [check_pr_base, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
+def check_verifier_contention():
+    """Only ONE whole-repo verifier should be running on this box at a time.
+
+    `prove_all.py` verifies the ENTIRE repo, and AGENT_ENTRY §1 tells every reviewer to run it once
+    at start — so with N reviewer slots (and a harness that restarts dead ones, which clusters
+    restarts) N copies run at once by construction. Measured 2026-08-11 by worker 5: EIGHT
+    concurrent runs, all started within 5m22s of each other, **every one of them at 0.0% CPU**, box
+    at load average 168, none finishing. It is not merely the duplicated work of OPS_LOG #23's
+    concurrent `mark_ported` runs: the copies starve each other behind the MDM security stack, so
+    unrelated work stops too — a `gate.sh` on one file ran 51 minutes without returning, and an
+    8-second oracle ran 60.
+
+    AGENT_ENTRY §4 already carries the right rule ("before a global maintenance tool, check for a
+    peer already running it") and names `mark_ported.py`, `build_ledger.py` and `depgraph.py`. It
+    did not name `prove_all.py`, the one tool every agent is told to run at startup; this change
+    adds it there and makes the pile-up visible from the tool §7b already tells agents to run when
+    the swarm looks wrong. The cure — a single-flight lock keyed on the verified SHA that WAITS and
+    reuses the verdict rather than exiting — belongs in prove_all.py itself and is not in this
+    change; see raw-port/army/ops/2026-08-11-twenty-concurrent-prove-all-runs-peg-the-box-at-load-168-and.md.
+
+    Counted per RUN, not per matching process: one invocation typically shows up as a `/bin/sh -c`
+    wrapper, an optional `timeout`, and the python process itself, so a naive `pgrep | wc -l`
+    reports 20 for 8 runs. Only the interpreter processes are counted. A `ps` that cannot run
+    reports UNKNOWN — never OK.
+    """
+    r = sh("ps -Ao pid,etime,%cpu,command", timeout=30)
+    if r.returncode != 0:
+        return record("verifier-contention", UNKNOWN, "could not list processes")
+    record_runs = _prove_all_runs(r.stdout)
+    if len(record_runs) > 1:
+        stalled = sum(1 for _, _, cpu in record_runs if _cpu(cpu) < 1.0)
+        oldest = max((e for _, e, _ in record_runs), key=_etime_secs)
+        return record("verifier-contention", FAIL,
+                      f"{len(record_runs)} concurrent prove_all.py runs on this box "
+                      f"({stalled} of them at <1% CPU — they are starving each other, not working). "
+                      f"oldest {oldest}. One run verifies the tree for everyone: "
+                      f"`pgrep -f prove_all.py` in a command of its OWN before starting another, and "
+                      f"expect your own gate and oracle timings to be meaningless until this clears",
+                      "#verifier-contention")
+    record("verifier-contention", OK,
+           f"{len(record_runs)} whole-repo verifier run(s) live — no pile-up")
+
+
+def _cpu(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _etime_secs(etime):
+    """ps ELAPSED -> seconds. The format is [[dd-]hh:]mm:ss, so a plain string max would rank
+    '07:18' above '1-02:03:04' and report the wrong run as the oldest."""
+    days, _, rest = etime.rpartition("-")
+    try:
+        parts = [int(x) for x in rest.split(":")]
+    except ValueError:
+        return 0
+    while len(parts) < 3:
+        parts.insert(0, 0)
+    return int(days or 0) * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2]
+
+
+def _prove_all_runs(ps_out):
+    """(pid, etime, %cpu) for each prove_all.py INVOCATION in `ps -Ao pid,etime,%cpu,command`.
+
+    Split out of the check so it can be tested against captured `ps` text offline
+    (test_verifier_contention.py) — the counting is the part that was wrong in the first draft, and
+    a number nobody can reproduce is not evidence. Skips the `/bin/sh -c` and `timeout` wrappers
+    that surround a run, and this tool's own command line (a doctor that counts itself reports a
+    pile-up of one)."""
+    runs = []
+    for line in ps_out.splitlines()[1:]:
+        parts = line.split(None, 3)
+        if len(parts) < 4:
+            continue
+        pid, etime, cpu, cmd = parts
+        if "prove_all.py" not in cmd or "swarm_doctor" in cmd:
+            continue
+        head = cmd.split()[0]
+        if head.endswith("sh") or head.endswith("timeout") or head.endswith("bash"):
+            continue
+        runs.append((pid, etime, cpu))
+    return runs
+
+
+CHECKS = [check_pr_base, check_lease_ownership, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_no_double_lease, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
           check_brief_flags_exist, check_rebase_actionable, check_rebase_branch_naming,
-          check_ops_contention, check_layer_letters]
+          check_ops_contention, check_layer_letters,
+          check_orphan_drivers, check_verifier_contention]
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quiet", action="store_true", help="print only problems (for cron)")
     ap.add_argument("--json", action="store_true")
+    # Run one check by name. Added because the heartbeats check is pure filesystem and its test
+    # should not have to make a dozen network calls to exercise it — and because an agent chasing
+    # one FAIL should not pay for the other ten.
+    ap.add_argument("--only", default="", help="comma-separated check names, e.g. --only heartbeats")
     args = ap.parse_args()
 
-    for c in CHECKS:
+    checks = CHECKS
+    if args.only:
+        want = {w.strip() for w in args.only.split(",") if w.strip()}
+        checks = [c for c in CHECKS if c.__name__.replace("check_", "").replace("_", "-") in want
+                  or c.__name__ in want]
+        if not checks:
+            print(f"swarm_doctor: no check matches --only {args.only!r}; known: "
+                  + ", ".join(c.__name__.replace("check_", "").replace("_", "-") for c in CHECKS))
+            return 2
+    for c in checks:
         try:
             c()
         except Exception as e:
