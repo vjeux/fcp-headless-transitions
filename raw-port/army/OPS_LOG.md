@@ -3006,3 +3006,124 @@ disassembly, not the cache.
   can route around it in one command — before working a claim, compare the PR's head against the
   commit the newest CHANGES_REQUESTED sits on, and release if they differ — but the queue will keep
   handing out answered PRs to everyone else until the canonical tree advances.
+---
+
+## Open — reported 2026-08-11 by reviewer 2 (a landed fix cannot reach the agents; the canonical tree is deadlocked dirty; a reviewer's own PR is unreviewable; NEW)
+
+- **THE #596 FIX LANDED ON MAIN AND THEN DESTROYED MY REVIEW BODY ANYWAY, TWENTY MINUTES LATER,
+  BECAUSE AGENTS RUN THE TOOL FROM THE CANONICAL CHECKOUT AND THAT TREE CANNOT FAST-FORWARD.** This
+  is the composition of two open entries into an outage that neither predicts, and it is the most
+  expensive thing I hit today. Sequence, all measured:
+
+      11:19  #596 merges as f926ee91. I run its acceptance test against origin/main's copy:
+             all four bad argv shapes refuse (exit 2, no POST), both good paths post intact.
+             I write in the PR comment: "--expect-head is safe to pass on this host from now on".
+      11:22  I sign PR #595 with `pr_review.sh 595 approve --expect-head <sha> --body-file <path>`
+             — invoked as `raw-port/army/tools/ghapp/pr_review.sh`, i.e. THE CANONICAL TREE'S COPY.
+             Success line, exit 0, APPROVED. The posted body is 92 characters:
+             "--expect-head 02bd53c8… --body-file /tmp/rev2/t595/verdict.md".
+             4,098 bytes of differential — a live-binary null-path measurement and a `node
+             --experimental-strip-types` run of the port — gone.
+
+      $ grep -c expect-head raw-port/army/tools/ghapp/pr_review.sh          # canonical tree
+      0
+      $ git show origin/main:raw-port/army/tools/ghapp/pr_review.sh | grep -c expect-head
+      14
+      $ git rev-list --count HEAD..origin/main                              # canonical tree
+      49
+
+  **The shape worth naming: verifying a fix ON MAIN is what convinced me the flag was safe, and the
+  copy I then invoked was not the copy I verified.** Every agent invokes `raw-port/army/tools/*` from
+  the canonical tree, so "it landed" and "it is running" are different facts, and the gap is 49
+  commits wide right now.
+  RECOVERY (worked, and is the documented one): dismiss YOUR OWN review — only ever removes an
+  approval — then re-post with a current tool.
+  `gh_as.sh reviewer api -X PUT repos/<slug>/pulls/<PR>/reviews/<id>/dismissals -f message='…'`
+  then re-submit; the new tool's success line prints `body 4608 chars`, which is the confirmation the
+  old one could not give you.
+  WHAT TO DO UNTIL THE TREE ADVANCES — one command, and it is the same trick `pr_gate` already uses
+  for the gate tools:
+
+      git archive origin/main raw-port/army/tools raw-port/army/gate raw-port/army/verifier \
+        | tar -x -C /tmp/goodtool
+      bash /tmp/goodtool/raw-port/army/tools/ghapp/pr_review.sh …     # the copy you verified
+
+  (`pr_land.sh` happened to be byte-identical between the two, `md5 7e957270…` both sides — so this is
+  per-tool, not a blanket "everything is stale". Check the one you are about to trust.)
+  AND STILL READ THE BODY BACK. `gh pr view <PR> --json reviews --jq '.reviews[-1].body|length'`
+  against the length of your file is two seconds and is the only check that covers every way a body
+  has been lost, including ways nobody has invented yet.
+
+- **THE CANONICAL TREE CANNOT SELF-HEAL: its two maintenance paths are each blocked by the other's
+  precondition, and the thing holding one of them shut is a TRACKED, MACHINE-GENERATED CACHE.**
+  #598 is right that the fast-forward's `-z "$gatebusy"` never opens (I sampled the predicate 12
+  times over 120 s: **0/12 windows open**, and `pgrep -f` matches any process whose ARGV merely
+  contains `pr_gate.sh`, including the reviewer that is gating and a `grep` for it). But dropping
+  that condition is not sufficient, because the tree is also permanently DIRTY:
+
+      $ git status --porcelain | grep -vE 'ledger/|\.gate\.tsbuildinfo|depgraph/'
+       M raw-port/army/cache/stubscan_cites.v1.json      # tracked, 1.5 MB, written by stubscan.py:119
+
+      path                     condition               live value            fires?
+      reset --hard (cleans)    -n dirty && -z gatebusy  dirty=1, gatebusy=1   NO  (gatebusy)
+      fast-forward (post-#598) -z dirty                 dirty=1               NO  (dirty)
+
+  So the only thing that would clean the cache file is blocked by the guard #598 removes from the
+  OTHER branch, and the fast-forward is blocked by the file. FIX, one line and the same category as
+  the three exclusions already there: add `raw-port/army/cache/` to the `dirty` filter. Safe with
+  `--ff-only`: git refuses a fast-forward only when an incoming commit touches a locally modified
+  file, and `git log HEAD..origin/main -- <that file>` over all 49 pending commits is EMPTY.
+  Better still, a 1.5 MB regenerable cache should not be tracked.
+  (Also verified while reviewing #598, since it is the claim the whole change rests on: **no tool
+  checks out into the canonical tree.** `pr_gate`/`pr_submit`/`pr_land`/`rebase_pr` are all
+  `git -C "$WT"` against a pool worktree, `pr_gate` takes its trusted tools from
+  `git --git-dir="$CANON/.git" archive`, and a `grep 'git checkout|reset --hard|stash'` over
+  `army/tools/*` excluding `-C "$wt"` forms returns only two comments and `swarm_maint` itself. And
+  the classic fear behind the guard does not apply: git REPLACES the inode on checkout — measured
+  472017181 -> 472017224 — so a bash script already executing from that path runs to completion on
+  its old content.)
+
+- **THE REVIEWER APP CAN OPEN PRs THAT NO REVIEWER CAN APPROVE, SO A REVIEWER'S OPS_LOG ENTRY IS
+  UNLANDABLE BY THE SWARM.** PR #601 is authored by `vjeux-reviewer[bot]`, which is the identity every
+  reviewer slot signs with, so `pr_review.sh 601 approve` returns **exit 3** ("GitHub says this
+  identity authored PR #601, so it cannot review it") — correctly, it is a self-review. `pr_land`
+  then refuses for want of an approval on the head. The verdict is not wrong and the guards are not
+  wrong; there is simply no one left who can sign. I recorded my verification as a comment instead,
+  which is the pre-app fallback and does not unblock the merge. Note this entry is in the same
+  position. FIX: either reviewers file their findings through the worker identity (the way #594 and
+  #578 reach main), or a third identity exists for ops/doc PRs, or `pr_land` accepts a human's
+  approval as the escape hatch for this one class. Right now the swarm's most experienced observers
+  are the only agents whose reports cannot land.
+
+- **A NEGATIVE CONTROL CAN BE NEITHER DEAD NOR INFLATED BUT *IMPLIED* — a restatement of the
+  measurement standing beside it, which prints "correctly differs" no matter what happens.** Third
+  variant of the control rule in this log, after "kills 0 = blind" and worker 1's "inflated by a
+  shared base-model bug". On #582 the harness called the LIVE symbol and asked whether the binary had
+  written arg6 into `+0x18`; the main loop had already asserted `+0x18 == 0` over all 64 cases, so the
+  control could not fire while the run passed. Proof that it is decorative rather than diagnostic: I
+  mutated the port's CLAIM (the expectation dict) to the in-order mis-transcription, the run went
+  `1/64 agree … DIVERGED`, and the control still printed **"correctly differs"** on the same line it
+  always does.
+  TEST: ask "what would have to be true for this control to print the other thing?" If the answer is
+  "the measurement three lines up would have failed", it is not a control. A real one mutates the
+  PORT'S CLAIM and re-measures — four lines away in every case I met today, and it killed 63/64.
+
+- **Two cheap habits that each cost me something, both worth copying.**
+  * **Re-read the PR's STATE immediately before you sign, not just its SHA.** I hand-picked #570 from
+    a `gh pr list` that was seven minutes old and reviewed it in full — re-derived the constructor,
+    read 16 bytes of the constant out of the mapped image, confirmed all eight vtable slots against
+    the inventory — and it had MERGED four minutes before I claimed it. `review_claim.sh claim` would
+    never have offered it (it lists `--state open`); hand-picking is what did it. My later verdicts
+    all ran a one-line `PRE-SIGN` check (`gh pr view <PR> --json state,headRefOid`) against the head
+    I verified, which costs nothing.
+  * **A staleness guard must be expressed as DELETIONS IN THE THREE-DOT DELTA.** Filing this as a
+    standing rule because it has now appeared three times in one day (the #499/#523 correction,
+    reviewer 8's `--diff-filter=D` note, and a proposed gate I rejected today that would have
+    red-gated 10 of 15 open non-src PRs, including two that add 119 and 596 lines and delete nothing).
+    "My branch does not contain main's newer lines" is a TWO-dot fact about staleness and says nothing
+    about deletion: a line main gained after the fork point is on neither side of the merge base, so
+    the branch cannot delete it — I merged such a branch in a scratch repo and watched the line
+    survive. What a merge removes is exactly the `-` lines of `git diff --unified=0 origin/main...HEAD`.
+    The mirror error is just as common: a guard keyed on "main moved on this file since I forked" is
+    BLIND to the real incident, because a branch cut from a main that already contains the peer's fix
+    has that commit behind its merge base — which is the normal, fresh-branch case.
