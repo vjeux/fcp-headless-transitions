@@ -111,7 +111,10 @@ PY
 fi
 
 # ── 5. No checked-in harness may spawn a driver without a bound ─────────────────────────────────
-unbounded="$(python3 - "$ROOT" <<'PY'
+# The scan is a FUNCTION so case 8 can drive it over a synthetic root; the count is a function for
+# the same reason, and because getting it wrong is what case 8 exists to stop.
+scan_unbounded () { # <root> -> one offending path per line
+python3 - "$1" <<'PY'
 import glob, os, re, sys
 root = sys.argv[1]
 pat = re.compile(r'subprocess\.(run|check_output)\s*\(')
@@ -131,10 +134,18 @@ for f in sorted(files):
             bad.append(os.path.relpath(f, root))
 print("\n".join(sorted(set(bad))))
 PY
-)"
+}
+# COUNT LINES, NOT SEPARATORS. `printf '%s' "$x" | wc -l` emits no trailing newline, so it counts
+# N-1 — and for the overwhelmingly likely case of ONE offender it counts ZERO, i.e. the failure
+# message reads word for word like the success message ("0 harness(es) spawn a driver with no
+# timeout"). The exit status was always right; the sentence was not, and a guard whose failure
+# text reads as its own success is the exact class this PR exists to close. Pinned by case 8.
+count_lines () { [ -z "$1" ] && { echo 0; return; }; printf '%s\n' "$1" | grep -c ''; }
+
+unbounded="$(scan_unbounded "$ROOT")"
 if [ -n "$unbounded" ]; then
-  bad "$(printf '%s' "$unbounded" | wc -l | tr -d ' ') harness(es) spawn a driver with no timeout" \
-      "$(printf '%s' "$unbounded" | head -3 | tr '\n' ' ')"
+  bad "$(count_lines "$unbounded") harness(es) spawn a driver with no timeout" \
+      "$(printf '%s\n' "$unbounded" | head -3 | tr '\n' ' ')"
 else
   ok "every checked-in harness that spawns a driver passes a timeout"
 fi
@@ -183,6 +194,31 @@ if [ "${leaked:-0}" != "0" ]; then
   pkill -9 -f 'experimental-strip-types hang.ts' 2>/dev/null || true
 else
   ok "the suite leaves no hung driver behind"
+fi
+
+# ── 8. The reported COUNT must be the number of offenders ───────────────────────────────────────
+# Case 5's detection always worked; its MESSAGE said "0 harness(es)" for one offender, because
+# `printf '%s' | wc -l` counts separators. One offender is the case that will actually happen —
+# the tree lands clean and the next violation arrives one file at a time — so the number is
+# asserted for 1 and for 2 over a synthetic root, and the "none" reading is asserted too.
+mkdir -p "$R/fakeroot/re/oracle"
+cat > "$R/fakeroot/re/oracle/one_oracle.py" <<'PY'
+import subprocess
+subprocess.run(["node", "--experimental-strip-types", "x_driver.mts"], capture_output=True, text=True)
+PY
+n1="$(count_lines "$(scan_unbounded "$R/fakeroot")")"
+cat > "$R/fakeroot/re/oracle/two_oracle.py" <<'PY'
+import subprocess
+subprocess.check_output(["npx", "tsx", "y_driver.mts"])
+PY
+n2="$(count_lines "$(scan_unbounded "$R/fakeroot")")"
+rm -f "$R/fakeroot/re/oracle/"*.py
+n0="$(count_lines "$(scan_unbounded "$R/fakeroot")")"
+if [ "$n1" = 1 ] && [ "$n2" = 2 ] && [ "$n0" = 0 ]; then
+  ok "the count is the number of offenders (1 -> 1, 2 -> 2, none -> 0), not one fewer"
+else
+  bad "the offender count is wrong — a single offender must not report as 0" \
+      "one offender: $n1 (want 1) · two: $n2 (want 2) · none: $n0 (want 0)"
 fi
 
 echo
