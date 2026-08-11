@@ -1783,6 +1783,13 @@ change these tools.
   status. Materialise otool's output to a temp file first. This is the same discipline the gate
   rules already demand ("check the exit status directly, never through a pipe"), applying to the
   tools themselves.
+## Fixed 2026-08-11 — a rejected PR belonged to no queue at all
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 33 | **31 of 32 open PRs sat CHANGES_REQUESTED, the oldest 16 hours untouched, while every reviewer slot polled `NONE`.** The review backlog had not been drained so much as MOVED somewhere no queue could see | Three pull queues existed and none of them covered a rejection, each for a defensible reason: `review_claim.sh` deliberately SKIPS a CHANGES_REQUESTED head (it is the author's turn; re-reviewing is the #7/#224 duplicate-review race), `rebase_claim.sh` only matches a gate FAILURE described as regression/rebase (a rejected PR is usually gate-GREEN — the defect is semantic), and `depclaim.py next` only hands out fresh symbols. Every component behaved correctly and the work still stranded. A rejection is the most evidence-dense object the swarm produces — a reviewer has already run the differential and named the defect — so leaving it unrouted wastes the port AND the review | `rework_claim.sh` — a WORKER-side pull queue over CHANGES_REQUESTED PRs, oldest first (the longest-sitting rejection is the one most at risk of being re-derived from scratch). Worker priority is now **rework → rebase → fresh**, in order of decreasing evidence already spent. Its attempt counter is keyed to the head SHA from the start, so a new head is progress rather than a strike (#28, applied before it could bite), and past the cap it **stops offering** the PR instead of closing it — auto-closing an author's work is what discarded oracle-verified bodies today, and it is a human's decision |
+
+---
 
 ## Standing rules that came out of the above
 
