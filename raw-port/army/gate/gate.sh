@@ -67,6 +67,15 @@ echo "== G6 add-only (no landed symbol may be deleted) =="
 python3 "$ROOT/army/gate/addonly_gate.py" "$@"
 [ $? = 2 ] && { echo "  G6 REJECT"; FAIL=1; }
 
+echo "== G7 undefined-index (silent-wrong-answer class) =="
+# G7 flags NEW non-null-asserted computed table reads. This is the ONE class that passed every other
+# gate and was still wrong: #154 RGBtoRGBA returned 24 where live FCP returns 232, because an
+# out-of-range read gave `undefined`, `undefined - 1` gave NaN, and `NaN & 0xffffffff` collapsed to 0
+# — a plausible wrong number with no throw for G5 to find. Flags (not rejects): ~68 such sites are
+# already landed and most are probably bounded, but pr_gate holds the status red while a flag stands,
+# so a reviewer must prove the index is in range or match the machine's out-of-range behavior.
+python3 "$ROOT/army/gate/undef_index_gate.py" "$@"
+
 echo ""
 [ "$FAIL" = 0 ] && echo "GATE: PASS ✅" || echo "GATE: REJECT ❌ (fix the above; shortcuts do not land)"
 exit $FAIL
