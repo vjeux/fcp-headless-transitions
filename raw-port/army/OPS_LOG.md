@@ -41,6 +41,50 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by worker 1 (REBASE-TASK MODE can force-push a deletion of OTHER files)
+
+- **`rebase_pr.sh`'s prepared worktree is only as fresh as the moment it was prepared, and the
+  REBASE-TASK MODE checklist never says to re-check before committing — so a worker who follows it
+  literally can force-push a PR that DELETES four landed files nobody touched.** Hit while
+  reconciling PR #478. `rebase_pr.sh` prints "Pool worktree (started from CURRENT origin/main)",
+  which reads as a guarantee; on a swarm landing a PR every couple of minutes it is a snapshot with
+  a shelf life. Between the prepare and the (careful, hand-written) merge, main moved by two merges
+  and `git diff origin/main --stat` in that worktree showed:
+
+      raw-port/army/OPS_LOG.md                     |  63 ----------
+      raw-port/re/oracle/HGBufferDumper_D1_oracle.py     | 100 ---------------
+      raw-port/re/oracle/HGGPURenderer_...oracle.py      | 132 ---------------
+      raw-port/re/oracle/OZViewerState_...oracle.py      |  99 ---------------
+      raw-port/src/nodes/OZViewerState.ts                | 120 ---------------
+      raw-port/src/render/HGBufferDumper.ts              | 106 ---------------
+      raw-port/src/render/HGGPURenderer.ts               |  91 ---------------
+
+  — i.e. the force-push would have reverted three ports, their oracles and an OPS_LOG section. This
+  is the #4/#9 work-deletion shape arriving through the REBASE door, and note what does NOT catch
+  it: **G6 add-only only inspects the file you hand `gate.sh`**, so a spotless `GATE: PASS` on the
+  one class you reconciled says nothing about the other six files the push would delete.
+
+  WHY THE PORT PATH IS SAFE AND THIS ONE IS NOT — the sharper root cause, found by watching the
+  same thing nearly happen on the fix's own PR: `pr_submit.sh` **rebases onto origin/main before it
+  pushes**, so a port commit written against a stale base is replayed onto current main and the
+  intervening files survive. REBASE-TASK MODE does not go through `pr_submit.sh`; step 5 is a raw
+  `git push -f origin HEAD:<branch>`, which publishes the commit exactly as written, stale base and
+  all. Measured on this very change: `git diff origin/main --stat` showed two unrelated files
+  (AUSampleRateConverterWithTimeStamps.ts and its oracle, 287 lines) as deletions at commit time,
+  and they were still intact in the PR afterwards — because `pr_submit.sh` rebased. Under the
+  REBASE path they would have been deleted. So the real asymmetry is `pr_submit` vs `push -f`, and
+  the durable fix is for the rebase path to rebase before pushing too.
+
+  WORKAROUND (do this every time, it is two seconds): before `git add`, run
+  `git -C "$WT" diff origin/main --stat` and confirm the ONLY paths listed are the ones you edited.
+  If anything else appears, `git fetch origin main && git reset --hard origin/main` in the worktree,
+  re-apply your merge on top (your edits are still in the files you copied aside), re-gate, then
+  commit. TOOL FIX worth making: have `rebase_pr.sh` re-fetch and reset the worktree to origin/main
+  immediately before it hands control to the worker, and have the REBASE-TASK MODE checklist in
+  DEP_WORKER_BRIEF.md carry the `diff origin/main --stat` check as an explicit numbered step —
+  the same "verify ADD-only before committing" rule the PORT path already has, which the REBASE path
+  is missing.
+
 ## Open — reported 2026-08-11 by worker 1 (Ozone oracle — CONFIRMED, and a contradicted note)
 
 - **CONFIRMED, second independent run: Ozone loads outside the app bundle, with ZERO failed
@@ -925,6 +969,36 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   lock so rounds stop competing. Until then: on REBASE-RACE, post the evidence comment, leave the
   green status and the approval, release the lease and move on — do NOT keep re-running `pr_land`,
   which is what turns one race into twelve gate runs.
+
+## Open — reported 2026-08-11 by reviewer 2 (two more false-verdict traps; new)
+
+Both of these produce a WRONG VERDICT from correct code, in opposite directions, and both are
+cheap to defuse once named.
+
+- **`ctypes.create_string_buffer(b"\xAA" * N)` allocates N+1 bytes, so the "did the callee touch
+  my object?" check fires on 100% of calls.** The buffer gets a trailing NUL, so `bytes(obj)` is
+  N+1 long and can never equal the `b"\xAA" * N` literal you compare it against. Reviewing #422 I
+  measured "receiver bytes modified = 800/800" against a body — `xorl %eax,%eax ; ret` — that
+  provably contains no store at all. Ten seconds of doubt about a correct port, and the failure
+  points AT THE PORT, which is the expensive direction. Fix: snapshot the buffer
+  (`before = bytes(obj)`) and compare against that, or pass the explicit size
+  (`create_string_buffer(b"\xAA" * N, N)`). Same family as the `CFRange`/`Array.from` traps above:
+  **when a differential says the port is wrong, suspect the harness first — every real defect
+  found so far was found by a harness that had already been debugged.**
+
+- **A transient TLS failure to api.github.com is rendered by `pr_gate.sh` as `PR #<n> not
+  found`.** Under the corp TLS-inspecting proxy, `gh` intermittently dies with
+  `tls: failed to verify certificate: x509: certificate signed by unknown authority`; `pr_gate`
+  swallows that and prints "not found", which reads as a VERDICT — the PR was closed or the number
+  is wrong — rather than as a network failure. Hit twice in one hour on #448 (which was OPEN the
+  whole time; a bare `gh pr view` retry succeeded immediately) and on `pr_comment_once`, which just
+  prints `post failed`. A reviewer who believes "not found" skips or closes a live PR. This is the
+  same shape as the already-recorded #372 trap (`pr_land` printing "no APPROVED review" with an
+  empty SHA was a transient API failure, not a verdict). Fix: have the gh wrappers distinguish a
+  genuine 404 from a transport error and retry the transport error 2-3 times with a short backoff;
+  until then, **retry any gh-sourced "not found" / "post failed" before you act on it.**
+
+---
 
 ## Standing rules that came out of the above
 
