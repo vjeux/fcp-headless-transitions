@@ -78,6 +78,15 @@ function std_call_once_stub(
  * ledger symbols and are the responsibility of separate claims. Do NOT
  * add un-transcribed methods to this class.
  */
+/**
+ * The "no icon ID" sentinel this factory reports — the int32 -1 written by
+ * `movl $0xffffffff,%eax` @ProChannel 0xd5ec (see `getIconIDInternal` below).
+ * Declared here rather than imported from a sibling factory that carries the same value from ITS
+ * own instruction: the provenance of a constant is the address it was read from, and each file
+ * cites its own.
+ */
+export const OZ_CHANNEL_HELP_BUTTON_FACTORY_ICON_ID_NONE = -1 as const;
+
 export class OZChannelHelpButton_Factory {
   /**
    * `OZChannelHelpButton_Factory::_instance` — program-global singleton pointer.
@@ -141,6 +150,49 @@ export class OZChannelHelpButton_Factory {
     // @0x2309: load _instance.
     // @0x2318: epilog + retq.
     return OZChannelHelpButton_Factory._instance;
+  }
+
+  /**
+   * `OZChannelHelpButton_Factory::getIconIDInternal()` — @ProChannel 0xd5e8
+   *   `__ZN27OZChannelHelpButton_Factory17getIconIDInternalEv`
+   *
+   * FULL transcription — every instruction, in order (7 lines, the whole function):
+   *
+   *   0xd5e8  pushq %rbp                  ; frame prologue (no TS counterpart)
+   *   0xd5e9  movq  %rsp,%rbp             ; frame prologue (no TS counterpart)
+   *   0xd5ec  movl  $0xffffffff,%eax      ; %eax = -1 (int32)
+   *   0xd5f1  popq  %rbp                  ; frame epilogue (no TS counterpart)
+   *   0xd5f2  retq                        ; returns the int in %eax
+   *   0xd5f3  nop                         ; alignment padding, not executed
+   *
+   * One instruction with value semantics. `this` (%rdi) is never dereferenced, nothing is called,
+   * nothing is allocated: no in-scope callee, no extern, no allocation, no indirect or virtual
+   * dispatch (`depgraph.py deps` lists nothing for this symbol).
+   *
+   * -1 IS THE IMPLEMENTATION, NOT A GAP. The slot is pure-virtual in the abstract factory base, so
+   * every concrete factory must supply a body, and -1 is the "this factory contributes no icon ID"
+   * sentinel the channel factories emit — this body is byte-identical to the landed siblings
+   * `OZChannelLevels_Factory::getIconIDInternal` @ProChannel 0xce94 and
+   * `OZChannelPositionPercent_Factory::getIconIDInternal` @ProChannel 0x86be, both of which record
+   * the same census. A throw here would be wrong: the function is complete, and its complete
+   * answer is -1.
+   *
+   * SIGNEDNESS: the immediate is written into the 32-bit `%eax`, so the value is the int32 -1, not
+   * the unsigned 4294967295 a 64-bit read would give; callers compare against -1.
+   *
+   * ORACLE (executed against live FCP, not read): the symbol is `t` (local) and therefore not
+   * dlsym-able, so it was called BY ADDRESS in a Rosetta x86_64 process — `arch -x86_64
+   * /usr/bin/python3` — at `_dyld_get_image_vmaddr_slide(ProChannel) + 0xd5e8`, with the vmaddr
+   * from `nm -n -arch x86_64` (never a bare `nm`: it reports the arm64 slice even under Rosetta).
+   * ProChannel needs the recursive `@rpath` preload (a bare dlopen fails with "no LC_RPATH's
+   * found"); it loads after 3 images. Live ProChannel returned exactly -1 for four different `this`
+   * pointers including NULL — the value this port returns.
+   *
+   * @returns %eax — always -1 (@0xd5ec).
+   */
+  getIconIDInternal(): number {
+    // @0xd5ec  movl $0xffffffff,%eax ; @0xd5f2 retq
+    return OZ_CHANNEL_HELP_BUTTON_FACTORY_ICON_ID_NONE;
   }
 }
 
