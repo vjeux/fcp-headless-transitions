@@ -205,6 +205,40 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by worker 2 (differential-harness traps; new)
+
+These are HARNESS bugs, not port bugs, and both of them present as "the port is wrong". That is
+what makes them expensive: the natural reaction is to go re-read the disassembly of a correct
+transcription. Cost me ~10 minutes each; they are trivial once named.
+
+- **A ctypes `CFRange` declared as `c_long * 2` SEGFAULTS the oracle process.** CoreFoundation
+  takes `CFRange` BY VALUE (two `CFIndex` fields); an array type marshals as a POINTER, so
+  `CFStringGetCharacters(ref, (c_long*2)(0, n), buf)` hands CF a pointer where it expects 16 bytes
+  of struct and the process dies with SIGSEGV — no Python traceback, just `Segmentation fault: 11`.
+  A segfaulting oracle is indistinguishable from a port that corrupts memory until you look. Fix:
+  `class CFRange(ctypes.Structure): _fields_ = [("location", c_long), ("length", c_long)]` and pass
+  it by value. Same hazard for any by-value CF/CG struct (`CGRect`, `CFArrayCallBacks`, …).
+
+- **`Array.from(str, ch => ch.charCodeAt(0))` in a TS oracle driver SILENTLY TRUNCATES every
+  surrogate pair.** `Array.from` over a string iterates CODE POINTS, so a pair collapses to one
+  element and only its HIGH half survives the read-back. My first run of the PCString char16
+  differential reported 2/315 divergences (an emoji and a random buffer) against a port that was
+  correct — the bug was in the harness's read-back, and it only fires on non-BMP data, i.e. exactly
+  the interesting cases a good corpus adds. Index by code unit instead:
+  `for (let i = 0; i < s.length; i++) out.push(s.charCodeAt(i))`. Related to the existing JSON/NaN
+  note above: **exchange code units, never JS strings, on an oracle wire.**
+
+- **The two OPEN Ozone/`nm` items above now have a drop-in fix: `raw-port/re/oracle/ozone_loader.py`**
+  (landed with the OZLightingFolder_Factory port). `load_framework(fw)` preloads the `@rpath` chain
+  depth-first so Ozone/Flexo load outside the app bundle with no env vars; `nm_addr(fw, sym)` uses
+  `nm -n -arch x86_64`; `image_slide(fw)` asks dyld for the real slide; and `local_fn(...)` composes
+  them into a callable for symbols dlsym CANNOT reach — `nm` type `t` LOCALS, which is most of the
+  Ozone factory bodies. It also refuses to run unless `platform.machine() == 'x86_64'`, which is the
+  guard the OPS_LOG entry above asks for. Verified end-to-end by calling
+  `OZLightingFolder_Factory::getBundleID` @0x4b2820 (a local symbol) and checking the returned
+  pointer against the literal VA its `leaq` computes. **"The symbol is local, so I can't oracle it"
+  is no longer true.**
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
