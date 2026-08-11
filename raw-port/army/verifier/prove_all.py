@@ -149,6 +149,16 @@ LAYER2 = [
      "cross-queue lease — one PR is never handed to two workers",
      ["bash", os.path.join(TOOLS, "test_cross_queue_lease.sh")],
      "TEST_CROSS_QUEUE_LEASE: PASS"),
+    # 2p — nothing may force-push a PR head. pr_land squashes every PR, so main's linear history
+    # never came from rebasing the branch; the force-push bought three destructive incidents instead
+    # (files silently dropped, 92 reviewer-verified lines replaced by an empty branch, and a PR
+    # CLOSED by forcing onto a commit already on main). Every path now merges main in and
+    # fast-forwards, and git_push_as.sh refuses a force at a branch with an open PR.
+    # Offline: local bare repo, stubbed gh. ~1s.
+    ("2p",
+     "no force-push at a PR head — a PR head may only GAIN commits",
+     ["bash", os.path.join(TOOLS, "test_no_force_push.sh")],
+     "test_no_force_push: PASS"),
     # 2s — the self-heal that clears attempt counters whose PR has already merged. It only looked at
     # counters AT the cap, while swarm_doctor flags any dead counter at all, so the tool reporting
     # the fault and the tool fixing it disagreed by construction and the board could never go green.
