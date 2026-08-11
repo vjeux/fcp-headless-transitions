@@ -42,6 +42,13 @@
 //   * __ZN13OZViewerState13getResolutionEv
 //       — OZViewerState::getResolution() @Ozone 0x36e2e0
 //         (raw-port/re/disasm/__ZN13OZViewerState13getResolutionEv.s — 23 lines)
+//   * __ZN13OZViewerState13getResolutionEPdS0_
+//       — OZViewerState::getResolution(double*, double*) @Ozone 0x36e270
+//         (raw-port/re/disasm/__ZN13OZViewerState13getResolutionEPdS0_.s — 19 lines)
+//         The DOUBLE out-parameter OVERLOAD of the sret fp32 getResolution()
+//         above: same field, same branch shape, different constants and a
+//         different ABI. Exposed as `getResolutionInto` because JS has no
+//         overloading — see its doc comment.
 //   * __ZNK13OZViewerState10isSnappingEv
 //       — OZViewerState::isSnapping() const @Ozone 0x36e670
 //   * __ZN13OZViewerState23getFullscreenViewOffsetEv
@@ -791,5 +798,118 @@ export class OZViewerState {
     this.fullscreenViewOffsetX_at_0x104 = offset.x | 0;
     this.fullscreenViewOffsetY_at_0x108 = offset.y | 0;
     // @0x36e23e..0x36e23f — epilogue + retq (void).
+  }
+
+  /**
+   * `OZViewerState::getResolution(double* outX, double* outY)` — @Ozone 0x36e270
+   *   — __ZN13OZViewerState13getResolutionEPdS0_
+   *
+   * The DOUBLE OUT-PARAMETER OVERLOAD of `getResolution()` @0x36e2e0 above.
+   * Two distinct FCP symbols at two addresses with two different ABIs: the
+   * landed one returns a {float,float} pair by sret with `movss` and reads an
+   * fp32 table @0x70bc80; this one takes two `double*` and writes each with
+   * `movsd` from a DOUBLE table @0x709190. JS has no overloading, so this entry
+   * point is named `getResolutionInto` (it fills caller-provided outputs) —
+   * the same "one entry point per mangled symbol" treatment the landed
+   * PCString.ts gives its ctor overloads.
+   *
+   * Faithful line-for-line transcription of the 19-line disassembly:
+   *
+   *   0x36e270  pushq %rbp                    ; prologue
+   *   0x36e271  movq  %rsp, %rbp
+   *   0x36e274  movl  0x20(%rdi), %edi        ; edi = this->resolutionMode (u32 load)
+   *   0x36e277  xorl  %eax, %eax              ; eax = 0 (upper bits of the index)
+   *   0x36e279  cmpl  $0x1, %edi              ; flags = mode - 1
+   *   0x36e27c  sete  %cl                     ; cl = (mode == 1)
+   *   0x36e27f  cmpl  $0x2, %edi              ; flags = mode - 2
+   *   0x36e282  je    0x36e29c                ; mode == 2 -> the quarter-res tail
+   *   0x36e284  movb  %cl, %al                ; al = 0 or 1  (rax is 0-extended)
+   *   0x36e286  leaq  0x39af03(%rip), %rcx    ; rcx = &TABLE  (0x36e28d + 0x39af03
+   *                                           ;                = 0x709190)
+   *   0x36e28d  movsd (%rcx,%rax,8), %xmm0    ; xmm0 = TABLE[al]  (8-byte stride)
+   *   0x36e292  movsd %xmm0, (%rdx)           ; *outY = xmm0   (%rdx = 3rd arg)
+   *   0x36e296  movsd %xmm0, (%rsi)           ; *outX = xmm0   (%rsi = 2nd arg)
+   *   0x36e29a  popq  %rbp
+   *   0x36e29b  retq
+   *   ; QUARTER-RES TAIL (@0x36e29c):
+   *   0x36e29c  movsd 0x39a0fc(%rip), %xmm0   ; xmm0 = 0.25    (0x36e2a4 + 0x39a0fc
+   *                                           ;                 = 0x7083a0)
+   *   0x36e2a4  movsd %xmm0, (%rdx)
+   *   0x36e2a8  movsd %xmm0, (%rsi)
+   *   0x36e2ac  popq  %rbp
+   *   0x36e2ad  retq
+   *   0x36e2ae  nop                           ; padding, not executed
+   *
+   * CONSTANTS, resolved as (next-instruction address + displacement) and read
+   * out of Ozone's __TEXT,__const:
+   *   @0x709190  double 1.0   — TABLE[0], the mode != 1 && mode != 2 case
+   *   @0x709198  double 0.5   — TABLE[1], the mode == 1 (half-res) case
+   *   @0x7083a0  double 0.25  — the mode == 2 (quarter-res) scalar, loaded by its
+   *                            own rip-relative `movsd`, NOT as TABLE[2]
+   *
+   * Decode notes:
+   *   * BOTH out pointers receive the SAME scalar — this is a uniform scale
+   *     factor, not an (x, y) pair of different values. Note the store ORDER is
+   *     `(%rdx)` first then `(%rsi)`, i.e. the SECOND out-parameter is written
+   *     before the first; with two distinct pointers that is unobservable, and
+   *     when a caller passes the same pointer twice both writes are the same
+   *     value anyway.
+   *   * `xorl %eax,%eax` before `movb %cl,%al` is what makes the index exactly
+   *     0 or 1 — the table is 2 entries and is never indexed by the mode itself,
+   *     so a mode of 7 or -1 reads TABLE[0] (full res), never out of bounds.
+   *   * the `cmpl` pair is AT&T `dst - src` (PORTING_SPEC): `sete` after
+   *     `cmp $1` fires on mode == 1, `je` after `cmp $2` on mode == 2.
+   *
+   * Zero in-scope callees, zero externs — a branch and a table read.
+   *
+   * ORACLE: verified by CALLING the live function
+   * (raw-port/re/oracle/OZViewerState_getResolution_double_oracle.py). Ozone is
+   * loaded outside the app bundle by preloading its @rpath chain depth-first
+   * (raw-port/re/oracle/ozone_loader.py) and the harness refuses to run outside
+   * an x86_64 process. 17 modes (-4..8, INT_MAX, INT_MIN, 0xffffffff, 1):
+   * both out pointers received the expected value in 17/17, compared as RAW u64
+   * BIT PATTERNS; each store was exactly 8 bytes wide (24 guard bytes after each
+   * output were untouched); and the object itself was never modified. Measured
+   * mapping: 1 -> 0.5, 2 -> 0.25, everything else (including every negative
+   * mode) -> 1.0.
+   * NEGATIVE CONTROLS (same 17 cases): swapping modes 1 and 2 -> 3 wrong; a
+   * SIGNED table index letting a negative mode read TABLE[-1] -> 5 wrong;
+   * dropping the mode == 2 early exit so it falls into the table -> 1 wrong;
+   * always returning full resolution -> 3 wrong.
+   *
+   * @param outX — the first `double*` (SysV %rsi); receives the scale factor.
+   * @param outY — the second `double*` (SysV %rdx); receives the SAME value.
+   */
+  getResolutionInto(outX: Float64Array, outY: Float64Array): void {
+    // @0x36e274 — movl 0x20(%rdi), %edi : a 32-BIT load of the mode field. The
+    //   two compares below are on that 32-bit value, so `>>> 0` reproduces the
+    //   machine's view (and makes the negative-mode cases fall to TABLE[0],
+    //   exactly as measured).
+    const mode = this.resolutionMode >>> 0;
+
+    // @0x709190 — the 2-entry double table. Both entries are exactly
+    //   representable, but they are declared from their addresses, not guessed.
+    const TABLE: readonly number[] = [1.0, 0.5]; // @Ozone 0x709190, @Ozone 0x709198
+    const QUARTER_RES = 0.25; // @Ozone 0x7083a0
+
+    // @0x36e27f/@0x36e282 — cmpl $0x2, %edi ; je 0x36e29c : the quarter-res tail
+    //   is a separate constant load, not a third table entry.
+    if (mode === 2) {
+      // @0x36e2a4 — movsd %xmm0, (%rdx) ; @0x36e2a8 — movsd %xmm0, (%rsi).
+      outY[0] = QUARTER_RES;
+      outX[0] = QUARTER_RES;
+      return;
+    }
+
+    // @0x36e27c/@0x36e284 — sete %cl ; movb %cl, %al : the index is 1 iff the
+    //   mode is exactly 1, and 0 for EVERY other value.
+    const index = mode === 1 ? 1 : 0;
+    // @0x36e28d — movsd (%rcx,%rax,8), %xmm0 : the 8-byte-stride table read.
+    const scale = TABLE[index];
+    // @0x36e292 — movsd %xmm0, (%rdx) : the SECOND out-parameter is written first.
+    outY[0] = scale;
+    // @0x36e296 — movsd %xmm0, (%rsi).
+    outX[0] = scale;
+    // @0x36e29a/@0x36e29b — epilogue + retq (void).
   }
 }

@@ -424,13 +424,72 @@ export class HgcScreeningMatte extends HGNode {
   }
 
   /**
-   * HgcScreeningMatte::shaderDescription() const @0x146cb70 — returns a static
-   * describing-string; body deferred until HGString/std::string port lands.
+   * `HgcScreeningMatte::shaderDescription() const` — @Flexo 0x146cb70
+   *   `__ZNK17HgcScreeningMatte17shaderDescriptionEv`
+   *
+   * FULL transcription — every instruction, in order. The function returns `std::string` BY VALUE,
+   * so under the SysV ABI %rdi is the caller-provided sret buffer and `this` arrives in %rsi —
+   * and %rsi is never read:
+   *
+   *   0x146cb70  pushq  %rbp                        ; frame setup (no TS counterpart)
+   *   0x146cb71  movq   %rsp,%rbp
+   *   0x146cb74  pushq  %rbx
+   *   0x146cb75  pushq  %rax                        ; 16-byte stack alignment for the call
+   *   0x146cb76  movq   %rdi,%rbx                   ; rbx = sret (the returned std::string)
+   *   0x146cb79  movl   $0x20,%edi                  ; operator new size = 0x20 = 32 bytes
+   *   0x146cb7e  callq  0x1497452                   ; symbol stub for __Znwm (operator new)
+   *   0x146cb83  movq   %rax,0x10(%rbx)             ; string.__data_ (+0x10) = heap buffer
+   *   0x146cb87  movq   $0x21,(%rbx)                ; string.__cap_  (+0x00) = 0x21
+   *   0x146cb8e  movq   $0x18,0x8(%rbx)             ; string.__size_ (+0x08) = 0x18 = 24
+   *   0x146cb96  movabsq $0x5d316367685b2065,%rcx   ; 8 chars, little-endian = "e [hgc1]"
+   *   0x146cba0  movq   %rcx,0x10(%rax)             ; -> buffer[0x10..0x17]
+   *   0x146cba4  movups 0x2423bb(%rip),%xmm0        ; 16 bytes from 0x146cbab+0x2423bb = 0x16aef66
+   *   0x146cbab  movups %xmm0,(%rax)                ; -> buffer[0x00..0x0f]
+   *   0x146cbae  movb   $0x0,0x18(%rax)             ; NUL terminator at buffer[24]
+   *   0x146cbb2  movq   %rbx,%rax                   ; return the sret pointer
+   *   0x146cbb5  addq   $0x8,%rsp ; popq %rbx ; popq %rbp ; retq
+   *   0x146cbbc  nopl   (%rax)                      ; alignment padding, not executed
+   *
+   * WHAT IT BUILDS. libc++'s LONG (heap) string representation in the **x86_64** layout this port
+   * is transcribed from: `+0x00 __cap_` with `is_long` in bit 0, `+0x08 __size_`, `+0x10 __data_`.
+   * `__cap_ = 0x21` is capacity 0x20 = 32 with the is_long bit set, matching the `operator new(0x20)`
+   * above; `__size_ = 0x18` = 24 characters. (The short/SSO form used by the landed
+   * `HgcVibrancy::shaderDescription` @Flexo 0x146ec90 tops out at 22 characters, two short of this
+   * string — which is exactly why this sibling allocates. The arm64 slice lays std::string out
+   * differently, so the oracle below was run under Rosetta.)
+   *
+   * THE CHARACTERS, from two different instruction forms:
+   *   * the `movabsq` immediate `0x5d316367685b2065` is 8 bytes little-endian = `e [hgc1]`, stored
+   *     at buffer[0x10..0x17];
+   *   * the `movups` source resolves to Flexo's `__TEXT,__cstring` at 0x16aef66 (section vmaddr
+   *     0x15e9b40, file offset 22977344), which holds the 24-byte C string
+   *     "HgcScreeningMatte [hgc1]"; its first 16 bytes "HgcScreeningMatt" go to buffer[0x00..0x0f].
+   * Reassembled: "HgcScreeningMatt" + "e [hgc1]" = "HgcScreeningMatte [hgc1]", 24 chars, then the
+   * NUL at index 24. Note the two halves do NOT overlap here (16 + 8 exactly), unlike the sibling
+   * `HgcYUV420TriPlanar_alpha::shaderDescription` @Helium 0x2e03c0 whose 31 bytes are tiled 16 + 16
+   * with one byte written twice.
+   *
+   * MODELLING. A TS `string` is the faithful stand-in for the returned `std::string`: the heap
+   * allocation, the capacity word and the NUL terminator are representation details of libc++'s
+   * value, not observable content of it, and this project models `std::string` results as TS
+   * strings throughout (precedent: the landed `HgcVibrancy::shaderDescription`). This replaces the
+   * throwing stub that previously stood here — the body is fully decoded, so a throw would now be
+   * a false gap.
+   *
+   * ORACLE (executed against live FCP, not read). The symbol is `t` (local), so it is not
+   * dlsym-able; it was called BY ADDRESS in a Rosetta x86_64 process — `arch -x86_64
+   * /usr/bin/python3` — at `_dyld_get_image_vmaddr_slide(Flexo) + 0x146cb70`, with the vmaddr from
+   * `nm -n -arch x86_64` (never a bare `nm`, which reports the arm64 slice even under Rosetta), on
+   * a 0xAA-poisoned 24-byte sret buffer. Live Flexo wrote `__cap_ = 0x21`, `__size_ = 0x18`,
+   * returned the sret pointer in %rax, and the heap buffer held exactly "HgcScreeningMatte [hgc1]"
+   * with a NUL at index 24 — identical on repeated calls, and identical to what this port returns.
+   *
+   * @returns the shader description string.
    */
   shaderDescription(): string {
-    throw new Error(
-      "HgcScreeningMatte::shaderDescription @0x146cb70 not yet transcribed.",
-    );
+    // @0x146cb96..0x146cbae — "HgcScreeningMatt" (16 bytes from the __cstring literal at Flexo
+    // 0x16aef66) + "e [hgc1]" (the movabsq immediate) + NUL.
+    return "HgcScreeningMatte [hgc1]";
   }
 
   /**
