@@ -33,7 +33,10 @@ Usage: rebase_helper.py <Class>
 """
 import sys, os, re, subprocess, tempfile, shutil
 
-MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]+')
+MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]*[A-Za-z0-9_$]')   # may contain '.' (.cold/.eh/.1)
+                                                          # but may NOT END on one: a token
+                                                          # like `...D0Ev.` is a mangled name
+                                                          # followed by a full stop in prose.
 EXPORT  = re.compile(r'^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var|interface|type|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)', re.M)
 # libc++ / STL boundary externs (std::__1::…) are SHARED references, not port symbols. Two branches
 # that both use call_once BOTH cite __ZNSt3__1…__call_once[_proxy] — that is NOT an overlapping edit,
