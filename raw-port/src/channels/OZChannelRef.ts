@@ -438,4 +438,133 @@ export class OZChannelRef implements OZChannelRefHeader {
     }
     return true;
   }
+
+  /**
+   * `OZChannelRef::operator!=(OZChannelRef const&) const`
+   * @ProChannel 0x4c8e4 (__ZNK12OZChannelRefneERKS_).
+   *
+   * The INEQUALITY sibling of `equals` above — a separate ledger symbol with
+   * its own body, laid out immediately after operator== (which ends at
+   * @0x4c8e3). It is NOT a call to operator== with the result flipped: the
+   * compiler emitted the same SSO size/data selection again and flipped only
+   * the two exits (`movb $0x1,%al` before the size test @0x4c90c and `setne`
+   * instead of `sete` @0x4c93b).
+   *
+   * Faithful transcription of the 35-line body, verbatim:
+   *
+   *   0x4c8e4  movzbl (%rdi),%ecx        ; ecx = byte0(this)  (zero-extended)
+   *   0x4c8e7  testb  $0x1,%cl           ; is_long_a?
+   *   0x4c8ea  je     0x4c8f2
+   *   0x4c8ec  movq   0x8(%rdi),%rdx     ; long : rdx = size_a = *(u64*)(this+0x08)
+   *   0x4c8f0  jmp    0x4c8f6
+   *   0x4c8f2  movl   %ecx,%edx          ; short: rdx = byte0(this)
+   *   0x4c8f4  shrl   %edx               ;        rdx >>= 1  -> size_a
+   *   0x4c8f6  movzbl (%rsi),%r8d        ; r8d = byte0(rhs)
+   *   0x4c8fa  testb  $0x1,%r8b          ; is_long_b?
+   *   0x4c8fe  je     0x4c906
+   *   0x4c900  movq   0x8(%rsi),%r9      ; long : r9 = size_b
+   *   0x4c904  jmp    0x4c90c
+   *   0x4c906  movl   %r8d,%r9d          ; short: r9 = byte0(rhs)
+   *   0x4c909  shrl   %r9d               ;        r9 >>= 1  -> size_b
+   *   0x4c90c  movb   $0x1,%al           ; provisional result = TRUE
+   *   0x4c90e  cmpq   %r9,%rdx           ; AT&T: flags = size_a - size_b
+   *   0x4c911  jne    0x4c93f            ; sizes differ -> retq with al = 1
+   *   0x4c913  testb  $0x1,%cl           ; is_long_a (re-test the saved byte0)
+   *   0x4c916  je     0x4c91e
+   *   0x4c918  movq   0x10(%rdi),%rdi    ; long : data_a = *(void**)(this+0x10)
+   *   0x4c91c  jmp    0x4c921
+   *   0x4c91e  incq   %rdi               ; short: data_a = &this + 1 (inline)
+   *   0x4c921  testb  $0x1,%r8b          ; is_long_b
+   *   0x4c925  je     0x4c92d
+   *   0x4c927  movq   0x10(%rsi),%rsi    ; long : data_b = *(void**)(rhs+0x10)
+   *   0x4c92b  jmp    0x4c930
+   *   0x4c92d  incq   %rsi               ; short: data_b = &rhs + 1
+   *   0x4c930  pushq  %rbp               ; prologue DEFERRED to the call site,
+   *   0x4c931  movq   %rsp,%rbp          ;   exactly as operator== does @0x4c8d4
+   *   0x4c934  callq  0xacefa            ; eax = _memcmp(data_a, data_b, size)
+   *                                      ;   ## symbol stub for: _memcmp
+   *   0x4c939  testl  %eax,%eax
+   *   0x4c93b  setne  %al                ; return (memcmp != 0)
+   *   0x4c93e  popq   %rbp
+   *   0x4c93f  retq
+   *
+   * SEMANTICS, with the same SSO accessors `equals` documents:
+   *
+   *   operator!=(a, b) := size(a) != size(b) || memcmp(data(a), data(b), size) != 0
+   *
+   * Decode notes:
+   *   * `movb $0x1,%al` @0x4c90c is placed BEFORE the size compare, so the
+   *     size-mismatch exit @0x4c911 falls straight through to `retq` @0x4c93f
+   *     with al still 1 — different sizes mean "not equal" is TRUE. That
+   *     shared `retq` is why the mismatch path needs no `xorl` of its own
+   *     (contrast operator==, which zeroes al @0x4c8c0 for its mismatch exit).
+   *   * @0x4c90e `cmpq %r9,%rdx` is (size_a - size_b) in AT&T order, and the
+   *     branch is the ZF-only `jne`, so operand order cannot change the result
+   *     here — but the port writes the subtraction the way the machine does.
+   *   * a size of ZERO reaches `_memcmp(data_a, data_b, 0)`, which libc defines
+   *     as 0 for any pointers (it reads nothing), so `setne` yields FALSE: two
+   *     empty refs are equal. The machine performs the call; the port takes the
+   *     same answer without looping.
+   *   * byte0 is loaded ONCE per side (@0x4c8e4/@0x4c8f6) and re-tested for the
+   *     data selection (@0x4c913/@0x4c921) — one bit, two uses, no reload.
+   *
+   * EXTERN: `_memcmp` (libc) @ProChannel imported stub 0xacefa — a TRUE
+   * out-of-scope extern, modelled inline as the byte-wise comparison, the same
+   * boundary treatment `equals` above uses.
+   *
+   * DEPENDENCIES: none in-scope (`depgraph.py deps` lists nothing).
+   */
+  notEquals(rhs: OZChannelRef): boolean {
+    // @0x4c8e4..@0x4c8ea — byte0(this), bit 0 = is_long_a.
+    const isLongA = this.ownsCopy;
+    // @0x4c8ec..@0x4c8f4 — size_a: long reads +0x08, short is byte0 >> 1.
+    const sizeA: bigint = isLongA ? this.longSize : BigInt(this.shortSize);
+
+    // @0x4c8f6..@0x4c909 — the same for rhs.
+    const isLongB = rhs.ownsCopy;
+    const sizeB: bigint = isLongB ? rhs.longSize : BigInt(rhs.shortSize);
+
+    // @0x4c90c..@0x4c911  movb $0x1,%al ; cmpq %r9,%rdx ; jne 0x4c93f
+    // -> sizes differ: return TRUE with the provisional al = 1.
+    if (sizeA !== sizeB) {
+      return true;
+    }
+
+    // @0x4c913..@0x4c91e — data_a: long reads +0x10, short is &this + 1.
+    const dataA: Uint8Array | null = isLongA
+      ? (this.owned as Uint8Array | null)
+      : this.shortData;
+    // @0x4c921..@0x4c92d — the same for rhs.
+    const dataB: Uint8Array | null = isLongB
+      ? (rhs.owned as Uint8Array | null)
+      : rhs.shortData;
+
+    // @0x4c934..@0x4c93b — _memcmp(dataA, dataB, size) then `setne`.
+    // Size zero never dereferences (libc `memcmp(x, y, 0)` is 0), so two empty
+    // refs are NOT unequal — the same early answer `equals` takes, negated.
+    const n: number = Number(sizeA); // sizeA === sizeB, checked above
+    if (n === 0) {
+      return false;
+    }
+
+    // Mirror of the defensive branch in `equals`: the disasm does NOT null-check
+    // either pointer — a null would fault inside _memcmp — so this is
+    // defensive-only, not a decoded code path. `equals` answers "not equal"
+    // there; the negation of that answer is "unequal = true".
+    if (dataA === null || dataB === null) {
+      return true;
+    }
+
+    // Byte-wise model of `_memcmp(dataA, dataB, n) != 0`. The two bytes are read
+    // into locals first — `dataA[i] !== dataB[i]` inline reads to G7's scanner
+    // as a non-null-asserted table read (`]` followed by `!`), which it is not.
+    for (let i = 0; i < n; i++) {
+      const a = dataA[i];
+      const b = dataB[i];
+      if (a !== b) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
