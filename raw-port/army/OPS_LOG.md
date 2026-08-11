@@ -1183,6 +1183,53 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   filed with #528: both are cases where the lease machinery routes a PR to the one agent that
   should not have it.
 
+  **CORRECTION to my own proposed fix, and I would rather retract it here than have someone
+  implement it: excluding by AUTHOR would STARVE the queue, because `vjeux` is not one agent.**
+  Worker slots that fall back to the operator's auth all publish as author `vjeux`, so that login
+  spans many different agents — #550 (`feat/rework-queue`), #518 (`fix/srcsource-warn`) and #514
+  (`fix/swarm-tooling`) are all author `vjeux` and none of them were mine. An author filter would
+  have hidden three other agents' PRs from every reviewer, which is worse than the problem it
+  solves. This is OPS_LOG #7's shared-identity problem showing up somewhere new: **authorship is not
+  an agent identity in this swarm and cannot be used as one.** The workable fix is the other option
+  named above — the authoring agent writes a marker (`$STATE/authored/<PR>`) that `cmd_claim` skips
+  — because that is keyed to the agent rather than to a login half the swarm shares. I hit the
+  over-broad version live while filing this: I skipped #550 as "mine" on the author check and only
+  then noticed it was a peer's approved work, which is exactly the starvation the filter would
+  institutionalise.
+
+- **`pr_gate.sh` OVERWRITES A PEER'S REGRESSION FAILURE WITH `success` ON AN INFRA PR — #270 guarded
+  only the opening `pending`, never the final verdict.** I did this to PR #550 and am reporting it
+  against myself. On head `a92dfcb8`, six seconds apart: reviewer-1 posted
+  `failure — regression (rebase needed): DIRTY on OPS_LOG.md` at 16:11:17, and my `pr_gate.sh 550`
+  took the infra short-circuit and posted `success — no raw-port/src ports to gate (infra/tooling
+  PR)` at 16:11:23. GitHub keeps only the latest status per context, so the PR then presented as
+  APPROVED + green while actually being `CONFLICTING`. The #270 guard DID fire — the run printed
+  "keeping existing 'failure' verdict … (not overwriting with pending)" — and then the run finished
+  and posted its own `success` over that same verdict anyway. The infra path is the dangerous one
+  because it posts `success` having inspected NOTHING: "no raw-port/src ports to gate" is not a
+  statement about whether the branch can merge. Only GitHub's own CONFLICTING state stopped a bad
+  merge. I restored the failure status by hand. FIX: the guard that protects a settled verdict from
+  a `pending` should protect it from a verdict the run did not earn — an infra short-circuit must
+  leave an existing `failure` alone, or post neutral rather than `success`. Same shape as #17,
+  through the door #270 left open.
+
+- **`wt_pool.sh release` DOES NOT CLEAR AN INTERRUPTED REBASE, so a released slot can hand the next
+  lessee a tree that is mid-rebase.** Caused and observed by me minutes ago: a `git rebase` in my
+  leased slot stopped on an OPS_LOG conflict, I released the slot, and `reset_clean` — which does
+  `checkout --detach`, `reset --hard` and `clean -fd -- raw-port/src raw-port/re` — left
+  `.git/worktrees/1/rebase-merge/` in place. The slot then showed `free` in `wt_pool status` while
+  `git status -sb` said `## HEAD (no branch)` and `rebase-merge/head-name` still named MY branch.
+  My very next `acquire-at` handed me that same slot, `reset_clean` again did not clear it, and the
+  commit I made there went onto the stale rebase state instead of onto main — I noticed only
+  because `git diff --name-only origin/main...HEAD` came back EMPTY for a commit that plainly
+  changed a file. That empty diff is the tell. This is the flip side of the existing
+  "already a rebase-merge directory" note in this file: that entry tells you to check
+  `rebase-merge/head-name` when a rebase mysteriously fails, and this is where the stale directory
+  comes from. FIX: `reset_clean` should run `git rebase --abort || git rebase --quit` (and clear
+  `CHERRY_PICK_HEAD`/`MERGE_HEAD`) before the reset — a lease boundary is exactly where an
+  in-progress operation must not survive. WORKAROUND: before trusting a freshly acquired slot, check
+  `git -C "$WT" status -sb`; if it says `HEAD (no branch)` unexpectedly, `git rebase --abort` first.
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
