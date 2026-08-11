@@ -126,45 +126,44 @@ def _scan_one_file(path, text):
 
     Lists rather than sets so the value round-trips through JSON unchanged.
     """
-    if True:
-        lines = text.splitlines()
-        r, s = set(), set()
-        n = len(lines)
-        # Precompute stub-window: a line is "stub context" if it is part of a `throw new ...`
-        # statement whose message carries a stub phrase — even across line breaks (a multi-line
-        # throw where "not yet transcribed" is on a continuation line). We scan each `throw new`
-        # and, if a stub phrase appears within the next STUB_WINDOW lines before the statement's
-        # terminating `);`, mark that whole span as stub context. Fixes the cc_rgb::hsl @0x9667e
-        # miss (throw opened on one line, stub phrase + addr on the next).
-        STUB_WINDOW = 6
-        stub_ctx = [False] * n
-        for i, ln in enumerate(lines):
-            if not THROW.search(ln):
+    lines = text.splitlines()
+    r, s = set(), set()
+    n = len(lines)
+    # Precompute stub-window: a line is "stub context" if it is part of a `throw new ...`
+    # statement whose message carries a stub phrase — even across line breaks (a multi-line
+    # throw where "not yet transcribed" is on a continuation line). We scan each `throw new`
+    # and, if a stub phrase appears within the next STUB_WINDOW lines before the statement's
+    # terminating `);`, mark that whole span as stub context. Fixes the cc_rgb::hsl @0x9667e
+    # miss (throw opened on one line, stub phrase + addr on the next).
+    STUB_WINDOW = 6
+    stub_ctx = [False] * n
+    for i, ln in enumerate(lines):
+        if not THROW.search(ln):
+            continue
+        span = "\n".join(lines[i:i + STUB_WINDOW])
+        # cut the span at the statement terminator to avoid bleeding into the next statement
+        term = span.find(");")
+        if term != -1:
+            span = span[:term + 2]
+        if STUB_PHRASE.search(span):
+            # mark the lines actually covered by this throw statement
+            covered = span.count("\n") + 1
+            for j in range(i, min(i + covered, n)):
+                stub_ctx[j] = True
+    for i, ln in enumerate(lines):
+        pairs = FW_PAIR.findall(ln)
+        if pairs:
+            keys = {f"{fw}|{norm(a)}" for fw, a in pairs}
+        else:
+            found = ADDR.findall(ln)
+            if not found:
                 continue
-            span = "\n".join(lines[i:i + STUB_WINDOW])
-            # cut the span at the statement terminator to avoid bleeding into the next statement
-            term = span.find(");")
-            if term != -1:
-                span = span[:term + 2]
-            if STUB_PHRASE.search(span):
-                # mark the lines actually covered by this throw statement
-                covered = span.count("\n") + 1
-                for j in range(i, min(i + covered, n)):
-                    stub_ctx[j] = True
-        for i, ln in enumerate(lines):
-            pairs = FW_PAIR.findall(ln)
-            if pairs:
-                keys = {f"{fw}|{norm(a)}" for fw, a in pairs}
-            else:
-                found = ADDR.findall(ln)
-                if not found:
-                    continue
-                keys = {f"*|{norm(a)}" for a in found}   # no framework on the line -> wildcard
-            if stub_ctx[i]:
-                s |= keys
-            else:
-                r |= keys
-        return sorted(r), sorted(s)
+            keys = {f"*|{norm(a)}" for a in found}   # no framework on the line -> wildcard
+        if stub_ctx[i]:
+            s |= keys
+        else:
+            r |= keys
+    return sorted(r), sorted(s)
 
 
 def _combine(real_in, stub_in):
