@@ -236,6 +236,21 @@ LAYER2 = [
      "a queue may only offer PRs that can reach main",
      ["bash", os.path.join(TOOLS, "test_queue_base_main.sh")],
      "test_queue_base_main: PASS"),
+    # 2q — the two refusals that stand between a rebase tool and a PR's content. Wired in the same
+    # change that adds them (row 44: a guard nothing runs is indistinguishable from no guard). It
+    # exists because on 2026-08-11 rebase_pr.sh force-pushed a branch it had accidentally cut from
+    # main over PR #690, emptying it behind a `REBASE_CLEAN … gate PASS` line. Offline: scratch
+    # repos with a real bare origin, no gh, ~2s. Its suite carries an M0 control, so a mutant that
+    # dies of a broken harness cannot read as a catch.
+    #
+    # LETTER: 2n -> 2q -> a ROW. main replaced the hand-numbered tail with this table while the PR
+    # was open, which retires the r<N>/ok<N> half of the collision entirely — the half that could
+    # turn a RED layer into a PASS by sharing a variable. 2q is kept because it is the label the
+    # review cites; check_layer_labels() refuses a duplicate before any layer runs.
+    ("2q",
+     "publish guard — a push cannot empty a PR or drop its files",
+     ["bash", os.path.join(TOOLS, "test_publish_guard.sh")],
+     "TEST_PUBLISH_GUARD: PASS"),
 ]
 
 def check_layer_labels():
