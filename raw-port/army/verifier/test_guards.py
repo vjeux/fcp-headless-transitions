@@ -11,6 +11,7 @@ scratch copy and the case must go red, because a guard you have never watched fa
   D  regression_check must not read a cited .s FILENAME as a symbol       (false regression, no rebase clears it)
   E  review_claim's queue query must still SELECT something                (a filter that matches nothing)
   F  review_claim's self-review skip must actually SKIP                    (a guard that cannot fire)
+  G  pr_gate must not post success over a reviewer's PARKED failure        (a verdict erased by a peer)
 
 C and F run entirely offline against copies in a tempdir with a stubbed `gh_as.sh`. That is not
 squeamishness: C used to drive the REAL `pr_review.sh` at the first open PR it could find, so its
@@ -32,6 +33,30 @@ def sh(cmd, cwd=None):
     return subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True)
 
 
+def gh_did_not_answer(r):
+    """Did the PROCESS fail, rather than the query returning nothing?
+
+    This used to be `"tls:" in r.stderr.lower()`, i.e. a guess at the text of one failure mode. A
+    server-side GraphQL 502 does not contain "tls:", so it fell through to the accusing branch and
+    printed `test_guards: FAIL — review_claim's query returned NO ROWS` about a filter that was
+    handing out PRs a minute earlier and a minute later. Measured: 1 failure in 4 consecutive runs,
+    nothing changed in between. Since this suite is LAYER 2f of prove_all and every reviewer runs
+    prove_all before signing anything, an intermittent GitHub error read as "the verifier is broken"
+    at the start of every shift.
+
+    So attribute it from the process, which cannot be wrong about itself: a non-zero exit, or
+    anything at all on stderr, means gh did not answer and the case DID NOT RUN. Only a clean exit
+    with empty stdout is the filter's fault.
+    """
+    return r.returncode != 0 or bool(r.stderr.strip())
+
+
+# --offline: every case except E runs without the network by design (C and F use a stubbed
+# gh_as.sh in a tempdir). A reviewer running prove_all at the start of a shift should be able to
+# get a verdict that does not depend on GitHub being up at that second.
+OFFLINE = "--offline" in sys.argv or os.environ.get("FCT_TEST_GUARDS_OFFLINE") == "1"
+
+
 # ── A + B: reset_clean, exercised for real on a scratch git tree ────────────────────────────────
 with tempfile.TemporaryDirectory() as td:
     repo = os.path.join(td, "r")
@@ -43,13 +68,25 @@ with tempfile.TemporaryDirectory() as td:
     os.makedirs(os.path.join(gitdir, "rebase-merge"), exist_ok=True)     # interrupted rebase
     open(os.path.join(repo, "raw-port/re/disasm/Stale.s"), "w").write("; leftover from a peer\n")
 
-    # the two behaviours reset_clean must have, extracted as the shell it runs
-    sh("for seq in rebase merge cherry-pick revert; do git rebase --abort >/dev/null 2>&1 || true; done; "
-       "rm -rf .git/rebase-merge; rm -f raw-port/re/disasm/*.s", cwd=repo)
-    if os.path.isdir(os.path.join(gitdir, "rebase-merge")):
-        fails.append("A. an interrupted rebase survived the reset")
-    if os.path.exists(os.path.join(repo, "raw-port/re/disasm/Stale.s")):
-        fails.append("B. leftover disasm scratch survived the reset")
+    # RUN THE TOOL'S OWN reset_clean, not a hand-written copy of what it is believed to run.
+    # The previous version of this block executed an inline shell string, so it asserted that
+    # `rm -rf` removes a directory — it could not fail unless coreutils did, and because the inline
+    # copy did something the tool does not (`rm -rf .git/rebase-merge`, which was NOT in
+    # reset_clean), it specifically could not see the gap it looked like it was covering. The
+    # function is extracted verbatim from wt_pool.sh and executed here, so a change to the tool
+    # changes what this case runs.
+    wt_sh = os.path.join(TOOLS, "wt_pool.sh")
+    fn = re.search(r'^reset_clean \(\) \{.*?^\}', open(wt_sh).read(), re.S | re.M)
+    if not fn:
+        fails.append("A+B. could not extract reset_clean() from wt_pool.sh")
+    else:
+        sh(f"cd {repo} && git branch -f origin/main main 2>/dev/null; true")
+        r = sh(fn.group(0) + f'\nreset_clean "{repo}"')
+        if os.path.isdir(os.path.join(gitdir, "rebase-merge")):
+            fails.append("A. an interrupted rebase survived the tool's own reset_clean "
+                         f"(stderr: {r.stderr.strip()[:120]})")
+        if os.path.exists(os.path.join(repo, "raw-port/re/disasm/Stale.s")):
+            fails.append("B. leftover disasm scratch survived the tool's own reset_clean")
 
 # The scratch shell above proves the COMMANDS work; these check the real script actually runs them.
 # Both look inside reset_clean only, and both ignore comments — an earlier version of case B matched
@@ -127,10 +164,14 @@ for text, want in cases.items():
 # against a non-empty queue while prove_all stayed green. Only an end-to-end assertion catches that,
 # which is exactly why reviewer 1 asked for this case rather than a unit test of the jq program.
 rc_sh = os.path.join(TOOLS, "review_claim.sh")
-open_prs = sh("gh pr list --repo vjeux/fcp-headless-transitions --state open --limit 100 "
-              "--json number --jq 'length'").stdout.strip()
-if not open_prs.isdigit():
-    skipped.append("E — cannot reach GitHub")
+_pr_count = sh("gh pr list --repo vjeux/fcp-headless-transitions --state open --limit 100 "
+               "--json number --jq 'length'") if not OFFLINE else None
+open_prs = _pr_count.stdout.strip() if _pr_count is not None else ""
+if OFFLINE:
+    skipped.append("E — --offline: the only case that needs the network")
+elif not open_prs.isdigit():
+    skipped.append(f"E — gh did not answer (exit {_pr_count.returncode}): "
+                   f"{_pr_count.stderr.strip()[:120]}")
 elif int(open_prs) == 0:
     skipped.append("E — no open PRs to select from")
 else:
@@ -144,17 +185,54 @@ else:
         probe = m.group(0).replace('"$SLUG"', 'vjeux/fcp-headless-transitions')
         probe = probe.replace('2>/dev/null)', ')')   # do NOT hide the error this case hunts for
         r = sh(probe + '\nprintf "%s" "$rows"')
-        if r.stdout.strip() == "" and "tls:" in r.stderr.lower():
-            # The corp proxy fails intermittently and OPS_LOG already records gh transport errors
-            # being read as verdicts. Retry once, then SAY the case did not run — an empty result
-            # this case cannot attribute is not evidence either way.
+        if r.stdout.strip() == "" and gh_did_not_answer(r):
+            # The corp proxy AND GitHub itself fail intermittently, and OPS_LOG already records a
+            # transport error being read as a verdict. Retry once, then SAY the case did not run —
+            # an empty result this case cannot attribute is not evidence either way.
             r = sh(probe + '\nprintf "%s" "$rows"')
-        if r.stdout.strip() == "" and "tls:" in r.stderr.lower():
-            skipped.append("E — gh transport error (TLS), not an empty filter")
+        if r.stdout.strip() == "" and gh_did_not_answer(r):
+            skipped.append(f"E — gh did not answer (exit {r.returncode}): {r.stderr.strip()[:120]}")
         elif r.stdout.strip() == "":
             fails.append("E. review_claim's query returned NO ROWS while "
                          f"{open_prs} PRs are open — the filter matches nothing "
                          f"(stderr: {r.stderr.strip()[:160]})")
+
+# ── G: pr_gate must not post success over a reviewer's PARKED failure ───────────────────────────
+# The citation becomes a test, which is what reviewer 2 asked for. The incident (#550) could not be
+# caught by the CHANGES_REQUESTED guard because that PR never had one: it was a DIRTY non-src PR
+# whose content was already APPROVED, so the reviewer's only available rejection was a hand-posted
+# rebase-flavoured `failure` status — and another agent's gate posted `success` over it twice, six
+# seconds and four minutes later. Overwriting it also hides the PR from `rebase_claim`, which finds
+# work by grepping the status DESCRIPTION.
+#
+# Runs OFFLINE against a stubbed gh_as.sh, and drives the tool's own functions, extracted verbatim.
+with tempfile.TemporaryDirectory() as td:
+    src_pg = open(os.path.join(TOOLS, "pr_gate.sh")).read()
+    m = re.search(r'^PARK_MARKERS=.*?^\}', src_pg, re.S | re.M)
+    if not m:
+        fails.append("G. could not extract parked_failure_on_this_head() from pr_gate.sh")
+    else:
+        stub = os.path.join(td, "gh_as.sh")
+
+        def guard_says(state, desc):
+            open(stub, "w").write('#!/bin/bash\nprintf "%s\\t%s" ' + f'"{state}" "{desc}"\n')
+            os.chmod(stub, 0o755)
+            script = (m.group(0) + f'\nGHAPP_G={td}; REPO_SLUG=x/y; HEAD_SHA=deadbeef\n'
+                      'if parked="$(parked_failure_on_this_head)"; then echo REFUSE; else echo POST; fi')
+            return sh(script).stdout.strip()
+
+        # the incident itself, and the other park phrasing the log uses
+        if guard_says("failure", "regression (rebase needed): DIRTY on OPS_LOG.md; content APPROVED by reviewer 4") != "REFUSE":
+            fails.append("G. success would be posted over the #550 reviewer park")
+        if guard_says("failure", "BLOCKED ON A TOOL BUG: G4 harness broken") != "REFUSE":
+            fails.append("G. success would be posted over a tool-bug park")
+        # ...and the three states that must NOT be blocked, or the guard wedges every PR it touches
+        if guard_says("failure", "G5 cheat: 3 cheat(s)") != "POST":
+            fails.append("G. an ordinary mechanical failure is treated as a reviewer park")
+        if guard_says("success", "gate PASS (G0-G5 clean, 0 flags)") != "POST":
+            fails.append("G. an existing green status is treated as a park")
+        if guard_says("", "") != "POST":
+            fails.append("G. a head with no status at all is treated as a park")
 
 # ── F: review_claim's self-review skip must actually SKIP ───────────────────────────────────────
 # Reviewer 2 measured this guard as DORMANT at the previous head: nothing sets FCT_AGENT_ID, so its

@@ -195,6 +195,22 @@ reset_clean () { # bring a worktree back to a pristine origin/main
   for seq in rebase merge cherry-pick revert; do
     git -C "$wt" "$seq" --abort >/dev/null 2>&1 || true
   done
+  # ...AND REMOVE WHAT --abort CANNOT. `--abort` fails on a PARTIAL sequence dir — the state left by
+  # a rebase that was itself killed mid-write, which is exactly the accident being defended against:
+  #     $ mkdir -p .git/rebase-merge && git rebase --abort
+  #     warning: could not read '.git/rebase-merge/head-name': No such file or directory
+  #     rebase-merge still present? YES
+  # `wt_sequence_in_progress` then still says "mid-rebase", `cmd_acquire` refuses the slot with the
+  # same exit code as POOL_FULL, nothing removes the directory and nothing says how — so the slot is
+  # wedged for good and the next caller fails identically. Pool slots are the scarcest thing the
+  # swarm has (#12 stopped gating by leaking them), and #240's standing rule is to prefer a
+  # self-healing fallback over a refusal. Scoped to the four state paths git itself uses.
+  local gitdir; gitdir="$(git -C "$wt" rev-parse --git-dir 2>/dev/null)" || gitdir=""
+  if [ -n "$gitdir" ]; then
+    case "$gitdir" in /*) ;; *) gitdir="$wt/$gitdir" ;; esac
+    rm -rf "$gitdir/rebase-merge" "$gitdir/rebase-apply" 2>/dev/null || true
+    rm -f  "$gitdir/MERGE_HEAD" "$gitdir/CHERRY_PICK_HEAD" "$gitdir/REVERT_HEAD" 2>/dev/null || true
+  fi
   git -C "$wt" checkout -q --detach 2>/dev/null || true
   git -C "$wt" reset -q --hard origin/main 2>/dev/null || true
   git -C "$wt" clean -fdq -- raw-port/src raw-port/re 2>/dev/null || true

@@ -60,13 +60,46 @@ print(','.join(x for x in who if x))
 raise SystemExit(0 if who else 1)
 " 2>/dev/null
 }
+# A REVIEWER'S PARKED FAILURE IS ALSO A JUDGEMENT, and for one whole class of PR it is the ONLY
+# form of rejection available. The incident this guard was written for — #550, where a reviewer's
+# regression `failure` was overwritten by another agent's `success` six seconds later, twice —
+# could NOT be caught by the CHANGES_REQUESTED check above, because #550 never had a
+# CHANGES_REQUESTED: it was a DIRTY non-src PR whose content the reviewer had already APPROVED, so
+# there was nothing to reject semantically and the documented move for that class is to hand-post a
+# rebase-flavoured failure status. Measured on that PR: 1 review, APPROVED, and two erasures.
+# The second-order harm is worse than a lost verdict — `rebase_claim` finds work by grepping the
+# status DESCRIPTION for regression|rebase, so posting success over the park also strands the PR.
+# So: before overwriting, read the CURRENT status on this head and refuse if it is a failure whose
+# description carries a park marker. Mechanical failures (this script's own G0-G5 reasons) are not
+# in that set, so a genuine re-gate of a fixed tree still goes green.
+PARK_MARKERS='regression|rebase needed|BLOCKED ON A TOOL BUG|JUDGED:|content APPROVED'
+parked_failure_on_this_head () {
+  local cur desc
+  cur=$(bash "$GHAPP_G/gh_as.sh" reviewer api "repos/$REPO_SLUG/commits/$HEAD_SHA/status" \
+          --jq '[.statuses[]?|select(.context=="faithfulness-gate")]|last|"\(.state)\t\(.description)"' 2>/dev/null)
+  [ "${cur%%	*}" = "failure" ] || return 1
+  desc="${cur#*	}"
+  printf '%s' "$desc" | grep -qiE "$PARK_MARKERS" || return 1
+  printf '%s' "$desc"
+}
+
+# Returns 0 when a success status was actually posted, 1 when it was WITHHELD. The distinction
+# matters to the caller: printing `PR_GATE: PASS ✅` after withholding tells a reader that a green
+# status exists when none does.
 post_success_unless_rejected () {
-  local rejectors
+  local rejectors parked
   if rejectors="$(reviewer_rejected_this_head)"; then
     echo "  status: REFUSING to post success on ${HEAD_SHA:0:8} — un-dismissed CHANGES_REQUESTED stands (${rejectors})"
     echo "  a green mechanical gate is not an answer to a semantic rejection; the author must fix it,"
     echo "  or the reviewer must dismiss their own review deliberately."
-    return 0
+    return 1
+  fi
+  if parked="$(parked_failure_on_this_head)"; then
+    echo "  status: REFUSING to post success on ${HEAD_SHA:0:8} — a reviewer PARKED this head:"
+    echo "    \"$parked\""
+    echo "  that park is the only rejection a green-but-conflicted non-src PR can carry, and"
+    echo "  overwriting it also hides the PR from rebase_claim, which greps the description."
+    return 1
   fi
   post_status success "$1"
 }
@@ -127,7 +160,14 @@ cp -R "$T/raw-port/army/gate" raw-port/army/ 2>/dev/null; cp -R "$T/raw-port/arm
 
 git fetch -q origin main 2>&1 | tail -1
 CHANGED=$(git diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
-if [ -z "$CHANGED" ]; then post_success_unless_rejected "no raw-port/src ports to gate (infra/tooling PR)"; echo "PR_GATE: PASS (no src changes) (#$PR)"; exit 0; fi
+if [ -z "$CHANGED" ]; then
+  if post_success_unless_rejected "no raw-port/src ports to gate (infra/tooling PR)"; then
+    echo "PR_GATE: PASS (no src changes) (#$PR)"
+  else
+    echo "PR_GATE: PASS-WITHHELD (no src changes) (#$PR) — the mechanical gate is clean but NO green status was posted (see above)"
+  fi
+  exit 0
+fi
 echo "changed: $CHANGED"
 
 # ABSOLUTIZE before handing paths to gate.sh. `git diff --name-only` emits repo-RELATIVE paths, and
@@ -181,5 +221,14 @@ if [ "$FLAGS" -gt 0 ] && [ "$REVIEWED" != 1 ]; then
   echo "PR_GATE: NEEDS-REVIEW ⚠️ (#$PR) — $FLAGS G5 flag(s); mechanical gate clean but blind-spots need semantic review"
   exit 2
 fi
-if [ "$FLAGS" -gt 0 ]; then post_success_unless_rejected "reviewer-signed (had $FLAGS flag(s), re-derived OK)"; else post_success_unless_rejected "gate PASS (G0-G5 clean, 0 flags)"; fi
-echo "PR_GATE: PASS ✅ (#$PR)"
+WITHHELD=0
+if [ "$FLAGS" -gt 0 ]; then
+  post_success_unless_rejected "reviewer-signed (had $FLAGS flag(s), re-derived OK)" || WITHHELD=1
+else
+  post_success_unless_rejected "gate PASS (G0-G5 clean, 0 flags)" || WITHHELD=1
+fi
+if [ "$WITHHELD" = "1" ]; then
+  echo "PR_GATE: PASS-WITHHELD ⚠️ (#$PR) — the mechanical gate is clean but NO green status was posted (see above)"
+else
+  echo "PR_GATE: PASS ✅ (#$PR)"
+fi
