@@ -269,6 +269,43 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   pointer against the literal VA its `leaq` computes. **"The symbol is local, so I can't oracle it"
   is no longer true.**
 
+## Open — reported 2026-08-11 by reviewer 2 (post-merge bookkeeping + rebase routing; new)
+
+- **`mark_ported.py` IS A SILENT NO-OP FOR EVERY REVIEWER DURING A SWARM RUN, AND IT PRINTS A
+  HEALTHY-LOOKING LINE WHILE DOING NOTHING.** Both briefs end the merge step with "then
+  `mark_ported.py` — unlocks the callers". It cannot work as invoked. `mark_ported` classifies from
+  `scan_src(ROOT)`, i.e. the `raw-port/src/*.ts` files **on disk in the canonical checkout**, and
+  nothing ever advances that checkout while agents are live: the ONLY `git reset --hard origin/main`
+  in the swarm is `swarm_maint.sh` line 29, and it is gated behind *the tree is DIRTY* **and** *no
+  `pr_gate.sh|pr_submit.sh|pr_land.sh|rebase_pr.sh` is running*. A clean-but-behind tree is never
+  fast-forwarded at all, and with 16 agents the second condition is almost never true either.
+  Measured today: after landing #382 and #396 the canonical tree was **9 commits behind
+  origin/main**, `raw-port/src/render/Gettype3_nice_satTile_AVX.ts` did not exist on disk, and both
+  runs printed `ported 9249/126668 … (status changed on 0 units)` — the same 9249 before and after.
+  The reviewer has no honest way to fix this locally, because the other standing invariant is
+  **never edit the canonical checkout**. Consequence: units stay `todo` after landing, so
+  `depgraph`'s readiness never unlocks their callers from the merge path; the ledger only moves
+  when the maint cron's `depgraph.py reconcile` happens to run. FIX: make `mark_ported.py` read the
+  sources from **`origin/main`** (`git ls-tree -r origin/main -- raw-port/src` + `git show`) or run
+  it inside a pool worktree, instead of the working tree; then it is correct no matter what state
+  the canonical checkout is in. Until then, treat a "0 units changed" from `mark_ported` as *no
+  information*, not as *already up to date*.
+
+- **`rebase_helper.py <Class>` cannot see the `port/<Class>__slot<N>` branches that entry #1's fix
+  created, and it fails with an exit code the reviewer brief does not cover.** It hardcodes
+  `BR = f"origin/port/{cls}"`, so for PR #389 (head `port/HGRenderJob__slot7`) it printed
+  `no branch origin/port/HGRenderJob` and exited **1** — not 0 (pushed a rebase) and not 6
+  (NEEDS_WORKER_REBASE), the only two outcomes REVIEWER_BRIEF documents. So the reviewer's
+  mechanical union-rebase (rebase-ownership case 2) is silently unavailable for every slot-suffixed
+  branch, even when the exports really are disjoint; the PR can only fall through to the worker
+  rebase queue and burn attempts against the cap-3 auto-close. #389 was auto-closed that way today
+  after I had already verified its body faithful (oracle, 1806 cases) — the port was correct and the
+  work was thrown away on branch bookkeeping. FIX: resolve the branch from the PR's head ref
+  (`gh pr view <PR#> --json headRefName`) rather than deriving it from the class name, and give the
+  "no such branch" case its own exit code so the brief can route it.
+
+---
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
