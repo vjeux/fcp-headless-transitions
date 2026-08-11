@@ -24,7 +24,12 @@ Usage: regression_check.py <mainRef> <branchRef> <path> [<path> ...]
 """
 import sys, re, subprocess
 
-MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]*[A-Za-z0-9_$]')   # may contain '.' (.cold/.eh/.1)
+# The token may carry a REAL suffix (.cold.1, .eh, .stub) but must not absorb arbitrary trailing
+# dotted text. #516 stopped it eating a sentence-final period; a cited disasm FILENAME
+# (`re/disasm/Helium.__ZN….s`) still yielded a phantom `__ZN….s`, which reads as a symbol one side
+# has and the other does not — the same false-difference class, through the other door. Enumerate
+# the genuine suffixes instead of accepting any dotted tail (matches rebase_helper.py, #516).
+MANGLED = re.compile(r'__Z[A-Za-z0-9_$]+(?:\.(?:cold|eh|stub|part|constprop)(?:\.\d+)?)*')
                                                           # but may NOT END on one: a token
                                                           # like `...D0Ev.` is a mangled name
                                                           # followed by a full stop in prose.
