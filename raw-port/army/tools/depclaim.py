@@ -137,6 +137,59 @@ def _blocked_set():
     return out
 
 
+def _shape_note(fw, sym):
+    """Print a WARNING when the unit being handed out is a pure dispatch shell.
+
+    THE WASTE THIS EXISTS TO STOP: `depgraph.ready_scc` reports "0 indirect" for a body whose
+    ENTIRE content is `movq (%rdi),%rax ; movq <slot>(%rax),%rax ; jmpq *%rax`, because the target
+    is reached through DATA (a vtable) and no call edge exists to see (OPS #19's blind spot). G5
+    then hard-REJECTS exactly that shape — `G5 SKELETON — <fn>: DISPATCH_ONLY (7385eb01 shape), a
+    pure dispatch shell whose real work is the callee` — so the unit is unportable unless the
+    resolved target is ALREADY ported, and DEP_WORKER_BRIEF forbids stubbing the call. Every
+    worker who takes one discovers this only after transcribing it: **28 of the 64 requeue reasons
+    on record mention a dispatch**, i.e. this family is the single largest category of wasted
+    units in the log.
+
+    The classification costs ~0.13s and writes nothing: `symidx.py slice` seeks into the cached
+    otool dump (no `nm`, no framework read, no `re/disasm` scratch) and `classify_disasm` is the
+    SAME classifier G5 will judge the port with — so the warning cannot disagree with the verdict
+    the worker is heading for. Advisory only: a dispatch onto a target that IS ported is perfectly
+    portable, and that is a question only the worker can answer, so nothing is withheld here.
+    """
+    try:
+        import tempfile
+        sl = subprocess.run([sys.executable, os.path.join(CANON, "raw-port", "tools", "symidx.py"),
+                             "slice", fw, sym], capture_output=True, text=True, timeout=30)
+        if sl.returncode != 0 or not sl.stdout.strip():
+            return
+        sys.path.insert(0, os.path.join(CANON, "raw-port", "army", "verifier"))
+        import classify_disasm
+        with tempfile.NamedTemporaryFile("w", suffix=".s", delete=False) as tf:
+            tf.write(sl.stdout)
+            p = tf.name
+        try:
+            cls = (classify_disasm.classify(p) or {}).get("class")
+        finally:
+            os.unlink(p)
+        if cls != "DISPATCH_ONLY":
+            return
+        print("", file=sys.stderr)
+        print("NOTE: this body classifies DISPATCH_ONLY (a pure vtable/indirect tail-call) — the", file=sys.stderr)
+        print("      shape G5 hard-rejects as `G5 SKELETON ... a pure dispatch shell whose real", file=sys.stderr)
+        print("      work is the callee`. depgraph reports no dependency for it because the target", file=sys.stderr)
+        print("      is reached through DATA, so RESOLVE THE SLOT BEFORE YOU TRANSCRIBE:", file=sys.stderr)
+        print(f"        bash raw-port/tools/disasm.sh --sym {sym} {fw}", file=sys.stderr)
+        print("        # the ctor installs the vtable: find its `leaq <disp>(%rip)` + `movq %rax,(...)`", file=sys.stderr)
+        print(f"        dyld_info -fixups /tmp/{fw}.x86_64 | grep -i 0x00<vtable VA + slot>", file=sys.stderr)
+        print("        grep -rl 0x<target addr> raw-port/src/     # is the target already ported?", file=sys.stderr)
+        print("      If it is NOT ported, drop it NOW rather than after transcribing it, and put the", file=sys.stderr)
+        print("      resolved target in the reason: depclaim.py drop <sym> '<why + target>'.", file=sys.stderr)
+        print("      28 of the 64 requeues on record are this family; each cost a worker a unit.", file=sys.stderr)
+        print("", file=sys.stderr)
+    except Exception:
+        return          # advisory only — a claim must never fail because a hint could not be made
+
+
 def cmd_next(maxscc=8, allow_stl=False, retry_dropped=False):
     def go():
         claimed = _claimed_set()
@@ -162,6 +215,12 @@ def cmd_next(maxscc=8, allow_stl=False, retry_dropped=False):
             for m in comp:
                 fw, cls, st, dem = known.get(m, ("?","?","?",m))
                 print(f"{fw}\t{cls}\t{m}\t{dem}")
+            # STDOUT above is the machine-readable contract (CLAIMED_UNIT + TSV rows) and stays
+            # exactly as it was; the hint goes to STDERR so no parser can trip over it.
+            for m in comp:
+                fw, cls, st, dem = known.get(m, ("?","?","?",m))
+                if fw and fw != "?":
+                    _shape_note(fw, m)
             return
         print("NO_READY_UNIT (every dependency-ready unit is already claimed or ported)")
     return _locked(go)

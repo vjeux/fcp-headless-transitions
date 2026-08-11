@@ -136,7 +136,21 @@ def layer2():
     print("LAYER 2j (a PR's base must be main — the gate and the merge target must agree):",
           "PASS" if ok10 else "FAIL")
     if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
-    # 2k — THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed
+    # 2k — WHICH QUEUE OWNS A G5-FLAGGED PR. The gate cannot clear a NO-DISASM blind spot itself; it
+    # fails with "reviewer must re-derive disasm" and hands the PR back to a reviewer. No queue
+    # offered it: review_claim excluded every FAILURE, rebase_claim takes regression/rebase only,
+    # rework_claim takes CHANGES_REQUESTED only. #645 sat claimable-by-nobody until queue-coverage
+    # noticed. Offline, jq-backed fixtures with the real status descriptions. ~1s.
+    # (2k, not 2i or 2j: written when 2i was free, then main took 2i (queue coverage) and 2j
+    #  (PR base) while this PR was open. Renumbered again on this rebase, as its own note asked —
+    #  two layers claiming one letter is the kind of silent collision this suite exists to refuse.
+    #  Third collision on this line today; the letters are allocated by whoever merges first.)
+    r11 = run(["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")])
+    ok11 = "test_review_claim_g5: PASS" in r11.stdout
+    print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
+          "PASS" if ok11 else "FAIL")
+    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    # 2l — THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed
     # the thing they exist to preserve, in the same way, at exit 0, behind a plausible success line:
     # an unrecognised flag falls through to `BODY="$*"` and is posted AS the record. `pr_review.sh`
     # lost 11KB of a differential that way (row 43) and was fixed in #596; `pr_comment_once.sh` was
@@ -150,19 +164,20 @@ def layer2():
     # review suite and 4.5s for the comment one (prove_all end to end is 2m19s at that load). An
     # earlier revision of this line said "~18s total", which is the idle number and 2.5x optimistic
     # — the figure a reader budgets from should be the one they will actually pay.
-    r11 = run(["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")])
-    ok11 = r11.returncode == 0 and "test_pr_review_argv:" in r11.stdout and "0 failed" in r11.stdout
-    r12 = run(["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")])
-    ok12 = (r12.returncode == 0 and "test_pr_comment_once_argv:" in r12.stdout
-            and "0 failed" in r12.stdout)
-    print("LAYER 2k (evidence-recording tools — an unknown flag must never become the record):",
-          "PASS" if (ok11 and ok12) else "FAIL")
-    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    r12 = run(["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")])
+    ok12 = r12.returncode == 0 and "test_pr_review_argv:" in r12.stdout and "0 failed" in r12.stdout
+    r13 = run(["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")])
+    ok13 = (r13.returncode == 0 and "test_pr_comment_once_argv:" in r13.stdout
+            and "0 failed" in r13.stdout)
+    print("LAYER 2l (evidence-recording tools — an unknown flag must never become the record):",
+          "PASS" if (ok12 and ok13) else "FAIL")
     if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
-    # (This block and 2j above landed as two different "LAYER 2j"s in two PRs; BOTH are
-    # kept — only this one's letter and result variables were renumbered.)
+    if not ok13: print(r13.stdout[-1200:], r13.stderr[-400:])
+    # (Letter collisions on this line are routine — this block has been 2j, then 2k, and is
+    # now 2l because main took 2k (queue ownership of a G5-flagged PR) while this PR was open.
+    # BOTH blocks are kept every time; only this one's letter and result variables move.)
     return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
-            and ok10 and ok11 and ok12)
+            and ok10 and ok11 and ok12 and ok13)
 
 def _reach(spec, expect):
     import tempfile
