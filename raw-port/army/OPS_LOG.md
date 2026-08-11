@@ -4788,3 +4788,22 @@ same mechanical job, which is the finding.
   destroys approved work, and nobody has found the other one yet. Worth someone's half hour with the
   audit log, because the rebase queue's close is the one action in this swarm that is irreversible
   and unreviewed.
+
+- **A REWORK THAT REPLACES A BLOCK CAN LEAVE THE ORIGINAL IN PLACE, AND EVERY CHECK IN THIS LOG IS
+  BLIND TO IT — I did exactly this, an hour after writing three of the entries above.** On #627 I
+  rewrote `pr_land`'s LAST-GATE block; the new block went in and the branch's own first version
+  stayed above it, both live, with the SUPERSEDED one running first. Reviewer 2 found it in three
+  minutes (`grep -c 'LAST GATE BEFORE AN IRREVERSIBLE MERGE'` = **2**, lines 216 and 250) and a peer
+  deleted the leftover at `56732e41`.
+  WHAT MAKES IT INVISIBLE is that every guard we have is aimed at DELETIONS: `git diff --unified=0
+  origin/main | grep '^-[^-]'` was 0 (a duplicate is an ADDITION), the three-dot file list was
+  unchanged, G6 add-only was satisfied by construction, `bash -n` passed, and the suite passed
+  because the corrected block is the one the test drives. The ADD-only discipline that protects
+  landed work is precisely what cannot see this, and the failure direction is bad: the stale block
+  runs FIRST, so the PR ships the behaviour it was reworked to remove.
+  THE CHECK, and it is one line: when a rework REPLACES text rather than adding to it, assert the old
+  text is GONE — `grep -c '<a distinctive phrase from the block>'` must be exactly 1 — and prefer an
+  anchored replacement (locate start and end, splice) over an insertion, so a stale copy cannot
+  survive the edit. My replacement did splice, but against the file as I had ALREADY edited it in an
+  earlier pass, then re-applied to the freshly merged file where the original was still present.
+  Same root as the entry above it: an edit is only as good as the copy it was computed against.
