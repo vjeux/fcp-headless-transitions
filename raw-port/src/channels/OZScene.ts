@@ -151,6 +151,12 @@ export interface PCSharedMutexHandle {
 /** PCWorkingGamutValue — 32-bit enum passed by value. Opaque u32 here. */
 export type PCWorkingGamutValue = number;
 
+/** `PCColorGamutValue` — 32-bit enum passed by value (the `setViewGamut`
+ *  argument arrives in `%esi` and is stored with a 32-bit `movl` @Ozone
+ *  0x81e84, which is what fixes the width). Opaque u32 here: no decoded code
+ *  compares it against any enumerator, so no names are invented. */
+export type PCColorGamutValue = number;
+
 /** OZSceneNode opaque — return type of getNode() after dynamic_cast. */
 export interface OZSceneNodeHandle {
   readonly __ozSceneNode: true;
@@ -281,12 +287,30 @@ export class OZScene {
    * decoded here — nothing about who writes it is claimed.
    *
    * Note this sits immediately after `rawWorkingGamutCache` (+0xc8, u32) and
-   * its own 4 bytes of padding/neighbour at +0xcc, which is consistent with
-   * a run of small colour-pipeline settings caches on the scene object; that
-   * adjacency is an observation, not a decode of +0xcc (which stays
-   * undocumented — Rule 5).
+   * the slot at +0xcc, which is consistent with a run of small colour-pipeline
+   * settings caches on the scene object. (+0xcc is now decoded — see
+   * `viewGamut_at_0xcc` below, grounded by `setViewGamut` @0x81e84 and
+   * `getViewGamut` @0x81e54 — so this adjacency is no longer just an
+   * observation.)
    */
   toneMappingMode_at_0xd0: number = 0;
+
+  /**
+   * +0xcc — viewGamut : PCColorGamutValue (u32).
+   *
+   * The scene's VIEW gamut, the sibling of the working gamut cached at +0xc8.
+   * Two one-instruction accessors pin the slot and its width:
+   *   `OZScene::setViewGamut(PCColorGamutValue)` @Ozone 0x81e84
+   *     `movl %esi, 0xcc(%rdi)`   — 32-bit store of the by-value enum;
+   *   `OZScene::getViewGamut() const` @Ozone 0x81e54
+   *     `movl 0xcc(%rdi), %eax`   — the matching 32-bit load.
+   * Neither takes a lock (contrast `getRawWorkingGamut` @0x81da0, which reads
+   * +0xc8 under the shared lock @0x81db6), and neither validates the value.
+   *
+   * Modelled as a plain `number` holding the raw 32 bits, like
+   * `rawWorkingGamutCache`.
+   */
+  viewGamut_at_0xcc: PCColorGamutValue = 0;
 
   /**
    * +0x480 — timeRange : PCTimeRange (0x30 bytes).
@@ -420,6 +444,45 @@ export class OZScene {
       // @0x81e11: release exclusive lock.
       mutex.unlock();
     }
+  }
+
+  /**
+   * OZScene::setViewGamut(PCColorGamutValue)  @Ozone 0x81e80
+   *   __ZN7OZScene12setViewGamutE17PCColorGamutValue
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZN7OZScene12setViewGamutE17PCColorGamutValue.s):
+   *
+   *   0x81e80  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x81e81  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x81e84  movl  %esi, 0xcc(%rdi)     ; this->viewGamut_at_0xcc = v
+   *   0x81e8a  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x81e8b  retq                       ; void return
+   *   0x81e8c  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * A bare 32-bit field store and NOTHING else. Three things it deliberately
+   * does not do, each visible by their absence from the four-instruction body:
+   *   • no LOCK — contrast the working-gamut pair on the neighbouring +0xc8
+   *     slot, where `getRawWorkingGamut` @0x81da0 reads under `lock_shared`
+   *     (@0x81db1) and `setRawWorkingGamut` @0x81de0 writes under the
+   *     exclusive `lock` (@0x81df7);
+   *   • no FORWARDING to the `OZSceneSettings` sub-object at +0x90 — this
+   *     value lives directly on the scene, unlike the raw working gamut;
+   *   • no validation of the enum and no change notification.
+   *
+   * The 32-bit `movl` of `%esi` (the by-value `PCColorGamutValue` argument) is
+   * what fixes the slot's width; `getViewGamut() const` @0x81e54 reads the same
+   * offset back with the matching `movl 0xcc(%rdi), %eax` (its own ledger unit,
+   * not ported here). The port stores the value `>>> 0` to keep the exact 32
+   * bits the register holds.
+   *
+   * ZERO callees, ZERO externs, no indirect/virtual dispatch.
+   *
+   * @param v the new view gamut (`%esi`).
+   */
+  setViewGamut(v: PCColorGamutValue): void {
+    // @0x81e84: movl %esi, 0xcc(%rdi) — 32-bit store, no lock, no forwarding.
+    this.viewGamut_at_0xcc = v >>> 0;
   }
 
   /**
