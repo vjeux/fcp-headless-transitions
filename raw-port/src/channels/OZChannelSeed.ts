@@ -348,6 +348,7 @@ export class OZChannelSeed extends OZChannel {
    *
    *   0xfcce  55 / 48 89 e5 / 48 83 ec 20    prologue + the 32-byte libc++ tuple<lambda&&> frame
    *   0xfcd6  48 8b 05 03 bb 0d 00           movq 0xdbb03(%rip),%rax  ; 0xfcdd+0xdbb03 = BSS 0xeb7e0
+   *                                          = __ZZN13OZChannelSeed23createOZChannelSeedInfoEvE23_OZChannelSeedInfo_once
    *   0xfcdd  48 83 f8 ff                    cmpq $-0x1, %rax
    *   0xfce1  74 25                          je   0xfd08              ; fast path
    *   0xfce3..0xfcf2                         the tuple<T&&> marshalling (ABI artefact, no TS effect)
@@ -421,6 +422,7 @@ export class OZChannelSeed extends OZChannel {
    *
    *   0xfd18  55 / 48 89 e5 / 48 83 ec 20    prologue + the 32-byte libc++ tuple<lambda&&> frame
    *   0xfd20  48 8b 05 c1 ba 0d 00           movq 0xdbac1(%rip),%rax  ; 0xfd27+0xdbac1 = BSS 0xeb7e8
+   *                                          = __ZZN13OZChannelSeed23createOZChannelSeedImplEvE23_OZChannelSeedImpl_once
    *   0xfd27  48 83 f8 ff                    cmpq $-0x1, %rax         ; libc++ writes ~0UL when done
    *   0xfd2b  74 25                          je   0xfd52              ; fast path
    *   0xfd2d..0xfd3c                         the tuple<T&&> marshalling (ABI artefact, no TS effect)
