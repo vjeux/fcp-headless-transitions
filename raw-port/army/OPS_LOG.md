@@ -158,6 +158,59 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by worker 5 (new)
+
+- **THE REBASE QUEUE RE-CLAIMS A PR THAT WAS ALREADY SUCCESSFULLY REBASED, BURNS THE 3-ATTEMPT CAP
+  ON REDUNDANT RE-REBASES, AND AUTO-CLOSES IT — AND THE ADVERTISED RE-QUEUE NEVER HAPPENS, SO THE
+  SYMBOL IS SILENTLY LOST.** Measured end to end on PR #389 (`port/HGRenderJob__slot7`) this
+  morning. I claimed it (`attempt 1/3`), ran `rebase_pr.sh`, hand-reconciled the shared class body
+  onto current main, re-ran the branch's own oracle myself (1,800 cases, 0 divergences), got
+  `GATE: PASS`, force-pushed `81df5dd7`, and released the lease — a correct, finished rebase. Two
+  more agents then claimed and re-rebased the SAME PR (head moved to `3bf1acc6`, then `7c2508e9`),
+  attempts 2 and 3 were consumed, and the cap auto-closed the PR. Root cause is that
+  `rebase_claim.sh`'s queue filter is "open PR whose latest `faithfulness-gate` is a
+  regression/rebase FAILURE", and a force-push does not clear that: the new head simply has NO
+  status, while the PR-level view still shows the old FAILURE. Nothing marks a rebase as DONE and
+  nothing resets the attempt counter on success, so a successful rebase is indistinguishable from a
+  failed one and the cap fires on work that was already correct.
+  **The second half is worse.** The auto-close comment says "the append-only claim queue re-hands
+  this symbol to a fresh worker", but no `drop`/`reopen` record is written:
+  `__ZN11HGRenderJob11GetUserNameEv` is still a bare `claim` in `claims.jsonl`, is not on main, and
+  has no open PR — i.e. exactly the #18 failure the `depclaim.py drop` work closed, reopened through
+  the auto-close path. I rescued that one symbol by hand (PR #414), but the mechanism will keep
+  eating them.
+  Fixes, in order of value: (a) on a successful `rebase_pr.sh` force-push, DELETE
+  `$FCT_STATE_DIR/rebase_attempts/<PR>` and post a `pending`/neutral `faithfulness-gate` on the NEW
+  head so the PR leaves the queue until a reviewer re-gates it; (b) make the queue filter key on the
+  CURRENT head SHA's status, never the PR's last-known one; (c) make the auto-close path actually
+  call `depclaim.py drop <sym> "<reason>"` — and fail loudly if it cannot.
+
+- **`import numpy` DIES inside the mandated `arch -x86_64` harness — the only numpy on this box is
+  an arm64 build.** `dlopen(... _multiarray_umath.cpython-39-darwin.so): have 'arm64', need
+  'x86_64'`. Every oracle must run under Rosetta (the "wrong architecture" entry below), so numpy is
+  effectively unavailable to ALL oracle work, whatever the standing "probe via ctypes/numpy" advice
+  says. Do not spend time on a venv: the house precedent
+  (`Gettype3_nice_satTile_AVX_oracle.py`) already avoids numpy, and plain `struct` is not a
+  compromise — it is bit-exact. `f32(x) = struct.unpack('<f', struct.pack('<f', x))[0]` reproduces
+  an SSE/AVX lane op exactly, because the operands are f32, a Python double multiply/add of two f32
+  values is exact, and rounding that once to f32 is what the hardware does (no double-rounding).
+
+- **A DEAD NEGATIVE CONTROL IS THE TELL THAT YOUR HARNESS, NOT THE PORT, IS WRONG.** Writing the
+  oracle for `HgcScaleBiasCrop::RenderTile_AVX` I padded the parameter block so the mask lane at
+  `+0x80` read as `0.0`. Every output pixel was then multiplied by zero, and the model "agreed" with
+  the live kernel on 150/150 cases — a false VERIFIED that no amount of extra fuzz would have
+  caught, because both sides were computing nothing. What exposed it in one line was that ALL FIVE
+  negative controls scored **0**: five deliberately-wrong ports were indistinguishable from the
+  right one. Fixing the layout moved them to 163/94/135/487/163 of 600. **Report the negative-control
+  counts next to the case count in every oracle, and treat a zero as a failed run, not a clean one.**
+
+- **Never put backticks in a `git commit -m "…"` written inside a double-quoted shell string.** The
+  shell command-substitutes them before git sees them: `` the TS `?? ''` models the cmov `` landed in
+  the commit as "the TS  models the cmov" plus a `/bin/sh: ??: command not found` on stderr that is
+  easy to miss in a long submit log. Write the message to a file and use `git commit -F`.
+
+---
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
