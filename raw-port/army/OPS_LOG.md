@@ -5461,3 +5461,95 @@ live and every number is measured on this box today.
   LUT-B, `+0x78` i32 row multiplier — and `this` is read ONLY at +0x198. LUT fetches are manual
   `vmovaps` xmm gathers at `base + idx*16`, so filling each plane with index-valued floats makes the
   output name the entry fetched.
+
+---
+
+## Open — reported 2026-08-11 by worker 3 (the node TS↔binary differential is blocked for MOST ports, and the way around it is 20 lines; plus an instrument that normalised away its own control)
+
+- **THE HOUSE `node --experimental-strip-types` RECIPE — this log's own answer to "most oracles
+  compare the binary against a PYTHON restatement of the port" — CANNOT LOAD A PORT THAT IMPORTS A
+  SIBLING, FOR TWO REASONS, AND `ts_js_hooks.mjs` ADDRESSES ONLY ONE OF THEM.** Both measured today
+  while oracling `OZChannel::getFadeOutOffset` @ProChannel 0x15ee0 (PR #659).
+
+  1. **EXTENSIONLESS SPECIFIERS.** The existing hook maps `./Foo.js` -> `./Foo.ts`, which is the
+     spelling `moduleResolution: "NodeNext"` forces. But `raw-port/tsconfig.json` actually sets
+     **`"moduleResolution": "bundler"`**, under which `import { OZChannelBase } from
+     "./OZChannelBase"` is equally correct — and G2 accepts both, so main carries both side by side
+     (`src/channels/OZChannelImpl.ts` writes `./OZChannelBase.js`; `src/channels/OZChannel.ts`
+     writes `./OZChannelBase`). Node resolves neither against an uncompiled tree. With the hook
+     registered, `OZChannel.ts` still dies on its FIRST sibling:
+     `Cannot find module .../src/channels/OZChannelBase`.
+  2. **A TYPE IMPORTED AS A VALUE, TWO MODULES DEEPER.** Fix the resolution and the next error is
+     `The requested module '../infra/CMTime.js' does not provide an export named 'CMTime'` — from
+     `src/infra/PCSerializerReadStream.ts:17`, `import { CMTime, kCMTimeFlags_Valid } from
+     "./CMTime.js"`, where `CMTime` is an interface. `tsc` erases that; `--experimental-strip-types`
+     cannot, by design. One `type` keyword fixes each site, but they are LANDED FILES in other
+     classes, so a port PR cannot go fixing them and the chain is as long as the import graph.
+
+  **THE WORKAROUND, and it is better than it sounds: STUB THE GRAPH, NOT THE SUBJECT.** The
+  function under test almost never uses the siblings the module happens to import. Write a resolve
+  hook into a TEMP DIR (never into the repo — a second hook file in `re/oracle/` is a guaranteed
+  conflict) that maps each unusable specifier to a one-line stub module, and register it before a
+  DYNAMIC import. Worked example landed with #659,
+  `raw-port/re/oracle/OZChannel_getFadeOutOffset_oracle.py` + `_driver.mts`: five stubs
+  (`OZChannelBase`, `OZChannelInfo`, `PCSerializerReadStream`, `PCStreamElement`, `OZCurve`, each
+  `export class X {}`), the REAL `../infra/CMTime` left unstubbed because it is a leaf and it holds
+  the constant under test, and the port itself loaded from the real file. That produced a genuine
+  TypeScript-against-binary differential — 8/8 bit-exact, mutants 7/7, 1/1 and 7/7 — on a file the
+  recipe could not open at all half an hour earlier.
+
+  THE RULE THAT KEEPS IT HONEST, because a harness that quietly fabricates its subject is worse
+  than no harness: **the driver must PRINT what it substituted and the source text of the function
+  it actually ran** (`fn.toString()`), and the port's header must repeat the stub list. A reviewer
+  can then see in one screen that the thing measured is the committed code. Two things must never
+  be stubbed: the module under test, and any module whose VALUES the tested function reads.
+
+  FIXES WORTH MAKING, in order: (a) add the extensionless branch to `ts_js_hooks.mjs` — it is six
+  lines and I measured it working (`if (!/\.[cm]?[jt]s$/.test(spec) && spec.startsWith("."))` try
+  `spec + ".ts"`); I left it out of #659 only because that PR's own harness did not end up needing
+  it once the stub hook existed, and a change nobody exercises is not evidence; (b) sweep
+  `src/**` for `import {` of type-only names and add the `type` keyword — a mechanical, gate-clean
+  pass that widens the recipe from "leaf ports" to "most ports"; (c) say in `PORTING_SPEC` which
+  import spelling this repo wants, since the tsconfig currently permits both and the two behave
+  differently everywhere except in `tsc`.
+
+- **AN INSTRUMENT THAT NORMALISES ITS SUBJECT'S OUTPUT WITH THE OPERATION UNDER TEST — a fresh,
+  independent instance of the entry reviewer 4 filed, in a place nobody would look for it: the
+  ONE-LINE wire encoding.** Oracling `HgcYUV420BiPlanar_chroma::SetParameter` @Helium 0x2ff680
+  (PR #664), whose whole body is `movl $0xffffffff,%eax ; ret`, my driver pushed the port's answer
+  through `| 0` — a perfectly ordinary int32 coercion for a C function returning `int`. But
+  `0xffffffff | 0` is `-1`, so **M2, the mutant that ports the constant as the UNSIGNED 4294967295
+  — i.e. exactly the misreading this unit's only real risk is — scored 0 kills of 24 while the
+  table printed healthy.** Deleting the coercion took it to 30/30. The general form is worth
+  keeping next to the dead/inflated/implied-control family: *the coercion in your wire encoding is
+  part of the instrument.* If the property under test is "which of two readings of these bits is
+  right", any normalisation on either side of the wire can erase it — and the wire is the last
+  place anyone looks, because it reads as plumbing rather than as measurement.
+
+- **A CONSTANT-RETURNING BODY CAN HAVE A REAL INSTRUMENT, AND THE SIBLING-OVERRIDE CONTROL IS
+  BETTER THAN THE "call something that returns non-zero" ONE.** Same unit. The advice already here
+  is to pair a constant port with a different function known to return non-zero, which proves only
+  that the return path is read. Stronger, and free: **call a REAL OVERRIDE of the same virtual,
+  through the IDENTICAL `CFUNCTYPE`, with the IDENTICAL argument tuples.**
+  `HGComicQuantize::SetParameter` @Helium 0x7450 answers `1` when it stores a new value, `0` when
+  the value is unchanged, and `-1` for a key it does not own — three different answers on one
+  instrument, including the very constant the port under test returns, which is what turns "the
+  harness can see a value" into "the harness can see THIS value as an answer rather than as an
+  artifact". Find one with `grep 12SetParameterEiffff raw-port/army/inventory/Helium.syms.txt`
+  (328 of them) and disasm two; it cost four seconds. Pair it with a same-class sibling whose
+  return value the HARNESS chooses — here `GetOutput` @0x2ff6a0 is `movq %rdi,%rax`, so it hands
+  back the receiver pointer you passed, which no fixed-value or stale-register reading can fake.
+
+- **Corroborating two existing entries with fresh instances, since a second measurement is what
+  makes them properties rather than anecdotes:** (a) the class-file race is real and fast — my
+  first gate of the `OZChannel` unit came back `G6 ADD-ONLY VIOLATION ... dropped 7 landed @0xADDR
+  citations` because `getFadeOutCurve` had landed in that file in the ~6 minutes between my
+  `git show origin/main:<path>` and my gate run; re-basing the edit on main's CURRENT copy (and
+  adopting the model that landed, rather than the one I had written) was the whole fix, and G6
+  caught it exactly as designed. (b) `wt_pool.sh acquire <Class>` STACKED me onto
+  `port/OZChannel`, which carried a CHANGES_REQUESTED PR that another worker held a rework lease on
+  at that moment; pushing there would have put my unit inside a rejected PR and raced that worker's
+  push. I filed on `port/OZChannel__slot3` instead. The stacking rule (#4) is right for a branch
+  whose PR is healthy and wrong for one that is in another agent's hands — `acquire` could check
+  `$STATE/rework_leases/<PR>` and fall through to the `__slot<N>` name when the PR it would stack
+  on is currently leased for rework.
