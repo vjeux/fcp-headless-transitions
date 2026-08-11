@@ -1442,6 +1442,42 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   the commit as "the TS  models the cmov" plus a `/bin/sh: ??: command not found` on stderr that is
   easy to miss in a long submit log. Write the message to a file and use `git commit -F`.
 
+
+## Open — reported 2026-08-11 by worker 3 (symbol-cache availability + CoreGraphics semantics; new)
+
+- **The symbol cache the perf directive mandates does not exist where agents work.** (worker 3,
+  2026-08-11.) The 2026-08-11 directive says: never run `nm` on a framework under
+  `/Applications/Final Cut Pro.app/...` (78 MB fat file, 60-120s, a full core, and the security
+  stack rescans it), use `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` instead (~0.08s).
+  But `raw-port/army/.gitignore` line 2 ignores `inventory/*.syms.txt`, so the cache exists ONLY
+  in the canonical checkout — and every worker is required to work in a **pool worktree**, where
+  the file is absent. An oracle that follows the directive dies with `FileNotFoundError` at the
+  point where it resolves an address. This is the same shape as #16 (Layer-3 fixtures gitignored,
+  so `prove_all` could not pass in a pool worktree), one directory over. Workaround in the
+  meantime, used by `raw-port/re/oracle/box_t_dist_oracle.py`: look in this tree, then
+  `~/random/final-cut-pro-transitions`, then fall back to `nm -n /tmp/<FW>.x86_64` — the THIN
+  slice disasm.sh already extracted, never the fat original. Real fix: have `ensure_ledger.sh`
+  (which already restores 6 gitignored ledgers into a fresh checkout) restore or symlink the 5
+  `inventory/*.syms.txt` files too, so the fast path is available where the work happens.
+
+- **CoreGraphics' `CGRect` accessors are not the obvious formulas, and the difference is 1 ulp.**
+  (worker 3, 2026-08-11, found on `videoanalysis::collation::box_t::dist`.) Any port that reaches
+  `CGRectGetMaxX/MaxY` needs these two, both measured against the live framework:
+  (a) for a NEGATIVE extent, standardization is two steps and the second one rounds again —
+  `MaxX = (x + width) - width`, which is a DIFFERENT double from both `x` and `max(x, x+width)`
+  (50 of 8,198 corpus rects differ, always by exactly 1 ulp, and the error then propagates
+  through a multiply and a sqrt into the result);
+  (b) `CGRectIntersectsRect` does NOT implement the documented "an empty rect never intersects"
+  rule. Each axis behaves as the half-open interval `[min, max)`, except that a ZERO-extent axis
+  behaves as the single point `{min}`: two proper rects sharing an edge do not intersect, a
+  zero-width rect on the other's MIN edge does, on its MAX edge does not, and two zero-width
+  rects intersect iff their coordinate is equal. Verified 0 mismatches on 16,000 pairs; the
+  documented rule was wrong on 10 of one port's 4,096 pairs, plain strict overlap on 244 of an
+  8,000-case grid, closed-interval overlap on 1,115. NaN components are NOT modellable by any
+  simple rule (the live function answered 104 true / 296 false over 400 random single-NaN pairs)
+  — state that envelope rather than guessing. A reusable TS copy of all of this lives in
+  `raw-port/src/infra/videoanalysis__collation__box_t.ts`; copy it rather than re-deriving it.
+
 ---
 
 ## Open — reported 2026-08-11 by reviewer 3 (the approval binds to the LIVE head, not the reviewed one; NEW)
@@ -1911,6 +1947,19 @@ change these tools.
 
 ---
 
+## Fixed 2026-08-11 — two more, both "the tool worked and nobody ran it"
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 43 | **An unrecognised flag was posted AS THE REVIEW BODY**, destroying 11 KB of differential at exit 0 behind a correct-looking success line. The reviewer found it only by reading the body back | `pr_review.sh` ended with `BODY="$*"`, so any flag it did not know became the body. Adding `--expect-head` therefore OPENED this on every host still running the older copy: **following the current advice is what destroys the record** | Unknown `--*` exits 2, naming the risk and the likely cause. After posting, the stored body length is read back and a mismatch warns — every way a body has been lost here (caller-shell backtick expansion, a flag captured as the body) exits 0 with a plausible success line. Locked as `test_guards` case H, which compares the review COUNT before and after, since the property is "refused BEFORE posting", not "printed a refusal" |
+| 44 | **`check_duplicate_classes.py` works perfectly and has never once been invoked.** 7 duplicates on main; 5 classes filed twice across LAYER directories (`ozone/` vs `channels/`, `nodes/` vs `channels/`) — OPS_LOG had recorded only one | Its docstring and PORTING_SPEC both call it a CI guard, but no gate, no `pr_gate`, no `prove_all` ran it, so it reported into the void. `dup_check` cannot see these (it compares ledger SYMBOLS, not filenames) and neither can G6 (each file is add-only in isolation). Two files modelling one C++ class = two struct layouts that silently drift | Wired into `pr_gate` — but on the DELTA (`--new-only origin/main`), because gating absolutely would red-gate every PR in the repo for a mess none of them created, which is presumably why nobody ever wired it. A PR adding no new duplicate passes while main is dirty; plain mode still reports the existing 7 for someone to merge deliberately (**never blindly — each copy may hold addresses the other lacks**) |
+
+**The pattern across both, and worth naming**: a guard that exists, works, and is never called is
+indistinguishable from no guard at all — and reads as *reassurance*, which is worse. When you add a
+check, add the caller in the same change, and watch it fail once.
+
+---
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
@@ -2338,3 +2387,82 @@ Two things worth keeping in mind even with the fix in:
   gate result on the current head, and the peer's evidence re-run) rather than reworking it again or
   silently releasing. A reviewer reading `CHANGES_REQUESTED` needs to be told the head has moved
   under it, and the next worker needs to know the run was not wasted twice.
+
+---
+
+## Open — reported 2026-08-11 by worker 3 (the tools you are told to run are STALE; and two oracle-shaped traps)
+
+- **THE CANONICAL CHECKOUT IS 15 COMMITS BEHIND `origin/main`, AND EVERY BRIEF TELLS YOU TO RUN THE
+  TOOLS FROM IT — so a tool fix that has LANDED does not reach the agents it was written for.**
+  Measured, this session, while the ink on the fix was still wet: worker 1's #36 guard (skip a
+  rework whose standing rejection was recorded against an older head) is on `origin/main`, and
+  `grep -c commit_id ~/random/final-cut-pro-transitions/raw-port/army/tools/rework_claim.sh` is
+  **0** while the same grep in a freshly leased pool worktree is **1**. So I ran the pre-fix tool,
+  and it handed me #256, #445 (twice), #523 (twice) and #538 — every one of them already answered
+  by its author — which is precisely the failure #36 fixed hours earlier.
+
+  Nothing in the loop updates that worktree: `HARNESS_LOOP.md` puts the `git reset --hard
+  origin/main` in a ONE-TIME **Preconditions** section, `wt_pool.sh` refreshes the POOL from
+  `origin/main` but never the canonical tree, and `pr_gate.sh` reads its trusted tools with
+  `git --git-dir="$CANON/.git" archive origin/main …`, i.e. straight out of the object store —
+  which is why GATING is immune to this and everything an agent types by hand is not. The longer a
+  swarm runs, the staler every agent's tools get, and the symptom is never an error: it is a tool
+  behaving like last week's version.
+
+  WORKAROUND, adopt it now: **run `army/tools/*` from your leased worktree**, not from `$CANON`
+  (`bash "$WT"/raw-port/army/tools/rework_claim.sh claim`). The scripts `cd "$CANON"` internally
+  for their git work, so this changes only WHICH COPY of the script runs — and `wt_pool.sh acquire`
+  has just reset that copy to current `origin/main`. FIX: `swarm_maint.sh` should fast-forward the
+  canonical worktree (it already refuses to touch it while a gate or submit is live, which is the
+  hard part), and the queue tools should print their own `git log -1 --format=%h` of
+  `raw-port/army/tools` next to the answer so a stale tool is visible in its own output.
+
+  Corroborating #36 with a corpus-wide count, since it reads as anecdote otherwise: at 17:12Z,
+  **9 of the 22 open `CHANGES_REQUESTED` PRs had a head NEWER than their newest rejection**
+  (#538, #523, #445, #400, #335, #256, #154, #143, #114) — i.e. 41% of the "rework backlog" was
+  waiting on a reviewer, not on an author. The one-liner, for whoever wants to re-measure:
+  `for pr in $(gh pr list --state open --json number,reviewDecision --jq '.[]|select(.reviewDecision=="CHANGES_REQUESTED")|.number'); do h=$(gh pr view $pr --json headRefOid --jq .headRefOid); r=$(gh api repos/<slug>/pulls/$pr/reviews --jq '[.[]|select(.state=="CHANGES_REQUESTED")]|last|.commit_id'); [ "$h" != "$r" ] && echo "$pr answered"; done`
+  DISCLOSURE, because it changes the queue's state: probing this with the pre-fix tool drove
+  **#445 and #523 to 3/3 attempts**, so that tool now skips them ("a human decides"). Neither needs
+  worker work — both are answered and waiting on a dismissal — but somebody should know why their
+  counters are exhausted.
+
+- **A DIFFERENTIAL WHOSE TRANSPORT CANNOT EXPRESS THE CORRECT ANSWER SCORES A WRONG PORT AND A
+  RIGHT ONE THE SAME — and, in the case I hit, rewarded the wrong one.** `JSON.stringify(NaN)` is
+  `null`, and so is `Infinity`. `coremedia_worker.ts` was scrupulous about int64 (values cross as
+  strings, with a comment explaining that a JSON number is a double) and missed the mirror image on
+  the Float64 RETURN. `CMTimeGetSeconds` answers NaN for an invalid or indefinite time and
+  +/-Infinity for an infinite one — 3 of the 11 times in the oracle's own grid — so the oracle read
+  `null`, failed its `isinstance(have, (int, float))` test, and booked a divergence **no port could
+  ever clear**. Measured on one file, three runs of the pre-fix oracle: the correct port scores
+  340/341 and a mutant that returns `value/timescale` for an invalid time scores 340/341. The
+  harness could not tell them apart, and the only way to score better on that case was to be wrong.
+  FIXED in #560 (scalars also cross as `nbits`, the raw IEEE754 pattern in hex; watched fail:
+  correct port 341/341, mutant 1 divergence, main's landed body still 175).
+  THE GENERAL RULE, which the existing "move bit patterns as hex strings, never JSON numbers" entry
+  states only for int64 and only in one direction: **move every float across a process boundary as
+  a bit pattern, in BOTH directions.** My own new oracle had the same bug in the REQUEST direction
+  — a multiplier of `NaN` serialises to the invalid token `NaN` and the driver dies with a JSON
+  parse error, which at least fails loudly rather than quietly.
+
+- **A FIXED CASE LIST IS FITTABLE; SHIP A RANDOMIZED TWIN.** The CoreMedia gate oracle runs a fixed
+  grid of 341 calls, and a port merged against it is a port fitted to it. My reworked
+  `CMTimeMultiplyByFloat64` passed all 341 while still being wrong: it dropped the input's
+  `HasBeenRounded` flag, and **no time in the grid carries that flag**, so the case is structurally
+  invisible there. A randomized corpus over the same domain failed it immediately — 154 of 4088
+  multiplies — and the fix is one term. So: when an oracle enumerates its cases by hand, add a
+  generator over the same domain, print PER-CLASS counts (a class that collapses to zero cases is
+  the other half of this trap), and keep a mutation mode that requires the differential to fail.
+  `raw-port/re/oracle/CMTime_coremedia_oracle.py` (#561) is a worked example of all three.
+
+- **A PR CANNOT FIX THE HARNESS THAT JUDGES IT — split it in two, deliberately.** `pr_gate.sh`
+  takes `raw-port/army/{gate,tools,verifier}` from `origin/main` on purpose (a PR must not ship its
+  own gate), so a port whose green depends on a harness fix will be gated with the BROKEN harness
+  and rejected for a defect it fixes. If you hit that, file the harness change as its own PR that
+  touches no `raw-port/src/**/*.ts` — the oracle for the class you are fixing then does not run on
+  it at all — and say in the port's PR body which number it waits on and what the pre-fix gate
+  prints. #560 before #561 is the shape.
+
+- **CORRECTION to worker 6's "slot_lock.sh heartbeat DOES NOT EXIST":** it exists on current main
+  and works — `slot_lock.sh heartbeat worker 3` prints `BEAT worker-3` and exits 0. Given the entry
+  above, an agent seeing the old `usage:` error is most likely running the STALE canonical copy.
