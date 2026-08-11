@@ -34,10 +34,15 @@ import argparse
 import collections
 import json
 import os
+import re
 import subprocess
 import sys
 import time
 
+# READ-ONLY IS AN INVARIANT OF THIS FILE, not an accident of its current contents: it takes no
+# lease, posts nothing, writes no file and issues no mutating API call. It is safe to run at any
+# time, from any slot, including against a live swarm — which is the only reason AGENT_ENTRY can
+# tell every agent to run it. Any future check that needs to WRITE belongs in a different tool.
 SLUG = os.environ.get("FCT_REPO", "vjeux/fcp-headless-transitions")
 CANON = os.path.expanduser("~/random/final-cut-pro-transitions")
 STATE = os.environ.get("FCT_STATE_DIR", os.path.expanduser("~/.fct-pool"))
@@ -57,6 +62,28 @@ def sh(cmd, cwd=CANON, timeout=120):
         class R:
             returncode, stdout, stderr = -1, "", "timeout"
         return R()
+
+
+MAIN_SHA = None
+
+
+def from_main(relpath):
+    """Read a tool's source from `origin/main`, never from the canonical working tree.
+
+    WHY: the canonical checkout is routinely tens of commits behind (this file's own tree-current
+    check measures it and calls small drift OK), so a check that reads CANON can report a guard as
+    missing an hour after it landed — which is what happened to `guards-wired` and
+    `check_duplicate_classes.py` on the first review of this file. That is the "#506 fix could not
+    reach the reconciler" pattern: a fix that exists on main, invisible to the tool that looks for
+    it. Reading through git makes every source-inspecting check independent of how stale the
+    working tree is, and MAIN_SHA is printed in the report so the answer is self-labelling.
+    """
+    global MAIN_SHA
+    if MAIN_SHA is None:
+        sh("git fetch -q origin main")
+        MAIN_SHA = (sh("git rev-parse --short origin/main").stdout or "").strip() or "?"
+    r = sh(f"git show origin/main:{relpath}")
+    return r.stdout if r.returncode == 0 else ""
 
 
 def gh_json(args, tries=3):
@@ -83,37 +110,104 @@ def check_queue_coverage():
     #41: a conflicted PR touching no raw-port/src short-circuits pr_gate to SUCCESS, so it is green,
          invisible to rebase_claim, and never re-offered by review_claim. Sits open forever.
 
-    Both were found by a human noticing a number looked wrong. This asserts the property instead.
+    IT ASKS THE QUEUES; IT DOES NOT MODEL THEM. The first version of this check re-implemented each
+    tool's filter in Python, and in one live run it got both interesting PRs backwards: it accused
+    #554, which review_claim's own query was selecting at that moment, and it certified #256 as
+    covered while no queue could claim it. A re-implementation is a second source of truth, and this
+    log is mostly what happens when two sources of truth drift (#20, #21, #26). So each queue's
+    SELECTOR IS LIFTED OUT OF ITS OWN SCRIPT and executed read-only, with no lease taken:
+
+      * review_claim.sh  — the `rows=$(gh pr list …)` assignment, verbatim
+      * rework_claim.sh  — the `cand=$(gh pr list …)` assignment, verbatim
+      * rebase_claim.sh  — its `cand=` assignment AND the description grep that follows it inside
+        the loop, because the FAILURE prefilter alone is not the filter: a FAILURE whose
+        description does not match `regression|rebase|add-only|G6|gate reject` (for example
+        `1 G5 flag(s): …`, `dup-ledger (already on main)`) is dropped, and those are exactly the
+        states that strand.
+
+    Change a filter and this check follows it, instead of silently disagreeing with it.
     """
     prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 "
-                       "--json number,reviewDecision,mergeStateStatus,statusCheckRollup,updatedAt")
+                       "--json number,reviewDecision,mergeStateStatus,statusCheckRollup")
     if prs is None:
         return record("queue-coverage", UNKNOWN, f"could not list PRs: {err}", "#33/#41")
+    open_nums = {pr["number"] for pr in prs}
 
-    orphans = []
+    def numbers_from(tool, var):
+        """Run the tool's OWN selector and return the PR numbers it would consider."""
+        src = from_main(f"raw-port/army/tools/{tool}")
+        if not src:
+            return None, f"could not read {tool} from origin/main"
+        m = re.search(r'^\s*' + var + r'=\$\(gh pr list.*?\)\n', src, re.S | re.M)
+        if not m:
+            return None, f"could not find the {var}= query in {tool}"
+        probe = m.group(0).replace('"$SLUG"', SLUG).replace("2>/dev/null)", ")")
+        r = sh(probe + f'\nprintf "%s" "${var}"', timeout=180)
+        if r.returncode != 0 and not r.stdout.strip():
+            return None, f"{tool} selector failed: {(r.stderr or '').strip()[:120]}"
+        out = set()
+        for line in r.stdout.splitlines():
+            tok = line.split("\t")[0].strip()
+            if tok.isdigit():
+                out.add(int(tok))
+        return out, ""
+
+    coverage, problems = {}, []
+    for tool, var in (("review_claim.sh", "rows"), ("rework_claim.sh", "cand"),
+                      ("rebase_claim.sh", "cand")):
+        nums, e = numbers_from(tool, var)
+        if nums is None:
+            problems.append(e)
+        else:
+            coverage[tool] = nums
+
+    if problems:
+        # Cannot ask a queue -> cannot claim to know what is uncovered. UNKNOWN, never OK.
+        return record("queue-coverage", UNKNOWN,
+                      "could not consult every queue's own selector, so coverage is unknown "
+                      "(a modelled answer would be a second source of truth): " + "; ".join(problems),
+                      "#33/#41")
+
+    # rebase_claim's prefilter is only half its filter: the loop then reads the STATUS DESCRIPTION
+    # (REST — it is not in the GraphQL rollup) and greps it. Apply the same grep to the same field.
+    rebase_src = from_main("raw-port/army/tools/rebase_claim.sh")
+    m = re.search(r"grep -qiE '([^']+)'", rebase_src)
+    desc_re = re.compile(m.group(1) if m else r"regression|rebase", re.I)
+    kept = set()
+    for n in sorted(coverage.get("rebase_claim.sh", set())):
+        one, _ = gh_json(f"pr view {n} --repo {SLUG} --json headRefOid", tries=2)
+        if not one:
+            kept.add(n)                      # cannot check -> do not call it uncovered
+            continue
+        # RAW TEXT, not gh_json: `--jq '….description'` prints a BARE string, which is not JSON, so
+        # a JSON-parsing wrapper reads a perfectly good answer as a failure and the PR silently
+        # drops out of the covered set. That is how the first run of this fix reported
+        # rebase_claim=0 while the queue was handing that very PR to a worker — an unparseable
+        # SUCCESS is not an empty description, and conflating them accuses the wrong PRs.
+        r = sh(f"gh api repos/{SLUG}/commits/{one['headRefOid']}/statuses "
+               "--jq '[.[]|select(.context==\"faithfulness-gate\")][0].description'", timeout=60)
+        if r.returncode != 0:
+            kept.add(n)                      # cannot check -> do not call it uncovered
+            continue
+        if desc_re.search(r.stdout or ""):
+            kept.add(n)
+    coverage["rebase_claim.sh"] = kept
+
+    # pr_land is not a queue anyone polls, but a PR that is APPROVED + green + mergeable is not
+    # stranded: it is waiting on a reviewer's merge step. Counted as covered, and named as such.
+    landable = set()
     for pr in prs:
-        n = pr["number"]
-        decision = pr.get("reviewDecision") or ""
-        merge_state = pr.get("mergeStateStatus") or ""
         gate = ""
-        for s in (pr.get("statusCheckRollup") or []):
-            if (s.get("context") or s.get("name")) == "faithfulness-gate":
-                gate = (s.get("state") or s.get("conclusion") or "").upper()
+        for st in (pr.get("statusCheckRollup") or []):
+            if (st.get("context") or st.get("name")) == "faithfulness-gate":
+                gate = (st.get("state") or st.get("conclusion") or "").upper()
+        if (pr.get("reviewDecision") == "APPROVED" and gate == "SUCCESS"
+                and (pr.get("mergeStateStatus") or "") not in ("DIRTY",)):
+            landable.add(pr["number"])
+    coverage["pr_land"] = landable
 
-        claimable_by = []
-        if decision == "CHANGES_REQUESTED":
-            claimable_by.append("rework_claim")          # worker fixes what the reviewer named
-        if gate == "FAILURE" or merge_state == "DIRTY":
-            claimable_by.append("rebase_claim")          # worker rebases / resolves
-        if decision != "CHANGES_REQUESTED" and gate in ("", "NONE", "PENDING", "EXPECTED", "SUCCESS"):
-            if decision != "APPROVED":
-                claimable_by.append("review_claim")      # reviewer verdicts it
-        if decision == "APPROVED" and gate == "SUCCESS" and merge_state not in ("DIRTY",):
-            claimable_by.append("pr_land")               # ready to merge
-
-        if not claimable_by:
-            orphans.append((n, f"#{n} (review={decision or 'none'} gate={gate or 'none'} "
-                               f"merge={merge_state or '?'})"))
+    covered = set().union(*coverage.values()) if coverage else set()
+    orphans = sorted(open_nums - covered)
 
     # CONFIRM EACH ORPHAN INDIVIDUALLY. A PR being merged right now looks exactly like an orphan in
     # a list snapshot — APPROVED, gate PENDING while pr_land re-gates, mergeStateStatus BLOCKED —
@@ -123,27 +217,29 @@ def check_queue_coverage():
     confirmed = []
     if orphans:
         time.sleep(20)
-        for n, desc in orphans:
-            one, err = gh_json(f"pr view {n} --repo {SLUG} "
-                               "--json state,reviewDecision,mergeStateStatus,statusCheckRollup", tries=2)
-            if one is None:
-                continue                      # cannot confirm -> do not accuse
-            if one.get("state") != "OPEN":
-                continue                      # it was mid-merge; not an orphan
+        for n in orphans:
+            one, _e = gh_json(f"pr view {n} --repo {SLUG} "
+                              "--json state,reviewDecision,mergeStateStatus,statusCheckRollup", tries=2)
+            if one is None or one.get("state") != "OPEN":
+                continue
             g2 = ""
             for s2 in (one.get("statusCheckRollup") or []):
                 if (s2.get("context") or s2.get("name")) == "faithfulness-gate":
                     g2 = (s2.get("state") or s2.get("conclusion") or "").upper()
             if g2 in ("PENDING", "EXPECTED"):
                 continue                      # a gate is running on it right now
-            confirmed.append(desc)
-    orphans = confirmed
+            confirmed.append(f"#{n} (review={one.get('reviewDecision') or 'none'} "
+                             f"gate={g2 or 'none'} merge={one.get('mergeStateStatus') or '?'})")
 
-    if orphans:
+    sizes = ", ".join(f"{k.replace('.sh','')}={len(v)}" for k, v in sorted(coverage.items()))
+    if confirmed:
         return record("queue-coverage", FAIL,
-                      f"{len(orphans)} open PR(s) NO queue can claim — they will sit indefinitely "
-                      f"and nothing else notices: " + "; ".join(orphans[:6]), "#33/#41")
-    record("queue-coverage", OK, f"all {len(prs)} open PRs are claimable by some queue", "#33/#41")
+                      f"{len(confirmed)} open PR(s) NO queue can claim — they will sit indefinitely "
+                      f"and nothing else notices: " + "; ".join(confirmed[:6])
+                      + f"  [selectors consulted at origin/main {MAIN_SHA}: {sizes}]", "#33/#41")
+    record("queue-coverage", OK,
+           f"all {len(open_nums)} open PRs are selected by some queue's OWN filter "
+           f"[origin/main {MAIN_SHA}: {sizes}]", "#33/#41")
 
 
 # ── 2. Every guard must actually be INVOKED by something ────────────────────────────────────────
@@ -156,17 +252,27 @@ def check_guards_wired():
         "regression_check.py": ["pr_gate.sh", "gate.sh"],
         "dup_check.py": ["pr_gate.sh", "gate.sh"],
     }
+    # FROM origin/main, NOT from the working tree. This check reported
+    # `check_duplicate_classes.py` as uninvoked an hour after #565 wired it into pr_gate.sh, purely
+    # because the canonical checkout was 28 commits behind — a state this file's own tree-current
+    # check calls OK. Two checks in one report disagreeing about whether the tree can be trusted is
+    # worse than either being wrong alone, so every source-inspecting check now reads through git
+    # and the report names the SHA it read.
     callers_text = ""
     for rel in ("raw-port/army/tools/pr_gate.sh", "raw-port/army/gate/gate.sh",
                 "raw-port/army/verifier/prove_all.py", "raw-port/army/tools/swarm_maint.sh"):
-        p = os.path.join(CANON, rel)
-        if os.path.exists(p):
-            callers_text += open(p, errors="replace").read()
+        callers_text += from_main(rel)
+    if not callers_text:
+        return record("guards-wired", UNKNOWN,
+                      "could not read any caller from origin/main — cannot tell wired from "
+                      "unwired, and guessing here is how a missing guard reads as reassurance", "#44")
     orphaned = [g for g in guards if g not in callers_text]
     if orphaned:
         return record("guards-wired", FAIL,
-                      f"guard(s) that exist but nothing invokes: {', '.join(orphaned)}", "#44")
-    record("guards-wired", OK, f"all {len(guards)} guards are invoked by a caller", "#44")
+                      f"guard(s) that exist but nothing invokes: {', '.join(orphaned)} "
+                      f"[read at origin/main {MAIN_SHA}]", "#44")
+    record("guards-wired", OK,
+           f"all {len(guards)} guards are invoked by a caller [origin/main {MAIN_SHA}]", "#44")
 
 
 # ── 3. The canonical checkout must be current ───────────────────────────────────────────────────
@@ -280,12 +386,25 @@ def check_tests_can_fail():
                       "test_guards.py not in this tree (it lands with the fix/guards PR) — the guard "
                       "suite is therefore NOT protecting anything here yet")
     src = open(tg, errors="replace").read()
-    if "INCOMPLETE" not in src or "skipped" not in src:
+    # The PROPERTY is "a case that could not run does not report as passed". Two spellings of it are
+    # in flight in different PRs — an INCOMPLETE verdict, and a PASS plus an explicit SKIPPED list —
+    # and this check must not fail a healthy suite for choosing the other one. Accept either, and
+    # require only that the suite tracks unrun cases at all.
+    has_incomplete = "INCOMPLETE" in src
+    has_skips = ("skipped" in src) or ("SKIPPED" in src)
+    if not (has_incomplete or has_skips):
         return record("tests-can-fail", FAIL,
-                      "test_guards has no INCOMPLETE path — a case that cannot RUN would report PASS",
-                      "#40")
+                      "test_guards tracks no unrun cases (no INCOMPLETE verdict and no SKIPPED "
+                      "list) — a case that cannot RUN would report PASS", "#40")
     r = sh(f"python3 {tg}", timeout=300)
     out = r.stdout + r.stderr
+    # A PASS that carries skips is NOT an OK: the suite ran, but not all of it, which is exactly the
+    # distinction the check exists to enforce and the one its own docstring demands.
+    if "test_guards: PASS" in out and ("SKIPPED" in out or "COULD NOT RUN" in out):
+        return record("tests-can-fail", UNKNOWN,
+                      "guard suite passed the cases it RAN, but some did not run: "
+                      + " ".join(l.strip() for l in out.splitlines()
+                                 if "SKIPPED" in l or "COULD NOT RUN" in l)[:200], "#40")
     if "test_guards: PASS" in out:
         return record("tests-can-fail", OK, "guard suite runs and passes with a real verdict")
     if "test_guards: INCOMPLETE" in out:
@@ -328,17 +447,24 @@ def check_dead_counters():
     INFLATED stayed at the cap and kept real work invisible — the fix alone did not free them. And
     counters for PRs that have since merged or closed accumulate forever: 64 of them were sitting in
     the state dir, one of which (#387, MERGED) read as 'stranded' on this doctor's first run."""
-    dead = []
+    counters = []
     for kind in ("rebase", "rework"):
         d = os.path.join(STATE, f"{kind}_attempts")
         if not os.path.isdir(d):
             continue
-        for f in sorted(os.listdir(d)):
-            if f.endswith(".sha") or not f.isdigit():
-                continue
-            one, err = gh_json(f"pr view {f} --repo {SLUG} --json state", tries=1)
-            if one and one.get("state") in ("MERGED", "CLOSED"):
-                dead.append(f"{kind}/{f}")
+        counters += [(kind, f) for f in sorted(os.listdir(d))
+                     if f.isdigit() and not f.endswith(".sha")]
+    if not counters:
+        return record("dead-counters", OK, "no attempt counters outlive their PR")
+    # ONE list call, not one per counter. The PR body reported 64 counters sitting in the state dir
+    # at one point; that would have been 64 serial API calls in a tool AGENT_ENTRY tells every agent
+    # to run, on a box where the network round-trip is the slowest thing here.
+    allprs, err = gh_json(f"pr list --repo {SLUG} --state all --limit 400 --json number,state")
+    if allprs is None:
+        return record("dead-counters", UNKNOWN, f"could not list PRs to age the counters: {err}", "#28")
+    state_of = {p["number"]: p.get("state") for p in allprs}
+    dead = [f"{kind}/{f}" for kind, f in counters
+            if state_of.get(int(f)) in ("MERGED", "CLOSED")]
     if dead:
         return record("dead-counters", FAIL,
                       f"{len(dead)} attempt counter(s) for PRs that are already merged/closed — "
@@ -406,7 +532,8 @@ def check_brief_flags_exist():
 
 CHECKS = [check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_heartbeats, check_tests_can_fail, check_inventory,
-          check_dead_counters, check_brief_flags_exist]
+          check_dead_counters,
+          check_brief_flags_exist]
 
 
 def main():
