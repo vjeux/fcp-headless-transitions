@@ -38,13 +38,25 @@ mkdir -p "$DIR"
 SLUG=$(printf '%s' "$TITLE" | tr '[:upper:]' '[:lower:]' \
         | tr -c '[:alnum:]' '-' | tr -s '-' | sed 's/^-//; s/-$//' | cut -c1-60)
 SLUG="${SLUG:-entry}"
+
+# Attribution is how a reader knows whose measurement it was and who to ask, and every entry in
+# OPS_LOG is signed "by worker N / reviewer N". With FCT_AGENT_ID unset the fallback is the HOSTNAME,
+# which is identical for all 8 slots on this box — i.e. a byline that identifies nobody. Say so out
+# loud (as pr_submit.sh and review_claim.sh already do for the same variable) and still write the
+# file: a slightly anonymous entry beats a refused one.
+BYLINE="${FCT_AGENT_ID:-}"
+if [ -z "$BYLINE" ]; then
+  BYLINE="$(hostname -s)"
+  echo "new_ops_entry: FCT_AGENT_ID is unset — signing this entry '$BYLINE', which is the same for" >&2
+  echo "               every slot on this box. export FCT_AGENT_ID=<role>-<N> so the byline names you." >&2
+fi
 FILE="$DIR/$(date +%Y-%m-%d)-$SLUG.md"
 if [ -e "$FILE" ]; then FILE="${FILE%.md}-$(date +%H%M%S).md"; fi
 
 cat > "$FILE" <<EOF
 # $TITLE
 
-- **reported** $(date -u +%Y-%m-%dT%H:%M:%SZ) by ${FCT_AGENT_ID:-$(hostname -s)}
+- **reported** $(date -u +%Y-%m-%dT%H:%M:%SZ) by ${BYLINE}
 - **status** OPEN
 
 ## Symptom

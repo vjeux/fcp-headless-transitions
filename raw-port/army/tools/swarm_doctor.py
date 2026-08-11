@@ -589,29 +589,9 @@ def check_rebase_actionable():
            + live)
 
 
-def check_ops_contention():
-    """No single file should be the swarm's merge bottleneck.
-
-    OPS_LOG.md was 28% of the last 259 merges (73 of them) because every agent appended to it, so
-    every pair of ops reports conflicted by construction — five at once at the worst, three of them
-    reviewer-APPROVED and unmergeable for over an hour. `ops/` (one file per entry) removes the
-    class. This check exists so the convention cannot quietly lapse back: if one file starts
-    dominating merges again, say so before it costs another afternoon of hand-merges.
-    """
-    r = sh("git log origin/main --name-only --pretty=format: -200 -- raw-port/army raw-port/tools")
-    if r.returncode != 0:
-        return record("ops-contention", UNKNOWN, "could not read git history")
-    files = [l.strip() for l in r.stdout.splitlines() if l.strip()]
-    if not files:
-        return record("ops-contention", UNKNOWN, "no history returned")
-    top, n = collections.Counter(files).most_common(1)[0]
-    pct = 100.0 * n / 200
-    if pct >= 20:
-        return record("ops-contention", FAIL,
-                      f"{top} is in {n} of the last 200 commits ({pct:.0f}%) — one file that hot is "
-                      f"a merge bottleneck by construction; file findings with "
-                      f"`new_ops_entry.sh` (one file per entry) instead", "#ops-dir")
-    record("ops-contention", OK, f"hottest shared file is {top} at {pct:.0f}% of recent commits")
+# How many commits the window must hold before a percentage over it means anything. Below this the
+# check reports ok and says how far it has filled: 20% of five commits is one commit.
+OPS_WINDOW_MIN = 40
 
 
 def check_ops_contention():
@@ -622,19 +602,55 @@ def check_ops_contention():
     reviewer-APPROVED and unmergeable for over an hour. `ops/` (one file per entry) removes the
     class. This check exists so the convention cannot quietly lapse back: if one shared file starts
     dominating merges again, say so before it costs another afternoon of hand-merges.
+
+    MEASURED OVER THE CONVENTION, NOT THE ARCHIVE. The first version counted a fixed 200 commits of
+    history, so it FAILed the moment it landed and stayed red for ~150 commits no matter how well
+    the swarm behaved — a check correct behaviour cannot clear teaches agents to skim the doctor,
+    which is the one tool that audits the queues. The window therefore starts at the commit that
+    ADDED `raw-port/army/ops/README.md`: before that commit nobody could have followed the
+    convention, and after it every commit in the window is one that could. It goes green today by
+    agents doing the right thing, and red again if they stop.
     """
-    r = sh("git log origin/main --name-only --pretty=format: -200 -- raw-port/army raw-port/tools")
-    if r.returncode != 0 or not r.stdout.strip():
+    base = sh("git log --diff-filter=A --format=%H -1 origin/main -- raw-port/army/ops/README.md")
+    if base.returncode != 0:
         return record("ops-contention", UNKNOWN, "could not read git history")
-    files = [l.strip() for l in r.stdout.splitlines() if l.strip()]
-    top, n = collections.Counter(files).most_common(1)[0]
-    pct = 100.0 * n / 200
+    since = base.stdout.strip()
+    if not since:
+        return record("ops-contention", OK,
+                      "one-file-per-finding (raw-port/army/ops/) is not on main yet — "
+                      "nothing to measure until it lands")
+    r = sh(f"git log {since}..origin/main --name-only --pretty=format:%H "
+           f"-- raw-port/army raw-port/tools")
+    if r.returncode != 0:
+        return record("ops-contention", UNKNOWN, "could not read git history")
+    commits, counts = 0, collections.Counter()
+    seen = set()
+    for line in r.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if len(line) == 40 and all(c in "0123456789abcdef" for c in line):
+            commits += 1
+            seen = set()
+            continue
+        if line not in seen:            # one commit counts a file once
+            seen.add(line)
+            counts[line] += 1
+    if commits < OPS_WINDOW_MIN:
+        return record("ops-contention", OK,
+                      f"only {commits} commit(s) under raw-port/army|tools since the ops/ "
+                      f"convention landed — window fills at {OPS_WINDOW_MIN}, nothing to conclude yet")
+    top, n = counts.most_common(1)[0]
+    pct = 100.0 * n / commits
     if pct >= 20:
         return record("ops-contention", FAIL,
-                      f"{top} is in {n} of the last 200 commits ({pct:.0f}%) — one file that hot is a "
-                      f"merge bottleneck by construction; file findings with `new_ops_entry.sh` "
-                      f"(one file per entry) instead", "#ops-dir")
-    record("ops-contention", OK, f"hottest shared file is {top} at {pct:.0f}% of recent commits")
+                      f"{top} is in {n} of the {commits} commits since the ops/ convention landed "
+                      f"({pct:.0f}%) — one file that hot is a merge bottleneck by construction; "
+                      f"file findings with `new_ops_entry.sh` (one file per entry) instead",
+                      "#ops-dir")
+    record("ops-contention", OK,
+           f"hottest shared file is {top} at {pct:.0f}% of the {commits} commits since the ops/ "
+           f"convention landed")
 
 
 CHECKS = [check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
