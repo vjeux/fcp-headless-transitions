@@ -132,7 +132,19 @@ def layer2():
     print("LAYER 2j (a PR's base must be main — the gate and the merge target must agree):",
           "PASS" if ok10 else "FAIL")
     if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
+    # 2k — AND NO QUEUE MAY OFFER SUCH A PR IN THE FIRST PLACE. 2j stops the two tools that would
+    # act wrongly on an off-main PR; this stops the three queues that hand it out. Both halves are
+    # wanted: #650 reached a reviewer's signature and #656 was leased to a WORKER as a rebase task
+    # whose DIRTY was a conflict with a peer branch, and the refusals do not give those slots back.
+    # `check_pr_base` keeps such a PR VISIBLE, which is what makes skipping it safe rather than
+    # stranding (see the note in that check and the ops/ entry). Offline, jq-backed fixtures; the
+    # mutation cases strip the clause from a copy of each tool and require the wrong answer. ~2s.
+    r11 = run(["bash", os.path.join(TOOLS, "test_queue_base_main.sh")])
+    ok11 = "test_queue_base_main: PASS" in r11.stdout
+    print("LAYER 2k (a queue may only offer PRs that can reach main):",
+          "PASS" if ok11 else "FAIL")
+    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11)
 
 def _reach(spec, expect):
     import tempfile
