@@ -382,7 +382,11 @@ cmd_release () {
   # Note --force does NOT bypass this: --force was how the pr_gate trap wiped worker 1's slot, and a
   # flag meaning "discard my own work" must not also mean "discard someone else's".
   local owner; owner="$(cat "$LEASES/$slot/owner" 2>/dev/null)"
-  if [ -n "$owner" ] && [ -n "${FCT_AGENT_ID:-}" ] && [ "$owner" != "$FCT_AGENT_ID" ]; then
+  # `unknown` is accepted as "no owner" here for the same reason the three queue guards accept it:
+  # two spellings of one condition is the seed of the one-principal-two-spellings bug, and nothing
+  # should have to know WHICH file wrote a lease to know whether it is owned. Nothing writes the
+  # literal today; this keeps the four guards from disagreeing if anything ever does.
+  if [ -n "$owner" ] && [ "$owner" != "unknown" ] && [ -n "${FCT_AGENT_ID:-}" ] && [ "$owner" != "$FCT_AGENT_ID" ]; then
     local win="${WT_POOL_STALE:-120}"
     case "$(cat "$LEASES/$slot/holder" 2>/dev/null)" in gate/*) win="${GATE_STALE_MIN:-15}";; esac
     if [ -z "$(find "$LEASES/$slot/holder" -mmin +"$win" 2>/dev/null)" ]; then

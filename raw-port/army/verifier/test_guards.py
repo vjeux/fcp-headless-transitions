@@ -329,7 +329,8 @@ with tempfile.TemporaryDirectory() as td:
 # deleting that condition from the tool makes this case go red.
 rc_src = open(rc_sh).read()
 skip_cond = re.search(
-    r'^\s*if \[ -n "\$\{FCT_AGENT_ID:-\}" \].*?\n\s*&& \[ "\$\(cat "\$mine_dir/\$num".*?\n',
+    r'^\s*if \[ -n "\$\{FCT_AGENT_ID:-\}" \] && \[ -f "\$mine_dir/\$num" \][^\n]*\n'
+    r'\s*&& \[ "\$\(cat "\$mine_dir/\$num"[^\n]*\n',
     rc_src, re.S | re.M)
 if not skip_cond:
     fails.append("F. review_claim.sh has no self-review skip condition (searched for the "
@@ -388,8 +389,16 @@ if "export FCT_AGENT_ID" not in sl_code:
 # case cannot reach the live leases in ~/.fct-pool no matter how it breaks. The observable is the
 # lease DIRECTORY, not the exit code — a refusal deliberately exits 0 so that a cleanup sweep is not
 # hard-failed by a lease it does not own, which means the exit code cannot distinguish the two.
-def _lease_release_case(script, subdir, mutate=None):
-    """-> list of failures for one claim script. mutate: text->text applied to the script first."""
+def _lease_release_case(script, subdir, mutate=None, keyfmt="{pr}", relargs="{pr}",
+                        taker="lease_free", takeargs="{pr}"):
+    """-> list of failures for one claim script. mutate: text->text applied to the script first.
+
+    Parameterised over the queue's spelling rather than rewritten per queue, because the property is
+    that the queues do NOT differ here: keyfmt is the lease directory name under subdir (review_claim
+    keys `pr-<N>`), relargs is the release argv, and taker/takeargs name the function that takes a
+    lease so case 7 can drive the real stale-reclaim path offline. A per-queue copy of this case
+    would be free to drift from the queue it does not cover, which is the exact failure the case is
+    about."""
     out = []
     src = open(os.path.join(TOOLS, script)).read()
     if mutate:
@@ -401,7 +410,7 @@ def _lease_release_case(script, subdir, mutate=None):
         state = os.path.join(td, "state")
 
         def lease(pr, owner):
-            d = os.path.join(state, subdir, str(pr))
+            d = os.path.join(state, subdir, keyfmt.format(pr=pr))
             os.makedirs(d, exist_ok=True)
             open(os.path.join(d, "held"), "w").write("1786478000")
             if owner is not None:
@@ -411,7 +420,7 @@ def _lease_release_case(script, subdir, mutate=None):
         def release(pr, as_agent):
             env = f"FCT_STATE_DIR={state} "
             env += f"FCT_AGENT_ID={as_agent} " if as_agent else "FCT_AGENT_ID= "
-            return sh(f"{env}bash {path} release {pr}")
+            return sh(f"{env}bash {path} release {relargs.format(pr=pr)}")
 
         # 1. a FOREIGN lease must survive the release
         d = lease(101, "worker-9")
@@ -447,8 +456,8 @@ def _lease_release_case(script, subdir, mutate=None):
         # 6. and the claim side must actually RECORD an owner, or every check above is vacuous.
         #    This one is a TEXT check and it is weak on purpose-built text: it passed against a
         #    stamp that wrote the owner only sometimes, which is what 7 below exists to catch.
-        if "owner" not in src.split("lease_free", 1)[-1].split("\n}", 1)[0]:
-            out.append(f"I. {script}: lease_free() does not write an owner file — the release "
+        if "owner" not in src.split(taker + " ()", 1)[-1].split("\n}", 1)[0]:
+            out.append(f"I. {script}: {taker}() does not write an owner file — the release "
                        "guard can never fire, which reads as protection while providing none")
         # 7. A STALE RECLAIM BY AN ID-LESS AGENT MUST NOT LEAVE THE DEAD AGENT'S NAME ON THE LEASE.
         #    The stale branch of lease_free() reuses a directory that ALREADY has an owner file, so
@@ -466,7 +475,7 @@ def _lease_release_case(script, subdir, mutate=None):
         probe = (f"export FCT_STATE_DIR='{state}'\n"
                  f"unset FCT_AGENT_ID\n"
                  f"source '{path}' status >/dev/null 2>&1\n"
-                 f"lease_free 106\n")
+                 f"{taker} {takeargs.format(pr=106)}\n")
         sh(probe)
         if os.path.exists(os.path.join(d, "owner")):
             who = open(os.path.join(d, "owner")).read().strip()
@@ -495,14 +504,26 @@ def _lease_release_case(script, subdir, mutate=None):
     return out
 
 
-for _script, _subdir in (("rework_claim.sh", "rework_leases"), ("rebase_claim.sh", "rebase_leases")):
-    fails += _lease_release_case(_script, _subdir)
+# THE REVIEW QUEUE IS IN THIS LIST BECAUSE ITS LEASE IS THE MOST EXPENSIVE ONE TO LOSE: it is what
+# stops two reviewer slots gating one head, and a reviewer that loses it silently ends with two
+# agents running pr_land on the same PR. Its spelling differs from its two siblings (the directory
+# is `pr-<N>`, release takes an optional sha, and the taker is `lease_take` because cmd_claim needs
+# gh and cannot be driven offline) — hence the format parameters rather than a second copy of the
+# case.
+for _script, _subdir, _key, _rel, _taker, _take in (
+        ("rework_claim.sh", "rework_leases", "{pr}",    "{pr}", "lease_free", "{pr}"),
+        ("rebase_claim.sh", "rebase_leases", "{pr}",    "{pr}", "lease_free", "{pr}"),
+        ("review_claim.sh", "review_leases", "pr-{pr}", "{pr} deadbeefcafe0000", "lease_take",
+         "{pr} deadbeefcafe0000"),
+):
+    _kw = dict(keyfmt=_key, relargs=_rel, taker=_taker, takeargs=_take)
+    fails += _lease_release_case(_script, _subdir, **_kw)
     # MUTATION: with the ownership test stripped out of the release branch, case 1 must go red.
     # Without this the whole case would pass just as happily against the unconditional `rm -rf` it
     # exists to forbid — five green assertions about a guard that was never there.
     _mutated = _lease_release_case(
         _script, _subdir,
-        mutate=lambda s: re.sub(r'if \[ -n "\$_own" \].*?\n    fi\n', "", s, flags=re.S))
+        mutate=lambda s: re.sub(r'if \[ -n "\$_own" \].*?\n    fi\n', "", s, flags=re.S), **_kw)
     if not any("released a lease owned by ANOTHER agent" in m for m in _mutated):
         fails.append(f"I. {_script}: the mutation check did not go red — removing the ownership "
                      "test from the release branch left this case passing, so it is not evidence")
@@ -511,7 +532,7 @@ for _script, _subdir in (("rework_claim.sh", "rework_leases"), ("rebase_claim.sh
     # this text and every one of cases 1-6 passed against it, which is the whole reason 7 exists:
     # the hole was not in the release guard but in the KEY it reads.
     _stamped = _lease_release_case(
-        _script, _subdir,
+        _script, _subdir, **_kw,
         mutate=lambda s: s.replace(
             'if [ -n "${FCT_AGENT_ID:-}" ]; then echo "$FCT_AGENT_ID" > "$1/owner"; '
             'else rm -f "$1/owner"; fi',

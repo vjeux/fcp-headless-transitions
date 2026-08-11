@@ -289,6 +289,12 @@ def check_lease_ownership():
         "raw-port/army/tools/rework_claim.sh": "rework queue",
         "raw-port/army/tools/rebase_claim.sh": "rebase queue",
         "raw-port/army/tools/wt_pool.sh": "worktree pool",
+        # The review queue is the fourth path, and it was the one left out of the first cut of this
+        # check — with three entries the OK line reads "all 3 release paths check ownership", which
+        # a reader takes for "every lease path" and does not go and count. A check whose scope is
+        # narrower than its sentence is how #44 happened; it is also the file a future queue is
+        # most likely to be copied from, so leaving it unguarded preserves the pattern this removes.
+        "raw-port/army/tools/review_claim.sh": "review queue",
     }
     unguarded, unread, drifted = [], [], []
     for rel, what in releasers.items():
@@ -337,7 +343,7 @@ def check_lease_ownership():
     _r = sh("git log -1 --format=%ct origin/main -- raw-port/army/tools/wt_pool.sh")
     since = int(_r.stdout.strip()) if _r.returncode == 0 and _r.stdout.strip().isdigit() else 0
     total = owned = young = 0
-    for sub in ("rework_leases", "rebase_leases", "leases"):
+    for sub in ("rework_leases", "rebase_leases", "leases", "review_leases"):
         d = os.path.join(STATE, sub)
         if not os.path.isdir(d):
             continue
