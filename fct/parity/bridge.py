@@ -22,6 +22,38 @@ WORKER_TS = os.environ.get("FCT_PARITY_WORKER", "army/verifier/generic_worker.ts
 CALL_TIMEOUT_S = float(os.environ.get("FCT_PARITY_TIMEOUT", "20"))
 
 
+def _normalize_outputs(reply, node):
+    """Map generic_worker's reply into the ORACLE's output-name space.
+
+    `driver._sweep_curve` looks up `e_out[name]` for each name in the node's `compare_outputs`,
+    which are the ORACLE's names: "ret" for the C return value and the out-parameter names from
+    the signature (e.g. "outVal"). generic_worker, by contrast, answers
+    {"ok":true,"ret":<the TS function's return>,"outArgs":{"arg<i>":[...]}} — it cannot know
+    those names. Without this mapping the driver raised KeyError('outVal') (or compared a float
+    against None), which surfaced as "ORACLE DIVERGENCE" on a file whose port was never even
+    called — i.e. the gate failing for a harness reason, the #6 shape.
+
+    Rules, in order:
+      * "ret" is always the TS return value as-is (scalar or array).
+      * a TS port that returns an OBJECT (because the C function wrote through out-pointers)
+        exposes its keys directly, and `node["ts_outputs"]` renames them into the oracle's names
+        ({"<oracle name>": "<ts key>"}). Declaring the mapping in registry.json keeps it explicit
+        instead of guessing by position.
+      * anything the worker allocated for an out_array is exposed under its argN key too.
+    """
+    out = {"ret": reply.get("ret")}
+    ret = reply.get("ret")
+    if isinstance(ret, dict):
+        out.update(ret)
+    out.update(reply.get("outArgs") or {})
+    for oracle_name, ts_key in ((node or {}).get("ts_outputs") or {}).items():
+        if isinstance(ret, dict) and ts_key in ret:
+            out[oracle_name] = ret[ts_key]
+        elif ts_key in out:
+            out[oracle_name] = out[ts_key]
+    return out
+
+
 class TSWorker:
     def __init__(self):
         self.proc = None
@@ -78,15 +110,26 @@ class TSWorker:
                 # The old engine worker took a name->value dict because each wrapper was hand-written
                 # and could destructure. Marshal here rather than changing the worker, which is the
                 # scalable side (it dynamically imports the real port instead of a wrapper table).
+                # INPUT kinds, in signature order. `in_array` must be included: it is an input
+                # the port takes as a real argument (generic_worker documents the kind and passes
+                # it straight through). Filtering to kind == "in" alone silently DROPPED every
+                # array argument, so e.g. OZBezierEval(ctrl[4], u) was called as OZBezierEval(u)
+                # and returned undefined -> the driver compared a float against None and G4 died
+                # with `unsupported operand type(s) for -: 'float' and 'NoneType'`. argKinds is
+                # sent too, so the worker knows which positions are arrays.
+                sig_args = (((node or {}).get("oracle") or {}).get("signature") or {}).get("args", [])
+                in_args = [a for a in sig_args if a.get("kind") in ("in", "in_array")]
                 if isinstance(args, dict):
-                    names = [a.get("name") for a in
-                             (((node or {}).get("oracle") or {}).get("signature") or {}).get("args", [])
-                             if a.get("kind") == "in"]
+                    names = [a.get("name") for a in in_args]
                     pos = [args[n] for n in names if n in args] if names else list(args.values())
+                    kinds = [a.get("kind") for a in in_args if a.get("name") in args] if names else []
                 else:
                     pos = args
-                req = json.dumps({"modulePath": os.path.join(_REPO, mod),
-                                  "exportName": fn_id, "args": pos}) + "\n"
+                    kinds = [a.get("kind") for a in in_args]
+                payload = {"modulePath": os.path.join(_REPO, mod), "exportName": fn_id, "args": pos}
+                if kinds and len(kinds) == len(pos):
+                    payload["argKinds"] = kinds
+                req = json.dumps(payload) + "\n"
             else:
                 req = json.dumps({"fn": fn_id, "args": args}) + "\n"
             try:
@@ -102,7 +145,11 @@ class TSWorker:
             obj = json.loads(reply)
             if not obj.get("ok"):
                 raise RuntimeError("TS parity error for %s: %s" % (fn_id, obj.get("error")))
-            return obj.get("outputs", obj)
+            if "outputs" in obj:
+                return obj["outputs"]
+            if mod:
+                return _normalize_outputs(obj, node)
+            return obj
         raise RuntimeError("TS parity worker crashed/hung evaluating %s" % fn_id)
 
     def close(self):
