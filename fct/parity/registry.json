@@ -95,7 +95,11 @@
    ],
    "cases": "grid:easeInOut",
    "status": "UNTESTED",
-   "ts_module": "raw-port/src/infra/PCMath.ts"
+   "ts_module": "raw-port/src/infra/PCMath.ts",
+   "ts_outputs": {
+    "outVal": "out",
+    "outDeriv": "speed"
+   }
   },
   {
    "id": "curve.interp.bezier.eval",

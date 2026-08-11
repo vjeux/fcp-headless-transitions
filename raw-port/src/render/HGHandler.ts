@@ -368,6 +368,42 @@ export class HGHandler {
     // @0x6ad16b  divss xmm1, xmm0  → xmm0 = K_ONE / hF
     return Math.fround(K_ONE / hF);
   }
+
+  /**
+   * `HGHandler::~HGHandler()` [D2, base-object destructor] — @Helium 0xa6fb0
+   * (`__ZN9HGHandlerD2Ev`).
+   *
+   * SECOND FRAMEWORK. Everything above this method was transcribed from Ozone, which is where
+   * HGHandler's rendering-view methods live; the class's CONSTRUCTOR AND DESTRUCTORS are emitted
+   * in Helium instead (C2 @Helium 0xa6f40, D2 @Helium 0xa6fb0, D1 @Helium 0x3c1960,
+   * D0 @Helium 0x3c1970 — Ozone defines none of the four). This unit is the Helium D2, its own
+   * ledger entry at its own address; D0/D1/C2 are separate units and are not ported here.
+   *
+   * FULL transcription — the body is 3 executed instructions and nothing else:
+   *
+   *   0xa6fb0  pushq %rbp                ; frame setup (no TS counterpart)
+   *   0xa6fb1  movq  %rsp, %rbp          ; frame setup (no TS counterpart)
+   *   0xa6fb4  popq  %rbp                ; frame teardown (no TS counterpart)
+   *   0xa6fb5  retq
+   *   0xa6fb6  nopw  %cs:(%rax,%rax)     ; inter-function alignment padding, never executed
+   *
+   * Empty in the strict sense: no `callq`, no `jmp` to a base destructor or to `operator delete`,
+   * no memory operand at all, and `this` (%rdi) is never dereferenced — so the base-object
+   * destructor releases nothing and does not run a base-class dtor. `depgraph.py deps` lists no
+   * dependency. Note this is D2, NOT the deleting D0 @0x3c1970: it does not free the object.
+   *
+   * Disassembly (regenerate with
+   *   `bash raw-port/tools/disasm.sh --sym __ZN9HGHandlerD2Ev Helium`):
+   *   raw-port/re/disasm/Helium.__ZN9HGHandlerD2Ev.s   (6 lines)
+   *
+   * ORACLE (executed, not read): the symbol is exported (nm `T`), so it was dlsym'd in a Rosetta
+   * x86_64 process (Helium loaded by walking its @rpath chain) and called five times on a 1 KiB
+   * receiver poisoned with 0xa5. It returned normally and left every byte of the object
+   * unchanged — evidence the body really is empty rather than merely looking empty.
+   */
+  dtor_d2(): void {
+    // @0xa6fb0..0xa6fb5: prologue + ret only. Nothing freed, no base dtor, no field touched.
+  }
 }
 
 /**

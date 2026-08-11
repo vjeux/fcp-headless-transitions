@@ -56,7 +56,9 @@ file open. It cannot be excluded. With N agents, every wasteful read is multipli
 carry almost all of the benefit:
 
 - **Never read a framework binary when a cached index answers the question.** For symbols:
-  `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` (`<addr> <T|t> <mangled>`, all 5
+  `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` (the files are gitignored regenerable state,
+  symlinked into every pool worktree by `wt_pool.sh link_deps`; if one is genuinely missing, restore
+  it ONCE for everyone with `dump_syms.sh` in the canonical checkout rather than nm-ing per agent) (`<addr> <T|t> <mangled>`, all 5
   frameworks, ~145k defined symbols, **0.08s**). Running `nm` on
   `/Applications/Final Cut Pro.app/.../Flexo` instead is a 78 MB fat Mach-O read that costs a full
   core for **over two minutes** under contention — measured ~1000x worse for the same answer

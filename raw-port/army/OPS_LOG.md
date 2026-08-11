@@ -37,10 +37,40 @@ detail to reproduce. That is how this list grows.
 | 21 | G5 computed **476 of its 1,745 verdicts from a different class's function** — `AUPassThrough_D1` judged against `LiMaterialLayer::D1` (TRAP), `AdvanceScopingWindowTask_performTask` against `UpdateScrubRateTask::performTask` (EMPTY), every `*_ctor` export in the repo against one arbitrary framework's ctor | #307 anchored the CLASS key but left the BARE METHOD key: when no cited mangled symbol and no `<Class>.<method>` resolves, G5 falls back to `find_disasm(method)` / `find_disasm(class)`, and a method name alone is shared by hundreds of unrelated classes. Same both-ways harm: a wrong EMPTY/TRAP waves an empty-body-for-REAL-work port through, a wrong REAL condemns an honest @0xADDR-cited sibling stub as class-C | #317 — a bare-key hit must still NAME the class being ported (export-name prefix, else the file's class), via the shared `names_class` rule; otherwise it is discarded and the existing NO-DISASM FLAG asks the reviewer to re-derive. 476 fabricated verdicts -> 0, at the cost of flags on 106 landed files |
 | 22 | Load hit 73 on a 10-core box with 16 agents; `nm` processes pinned a core each for 60-120s | Agents answered one-off symbol questions with `nm -arch x86_64 "/Applications/Final Cut Pro.app/.../Flexo"` — a **78 MB fat** binary, rescanned by Defender/Cyberhaven on every open. The same answer was already cached in `army/inventory/<FW>.syms.txt` (144,642 defined symbols, all 5 frameworks). Measured: **nm on fat Flexo >120s vs `grep` on the cache 0.078s (~1000x)**. Same shape as #10 | **Use the cached inventory.** `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` -> `<addr> <T|t> <mangled>`. Only for UNDEFINED symbols or a flag the cache cannot answer, run nm against the THIN slice `/tmp/<FW>.x86_64` (regenerate with `lipo -thin x86_64`) and capture it ONCE into a variable instead of piping nm twice in one command. **Measured follow-up: thinning barely helps** — under swarm load the same nm took 4m24s fat vs 3m54s thin, so the cost is the symbol-table walk + the security stack, not the fat header. The cache is the only real fix; if it is stale, ONE agent should regenerate it for everyone with `dump_syms.sh` |
 | 23 | 9 concurrent identical `mark_ported.py` runs, ~4 min each at 176% CPU | It is a GLOBAL, idempotent, whole-repo reconciliation, but every agent runs it after every merge, so N agents produce N identical answers and N full scans of `src/` | `pgrep -f mark_ported` first and **skip if one is already running** — that run's result covers your commit too. A coalescing lock inside the tool is the stronger fix and is still open |
+| 24 | **G4 — the only un-fakeable gate — could not run AT ALL, and its way of failing is a REJECT, so every file mapped to an oracle node was unmergeable no matter what it contained** (OZInterpolator, OZBezierInterpolator, PCMath, OZSpline, OZLinearInterpolator, OZSCurveInterpolator, CMTime). Diagnosed as open by worker 1 earlier the same day; hit again by worker 6 on an oracle-VERIFIED port, where the gate REJECTED the file *unmodified on main* too | The engine parity worker was replaced by the module-addressed `generic_worker.ts` and FOUR callers were never migrated, each failing one layer deeper. (a) `selftest.py` S2 sent the deleted name-keyed request `{"fn": ...}`, so the worker got `modulePath: undefined` → Node's *The "path" argument must be of type string* → S2 FAIL → `HARNESS_BROKEN` → REJECT before any port was called. (b) `bridge.eval`'s positional marshalling kept only `kind == "in"` args and silently DROPPED every `in_array`, so `OZBezierEval(ctrl[4], u)` was invoked as `OZBezierEval(u)`, returned undefined, and the driver died on `float - NoneType`. (c) Nothing mapped `{ok, ret, outArgs}` into the ORACLE's output names → `KeyError: 'outVal'`. (d) A port that returns an object because the C function used out-pointers (`easeInOut -> {out, speed}`) has no derivable mapping to `outVal`/`outDeriv`. Note the shape: RED for a harness reason on exactly the files it can actually measure — the mirror image of #6 | #438 — S2 speaks the module-addressed protocol; `bridge.eval` includes `in_array` inputs and sends `argKinds`; new `bridge._normalize_outputs` maps the reply into oracle names via an explicit `ts_outputs` contract in registry.json (worker 1's recommendation; added to `curve.interp.ease`). PROVEN BOTH WAYS: three previously-dark nodes now sweep GREEN against the live binary — `curve.interp.bezier.eval` 166 cases 0.0e+00, `curve.interp.bezier.findparam` 135 cases 5.0e-16, `curve.interp.ease` 201 cases 0.0e+00 (state.json shows they last swept 2026-07-29/30, i.e. the migration is when they went dark) — AND the gate still REJECTS a deliberately sabotaged `OZBezierEval` (DIVERGED, max_abs_err 4.5e+01), a sabotaged `easeInOut` (S2 FAIL, 0.123), and a bogus `ts_module` (S2 FAIL). **Reviewers: `sweeping <node> ... -> VERIFIED` in G4 output is NEW — before this, G4 printing nothing but a stack trace was the normal state.** |
 
 ---
 
-## Open — reported 2026-08-11 by worker 1 (G5 resolution; FIX PROPOSED in this same change)
+## Open — reported 2026-08-11 by worker 1 (Ozone oracle — CONFIRMED, and a contradicted note)
+
+- **CONFIRMED, second independent run: Ozone loads outside the app bundle, with ZERO failed
+  dependencies, and a NON-leaf Ozone method was differentially oracled through it.** The
+  recursive-`@rpath`-preload recipe below works exactly as described: depth-first `otool -L` walk,
+  `ctypes.CDLL(<abs path>, RTLD_GLOBAL)` each dependency, then the target — **44 images preloaded,
+  0 failures**, under `arch -x86_64 /usr/bin/python3`, and `dlsym` then resolved
+  `_ZN7OZScene30clearTemporaryFilesPersistenceEv` (a `T` symbol; pass it WITHOUT the leading
+  underscore) first try. The `@rpath` roots that resolved everything:
+  `Contents/Frameworks`, `Contents/Frameworks/Flexo.framework/Versions/A/Frameworks`,
+  `Contents/PlugIns`, `Contents/Frameworks/ProApps`.
+
+- **So the drop reason on `HgcRetimeBlend::GetDOD` is WRONG and should not be repeated.** It states
+  "Ozone CANNOT be dlopen'd even under Rosetta with a recursive @rpath preloader - the chain
+  Ozone->ProGraphics->ProAppsFxSupport dies on 'Symbol not found: __ZN4HGPQ10kDefaultC1E'". That did
+  not reproduce: the same recipe reported 0 failed images. Whatever bit that, it is not a property
+  of loading Ozone, and "static transcription only" is not the right conclusion for an Ozone unit.
+  Before signing an Ozone port on reading alone, TRY the loader.
+
+- **You do not need a value->value function to get a real differential.** `clearTemporaryFilesPersistence`
+  walks a `std::map` and mutates a byte per entry — no return value, no scalar inputs. It was still
+  oracled by building the real structure in `ctypes` memory (libc++ `__tree_node`: `__left_` +0x00,
+  `__right_` +0x08, `__parent_` +0x10, value at +0x20), poisoning the whole arena, calling live FCP,
+  and diffing the arena BYTE FOR BYTE afterwards — which proves both "the intended bytes changed"
+  and, far more valuable, "nothing else did". Six tree shapes (1..31 nodes) plus the empty map, then
+  the identical structures replayed through the TS port via `tsx`: 7/7 agree. Cost: a few minutes.
+  The lesson worth generalising — **a memory-mutating method is oracle-able by snapshot-diffing an
+  arena you control**, and that check catches an over-write a return-value comparison never would.
+
+## Open — reported 2026-08-11 by worker 1 (G5 resolution; FIXED in #404)
 
 - **G5 judged 63% of the corpus's exports against SOME OTHER METHOD OF THE SAME CLASS — and the
   trigger was obeying the worker brief.** #302/#317 made a resolved disasm prove it NAMES THE CLASS.
@@ -121,6 +151,13 @@ detail to reproduce. That is how this list grows.
 ---
 
 ## Open — reported 2026-08-11 by worker 1 (G4 oracle; NOT fixed — diagnosis only)
+
+> **FIXED 2026-08-11 by worker 6 — see row 24 of the Fixed table.** The diagnosis below is exactly
+> right and its recommended contract (`ts_outputs` in registry.json, plumbed through
+> `bridge.eval`) is what was implemented, deliberately and in its own PR rather than as a drive-by,
+> with negative controls in both directions. TWO MORE layers sat behind the two below: `bridge.eval`
+> dropped every `in_array` argument, and nothing mapped the worker's `{ok, ret, outArgs}` reply into
+> the oracle's output names. Three previously-dark nodes now sweep GREEN against the live binary.
 
 - **G4, the only un-fakeable gate, cannot run AT ALL right now, so every oracle-mapped file on main
   is unmergeable.** Reproduced in a fresh pool worktree AND in the canonical checkout, so it is not
@@ -230,6 +267,84 @@ detail to reproduce. That is how this list grows.
   produces a green gate (or when the FAILURE is a NEW head SHA caused by main moving rather than
   by this branch failing), and `rebase_claim` should prefer to hand out one PR per class file at a
   time.
+
+---
+
+## Open — reported 2026-08-11 by the swarm parent (a replacement was dispatched into a LIVE slot; new)
+
+- **A replacement agent was dispatched into a slot whose incumbent was still working, on the strength
+  of the dispatcher's own misreading — and the slot lock cannot catch this.** I received a settled
+  report from the agent holding **reviewer 1**, misattributed it to **reviewer 3**, and spawned a
+  replacement addressed to slot 3. Slot 3's incumbent was mid-tick. The replacement got `BUSY` from
+  `slot_lock.sh acquire reviewer 3`, and — rather than believing its prompt's story that its
+  predecessor had stopped — it established liveness EXTERNALLY, from GitHub: verdicts posted by
+  `reviewer-3` at 14:14, 14:16, 14:22, 14:35 and 14:38Z, the newest 2m45s before it looked. A verdict
+  every 3–6 minutes is a live agent, so it stopped, held nothing, and reported. That was the correct
+  call and it is the behaviour to preserve.
+  WHY THE LOCK CANNOT SAVE YOU HERE: `slots/<role>-<N>/held` records only `<epoch> pid-agent` — no
+  pid, no heartbeat — and the epoch is the moment the slot was FIRST acquired, not the moment it was
+  last active. So the file cannot distinguish "died mid-tick two hours ago" from "working right now",
+  and the 90-minute stale-reclaim measures TICK AGE rather than idleness: a healthy long-running
+  reviewer looks exactly like a corpse to it. Two agents in one slot is the duplicate-review race
+  (#7 / #224): two reviewers approving and merging the same PR out from under each other.
+  RULES, today: (1) **Never resolve a `BUSY` from the dispatch prompt's narrative.** A prompt saying
+  "your predecessor completed and stopped" is a claim about the past made by someone who was not
+  there; the lock is evidence about the present. (2) Attribute liveness externally before concluding
+  anything — recent `reviewer-<N>` / `worker-<N>` PR comments and verdicts are the cheapest signal.
+  (3) On `BUSY`, **do not release the lock**: releasing it is worse than breaking it, because it
+  invites a THIRD run alongside the live one. Stop and report instead.
+  FIX: have each agent touch `slots/<role>-<N>/held` after every verdict / every unit, turning the
+  lock's mtime into a real heartbeat, so stale-reclaim measures IDLENESS instead of tick age; and
+  write the pid into the file so a dead holder is detectable directly. For dispatchers: the settled
+  report names its own slot — quote it from the report, never from memory of who was spawned where.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 6 (the rebase attempt cap counts CLAIMS, not failures; new)
+
+- **`rebase_attempts/<PR>` is incremented on every rebase CLAIM and is NEVER reset by a SUCCESSFUL
+  rebase, so on a contended class file the cap executes honest, already-verified PRs and blames them
+  for "3 failed rebase attempts" they did not have.** `rebase_claim.sh` is the ONLY writer of
+  `$STATE/rebase_attempts/` (grep confirms: no other tool touches it, and `rebase_pr.sh` never does).
+  It reads the counter, and on a successful lease writes `n+1` — *before* the rebase is attempted and
+  regardless of how it turns out. The file is removed in exactly one place: the `n >= CAP` branch that
+  CLOSES the PR. There is no success path that decrements or clears it. So the counter measures "how
+  many times this PR needed a rebase", while the cap and its close comment
+  ("Closed after $CAP failed rebase attempts (stale-base shared-class conflict that couldn't be
+  auto-rebased)") both assert "how many times rebasing FAILED".
+  These diverge whenever a rebase SUCCEEDS and the branch is then re-staled by a SIBLING landing —
+  the normal state of a hot class file, not a pathology.
+  MEASURED LIVE (2026-08-11 07:16, 8 workers + 8 reviewers): six open PRs on ONE class,
+  `HGRenderJob` (#387 `__slot4`, #388 `__slot5`, #389 `__slot7`, #390 `__slot9`, #391 `__slot8`,
+  #396 `port/HGRenderJob`), against 15 merges to main in 25 minutes. #387 = 3/3 and #390 = 3/3;
+  #388 and #391 = 2/3. **#387 is at the cap while being GREEN and APPROVED**: it was successfully
+  rebased (head 029dcb46 -> 7ded66ea), re-gated `success — gate PASS (G0-G5 clean, 0 flags)`, and
+  carries an APPROVED review. One more sibling landing regresses it and the next `rebase_claim` pass
+  CLOSES it, discarding an oracle-verified body and re-handing the symbol to a fresh worker to
+  transcribe from scratch. #390 is in the same position with a body I verified 1400/1400 bit-exact
+  against live Helium.
+  THE TRIGGER IS CONTENTION, NOT UN-REBASABILITY. Every landing on a shared class file invalidates
+  every other open branch on that file, so with K concurrent PRs on one class the cap is consumed in
+  ~K sibling merges no matter how well the rebases work. The cap's stated purpose — retiring a PR
+  that genuinely cannot be auto-rebased — is not what it does here; it retires the LOSERS OF A RACE,
+  and it does so faster the healthier the merge rate is. Cost is highest exactly where the work was
+  best, because a body that has been reviewed and oracle-verified is the most expensive thing to
+  throw away.
+  FIX (any one of these closes it; the first is the smallest):
+  1. **Only count FAILURES.** Have `rebase_pr.sh` clear `$STATE/rebase_attempts/<PR>` when it
+     force-pushes a rebased head that gates clean, or have `rebase_claim.sh` key the counter to the
+     head SHA it was claimed at and reset when the head has MOVED since. A PR that keeps producing
+     new, gating heads is making progress and must not be retired.
+  2. Exempt a PR that currently holds an APPROVED review or a `success` faithfulness-gate from the
+     cap outright — it has already paid for itself.
+  3. Serialise per class file: do not dispense two PORT units from the same `<Class>.ts` concurrently
+     (or land them through one stacked branch). That removes the race instead of arbitrating it. This
+     is the real fix for the 6-PRs-on-one-class pile-up; the cap change just stops the bleeding.
+  Until fixed: a reviewer who finds a faithful-but-rebase-blocked PR should record the verified body
+  in a PR comment (`pr_comment_once.sh`) so that if the cap closes it, the transcription is not lost
+  and the next worker can carry it over verbatim rather than re-deriving it.
+
+---
 
 ## Open — reported 2026-08-10 by worker 1 (oracle reachability; new)
 
@@ -474,6 +589,63 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   easy to miss in a long submit log. Write the message to a file and use `git commit -F`.
 
 ---
+
+## Open — reported 2026-08-11 by reviewer 3 (the approval binds to the LIVE head, not the reviewed one; NEW)
+
+- **`ghapp/pr_review.sh <PR#> approve` resolves the PR's head SHA AT CALL TIME, so a push that
+  lands while you were reviewing silently moves your APPROVE onto code you never looked at.**
+  The review queue leases by PR#+head-SHA precisely so two reviewers never gate the same head — but
+  nothing stops the *author* (or a worker pulling the same PR off the rebase queue) from pushing a
+  new head under an in-flight review, and `pr_review.sh` does not take the SHA you leased. It asks
+  GitHub for the current head and signs that.
+  Measured today, three times in six PRs, on a 16-agent swarm:
+  * **#384** — leased and fully verified `f741d2b2` (UsesOnlyGPUResource + SetGPUGraphicsAPI). While
+    the differential was running a worker pushed `e52779ce`, adding `IsRequestedVirtualScreen`
+    (+119 lines). `pr_review.sh … approve` printed `PR #384 @ e52779ce -> APPROVED`. Had I then run
+    `pr_land.sh`, **119 lines nobody reviewed would have landed under a real reviewer APPROVE** —
+    and every mechanical gate would have been green, because the added code was itself gate-clean.
+    (Caught only because the tool echoes the SHA it signed and it did not match my lease. I then
+    verified the new method too — it was faithful — but that was luck, not process.)
+  * **#388** and **#391** — same shape via the rebase path: a peer force-pushed a union-rebase onto
+    the PR branch between my `pr_gate` and my `approve`, so the approval landed on `a8faaf96` /
+    `0d722917` rather than the `531e72bf` / `52e95f1b` I leased.
+  This is the same failure class as #7 (a rejected port landing because a lease was keyed to a head
+  that moved), arriving through the APPROVE side instead of the merge side, and `required_pull_request_reviews`
+  is still `null` on `main` (GITHUB_APPS.md "Recommended follow-up"), so **`dismiss_stale_reviews`
+  is not protecting anyone** — nothing drops the approval when the head changes.
+  FIX (in order of value): (a) `pr_review.sh` should take the head SHA the reviewer verified —
+  `pr_review.sh <PR#> approve --head <sha> "<evidence>"` — and REFUSE (non-zero, loud) when the
+  live head differs, exactly as `pr_land` refuses to mint an approval (#234); (b) turn on
+  `required_approving_review_count=1` **with** `dismiss_stale_reviews=true`, which makes GitHub drop
+  the approval server-side on every push and turns this from a silent hazard into a re-review;
+  (c) `pr_gate.sh`/`pr_land.sh` should print the leased SHA alongside the live one so the drift is
+  visible in the log rather than only in the approval line.
+  WORKAROUND until then, and it is cheap — **re-read the head immediately before signing and compare
+  it to your lease**:
+
+      H=$(gh pr view <PR#> --repo vjeux/fcp-headless-transitions --json headRefOid -q .headRefOid)
+      [ "$H" = "<the SHA review_claim.sh leased you>" ] || { echo "HEAD MOVED — re-review"; }
+
+  and after any merge, diff what actually landed against the blob you verified
+  (`git show origin/main:<path>` vs `git show <verified-sha>:<path>`) before you consider the PR
+  signed. If the head moved, either verify the delta too or say plainly that you did not.
+
+- **`pr_land.sh` REBASE-RACE is now the dominant merge cost at 16 agents, and each losing round pays
+  a full gate.** #420 (a 5-instruction EMPTY port) burned **12 rounds across two invocations** —
+  every round `PR_GATE: PASS` then `mergeState=BEHIND` again — and never merged, because with 8
+  reviewers landing PRs, `main` advances faster than the `update-branch` → wait-for-new-head →
+  `pr_gate` → merge cycle can close. The work is not wasted review time, it is wasted *gate* time: a
+  pool worktree lease plus a tsgo typecheck per round, i.e. the losing rounds are themselves a large
+  part of what makes main advance so fast. Strict "require branches up to date" + a required status
+  that only an agent can post is the structural cause: GitHub auto-merge can update the branch, but
+  the new head then has NO `faithfulness-gate` status, so it parks until a reviewer gates it.
+  Not fixed here. Candidates: gate the MERGE COMMIT rather than the head; allow `pr_gate` to post the
+  status for a head it has already gated with an identical tree hash (the common case — an
+  update-branch merge that changes no file the PR touches, which a `git diff --quiet <old> <new> --
+  <changed paths>` can prove in milliseconds); or serialise landings behind a short repo-wide merge
+  lock so rounds stop competing. Until then: on REBASE-RACE, post the evidence comment, leave the
+  green status and the approval, release the lease and move on — do NOT keep re-running `pr_land`,
+  which is what turns one race into twelve gate runs.
 
 ## Standing rules that came out of the above
 
