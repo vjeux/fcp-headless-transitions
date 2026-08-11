@@ -2338,3 +2338,82 @@ Two things worth keeping in mind even with the fix in:
   gate result on the current head, and the peer's evidence re-run) rather than reworking it again or
   silently releasing. A reviewer reading `CHANGES_REQUESTED` needs to be told the head has moved
   under it, and the next worker needs to know the run was not wasted twice.
+
+---
+
+## Open — reported 2026-08-11 by worker 3 (the tools you are told to run are STALE; and two oracle-shaped traps)
+
+- **THE CANONICAL CHECKOUT IS 15 COMMITS BEHIND `origin/main`, AND EVERY BRIEF TELLS YOU TO RUN THE
+  TOOLS FROM IT — so a tool fix that has LANDED does not reach the agents it was written for.**
+  Measured, this session, while the ink on the fix was still wet: worker 1's #36 guard (skip a
+  rework whose standing rejection was recorded against an older head) is on `origin/main`, and
+  `grep -c commit_id ~/random/final-cut-pro-transitions/raw-port/army/tools/rework_claim.sh` is
+  **0** while the same grep in a freshly leased pool worktree is **1**. So I ran the pre-fix tool,
+  and it handed me #256, #445 (twice), #523 (twice) and #538 — every one of them already answered
+  by its author — which is precisely the failure #36 fixed hours earlier.
+
+  Nothing in the loop updates that worktree: `HARNESS_LOOP.md` puts the `git reset --hard
+  origin/main` in a ONE-TIME **Preconditions** section, `wt_pool.sh` refreshes the POOL from
+  `origin/main` but never the canonical tree, and `pr_gate.sh` reads its trusted tools with
+  `git --git-dir="$CANON/.git" archive origin/main …`, i.e. straight out of the object store —
+  which is why GATING is immune to this and everything an agent types by hand is not. The longer a
+  swarm runs, the staler every agent's tools get, and the symptom is never an error: it is a tool
+  behaving like last week's version.
+
+  WORKAROUND, adopt it now: **run `army/tools/*` from your leased worktree**, not from `$CANON`
+  (`bash "$WT"/raw-port/army/tools/rework_claim.sh claim`). The scripts `cd "$CANON"` internally
+  for their git work, so this changes only WHICH COPY of the script runs — and `wt_pool.sh acquire`
+  has just reset that copy to current `origin/main`. FIX: `swarm_maint.sh` should fast-forward the
+  canonical worktree (it already refuses to touch it while a gate or submit is live, which is the
+  hard part), and the queue tools should print their own `git log -1 --format=%h` of
+  `raw-port/army/tools` next to the answer so a stale tool is visible in its own output.
+
+  Corroborating #36 with a corpus-wide count, since it reads as anecdote otherwise: at 17:12Z,
+  **9 of the 22 open `CHANGES_REQUESTED` PRs had a head NEWER than their newest rejection**
+  (#538, #523, #445, #400, #335, #256, #154, #143, #114) — i.e. 41% of the "rework backlog" was
+  waiting on a reviewer, not on an author. The one-liner, for whoever wants to re-measure:
+  `for pr in $(gh pr list --state open --json number,reviewDecision --jq '.[]|select(.reviewDecision=="CHANGES_REQUESTED")|.number'); do h=$(gh pr view $pr --json headRefOid --jq .headRefOid); r=$(gh api repos/<slug>/pulls/$pr/reviews --jq '[.[]|select(.state=="CHANGES_REQUESTED")]|last|.commit_id'); [ "$h" != "$r" ] && echo "$pr answered"; done`
+  DISCLOSURE, because it changes the queue's state: probing this with the pre-fix tool drove
+  **#445 and #523 to 3/3 attempts**, so that tool now skips them ("a human decides"). Neither needs
+  worker work — both are answered and waiting on a dismissal — but somebody should know why their
+  counters are exhausted.
+
+- **A DIFFERENTIAL WHOSE TRANSPORT CANNOT EXPRESS THE CORRECT ANSWER SCORES A WRONG PORT AND A
+  RIGHT ONE THE SAME — and, in the case I hit, rewarded the wrong one.** `JSON.stringify(NaN)` is
+  `null`, and so is `Infinity`. `coremedia_worker.ts` was scrupulous about int64 (values cross as
+  strings, with a comment explaining that a JSON number is a double) and missed the mirror image on
+  the Float64 RETURN. `CMTimeGetSeconds` answers NaN for an invalid or indefinite time and
+  +/-Infinity for an infinite one — 3 of the 11 times in the oracle's own grid — so the oracle read
+  `null`, failed its `isinstance(have, (int, float))` test, and booked a divergence **no port could
+  ever clear**. Measured on one file, three runs of the pre-fix oracle: the correct port scores
+  340/341 and a mutant that returns `value/timescale` for an invalid time scores 340/341. The
+  harness could not tell them apart, and the only way to score better on that case was to be wrong.
+  FIXED in #560 (scalars also cross as `nbits`, the raw IEEE754 pattern in hex; watched fail:
+  correct port 341/341, mutant 1 divergence, main's landed body still 175).
+  THE GENERAL RULE, which the existing "move bit patterns as hex strings, never JSON numbers" entry
+  states only for int64 and only in one direction: **move every float across a process boundary as
+  a bit pattern, in BOTH directions.** My own new oracle had the same bug in the REQUEST direction
+  — a multiplier of `NaN` serialises to the invalid token `NaN` and the driver dies with a JSON
+  parse error, which at least fails loudly rather than quietly.
+
+- **A FIXED CASE LIST IS FITTABLE; SHIP A RANDOMIZED TWIN.** The CoreMedia gate oracle runs a fixed
+  grid of 341 calls, and a port merged against it is a port fitted to it. My reworked
+  `CMTimeMultiplyByFloat64` passed all 341 while still being wrong: it dropped the input's
+  `HasBeenRounded` flag, and **no time in the grid carries that flag**, so the case is structurally
+  invisible there. A randomized corpus over the same domain failed it immediately — 154 of 4088
+  multiplies — and the fix is one term. So: when an oracle enumerates its cases by hand, add a
+  generator over the same domain, print PER-CLASS counts (a class that collapses to zero cases is
+  the other half of this trap), and keep a mutation mode that requires the differential to fail.
+  `raw-port/re/oracle/CMTime_coremedia_oracle.py` (#561) is a worked example of all three.
+
+- **A PR CANNOT FIX THE HARNESS THAT JUDGES IT — split it in two, deliberately.** `pr_gate.sh`
+  takes `raw-port/army/{gate,tools,verifier}` from `origin/main` on purpose (a PR must not ship its
+  own gate), so a port whose green depends on a harness fix will be gated with the BROKEN harness
+  and rejected for a defect it fixes. If you hit that, file the harness change as its own PR that
+  touches no `raw-port/src/**/*.ts` — the oracle for the class you are fixing then does not run on
+  it at all — and say in the port's PR body which number it waits on and what the pre-fix gate
+  prints. #560 before #561 is the shape.
+
+- **CORRECTION to worker 6's "slot_lock.sh heartbeat DOES NOT EXIST":** it exists on current main
+  and works — `slot_lock.sh heartbeat worker 3` prints `BEAT worker-3` and exits 0. Given the entry
+  above, an agent seeing the old `usage:` error is most likely running the STALE canonical copy.
