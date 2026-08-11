@@ -88,6 +88,15 @@ echo "== G5 semantic completeness (un-gameable: classify disasm + reach fuzz + o
 python3 "$ROOT/army/gate/g5_impl_gate.py" "$@"
 G5=$?
 [ "$G5" = 2 ] && { echo "  G5 REJECT"; FAIL=1; }
+# A GATE THAT CANNOT RUN IS NOT A PASS. Exit 0 = clean, 2 = reject; ANY other status means g5 died
+# (traceback, ImportError, missing interpreter) and the semantic check never happened. That used to
+# fall through to "GATE: PASS" and post a GREEN faithfulness-gate with G5 silently skipped — the one
+# check standing between the swarm and the 7385eb01 cheat family. Observed for real on 2026-08-10
+# (PR #341): g5 raised ImportError and the gate still printed PASS. Fail loudly instead.
+if [ "$G5" != 0 ] && [ "$G5" != 2 ]; then
+  echo "  G5 ERROR — g5_impl_gate.py exited $G5 without a verdict; the semantic check DID NOT RUN"
+  FAIL=1
+fi
 
 echo "== G6 add-only (no landed symbol may be deleted) =="
 # G6 catches the ONE loss mode G0-G5 are all blind to: a change that REMOVES a ported symbol which

@@ -12,7 +12,30 @@ GHAPP="$(cd "$(dirname "$0")" && pwd)/ghapp"
 BR="port/$CLASS"
 # must be on the branch with commits
 CUR=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
-[ "$CUR" != "$BR" ] && echo "WARN: on '$CUR', expected '$BR' — pushing $CUR anyway"
+# REFUSE a class/branch mismatch instead of pushing anyway. The old behavior ("pushing $CUR anyway")
+# put a port on someone else's class branch — worker-01's MinMax port opened as port/OZDynamicSpline
+# (#338) because it kept the lease after a `depclaim drop` and the worktree was still on the dropped
+# class's branch. That is worse than a mislabelled PR: wt_pool stacks onto any branch with an OPEN
+# PR, so the next `acquire OZDynamicSpline` would inherit an unrelated file — the stale-base
+# work-deletion shape re-entering through the branch NAME.
+# Refuse only for a genuine class mismatch; a deliberate suffix (port/<Class>__w1, __slot3,
+# _rebased) is how workers legitimately avoid collisions, so allow those.
+if [ "$CUR" != "$BR" ]; then
+  case "$CUR" in
+    "$BR"__*|"$BR"_*)
+      echo "note: on '$CUR' (a variant of $BR) — pushing that" ;;
+    main|master|HEAD|"")
+      echo "REFUSING: worktree is on '$CUR', not a port branch for $CLASS." >&2
+      echo "  Run pr_submit.sh with cwd INSIDE your leased worktree, on the branch holding your commits." >&2
+      exit 5 ;;
+    *)
+      echo "REFUSING: worktree is on '$CUR' but you asked to submit '$CLASS'." >&2
+      echo "  Pushing anyway would file your work on another class's branch (see #338)." >&2
+      echo "  If you kept the lease after a depclaim drop, release the worktree and re-acquire," >&2
+      echo "  or cut a fresh branch:  git checkout -B $BR origin/main" >&2
+      exit 5 ;;
+  esac
+fi
 BR="$CUR"
 
 # rebase onto latest main so the PR is not stale-base (branch protection requires up-to-date anyway)

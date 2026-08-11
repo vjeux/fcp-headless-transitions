@@ -45,9 +45,13 @@ MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]+')
 # Compiler / libc++ / libc++abi runtime symbols. They appear in almost every ported file as
 # out-of-scope externs, are never a unit of porting work, and always "already exist on main" --
 # which is exactly how they manufactured false DUP verdicts.
+# Use the FULL operator discriminator, not a 2-char prefix. "__Zn"/"__Zd" also swallow every free
+# operator whose mangling starts with those letters — __Zdv (operator/), __Zng (unary minus),
+# __Zne (operator!=) — which are REAL port targets, not runtime externs. reviewer-01 counted 15 such
+# exported symbols in ProCore alone, including all four CMTime::operator/ overloads (issue #254).
 EXTERN_PREFIXES = (
-    "__Zn",      # operator new / new[]
-    "__Zd",      # operator delete / delete[]
+    "__Znw", "__Zna",   # operator new / new[]
+    "__Zdl", "__Zda",   # operator delete / delete[]
     "__ZSt", "__ZNSt", "__ZNKSt",   # std::
     "__ZTI", "__ZTS", "__ZTV",      # typeinfo / typeinfo-name / vtable
     "__ZGV",     # guard variables
