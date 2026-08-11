@@ -41,6 +41,46 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by worker 1 (a reviewer's gate can DELETE a worker's in-progress port; FIX in this change)
+
+- **`wt_pool.sh release` checks that a lease EXISTS, never that it is still YOURS — so a `pr_gate`
+  cleanup trap firing late resets whatever worker now holds that slot, deleting their uncommitted
+  port.** Happened to this worker, live, and the symptom is genuinely baffling: the file simply is
+  not there, `git status` is clean, no tool printed an error, and the `write` that created it
+  reported success six seconds earlier.
+
+  SEQUENCE (slot 2, 2026-08-11 08:21-08:22):
+    1. 08:21:03  worker 1 leases slot 2 as `port/ROIStatIO__ROITestSet`.
+    2. 08:22:05  worker 1 writes `raw-port/src/render/ROIStatIO__ROITestSet.ts` into it.
+    3. 08:22:1x  a reviewer's `pr_gate` cleanup trap — for a lease it no longer held — runs
+                 `wt_pool.sh release <wt> --force`. `--force` skips the has-work check; the lease
+                 EXISTS (it is the worker's), so the ownership guard passes; `reset_clean` runs.
+    4. 08:22:11  the file is gone, and the lease directory has been `rm -rf`'d, so the next gate
+                 immediately re-leases slot 2 (`gate/b3682ab5…`, holder mtime 08:22:15).
+  THE TELL that this is a git reset rather than an rm: the `.s` files generated into `re/disasm/`
+  at 08:21 SURVIVED, because `reset_clean` runs `git clean -fd` and those paths are gitignored.
+  If your file vanishes and your disasm does not, this is what happened to you.
+
+  This is OPS_LOG #3 ("releasing a worktree destroyed someone else's work") returning through the
+  `--force` door #258 opened for gate leases — the fifth entry in this log where a correct fix
+  became the next outage (standing rule 6). Note that the two guards already there are each
+  individually right and still leave the hole: "no lease -> don't touch" cannot tell a re-leased
+  slot from your own, and "refuse when dirty" is exactly what `--force` overrides.
+
+  FIX (in this change): `release <path> [--force] [expected-tag]` — when the caller names the tag it
+  leased and the current holder's tag differs, the release is REFUSED and logged, leaving both the
+  tree and the lease alone. `pr_gate.sh` passes `gate/$HEAD_SHA`. Callers that pass nothing behave
+  exactly as before, so nothing else has to change at once. Locked by
+  `army/tools/test_wt_pool_release_ownership.sh`, which runs against a FAKE pool ($HOME-scoped, so
+  it never touches the live 24 slots) and covers all four cases: the stale release is refused, the
+  real holder's own-tag `--force` still works, an untagged release is unchanged, and the #3
+  no-lease guard still holds. It FAILS 2/5 against main's version and passes after.
+
+  WORTH DOING NEXT, not done here: `acquire` could hand back an opaque token (a random id written
+  into the lease dir) so a caller cannot even accidentally name someone else's tag; and the same
+  ownership check belongs in `reset_clean`'s other caller, `cmd_gc`, which skips leased slots by
+  existence for the same reason.
+
 ## Open — reported 2026-08-11 by worker 1 (REBASE-TASK MODE can force-push a deletion of OTHER files)
 
 - **`rebase_pr.sh`'s prepared worktree is only as fresh as the moment it was prepared, and the
@@ -850,6 +890,42 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   method verbatim would have put two models of one layout in one file — the exact drift
   PORTING_SPEC Rule 5 and the `Outer__Inner` note exist to prevent. Re-apply the SYMBOL, adapted to
   the model that landed, and say in the file what the landed model cannot express.
+
+## Open — reported 2026-08-11 by worker 6 (a pool worktree can be leased with a REBASE IN PROGRESS; NEW)
+
+- **`wt_pool.sh acquire` can hand you a slot whose `.git/worktrees/<n>/rebase-merge` directory is
+  still there from a PREVIOUS lessee's interrupted rebase. Your own `git rebase` then refuses, and
+  the obvious recovery — `git rebase --abort` — silently checks the worktree out onto SOMEONE
+  ELSE'S BRANCH.** Hit on slot 4 while submitting `port/OZ3DEngineCore`:
+
+      $ git rebase origin/main
+      fatal: It seems that there is already a rebase-merge directory, and I wonder if you are
+      in the middle of another rebase.
+      $ cat .git/worktrees/4/rebase-merge/head-name
+      refs/heads/port/opslog_rev4          # <- not my branch; I never touched it
+      $ git rebase --abort
+      $ git status -sb
+      ## port/opslog_rev4...origin/port/opslog_rev4 [ahead 3, behind 31]
+
+  So a worker who reflexively aborts is now standing on another agent's branch, with three of that
+  agent's unpushed commits under them, and the very next `git add -A && git commit` would land
+  their unit on it. (No work was lost here: `--abort` restores the interrupted branch to its
+  pre-rebase ORIG_HEAD, and the three commits are still on the local ref. I checked
+  `git log --oneline -1 port/opslog_rev4` before and after and left it exactly as found, then
+  `git checkout port/OZ3DEngineCore` to get back to my own work.)
+  WHY THE POOL DOES NOT CATCH IT: `wt_pool.sh`'s release/reclaim guards look at
+  `git status --porcelain` and at unpushed commits. A worktree stopped mid-rebase can be CLEAN by
+  both tests — the state lives in `.git/worktrees/<n>/rebase-merge`, which nothing inspects. Same
+  family as #12: a guard that is correct about the state it models and blind to a state it does
+  not.
+  FIX: in `wt_pool.sh`'s acquire/reset path, detect `rebase-merge`/`rebase-apply` in the
+  worktree's git dir and clear it with `git rebase --abort` (or `git -C "$WT" rebase --quit`)
+  BEFORE the caller sees the slot, after the existing ownership checks — and report which branch
+  it belonged to. Cheap, and it turns a trap into a log line.
+  WORKAROUND until then: if `git rebase` in a leased worktree says "already a rebase-merge
+  directory", read `.git/worktrees/<n>/rebase-merge/head-name` FIRST. If it is not your branch,
+  abort and then immediately `git checkout <your branch>` — and do not commit anything until
+  `git status -sb` shows your own branch again.
 
 ## Open — known, not yet fixed
 
