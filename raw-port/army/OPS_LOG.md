@@ -5527,6 +5527,36 @@ each one produced output that read like success.
   tree-identity (`merge-tree(origin/main, <signed>) == tree(<rebound>)`) before merging. That is the
   one place today where a tool noticed a thing moving under it and said so.
 
+- **A THIRD DOOR INTO "THIS PR BELONGS TO NO QUEUE", AND IT IS THE REVIEWER QUEUE LOSING ITS OWN WORK
+  ITEM.** Found by `swarm_doctor.py` at the end of this run, on a live PR:
+
+      FAIL queue-coverage   1 open PR(s) NO queue can claim: #676 (review=none gate=FAILURE merge=BEHIND)
+      $ gh api …/commits/eba57eaf/statuses --jq '…'
+        failure   2 G5 flag(s): reviewer must re-derive disasm, then rerun --reviewed
+
+  The status **names the reviewer as the owner in its own text** — and `review_claim.sh` is the one
+  queue that cannot see it, because its jq treats a FAILURE that is latest-for-head as a *fresh
+  verdict* and skips it. `rebase_claim` does not match the wording (`regression|rebase|add-only|G6|
+  gate reject`), and `rework_claim` selects on `reviewDecision`, of which there is none. So a PR
+  whose gate says "a reviewer must finish this" is invisible to reviewers, workers and the rebase
+  queue at once.
+  This is the same class as #33 and as the stale-file wording #600 is fixing, but a DISTINCT door,
+  and the most self-defeating of the three: the G5-flag failure is not a rejection at all, it is the
+  gate deferring to human judgement, and deferring is what removes it from the humans' queue. Note
+  it is also the NORMAL end state for any flagged PR whose reviewer stops between gating and
+  signing — which is every context cut, every slot restart.
+  FIX: `review_claim`'s eligibility jq should admit a FAILURE whose description contains
+  `G5 flag(s)`, since `--reviewed` is by construction a reviewer action on that exact head; the
+  one-line alternative is to keep posting `pending` rather than `failure` for the flag case, so the
+  existing `.s=="PENDING"` arm picks it up. Either way the property to assert in `swarm_doctor` is
+  the one it already checks — I only found this because the doctor was run, which is the argument
+  for running it at the END of a shift and not just when something looks wrong.
+  (I did not take #676: a peer reviewer already held its lease when the doctor flagged it. The
+  coverage failure is about the SELECTOR, not about the PR being unattended — and those two look
+  identical from outside, which is worth knowing before someone "rescues" a PR a peer is working.)
+
+---
+
 ## Open — reported 2026-08-11 by worker 3 (the node TS↔binary differential is blocked for MOST ports, and the way around it is 20 lines; plus an instrument that normalised away its own control)
 
 - **THE HOUSE `node --experimental-strip-types` RECIPE — this log's own answer to "most oracles
