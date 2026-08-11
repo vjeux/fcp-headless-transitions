@@ -1488,6 +1488,65 @@ cheap to defuse once named.
   exactly the state that looks abandoned; (c) `wt_pool.sh acquire` could stamp the slot with the
   acquiring PID/slot id so the reflog is not the only forensic trail.
 
+## Open — reported 2026-08-11 by worker 3 (float oracles: a working TS↔binary route, and the one thing it cannot compare)
+
+- **A REAL TypeScript↔binary differential needs no harness at all: `node
+  --experimental-strip-types` imports a ported `.ts` DIRECTLY.** Every float
+  oracle in this repo so far compares the live function against a PYTHON
+  restatement of the port, which shares any misreading of the disassembly with
+  the port itself — if you decoded `minsd`'s operand order backwards, you write
+  it backwards in both places and the oracle agrees enthusiastically. The
+  G4/`fct.parity` path that was supposed to solve this cannot run at all right
+  now (see the G4 entry above: `HARNESS_BROKEN` on every sweep), so
+  oracle-mapped files are unmergeable and everyone else is stuck with the
+  mirror.
+
+  Node 24.2 is already on this box and strips types natively, so the whole
+  thing is one subprocess:
+
+      # driver.mts — imports the REAL port, no build step, no tsx, no tsgo
+      import { Foo } from "../../src/channels/Foo.ts";
+      ...
+      node --experimental-strip-types driver.mts   # JSON in, JSON out
+
+  Worked example landed with the `SurroundPanner::AngleBisectionRatio` port:
+  `raw-port/re/oracle/SurroundPanner_AngleBisectionRatio_{oracle.py,driver.mts}`
+  — 1,410 cases against the live Flexo function, 0 divergences, with the six
+  negative-control mutants evaluated in the SAME node process so they are
+  apples-to-apples with the port. Two practical notes: the driver must import
+  with the explicit `.ts` extension, and it should hold the mutants itself so
+  one subprocess answers every question (spawning node per mutant is what makes
+  this feel expensive when it is not).
+
+  This does not fix G4 — `oracle_map.json`/`registry.json` still need the
+  output-name contract that entry describes — but it means **"the parity driver
+  is broken" is no longer a reason to sign a float port on reading alone.**
+
+- **A NaN RESULT CANNOT BE COMPARED BIT-EXACTLY BETWEEN x86 AND JAVASCRIPT, and
+  a harness that demands bit equality will fail an entirely correct port.** The
+  standing advice in these notes — *exchange floats as raw bit patterns, which
+  also makes the comparison bit-exact instead of value-equal* — is right for
+  every finite value, both signed zeros, and both infinities. It has exactly one
+  exception, and it is not obscure: **x86's `divsd` on 0/0 produces the "QNaN
+  floating-point indefinite" `0xfff8000000000000`, with the SIGN BIT SET, while
+  JavaScript canonicalises every arithmetic NaN to `0x7ff8000000000000`** and
+  offers no way to produce the other one from arithmetic. Measured on
+  `AngleBisectionRatio`: 27 of 1,410 cases, every one of them NaN on both sides,
+  differing in nothing else.
+
+  Do NOT "fix" this by having the port construct a NaN through a `DataView` —
+  that is a rewrite of `divsd`, not a transcription. Do not hide it behind a
+  value-equality comparison either, because that also hides real defects.
+  Classify it: compare bit patterns, and treat *both sides are NaN* as its own
+  outcome, reported with a count next to the divergence count. The three-line
+  predicate is in
+  `SurroundPanner_AngleBisectionRatio_oracle.py::is_nan_pair_diff`.
+
+  Corollary worth stating because it cost the first run of that oracle a FAILED
+  verdict: this fires the moment a corpus includes `b == c`, which is exactly
+  the boundary case a good corpus must include. Expect it, rather than going
+  back to re-read the disassembly of a correct port.
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
