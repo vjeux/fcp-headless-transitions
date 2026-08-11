@@ -112,10 +112,20 @@
 // Neither is defined in any of the five in-scope frameworks; they are
 // CoreFoundation, which DEP_WORKER_BRIEF names as a true out-of-scope extern.
 // `depgraph.py deps __ZNK16AUSurroundPanner10GetPresetsEPPK9__CFArray` reports
-// no in-scope callees. This port therefore transcribes everything up to the
-// first CF call and raises a boundary throw there, citing the addresses — the
-// same policy the landed `OZApplication` decode uses for its own
-// `_CFArrayCreateMutable` call @0x5134.
+// no in-scope callees.
+//
+// HOW THE BOUNDARY IS MODELLED, and why the body is transcribed rather than
+// deferred: the two CF PRIMITIVES are unavailable and throw; the FUNCTION is
+// not, so it is written. Both stubs are declared on a `CoreFoundationBridge`
+// interface with their @0xADDRs, installed by `installCoreFoundationBridge`,
+// and defaulting to a throw that names them — so nothing about CF is
+// fabricated, while the decoded sequence (capacity 4, NULL allocator, NULL
+// callbacks, four appends of POINTERS into the static table in index order,
+// the store through the out-parameter, the shared zero return) lives in code.
+// This is the landed convention: `raw-port/src/channels/SetPixelBufferAttributes.ts`
+// does exactly this for `_CFDictionaryCreateMutable` / `_CFDictionaryAddValue`
+// / `_CFNumberCreate` / `_CFRelease`, and `FFAudioUnitParameterInfo.ts` does it
+// with `setCFStringBridge` for `_CFStringCreateWithCString`.
 //
 // ---------------------------------------------------------------------------
 // ORACLE — verified by CALLING the live function
@@ -141,6 +151,14 @@
 //   * negative controls, all caught: returns-non-zero, count-3, count-5,
 //     elements-are-copies, stride-8-instead-of-0x10, and
 //     NULL-out-param-creates-an-array-anyway.
+//
+// WHAT THE TRANSCRIBED BODY BELOW ENCODES from those measurements, so that the
+// facts live in code rather than only in this comment: capacity 4 and both NULL
+// arguments at the create call, the four appends in index order, the appended
+// values being the table ENTRIES themselves (a JS object reference, the
+// equivalent of the pointer the `leaq` computes) rather than clones, the store
+// through the out-parameter, and the single shared zero return that both paths
+// reach.
 
 /**
  * `AUPreset` — CoreAudio's `{SInt32 presetNumber; CFStringRef presetName;}`,
@@ -180,10 +198,70 @@ export interface CFArrayOutParam {
 }
 
 /**
+ * The two CoreFoundation entry points this body calls, each pinned to the Flexo
+ * stub it is reached through. CoreFoundation is a TRUE out-of-scope extern:
+ * `_CFArrayCreateMutable` returns a container this port cannot synthesize, so
+ * the PRIMITIVE is not modelled — but the sequence of calls around it is
+ * decoded and is transcribed against this interface, which is the landed
+ * convention (see `SetPixelBufferAttributes.ts` and `FFAudioUnitParameterInfo.ts`
+ * on main). With no bridge installed the boundary throws, citing both stubs, so
+ * nothing is silently faked.
+ */
+export interface CoreFoundationBridge {
+  /**
+   * `_CFArrayCreateMutable(allocator, capacity, callBacks)` — @Flexo stub
+   * 0x14946aa, called @0x124cc18.
+   *
+   * The three arguments are pinned by the three instructions immediately
+   * before the call: `xorl %edi,%edi` @0x124cc14 (allocator = NULL — the
+   * instruction that also clobbers `this`), `movl $0x4,%esi` @0x124cc0f
+   * (capacity = 4) and `xorl %edx,%edx` @0x124cc16 (callBacks = NULL, so CF
+   * neither retains nor copies what is appended).
+   */
+  createMutableArray(
+    allocator: unknown | null,
+    capacity: number,
+    callBacks: unknown | null,
+  ): unknown;
+
+  /**
+   * `_CFArrayAppendValue(theArray, value)` — @Flexo stub 0x149469e, called
+   * four times: @0x124cc2a, @0x124cc39, @0x124cc48, @0x124cc57.
+   */
+  arrayAppendValue(theArray: unknown, value: unknown): void;
+}
+
+let _cfBridge: CoreFoundationBridge | null = null;
+
+/**
+ * Install the CoreFoundation bridge. Must be called before `GetPresets` is
+ * given a non-NULL out-parameter; without it the body throws when it reaches
+ * the `_CFArrayCreateMutable` frontier stub @Flexo 0x124cc18.
+ */
+export function installCoreFoundationBridge(bridge: CoreFoundationBridge): void {
+  _cfBridge = bridge;
+}
+
+function cf(): CoreFoundationBridge {
+  if (_cfBridge === null) {
+    throw new Error(
+      "CoreFoundationBridge not installed — AUSurroundPanner::GetPresets " +
+        "@Flexo 0x124cc00 reaches the CF frontier stubs _CFArrayCreateMutable " +
+        "@0x14946aa (called @0x124cc18) and _CFArrayAppendValue @0x149469e " +
+        "(called @0x124cc2a, @0x124cc39, @0x124cc48, @0x124cc57). " +
+        "CoreFoundation is a true out-of-scope extern for this port; call " +
+        "installCoreFoundationBridge() first.",
+    );
+  }
+  return _cfBridge;
+}
+
+/**
  * `AUSurroundPanner` — Flexo's surround panner audio unit.
  *
- * No instance state is modelled: the one transcribed method never reads `this`
- * (see the file header).
+ * No instance state is modelled, and the one transcribed method is `static`:
+ * the binary never reads `this` (see the file header, and the note on
+ * `GetPresets` itself).
  *
  * @Flexo 0x124cc00
  */
@@ -198,42 +276,76 @@ export class AUSurroundPanner {
    * unconditionally — including on the NULL-out-pointer path, where it does
    * nothing at all.
    *
-   * Transcribed here: the NULL test @0x124cc00 and its shared `xorl %eax,%eax`
-   * exit @0x124cc63. The array construction crosses into CoreFoundation, which
-   * is a true out-of-scope extern, so it raises a boundary throw at the first
-   * CF call — with the full recovered table available above as
-   * `AU_SURROUND_PANNER_KPRESETS` for whoever wires that boundary.
+   * DECLARED `static` BECAUSE THE BINARY HAS NO RECEIVER. `xorl %edi,%edi`
+   * @0x124cc14 overwrites the incoming this-pointer with CFArrayCreateMutable's
+   * NULL allocator argument before anything reads it, and no `(%rdi)` operand
+   * exists in the body — confirmed live by calling it with `this = NULL`, which
+   * still produces the full 4-element array. Modelling it as an instance method
+   * would imply a receiver the machine does not have.
    *
+   * The two CoreFoundation calls go through {@link CoreFoundationBridge}; with
+   * no bridge installed the first one throws, citing both stubs.
+   *
+   * @param outArray the `__CFArray const**` in %rsi, or NULL.
    * @returns 0 (noErr), always.
    */
-  GetPresets(outArray: CFArrayOutParam | null): number {
+  static GetPresets(outArray: CFArrayOutParam | null): number {
     // ------------------------------------------------------------
     // @0x124cc00  testq %rsi, %rsi ; @0x124cc03 je 0x124cc63
     //   ZF=1 iff the out-pointer is 0; `je` taken -> 0x124cc63, which is the
     //   shared `xorl %eax,%eax ; retq`. Note this test precedes the prologue,
-    //   so this path builds no frame and touches nothing.
+    //   so this path builds no frame and touches nothing. The check is written
+    //   as a falsy test rather than `=== null` so that every absent value the
+    //   caller can hand a TS signature takes the same path the machine's
+    //   zero-pointer test takes.
     // ------------------------------------------------------------
-    if (outArray === null) {
+    if (!outArray) {
       // @0x124cc63..@0x124cc65 — xorl %eax, %eax ; retq
       return AU_SURROUND_PANNER_NOERR;
     }
 
-    // @0x124cc18 _CFArrayCreateMutable — FIRST CoreFoundation boundary.
-    throw new Error(
-      "AUSurroundPanner::GetPresets(outArray) requires " +
-        "_CFArrayCreateMutable(NULL, 4, NULL) @Flexo 0x124cc18 (CF stub " +
-        "@0x14946aa) — CoreFoundation is a true out-of-scope extern for this " +
-        "port (see the landed OZApplication decode @0x5134 for the same " +
-        "boundary). The disasm continues: four _CFArrayAppendValue calls " +
-        "@0x124cc2a, @0x124cc39, @0x124cc48 and @0x124cc57 (CF stub " +
-        "@0x149469e), appending &kPresets[0..3] at @Flexo 0x1c76a00, 0x1c76a10, " +
-        "0x1c76a20 and 0x1c76a30 — POINTERS into the static table, not copies, " +
-        "and the array is created with NULL callbacks so CF neither retains " +
-        "nor copies them; then movq %r14,(%rbx) @0x124cc5c stores the array " +
-        "through outArray and the function returns 0 via the shared xorl " +
-        "@0x124cc63. The table's four entries are recovered and available as " +
-        "AU_SURROUND_PANNER_KPRESETS in this file. @0x124cc00",
-    );
+    // @0x124cc05..@0x124cc0c — prologue and `movq %rsi,%rbx` (rbx = outArray).
+    //   No TS counterpart; `outArray` is already the value rbx holds.
+    const b = cf();
+
+    // @0x124cc0f  movl $0x4, %esi     — capacity = 4
+    // @0x124cc14  xorl %edi, %edi     — allocator = NULL (and this is where
+    //                                   `this` is destroyed)
+    // @0x124cc16  xorl %edx, %edx     — callBacks = NULL, so CF neither
+    //                                   retains nor copies the elements
+    // @0x124cc18  callq _CFArrayCreateMutable  (stub 0x14946aa)
+    // @0x124cc1d  movq %rax, %r14     — r14 = the new array
+    const array = b.createMutableArray(null, 4, null);
+
+    // The four appends. Each `leaq` computes the ADDRESS of a kPresets entry
+    // and passes it straight to CFArrayAppendValue, so what lands in the array
+    // is a POINTER INTO the static table, not a copy — which is why the NULL
+    // callbacks above matter. Passing the element object itself is the JS
+    // equivalent: `AU_SURROUND_PANNER_KPRESETS[i]` is a reference to the one
+    // table entry, not a clone of it.
+    //
+    // @0x124cc20  leaq kPresets(%rip), %rsi   = 0x124cc27 + 0xa29dd9 = 0x1c76a00
+    // @0x124cc27  movq %rax, %rdi
+    // @0x124cc2a  callq _CFArrayAppendValue   (stub 0x149469e)
+    b.arrayAppendValue(array, AU_SURROUND_PANNER_KPRESETS[0]);
+    // @0x124cc2f  leaq 0xa29dda(%rip), %rsi   = 0x124cc36 + 0xa29dda = 0x1c76a10
+    // @0x124cc36  movq %r14, %rdi ; @0x124cc39 callq _CFArrayAppendValue
+    b.arrayAppendValue(array, AU_SURROUND_PANNER_KPRESETS[1]);
+    // @0x124cc3e  leaq 0xa29ddb(%rip), %rsi   = 0x124cc45 + 0xa29ddb = 0x1c76a20
+    // @0x124cc45  movq %r14, %rdi ; @0x124cc48 callq _CFArrayAppendValue
+    b.arrayAppendValue(array, AU_SURROUND_PANNER_KPRESETS[2]);
+    // @0x124cc4d  leaq 0xa29ddc(%rip), %rsi   = 0x124cc54 + 0xa29ddc = 0x1c76a30
+    // @0x124cc54  movq %r14, %rdi ; @0x124cc57 callq _CFArrayAppendValue
+    b.arrayAppendValue(array, AU_SURROUND_PANNER_KPRESETS[3]);
+
+    // @0x124cc5c  movq %r14, (%rbx)  — *outArray = the array. The store is
+    //   through the pointer, which is what the one-slot box models.
+    outArray.value = array;
+
+    // @0x124cc5f..@0x124cc62 — pops (no TS counterpart).
+    // @0x124cc63..@0x124cc65 — xorl %eax,%eax ; retq, the SAME two
+    //   instructions the NULL path above returns through.
+    return AU_SURROUND_PANNER_NOERR;
   }
 }
 
