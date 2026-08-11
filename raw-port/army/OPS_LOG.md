@@ -38,6 +38,9 @@ detail to reproduce. That is how this list grows.
 | 22 | Load hit 73 on a 10-core box with 16 agents; `nm` processes pinned a core each for 60-120s | Agents answered one-off symbol questions with `nm -arch x86_64 "/Applications/Final Cut Pro.app/.../Flexo"` — a **78 MB fat** binary, rescanned by Defender/Cyberhaven on every open. The same answer was already cached in `army/inventory/<FW>.syms.txt` (144,642 defined symbols, all 5 frameworks). Measured: **nm on fat Flexo >120s vs `grep` on the cache 0.078s (~1000x)**. Same shape as #10 | **Use the cached inventory.** `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` -> `<addr> <T|t> <mangled>`. Only for UNDEFINED symbols or a flag the cache cannot answer, run nm against the THIN slice `/tmp/<FW>.x86_64` (regenerate with `lipo -thin x86_64`) and capture it ONCE into a variable instead of piping nm twice in one command. **Measured follow-up: thinning barely helps** — under swarm load the same nm took 4m24s fat vs 3m54s thin, so the cost is the symbol-table walk + the security stack, not the fat header. The cache is the only real fix; if it is stale, ONE agent should regenerate it for everyone with `dump_syms.sh` |
 | 23 | 9 concurrent identical `mark_ported.py` runs, ~4 min each at 176% CPU | It is a GLOBAL, idempotent, whole-repo reconciliation, but every agent runs it after every merge, so N agents produce N identical answers and N full scans of `src/` | `pgrep -f mark_ported` first and **skip if one is already running** — that run's result covers your commit too. A coalescing lock inside the tool is the stronger fix and is still open |
 | 24 | **G4 — the only un-fakeable gate — could not run AT ALL, and its way of failing is a REJECT, so every file mapped to an oracle node was unmergeable no matter what it contained** (OZInterpolator, OZBezierInterpolator, PCMath, OZSpline, OZLinearInterpolator, OZSCurveInterpolator, CMTime). Diagnosed as open by worker 1 earlier the same day; hit again by worker 6 on an oracle-VERIFIED port, where the gate REJECTED the file *unmodified on main* too | The engine parity worker was replaced by the module-addressed `generic_worker.ts` and FOUR callers were never migrated, each failing one layer deeper. (a) `selftest.py` S2 sent the deleted name-keyed request `{"fn": ...}`, so the worker got `modulePath: undefined` → Node's *The "path" argument must be of type string* → S2 FAIL → `HARNESS_BROKEN` → REJECT before any port was called. (b) `bridge.eval`'s positional marshalling kept only `kind == "in"` args and silently DROPPED every `in_array`, so `OZBezierEval(ctrl[4], u)` was invoked as `OZBezierEval(u)`, returned undefined, and the driver died on `float - NoneType`. (c) Nothing mapped `{ok, ret, outArgs}` into the ORACLE's output names → `KeyError: 'outVal'`. (d) A port that returns an object because the C function used out-pointers (`easeInOut -> {out, speed}`) has no derivable mapping to `outVal`/`outDeriv`. Note the shape: RED for a harness reason on exactly the files it can actually measure — the mirror image of #6 | #438 — S2 speaks the module-addressed protocol; `bridge.eval` includes `in_array` inputs and sends `argKinds`; new `bridge._normalize_outputs` maps the reply into oracle names via an explicit `ts_outputs` contract in registry.json (worker 1's recommendation; added to `curve.interp.ease`). PROVEN BOTH WAYS: three previously-dark nodes now sweep GREEN against the live binary — `curve.interp.bezier.eval` 166 cases 0.0e+00, `curve.interp.bezier.findparam` 135 cases 5.0e-16, `curve.interp.ease` 201 cases 0.0e+00 (state.json shows they last swept 2026-07-29/30, i.e. the migration is when they went dark) — AND the gate still REJECTS a deliberately sabotaged `OZBezierEval` (DIVERGED, max_abs_err 4.5e+01), a sabotaged `easeInOut` (S2 FAIL, 0.123), and a bogus `ts_module` (S2 FAIL). **Reviewers: `sweeping <node> ... -> VERIFIED` in G4 output is NEW — before this, G4 printing nothing but a stack trace was the normal state.** |
+| 34 | A correct `if (buf[i] !== other[i])` was reported as ``non-null-asserted table read `buf[i]!` `` on a line containing no assertion, and a flag holds `faithfulness-gate` at FAILURE — so a false flag mechanically blocked correct PRs until a reviewer hand-cleared them. Comparing two indexed reads is one of the most frequent things a byte-wise transcription does, and the worker-side workaround was hoisting the reads into locals, i.e. contorting the code to please a regex (hit on a `_memcmp` boundary port) | G7's `IDX_BANG` allowed whitespace before the `!` (`\]\s*!`), so it matched the `!` of `!==` | #347 — the `!` must be immediately adjacent AND is excluded from `!=`: `\]!(?!=)`. Verified on current main (`undef_index_gate.py:48`) |
+| 35 | `pr_submit.sh <Class>` opened the PR on the worktree's CURRENT branch, so a `MinMax__MMNode_Mode1_Axis0` port was filed as `port/OZDynamicSpline` (#338). Invisible while the lease and the class agree; it bites after a `depclaim.py drop` when the worker keeps the lease and ports the NEXT unit in it. Not cosmetic, because of #4: `wt_pool.sh acquire` stacks on any branch with an OPEN PR, so the next `acquire OZDynamicSpline` would have based that worker's work on a branch carrying an unrelated class's file — the stale-base work-deletion shape re-entering through the branch NAME | `pr_submit.sh` never compared HEAD against the class it was told to submit | #347 — refuse a genuine class/branch mismatch (exit 5) while still allowing the deliberate `__slot<N>` / `__w1` / `_rebased` variants. Verified on current main (`pr_submit.sh:23`). Worker-side rule that still applies: after a drop, release the worktree before claiming the next unit |
+| 36 | **G4, the only un-fakeable gate, silently checked NOTHING while printing PASS** — every gate run touching an oracle-mapped file reported `G4 HARNESS_BROKEN — FAIL S2_TS_WORKER_LIVE: … No such file or directory: '<wt>/engine'` (seen on `OZSpline.m0.ts` -> `curve.interp.bezier.eval`), and the gate still said PASS | `fct/parity/bridge.py`'s `ENGINE_DIR` was `<repo>/engine`, a tree #63 had deleted, so every TS-worker spawn ran with a cwd that did not exist. Reported as open in #352 and TRUE when it was written | #353 (b6254ed1) — `ENGINE_DIR = os.path.join(_REPO, "raw-port")` (`fct/parity/bridge.py:20`), and `gate.sh` now greps for `HARNESS_BROKEN` so a gate that cannot run is a REJECT rather than a pass. Verified on current main before filing this row |
 
 ---
 
@@ -1232,6 +1235,58 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
 
 ## Open — known, not yet fixed
 
+- **Case-only class-name collisions are unportable, and the checkout can't even represent them.**
+  Helium ships **29 class pairs that differ only in case** — `HGCColorGamma_2vuy_yxzx_expand` vs
+  `HgcColorGamma_2vuy_yxzx_expand`, `HGCRetimeFullRez` vs `HgcRetimeFullRez`, … (HGC = the
+  outward-facing render-graph node, Hgc = the internal implementation base; the landed
+  `HGCRetimeFullRez.ts` header documents the pairing). PORTING_SPEC says "file name = the exact
+  class name", but the repo lives on a **case-insensitive APFS volume**, so
+  `src/render/HgcRetimeFullRez.ts` *resolves to* the landed `HGCRetimeFullRez.ts` — a worker writing
+  it OVERWRITES a landed file instead of creating a new one. `raw-port/army/tools/check_duplicate_classes.py` also
+  lowercases basenames (line 22, `return b.lower()`), so the pair is rejected as a duplicate even on a case-sensitive volume.
+  Every `Hgc*` twin of a landed `HGC*` class is therefore blocked on a **convention decision**
+  (e.g. an explicit suffix for the lowercase-Hgc twin) plus teaching the dup checker about it.
+  Two units dropped this way so far (`depclaim.py blocked`); both bodies were fully decoded.
+- **`gate.sh` piped into `tail` reports the exit status of `tail`.** `gate.sh … | tail -8 && git
+  commit && pr_submit` runs the commit and opens the PR even on `GATE: REJECT` — a pipeline's status
+  is its LAST command. That is how a G6 REJECT ("this change REMOVES work already merged on main")
+  still reached GitHub as a PR; the branch had to be reset to origin/main, the method re-applied
+  ADD-only and the branch force-pushed. Never pipe the gate when its exit code guards anything —
+  redirect to a file (`gate.sh … > /tmp/g.txt 2>&1; echo $?`) or use `set -o pipefail`.
+- **A class file can land on main *while you are writing the same class*.** The class-file race is
+  not limited to two workers editing one file: `depclaim` hands two units of the SAME class to two
+  workers at once, `wt_pool acquire <Class>` silently falls back to `port/<Class>__slotN` when the
+  branch is taken, and the second worker's `write` of a "new" file clobbers the first one's landed
+  copy. Mitigation that works today: re-`git fetch` and re-check `git show origin/main:<path>`
+  IMMEDIATELY BEFORE committing, not only at acquire time (both of this session's collisions —
+  `Json__Value__CZString` and `OZChannelLevels_Factory` — appeared in the ~10 minutes between
+  leasing the worktree and committing).
+- **Ozone/Flexo need a RECURSIVE `@rpath` PRELOAD, and there is already a landed helper that
+  does it — `DYLD_FRAMEWORK_PATH` is NOT the lever.** Three claims, each checked against the
+  tree and the box rather than remembered:
+  * `fct/parity/oracle.py` FRAMEWORKS (line 60) DOES list Ozone; **Flexo is the one missing**.
+    So the failure is not an absent map entry — it is that `load_framework` does a plain
+    `dlopen`, which cannot resolve Ozone's `@rpath` chain
+    (`@rpath/ProAppSupport.framework/...`, which is PRESENT on disk).
+  * **The recursive preload WORKS**, and does not need to be written again:
+    `raw-port/re/oracle/ozone_loader.py::load_framework` is landed and does a DEPTH-FIRST
+    `otool -L` walk, `ctypes.CDLL(<abs path>, RTLD_GLOBAL)` on each dependency, then the
+    target. Depth-first needs no retry rounds at all; a breadth-first "preload everything and
+    retry" converges too, in about six rounds, which is why a fallback that gives up earlier
+    reports failure on a case that succeeds. Used through `ozone_loader` this session against
+    Ozone (`PCQuat<double>::setRotation` @0x7bd30, `HGFreeAlign` @0x688ea0,
+    `OZAudioFrameFromSample` @0x23c950), Flexo (`copyCropValues` @0xe18390) and Helium — all
+    loaded, none needed an env var.
+  * **`DYLD_FRAMEWORK_PATH` does not work, and the SIP caveat is not the reason.** It fails
+    identically on a non-SIP interpreter, because `DYLD_FRAMEWORK_PATH` cannot supply an
+    `@rpath` to a binary that carries no `LC_RPATH` — the two are different mechanisms. (The
+    SIP point is still true and still worth knowing: `/usr/bin/python3` is hardened, so dyld
+    strips every `DYLD_*` variable from it. It is just not what decides this.)
+  Still worth doing: fold **Flexo** into `oracle.FRAMEWORKS`, and have `load_framework` call
+  the `ozone_loader` walk instead of a bare `dlopen`. And the standalone-C-driver note below
+  stands: `-Wl,-rpath,...` is not a workaround, because the corp security stack SIGKILLs a
+  freshly compiled local binary (`Killed: 9`) even after an ad-hoc codesign.
+
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
   2026-08-10, found on PR #330.) Every port in this repo is transcribed from the **x86_64** slice —
   `disasm.sh` thins to `/tmp/<FW>.x86_64` and every `@0xADDR` citation is an x86_64 offset. But the
@@ -1294,6 +1349,24 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   Wiring them in needs care: wrong ctypes marshalling would produce confident garbage verdicts.
 - **`pr_gate` status descriptions don't match `rebase_claim.sh`'s `regression|rebase` filter**, so
   PRs needing a rebase can sit forever unless a reviewer hand-writes the status text.
+- **`depclaim.py blocked` mixes three different states under one word.** The list now holds entries
+  that are genuinely out of scope (the libc-stdio family), entries that are one named unported
+  callee away from being trivial (`OZBehavior::getScene` — vtable slot RESOLVED to
+  `OZSceneNode::getScene` @Ozone 0x8c4f0, just unported), and entries that are simply unfinished
+  handovers (`HgcYUV444TriPlanar_601ToRGB::RenderTile_AVX` — portable, dropped mid-decode). A reader
+  cannot tell them apart without reading every reason string, and `next` treats them identically. A
+  `--kind` tag on `drop` (out-of-scope / dep-blocked / handover) would make the queue's real shape
+  visible and let a worker preferentially pick up handovers, which are the cheapest work available.
+
+- **No RTTI/lineage mechanism exists in the port, and `__dynamic_cast` bodies cannot be landed
+  without one.** `OZExposeDrillingNodeValidator.isValidType` got away with a throwing
+  `___dynamic_cast` stub because six casts FEED real predicate logic, so G5 still sees real work.
+  Where the cast IS the body — `OZDynamicSpline::getVertexChannel` @ProChannel 0x2b1bc, whose whole
+  content is `dynamic_cast<OZDynamicVertex*>` plus `addq $0x30` — the same treatment is a whole-body
+  stub and G5 correctly rejects it (`REAL disasm but the port throws incompleteness on 175 reachable
+  inputs`). G5 is right and the stub precedent is misleading. Standing up one class-lineage helper
+  would unblock this whole family at once.
+
 - **One class, two files** — `OZScene` exists in both `channels/` and `nodes/`; `OZRenderParams`
   `+0x1e5` is aliased by two differently-named landed fields, which makes a faithful getter for that
   byte impossible to write until the ledger is unified.
@@ -2012,3 +2085,335 @@ change these tools.
   three slots now carry my leftovers. Until `wt_pool` clears the directory on acquire, treat `0 flags`
   as no evidence that anything was re-derived, and keep every harness you write OUTSIDE the worktree
   (`/tmp`) so the only thing you leave in a pool slot is the pristine checkout.
+
+
+## Open — reported 2026-08-11 by worker 6 (rework queue: five traps, two of them blockers; NEW)
+
+Found while working the new REWORK queue (`rework_claim.sh`, PR #550) through PRs #178,
+#180, #83, #243, #114 and #337. The first two BLOCK merges today and neither is visible
+from the PR that suffers it.
+
+- **G5's one-export escape hatch means the SECOND port of a class retroactively FLAGS the
+  FIRST — and for a NESTED class the naming convention makes it unavoidable.** Measured on
+  `render/HGTextureManager__PostTextureDeleteEventList.ts`, one pool worktree, same bodies,
+  same `.s` cache, three gate runs:
+
+      main as it stands (1 exported function)                    0 cheats, 0 flags
+      + unlock/hasEvent as HGTextureManager_PostTextureDelete...  0 cheats, 3 flags
+      + unlock/hasEvent as PostTextureDeleteEventList_...         0 cheats, 1 flag
+
+  The mechanism is two rules meeting. G5 joins an export to its disasm with
+  `method = name.split("_", 1)[1]` and then requires `method` to equal the LAST Itanium
+  component (`_sym_names_method`). For a nested class the repo convention
+  `Outer_Inner_method` yields the method `PostTextureDeleteEventList_unlock`, which no
+  symbol's last component can ever be — so the join is IMPOSSIBLE, not merely unlucky.
+  The landed single export escapes only through the `len(fns) == 1 and one candidate`
+  fallback at `g5_impl_gate.py:385`, and adding ANY second export to the file retires that
+  fallback for every export in it, including the one already on main.
+  So following the naming convention takes a CLEAN LANDED EXPORT red, and the file cannot
+  be made clean: renaming the landed export is exactly what G6 add-only refuses. Note who
+  this hits — it fires on precisely the ADD-only class-file extension every brief tells
+  workers to write, and it gets worse as a class fills in. Landed nested files already
+  carry the unsatisfiable spelling (`PCEvictionHeap_CSRefCache_bubble`), so they are all
+  one export away from it.
+  WHAT I DID: named the two new exports for the class that owns them
+  (`PostTextureDeleteEventList_unlock`), which is what worker 4's naming entry above
+  already prescribes, took 3 flags down to 1, and documented the split naming in the file
+  header with the measurement so the inconsistency reads as a decision instead of a slip.
+  FIX: `_ts_functions` should derive the method from the LAST underscore-separated
+  component, not `split("_", 1)[1]` — `Outer_Inner_method` then joins correctly and the
+  convention and the gate stop contradicting each other. (Also: G5 sees only
+  `export function`. A file that exports a CLASS with methods — `PCDelaunay__Triangle.ts`
+  — is invisible to it entirely, which is a much bigger hole than this one.)
+  CONFIRMING worker 4's entry with three fresh instances: the flag text names the WRONG
+  ADDRESS every time. `..._lock` was flagged for @0x42c30 (unlock's address), `..._unlock`
+  for @0x47f72 (the ctor's `pthread_mutex_init`), `..._hasEvent` for @0x42b10 (lock's).
+  Three exports, three addresses, none of them the export's own.
+
+- **`raw-port/src/infra/CMTime.ts` IS UNMERGEABLE ON MAIN TODAY: `gate.sh` on the
+  UNMODIFIED file is a REJECT, so every PR touching it inherits a red gate for landed code
+  it did not write.** Measured in a fresh pool worktree on main's own copy:
+
+      $ gate.sh <wt>/raw-port/src/infra/CMTime.ts        # main, unmodified
+        CoreMedia ORACLE DIVERGENCE: 175 wrong + 0 threw, of 341 calls
+        G4 CoreMedia REJECT
+        GATE: REJECT
+
+  The G4 CoreMedia oracle covers four functions — `CMTimeMultiplyByFloat64`, `CMTimeAdd`,
+  `CMTimeSubtract`, `CMTimeGetSeconds` — all landed, and the divergences are real, not a
+  harness fault: `CMTimeMultiplyByFloat64((100,600,1,0)) x0.5` returns
+  `(83333334, 1000000000, 3, 0)` from CoreMedia (it RESCALES to a 1e9 timescale) against
+  the landed port's `(50, 600, 1, 0)`. This is OPS_LOG #24's shape — a gate RED for a
+  reason unrelated to the PR, on exactly the files it can measure — except that #24 was a
+  broken harness and this is a working harness reporting true defects in landed code.
+  Consequence for the queue: PR #114 was rejected for a different (real) defect, that
+  defect is now fixed and oracled at 512/557 field-exact with 0 divergences, and the PR
+  STILL cannot go green. A reviewer re-gating it will see G4 REJECT and, without this
+  note, will attribute it to the PR.
+  FIX: the four landed functions need their own port unit. `CMTimeMultiplyByFloat64` is
+  not a one-liner — it is a different algorithm (rescale to 1e9 with rounding). Until
+  then, a reviewer handling any CMTime.ts PR should diff the G4 count against main's
+  before treating it as the author's.
+
+- **The house `node --experimental-strip-types` differential recipe DIES on the first port
+  that imports a sibling, and the error names a file the port is correct to reference.**
+  This repo's tsconfig is NodeNext, so every intra-repo import must be written with a `.js`
+  extension (`import { hgAlignedHeap } from "./HGAllocAlign.js"`) — which is what G2
+  requires. Node then resolves that literally, finds no `HGAllocAlign.js` (nothing is
+  compiled), and the driver dies with `ERR_MODULE_NOT_FOUND`. The port is right, the gate
+  is green, and only the harness cannot load it. The recipe was landed on a LEAF port
+  (SurroundPanner) so nobody had hit it; most non-leaf ports import a sibling, so without a
+  fix the recipe silently narrows to leaf math functions — the "the differential is
+  unavailable" excuse coming back through a new door.
+  FIX (shipped with PR #180): `raw-port/re/oracle/ts_js_hooks.mjs`, a 12-line resolve hook
+  mapping a relative `.js` specifier to the `.ts` beside it, only when that `.ts` exists.
+  Use it as `register("./ts_js_hooks.mjs", import.meta.url)` followed by a DYNAMIC import
+  (a static import is resolved before the hook is live). Do NOT copy the hook into your own
+  PR if one is already open adding it — two PRs adding the same path is a guaranteed
+  conflict; a driver whose port imports nothing needs a plain static import and no hook.
+
+- **`ozone_loader.local_fn` returns a 3-TUPLE `(callable, vmaddr, slide)`, not a
+  callable.** The existing "two-line traps" entry warns that `image_slide` returns a tuple
+  and says "`local_fn` already does" the unpacking, which reads as though `local_fn` hands
+  back a function. It does not, and the failure is
+  `TypeError: 'tuple' object is not callable` at the first call site. Unpack it —
+  `fn, vmaddr, slide = local_fn(...)` — and then USE the two extras for the self-check the
+  local-symbol recipe asks for: `ctypes.string_at(slide + vmaddr, n)` must equal the
+  prologue bytes of the function you transcribed (`55 48 89 e5 ...`). Three of my six units
+  called local symbols and all three now refuse to report a number until that matches,
+  which is the cheapest available guard against the arm64-vmaddr trap.
+
+- **`slot_lock.sh heartbeat <role> <N>` DOES NOT EXIST**, though the dispatch prompts ask
+  for it after every unit and the "slot lock cannot detect a live agent" entry above
+  proposes it as the fix. Running it prints
+  `usage: slot_lock.sh {acquire <role> <n>|release <role> <n>|status}` and exits non-zero —
+  harmless, but an agent that treats a non-zero exit as a problem will stop on it, and an
+  agent that does not will believe it is heartbeating when nothing is recorded.
+  WORKAROUND until the subcommand lands: `touch "$HOME/.fct-pool/slots/<role>-<N>/held"`,
+  which is exactly what the proposed fix would do to the mtime.
+
+---
+
+## Open — reported 2026-08-11 by worker 6 (an oracle on the WRONG SLICE can look CLEANER; NEW)
+
+- **The architecture trap has a second face that nobody has written down: running the
+  differential on the arm64 slice does not merely risk a wrong verdict, it SYSTEMATICALLY
+  HIDES the NaN-sign divergence class, so the wrong-slice run reports a BETTER score than
+  the correct one.** OPS_LOG already records "the executable oracle calls the wrong
+  architecture, and fails toward ACCEPT", and the standing NaN entries record that x86
+  `divsd` 0/0 gives `0xfff8…` while JS canonicalises to `0x7ff8…`. Put together they imply
+  something neither entry says: **arm64's default NaN has the SIGN BIT CLEAR, which matches
+  JavaScript exactly.** So a bit-pattern differential run against the arm64 slice sees NaN
+  agreement everywhere, while the same port against the x86_64 slice it was transcribed
+  from shows a NaN-sign difference on every NaN lane.
+
+  MEASURED on PR #243 (`PCQuat<double>::setRotation` @Ozone 0x7bd30). The reviewer called
+  `slide + 0x6c704`, which their own note names as the arm64 address, and reported
+  **106/106 bit-exact** after their fix. The same port, same fix, called at the x86_64
+  vmaddr `0x7bd30` from the inventory under `arch -x86_64`, over 103 cases:
+
+      bit-exact               95/103
+      NaN-on-both-sides only   8/103
+      REAL divergences          0/103
+
+  The 8 are exactly the inputs that made `cosθ` NaN — i.e. the very inputs that exposed the
+  branch defect under review. The verdict is the same either way here, which is why this is
+  worth writing down rather than shrugging at: the wrong slice produced a *cleaner-looking*
+  number and no visible symptom. An agent comparing two harnesses' scores would pick the
+  arm64 one as the better instrument.
+  RULES that follow: (1) take the vmaddr from `army/inventory/<FW>.syms.txt`, which is
+  x86_64 by construction, and never from a bare `nm`; (2) self-check the prologue bytes at
+  `slide + vmaddr` before trusting a number — it costs one line and catches the wrong
+  address directly rather than through its consequences; (3) on the x86_64 slice, EXPECT a
+  NaN-payload count above zero on any corpus containing `0/0`, classify it separately, and
+  never "fix" it in the port — constructing that NaN through a `DataView` is a rewrite of
+  `divsd`, not a transcription; (4) a differential reporting 100% on a corpus that includes
+  NaN cases is itself a signal worth checking, because on the correct slice it should not.
+
+- **A REVIEWER'S "not blocking on this" can be worth fixing, and the way to settle it is to
+  price it with a mutant.** On PR #337 the reviewer named a signed-zero divergence
+  (C `modf` returns a fraction carrying the sign of the argument, so `modf(-30.0)` is
+  `-0.0` while `value - Math.trunc(value)` is `+0.0`) and explicitly did not block, on the
+  grounds that the project's own differential compares absolute differences. Compared as
+  BIT PATTERNS against the live symbol it fires on `sample=-48000` at rates 32000/48000 and
+  fps 24/30/60 — an exact frame boundary at a negative timeline position, i.e. ordinary
+  input, not an edge case. Fixed, and then PRICED by keeping a mutant that has the
+  non-finite fix but not the signed-zero one: it kills 9 of 257. That number is the honest
+  answer to "was this worth doing", and it is cheap to produce once the harness compares
+  bits. Same class as #445, which was rejected for the sign of zero after passing 4,764 of
+  4,768 cases.
+
+- **Two smaller ones, each of which cost a cycle.** (a) G1's banned-language check reads
+  PROSE, so the word "roughly" in an explanatory comment is a hard REJECT
+  (`P3 shortcut language`) — mine was in a sentence explaining why a throw is unreachable.
+  The tokens to avoid in comments are approximate / roughly / guess / heuristic / hack /
+  fudge; write "more than 480,000 years" rather than "roughly 487,000". (b) When a
+  differential's corpus is generated by drawing operands independently and then filtering,
+  CHECK HOW MANY SURVIVED: my first CMTimeMultiply corpus drew value and multiplier
+  independently and 272 of 400 "in-range" cases silently fell out of range into the
+  throw path, so the rule they were meant to exercise was barely tested while the summary
+  line still looked healthy. Draw the constrained operand LAST (pick the multiplier, then
+  bound the value by `MAX/|m|`), and print the per-class counts so a collapsed class is
+  visible.
+
+---
+
+## Open — reported 2026-08-11 by worker 6 (two MORE from the rework queue: a landed class hiding in another layer dir, and a self-inflicted near-miss; NEW)
+
+- **A rejected PR often forked a class that is ALREADY LANDED UNDER A DIFFERENT LAYER
+  DIRECTORY, and nothing in the pipeline notices — not `dup_check`, not the gate, and in
+  one of the two cases I hit, not the reviewer either.** Two of eight reworks this session
+  were this:
+  * #178 filed `render/HGTextureManager_PostTextureDeleteEventList.ts` while main held
+    `render/HGTextureManager__PostTextureDeleteEventList.ts` (single vs DOUBLE underscore).
+    The reviewer caught this one.
+  * #44 filed `src/ozone/OZNotificationManager.ts` while main held
+    `src/nodes/OZNotificationManager.ts` — 750 lines, three ported methods, a full
+    `OZObserverRecord` layout. **Different directory, identical class name.** The review
+    was thorough (it re-derived all 34 instructions) and rejected the PR for an unrelated
+    defect without mentioning the fork. Landing it would have put one C++ class in two
+    files with two incompatible models of the same circular list.
+  Nothing mechanical covers it. `dup_check` keys on the lowercased BASENAME and compares
+  paths, so `nodes/X.ts` and `ozone/X.ts` are simply two different files. G6 add-only only
+  inspects the file handed to `gate.sh`, and a brand-new file has no base version to lose
+  anything against.
+  **DO THIS BEFORE EVERY PORT AND EVERY REWORK — it costs 0.2s and is in no brief:**
+
+      git ls-tree origin/main -r --name-only | grep -i <ClassName>
+
+  Note the `-i`: the volume is case-insensitive, so a case-only difference is a silent
+  OVERWRITE rather than a second file (the separate hazard already logged here). If the
+  class exists anywhere, ADD to that file, in ITS model, wherever it lives — do not file a
+  second copy because the layer directory looks wrong to you. (Layer disagreements are
+  real — `HGFreeAlign` did belong in `infra/` beside its allocator half rather than
+  `render/` — but that is MOVING a file that exists in exactly one place, not adding a
+  second one.)
+
+- **`git reset --hard origin/main` DOES NOT REMOVE UNTRACKED FILES, so the standard rework
+  move — "rebuild the branch on current main" — can silently re-publish the very file you
+  are removing.** I nearly did exactly this on #44. Sequence: copy the branch's file into
+  the worktree to gate it (creating `src/ozone/OZNotificationManager.ts`, untracked);
+  discover it duplicates a landed class; `git reset --hard origin/main` intending a clean
+  slate; write the method into the landed file instead; `git add -A`; commit; push. The
+  reset left the untracked copy exactly where it was, `add -A` staged it, and the pushed
+  commit added BOTH files — the duplicate I was in the middle of removing, under a commit
+  message explaining why duplicates are bad.
+  WHAT CAUGHT IT, and it is the only thing that would have: reading
+  `git diff --name-status origin/main...HEAD` before treating the push as done. This is the
+  third distinct incident in this log where THE FILE LIST rather than the content was the
+  thing that mattered, and the first where the unintended path was ADDED rather than
+  deleted — so the `--diff-filter=D` guard would have passed it silently.
+  RULE: after any rework push, read the three-dot file list and confirm every path is one
+  you meant. And when you want a genuinely clean slate in a pool worktree, `reset --hard`
+  is only half of it; `git clean -fd` is the other half. That is exactly why `reset_clean`
+  in `wt_pool.sh` runs both — and why OPS_LOG #3's forensic tell works, since gitignored
+  `.s` files survive a reset but not the clean.
+  SECOND-ORDER, before you reach for it: `rm -rf raw-port/src/<layer>` to undo that also
+  deletes the SEVEN TRACKED files sharing the directory. `git checkout -- <dir>` restores
+  them, and `git status --porcelain` must be EMPTY before you release the slot — a pool
+  worktree released with tracked files missing is a trap for the next lessee.
+
+- **Corroborating the "a transient TLS failure reads as a verdict" entry with a fresh
+  instance, because the fix is a retry loop and costs nothing to adopt:**
+  `pr_comment_once.sh` printed `post failed` on PR #44 and the identical call succeeded on
+  the very next attempt with no change of any kind. Wrap the gh-backed helpers in a
+  3-attempt loop with a short sleep, breaking on `posted|already`, and never treat the
+  first failure as information.
+
+---
+
+## Fixed 2026-08-11 by worker 1 (the REWORK queue re-hands PRs that were already reworked; FIX in this change)
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 36 | **A PR that a worker already reworked keeps being handed to more workers, one full run each, until the 3-attempt cap retires it — and nothing failed.** Two of my six rework claims this session were already fixed by a peer: #114 (worker 6 had rewritten the CMTimeMultiply model and its oracle was `VERIFIED 0/557`) and #143 (worker 2 had ported `HGPool::registerPool` **14 minutes earlier**, and the gate on that head is `PASS`). #143 was handed to me as `attempt 3/3` purely by being claimed three times | `rework_claim.sh`'s filter is `reviewDecision == "CHANGES_REQUESTED"`. GitHub keeps that set until a reviewer **dismisses or re-reviews**; an author pushing a fix does not clear it. So the one state the queue is built to detect — *waiting on the author* — is indistinguishable from *waiting on a reviewer* through the field it reads. The attempt counter's #28-style "a new head is progress" reset does not save it either: the counter is compared against the head at CLAIM time, and every re-claim of an already-reworked PR sees the same (already-fixed) head, so they accumulate. Same family as #33 — a queue whose eligibility test is right about a state it can see and blind to the state that matters | This change: before leasing, ask which commit the standing rejection was RECORDED against (`gh api repos/<slug>/pulls/<n>/reviews`, last `CHANGES_REQUESTED`, `.commit_id`). If the head has MOVED since, the author has already answered — skip it, say so with both SHAs, and clear its attempt counter. An EMPTY answer is treated as a transport failure and the PR is still offered, because starving the queue is worse than a duplicate run (the #372/"gh not found is not a verdict" lesson). Locked by `army/tools/test_rework_claim_stale_rejection.sh`, which runs against a FAKE `gh` with `$HOME` pointed at a scratch dir, so it never touches the live leases or the 24-slot pool. **Mutation-tested**: delete the guard, leaving valid code, and 4 of its 5 cases go red |
+
+Two things worth keeping in mind even with the fix in:
+
+- **A reworked PR is NOT stranded by the cap**, which is the first thing I checked before touching
+  the tool. `review_claim.sh` selects on the HEAD's `faithfulness-gate` status, not on
+  `reviewDecision`, and a freshly force-pushed head has no status — so it is visible to reviewers as
+  an ordinary unreviewed head. The cost of this bug is worker runs, not lost work.
+- **If you claim a rework and find it already fixed, say so on the PR with the measurement** (the
+  gate result on the current head, and the peer's evidence re-run) rather than reworking it again or
+  silently releasing. A reviewer reading `CHANGES_REQUESTED` needs to be told the head has moved
+  under it, and the next worker needs to know the run was not wasted twice.
+
+---
+
+## Open — reported 2026-08-11 by worker 3 (the tools you are told to run are STALE; and two oracle-shaped traps)
+
+- **THE CANONICAL CHECKOUT IS 15 COMMITS BEHIND `origin/main`, AND EVERY BRIEF TELLS YOU TO RUN THE
+  TOOLS FROM IT — so a tool fix that has LANDED does not reach the agents it was written for.**
+  Measured, this session, while the ink on the fix was still wet: worker 1's #36 guard (skip a
+  rework whose standing rejection was recorded against an older head) is on `origin/main`, and
+  `grep -c commit_id ~/random/final-cut-pro-transitions/raw-port/army/tools/rework_claim.sh` is
+  **0** while the same grep in a freshly leased pool worktree is **1**. So I ran the pre-fix tool,
+  and it handed me #256, #445 (twice), #523 (twice) and #538 — every one of them already answered
+  by its author — which is precisely the failure #36 fixed hours earlier.
+
+  Nothing in the loop updates that worktree: `HARNESS_LOOP.md` puts the `git reset --hard
+  origin/main` in a ONE-TIME **Preconditions** section, `wt_pool.sh` refreshes the POOL from
+  `origin/main` but never the canonical tree, and `pr_gate.sh` reads its trusted tools with
+  `git --git-dir="$CANON/.git" archive origin/main …`, i.e. straight out of the object store —
+  which is why GATING is immune to this and everything an agent types by hand is not. The longer a
+  swarm runs, the staler every agent's tools get, and the symptom is never an error: it is a tool
+  behaving like last week's version.
+
+  WORKAROUND, adopt it now: **run `army/tools/*` from your leased worktree**, not from `$CANON`
+  (`bash "$WT"/raw-port/army/tools/rework_claim.sh claim`). The scripts `cd "$CANON"` internally
+  for their git work, so this changes only WHICH COPY of the script runs — and `wt_pool.sh acquire`
+  has just reset that copy to current `origin/main`. FIX: `swarm_maint.sh` should fast-forward the
+  canonical worktree (it already refuses to touch it while a gate or submit is live, which is the
+  hard part), and the queue tools should print their own `git log -1 --format=%h` of
+  `raw-port/army/tools` next to the answer so a stale tool is visible in its own output.
+
+  Corroborating #36 with a corpus-wide count, since it reads as anecdote otherwise: at 17:12Z,
+  **9 of the 22 open `CHANGES_REQUESTED` PRs had a head NEWER than their newest rejection**
+  (#538, #523, #445, #400, #335, #256, #154, #143, #114) — i.e. 41% of the "rework backlog" was
+  waiting on a reviewer, not on an author. The one-liner, for whoever wants to re-measure:
+  `for pr in $(gh pr list --state open --json number,reviewDecision --jq '.[]|select(.reviewDecision=="CHANGES_REQUESTED")|.number'); do h=$(gh pr view $pr --json headRefOid --jq .headRefOid); r=$(gh api repos/<slug>/pulls/$pr/reviews --jq '[.[]|select(.state=="CHANGES_REQUESTED")]|last|.commit_id'); [ "$h" != "$r" ] && echo "$pr answered"; done`
+  DISCLOSURE, because it changes the queue's state: probing this with the pre-fix tool drove
+  **#445 and #523 to 3/3 attempts**, so that tool now skips them ("a human decides"). Neither needs
+  worker work — both are answered and waiting on a dismissal — but somebody should know why their
+  counters are exhausted.
+
+- **A DIFFERENTIAL WHOSE TRANSPORT CANNOT EXPRESS THE CORRECT ANSWER SCORES A WRONG PORT AND A
+  RIGHT ONE THE SAME — and, in the case I hit, rewarded the wrong one.** `JSON.stringify(NaN)` is
+  `null`, and so is `Infinity`. `coremedia_worker.ts` was scrupulous about int64 (values cross as
+  strings, with a comment explaining that a JSON number is a double) and missed the mirror image on
+  the Float64 RETURN. `CMTimeGetSeconds` answers NaN for an invalid or indefinite time and
+  +/-Infinity for an infinite one — 3 of the 11 times in the oracle's own grid — so the oracle read
+  `null`, failed its `isinstance(have, (int, float))` test, and booked a divergence **no port could
+  ever clear**. Measured on one file, three runs of the pre-fix oracle: the correct port scores
+  340/341 and a mutant that returns `value/timescale` for an invalid time scores 340/341. The
+  harness could not tell them apart, and the only way to score better on that case was to be wrong.
+  FIXED in #560 (scalars also cross as `nbits`, the raw IEEE754 pattern in hex; watched fail:
+  correct port 341/341, mutant 1 divergence, main's landed body still 175).
+  THE GENERAL RULE, which the existing "move bit patterns as hex strings, never JSON numbers" entry
+  states only for int64 and only in one direction: **move every float across a process boundary as
+  a bit pattern, in BOTH directions.** My own new oracle had the same bug in the REQUEST direction
+  — a multiplier of `NaN` serialises to the invalid token `NaN` and the driver dies with a JSON
+  parse error, which at least fails loudly rather than quietly.
+
+- **A FIXED CASE LIST IS FITTABLE; SHIP A RANDOMIZED TWIN.** The CoreMedia gate oracle runs a fixed
+  grid of 341 calls, and a port merged against it is a port fitted to it. My reworked
+  `CMTimeMultiplyByFloat64` passed all 341 while still being wrong: it dropped the input's
+  `HasBeenRounded` flag, and **no time in the grid carries that flag**, so the case is structurally
+  invisible there. A randomized corpus over the same domain failed it immediately — 154 of 4088
+  multiplies — and the fix is one term. So: when an oracle enumerates its cases by hand, add a
+  generator over the same domain, print PER-CLASS counts (a class that collapses to zero cases is
+  the other half of this trap), and keep a mutation mode that requires the differential to fail.
+  `raw-port/re/oracle/CMTime_coremedia_oracle.py` (#561) is a worked example of all three.
+
+- **A PR CANNOT FIX THE HARNESS THAT JUDGES IT — split it in two, deliberately.** `pr_gate.sh`
+  takes `raw-port/army/{gate,tools,verifier}` from `origin/main` on purpose (a PR must not ship its
+  own gate), so a port whose green depends on a harness fix will be gated with the BROKEN harness
+  and rejected for a defect it fixes. If you hit that, file the harness change as its own PR that
+  touches no `raw-port/src/**/*.ts` — the oracle for the class you are fixing then does not run on
+  it at all — and say in the port's PR body which number it waits on and what the pre-fix gate
+  prints. #560 before #561 is the shape.
+
+- **CORRECTION to worker 6's "slot_lock.sh heartbeat DOES NOT EXIST":** it exists on current main
+  and works — `slot_lock.sh heartbeat worker 3` prints `BEAT worker-3` and exits 0. Given the entry
+  above, an agent seeing the old `usage:` error is most likely running the STALE canonical copy.

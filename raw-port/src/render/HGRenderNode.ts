@@ -28,6 +28,19 @@ export type HGRenderNodeNotifyFn = (node: HGRenderNode | null) => void;
  * whatever HGRenderNode::SetNotifyFunc writes). Subclasses in this port that inherit MUST NOT
  * assume a specific layout beyond what HGRenderNode itself decodes.
  */
+/**
+ * `HGRenderNode::State` — the enum tag stored at +0x38. No decoded instruction
+ * pins a single NAMED enumerator: `SetState` @0xdcc94 passes %esi straight into
+ * the slot with no mask, no range check and no branch, and `GetState` @0xdcdf4
+ * hands the same 32 bits back. One value is now known — the constructor
+ * initialises the slot to 1 (`movq $0x1, 0x38(%rbx)` @Helium 0xdc9ea), so 1 is
+ * the state of a freshly built node — but the enumerator NAMES are still
+ * undecoded, so the type stays an opaque u32 alias until a comparison site
+ * reveals them; the same treatment the landed HGRenderJob.ts gives its own enum
+ * tags.
+ */
+export type HGRenderNodeState = number;
+
 export class HGRenderNode {
   // No decoded fields yet. The C++ HGRenderNode constructor is __ZN12HGRenderNodeC2Ev @Helium
   // (undecoded here); our stub does nothing so subclasses inherit a valid empty base.
@@ -86,6 +99,72 @@ export class HGRenderNode {
   SetRenderer(this: HGRenderNode, renderer: HGRenderer | null): void {
     // @0xdcca4  movq %rsi,0xb0(%rdi) — raw pointer store, NULL included.
     this.rendererAtB0 = renderer;
+  }
+
+  /**
+   * @Helium offset +0x38 — the u32 `HGRenderNode::State` enum tag.
+   *
+   * Written by `SetState` @0xdcc94 (`movl %esi, 0x38(%rdi)`) and read back by
+   * `GetState` @0xdcdf4 (`movl 0x38(%rdi), %eax`) — a matched 32-bit store/load
+   * pair, which is what fixes both the offset and the width. (`GetState`
+   * @0xdcdf0 is its own ledger unit and is NOT ported here; it is read only for
+   * the layout, the same way `SetRenderer`'s +0xb0 was established.)
+   *
+   * INITIAL VALUE 1, read from the constructor's own initialiser:
+   * `__ZN12HGRenderNodeC2Ev` @Helium 0xdc9c0 does
+   *
+   *   0xdc9df  movl $0x18, 0x30(%rbx)     ; the neighbouring +0x30 slot
+   *   0xdc9e6  movb $0x0,  0x34(%rbx)
+   *   0xdc9ea  movq $0x1,  0x38(%rbx)     ; <-- the state slot starts at 1
+   *   0xdc9f2  movl $0x0,  0x40(%rbx)
+   *
+   * so a freshly constructed HGRenderNode reports state 1, not 0. The store is
+   * a `movq`, i.e. eight bytes: it sets the u32 at +0x38 to 1 and separately
+   * zeroes +0x3c, which is a different slot and not modelled here.
+   *
+   * The ctor is its own ledger unit and is NOT ported in this file — this field
+   * only borrows its initialiser for the default, exactly as `rendererAtB0` and
+   * `notifyFuncAtA0` already borrow the `movups %xmm0` zeroing at +0xb0/+0xa0
+   * (@0xdca1e / @0xdca17).
+   */
+  stateAt38: HGRenderNodeState = 1; // @Helium 0xdc9ea  movq $0x1, 0x38(%rbx)
+
+  /**
+   * `HGRenderNode::SetState(HGRenderNode::State)` @Helium 0xdcc90
+   * (__ZN12HGRenderNode8SetStateENS_5StateE).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0xdcc90  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0xdcc91  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0xdcc94  movl  %esi, 0x38(%rdi)     ; this->state = arg  (32-bit store)
+   *   0xdcc97  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0xdcc98  retq                       ; void return
+   *   0xdcc99  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * A pure setter: one 32-bit store, no validation, no range check, no
+   * notification fired (note it does NOT call the +0xa0 notify function), and
+   * ZERO callees of any kind — `depgraph.py deps` lists nothing.
+   *
+   * ORACLE: verified against the live Helium binary
+   * (raw-port/re/oracle/HGRenderNode_SetState_oracle.py). Both this setter and
+   * its reader `GetState` @0xdcdf0 are EXPORTED, and the harness runs under
+   * `arch -x86_64 /usr/bin/python3` because the port is transcribed from the
+   * x86_64 slice. On a 0x200-byte object pre-filled with 0xEE, 209 cases (0..5,
+   * INT_MAX, 0x80000000, 0xffffffff and 200 random u32s): the dword at +0x38
+   * held the exact argument 209/209, the live getter returned it 209/209, and
+   * NO other byte of the object changed 209/209.
+   * NEGATIVE CONTROLS (measured, same 209 cases): a 16-bit store -> 209 wrong;
+   * a byte store -> 209 wrong; writing +0x3c -> 209 wrong; writing the +0xb0
+   * renderer slot -> 209 wrong.
+   *
+   * @param state — the `HGRenderNode::State` enum value (SysV %esi, u32).
+   */
+  SetState(this: HGRenderNode, state: HGRenderNodeState): void {
+    // @0xdcc94  movl %esi,0x38(%rdi) — 32-bit store; `>>> 0` models the
+    //   truncation, so a negative or oversized JS number stores the same bit
+    //   pattern the machine would.
+    this.stateAt38 = state >>> 0;
   }
 }
 

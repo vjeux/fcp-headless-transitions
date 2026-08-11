@@ -16,6 +16,8 @@
 //     __ZNK17HGMetalDeviceInfo9isBuiltinEv
 //   * HGMetalDeviceInfo::isExternal() const        @Helium 0x1c55c0
 //     __ZNK17HGMetalDeviceInfo10isExternalEv
+//   * HGMetalDeviceInfo::isSlotted() const         @Helium 0x1c55b0
+//     __ZNK17HGMetalDeviceInfo9isSlottedEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo7isAppleEv.s
@@ -77,7 +79,7 @@
 // `isBuiltin`/`isExternal` read a different u32 at +0x28, and the third
 // neighbour in the text section reads that SAME slot against 1:
 //     isBuiltin()  @0x1c55a0 — `cmpl $0x0, 0x28(%rdi) ; sete %al`   (ported here)
-//     isSlotted()  @0x1c55b0 — `cmpl $0x1, 0x28(%rdi) ; sete %al`   (separate ledger entry)
+//     isSlotted()  @0x1c55b0 — `cmpl $0x1, 0x28(%rdi) ; sete %al`   (ported here)
 //     isExternal() @0x1c55c0 — `cmpl $0x2, 0x28(%rdi) ; sete %al`   (ported here)
 // Three mutually exclusive equality tests against 0/1/2 on one dword, laid out
 // 0x10 apart, identify +0x28 as a cached device-LOCATION enum (built-in / slot /
@@ -337,5 +339,72 @@ export class HGMetalDeviceInfo {
     //   ZF (sete) is set iff the u32 field equals 2 — strict equality, full
     //   32-bit width (`>>> 0` models the u32 read the `cmpl` performs).
     return (this.deviceLocation_at_0x28 >>> 0) === 2;
+  }
+
+  /**
+   * `HGMetalDeviceInfo::isSlotted() const` — @Helium 0x1c55b0
+   * (__ZNK17HGMetalDeviceInfo9isSlottedEv).
+   *
+   * Faithful transcription of the 6-line body
+   * (raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo9isSlottedEv.s):
+   *
+   *   0x1c55b0  pushq %rbp
+   *   0x1c55b1  movq  %rsp, %rbp
+   *   0x1c55b4  cmpl  $0x1, 0x28(%rdi)   ; AT&T dst-src: *(u32*)(this+0x28) - 1
+   *   0x1c55b8  sete  %al                ; al = ZF = (field == 1)
+   *   0x1c55bb  popq  %rbp
+   *   0x1c55bc  retq
+   *
+   * The middle member of the location trio: `isBuiltin` @0x1c55a0 tests the
+   * same dword against 0 and `isExternal` @0x1c55c0 against 2, both already
+   * landed above. Strict equality (`sete`, ZF), never a range test — the
+   * machine emits `sete`, not `setae`/`setge`.
+   *
+   * IT READS THE LANDED `deviceLocation_at_0x28`, and that is the whole point
+   * of this method's history: the first version of this port declared a SECOND
+   * TS field over the same +0x28 dword and read that one, which silently broke
+   * the mutual exclusion the machine gets for free from there being one slot.
+   * Review caught it by execution. One machine field is one TS property — see
+   * the OZRenderParams +0x1e5 entry in OPS_LOG for the same trap landed twice.
+   *
+   * No callees of any kind: `depgraph.py deps` reports nothing. The `__ZNK`
+   * mangling matches the `const` qualifier; the body only reads.
+   *
+   * ORACLE — raw-port/re/oracle/HGMetalDeviceInfo_location_oracle.py
+   *   (+ _driver.mts; run with arch -x86_64 /usr/bin/python3, because every
+   *   address here is x86_64 and an arm64 image would be a different body from
+   *   the one transcribed).
+   * All three symbols are EXPORTED (`T`), so the harness dlopens Helium and
+   * calls the real `isBuiltin` / `isSlotted` / `isExternal` on a 0x200-byte
+   * object pre-filled with 0x5A, planting the dword at +0x28. It first checks
+   * the opcode bytes at each entry point, which read the immediates straight
+   * out of the instruction stream and are the cleanest possible proof of the
+   * trio: 55 48 89 e5 83 7f 28 **00** / **01** / **02** — `cmpl $imm, 0x28(%rdi)`
+   * at all three addresses, differing only in that last byte.
+   * MEASURED over 416 cases (0..5, INT_MAX, 0x80000000, 0xffffffff, 0xfffffffe,
+   * six width probes of the form 0x____0001 whose low byte or low 16 bits are 1
+   * with a non-zero upper half, 200 random u32 and 200 draws from {0,1,2,3}):
+   *   * isSlotted 416/416 identical to this port, and isBuiltin and isExternal
+   *     416/416 as well — all three driven from the ONE landed field;
+   *   * at most one of the three was ever true (0 cases with two), and the
+   *     object was never mutated: they are pure reads of one dword;
+   *   * THE REJECTED ARRANGEMENT is run as a control rather than described. With
+   *     a second TS property for +0x28: a caller writing only the landed field
+   *     makes isSlotted diverge on 48 of 416 cases (every loc == 1), a caller
+   *     writing only the alias makes isBuiltin diverge on 356 of 416, and only a
+   *     caller that redundantly writes BOTH names agrees (0 of 416). That is
+   *     review's finding reproduced — and the reason the aliased version could
+   *     show "0 divergences" while being wrong.
+   * NEGATIVE CONTROLS for this method (same 416 cases): truthiness instead of
+   * `=== 1` -> 308 wrong; a `>= 1` range test -> 308 wrong; comparing against 0
+   * (isBuiltin's immediate) -> 108 wrong; reading the +0x20 vendor slot -> 48
+   * wrong; a 16-bit compare instead of the machine's 32-bit `cmpl` -> 5 wrong,
+   * which is exactly what the 0x____0001 probes exist to catch.
+   */
+  isSlotted(): boolean {
+    // @0x1c55b4-0x1c55b8: cmpl $0x1, 0x28(%rdi) ; sete %al
+    //   ZF (sete) is set iff the u32 location tag equals 1 — strict equality,
+    //   full 32-bit width (`>>> 0` models the u32 the `cmpl` reads).
+    return (this.deviceLocation_at_0x28 >>> 0) === 1;
   }
 }

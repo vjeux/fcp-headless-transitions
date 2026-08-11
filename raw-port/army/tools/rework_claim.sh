@@ -56,6 +56,26 @@ cmd_claim () {
   [ -z "$cand" ] && { echo "NONE"; return 1; }
   while IFS=$'\t' read -r num br sha; do
     [ -z "$num" ] && continue
+    # IS THE PR ACTUALLY WAITING ON THE AUTHOR? `reviewDecision` stays CHANGES_REQUESTED until a
+    # reviewer dismisses or re-reviews — pushing a fix does NOT clear it. So the filter above also
+    # matches every PR that has ALREADY been reworked and is waiting on a REVIEWER, and this queue
+    # hands each of those to a worker again, one full run at a time, until the cap stops offering
+    # it. Measured 2026-08-11: two of one worker's six claims (#114, #143) were already fixed by a
+    # peer, one of them 14 minutes earlier; #143 reached 3/3 that way without anything failing.
+    # The head SHA the rejection was RECORDED AGAINST answers it: if the head has moved since, the
+    # author has already answered and the PR belongs to the review queue (`review_claim.sh` selects
+    # on the head's faithfulness-gate status, and a freshly pushed head has none, so it is visible
+    # there as an ordinary unreviewed head).
+    local rej
+    rej=$(gh api "repos/$SLUG/pulls/$num/reviews" \
+            --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
+    # An EMPTY answer is a transport failure or an API shape change, never a verdict — offer the PR
+    # rather than starving the queue on it (OPS_LOG: a gh "not found" is not information).
+    if [ -n "$rej" ] && [ "$rej" != "null" ] && [ "$rej" != "$sha" ]; then
+      echo "rework_claim: PR #$num already reworked (rejection was on ${rej:0:8}, head is now ${sha:0:8}) — it is waiting on a REVIEWER, skipping" >&2
+      rm -f "$ATT/$num" "$ATT/$num.sha" 2>/dev/null
+      continue
+    fi
     local af="$ATT/$num" sf="$ATT/$num.sha" n last
     n=$(cat "$af" 2>/dev/null || echo 0); last=$(cat "$sf" 2>/dev/null || echo "")
     # A new head means the author pushed a fix and the reviewer rejected again on NEW code — that is
