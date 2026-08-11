@@ -28,7 +28,16 @@ import re, os, sys, json, subprocess
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # raw-port/
 VERIFIER = os.path.join(ROOT, "army", "verifier")
 sys.path.insert(0, VERIFIER)
-from classify_disasm import classify, find_disasm, names_class as _names_class
+from classify_disasm import classify, find_disasm
+try:
+    from classify_disasm import names_class as _names_class
+except ImportError:  # a checkout whose verifier/ predates #322 (local pre-commit hook path)
+    import re as _re
+    def _names_class(basename, ident):
+        """Fallback copy of classify_disasm.names_class — keep the two in sync."""
+        if _re.search(r'(?<![0-9])%d%s' % (len(ident), _re.escape(ident)), basename):
+            return True
+        return (".%s." % ident) in basename or basename.startswith(ident + ".")
 import reach_check
 
 FW_RE = re.compile(r'@(ProCore|ProChannel|Helium|Ozone|Flexo)\s+0x([0-9a-fA-F]+)')
