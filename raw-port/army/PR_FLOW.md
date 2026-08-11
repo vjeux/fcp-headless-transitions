@@ -47,7 +47,7 @@ IS the CI**: it runs the gate locally and posts the verdict as a GitHub commit s
    worker slot to pull via `rebase_claim.sh`). Dup fail → `gh pr close <PR#>` (symbol already on main).
 4. If gate PASS → do the SEMANTIC adversarial review (re-derive disasm independently, line-by-line,
    confirm every real-work instr has a TS counterpart, throws are true externs). If genuinely faithful:
-   `gh pr merge <PR#> --squash --auto --delete-branch`. GitHub merges SERVER-SIDE once the required
+   `pr_land.sh <PR#>` (NEVER a bare `gh pr merge` — that bypasses the guard that refuses to merge over an un-dismissed CHANGES_REQUESTED, which is how the rejected #108 landed). GitHub merges SERVER-SIDE once the required
    status is green → the local tree is NEVER touched. (Auto-merge waits for the status if still pending.)
    NOTE: same gh token opened the PR, so a GitHub "approving review" is blocked (self-approve) — the
    required check is the STATUS, and the reviewer's judgment is enforced by only merging what they've

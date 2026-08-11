@@ -10,10 +10,13 @@
 //     __ZN13HGGPURenderer15GetMetalContextEv
 //   * HGGPURenderer::GetGLState() const          @Helium 0x12070
 //     __ZNK13HGGPURenderer10GetGLStateEv
+//   * HGGPURenderer::UsingSharedStorage() const  @Helium 0x17720
+//     __ZNK13HGGPURenderer18UsingSharedStorageEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZN13HGGPURenderer15GetMetalContextEv.s
 //   raw-port/re/disasm/Helium.__ZNK13HGGPURenderer10GetGLStateEv.s
+//   raw-port/re/disasm/Helium.__ZNK13HGGPURenderer18UsingSharedStorageEv.s
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (7 lines, @0xa560..@0xa56c)
@@ -189,5 +192,72 @@ export class HGGPURenderer {
     // @0x12074  movq 0x490(%rdi), %rax
     //   rax = this->glState_at_0x490
     return this.glState_at_0x490;
+  }
+
+  /**
+   * @Helium offset +0x4f0 — a ONE-BYTE texture-storage hint. Read by
+   * `UsingSharedStorage() const` @0x17724 via `cmpb $0x2, 0x4f0(%rdi)`, so the
+   * field is a byte-wide enum, not a pointer or a bool.
+   *
+   * Its writers (each a separate, unported ledger unit) fix both the default
+   * and the meaning of the value this getter tests for:
+   *   * the ctor `HGGPURenderer::HGGPURenderer(unsigned long long, bool)` [C2]
+   *     @0x8944 stores `movw $0x101,0x4f0(%rbx)` — a 16-bit store that sets
+   *     THIS byte to 1 and its neighbour at +0x4f1 to 1. So the default hint is
+   *     1, and +0x4f1 is a different field this unit must not disturb.
+   *     (`HGGPURenderer::Init()` re-applies the same `movw $0x101` @0x9465.)
+   *   * `HGGPURenderer::Init()` sets it to 2 — `movb $0x2,0x4f0(%rbx)` @0x9118
+   *     — exactly when `HGMetalContext::deviceInfo()` @0x9107 →
+   *     `HGMetalDeviceInfo::isIntel()` @0x910f returns true. An Intel
+   *     integrated GPU shares physical memory with the CPU, which is what
+   *     makes "2" mean SHARED storage.
+   *   * `HGGPURenderer::InitTextureStorage()` @0x9e61 stores 2 the same way.
+   *   * the environment override `HG_RENDERER_ENV::FORCE_TEXTURE_STORAGE_HINT`
+   *     is copied in verbatim when it is not -1 — `movb %al,0x4f0(%rbx)`
+   *     @0x9185 / @0x9ece — which is why the getter compares against a value
+   *     rather than reading a bool.
+   *   * `HGGPURenderer::SetParameter(HGRendererParameter, int)` @0xd16e writes
+   *     it, and `HGGPURenderer::LoadTexture(HGRect, HGBitmap*, bool)` reads it
+   *     @0xf7d7/@0xf7e1 (`cmpb $0x0` and `movzbl`), confirming the byte width
+   *     and that 0 is a distinct third state.
+   *
+   * Modelled as a `number` holding the raw byte, defaulting to the ctor's 1.
+   */
+  textureStorageHint_at_0x4f0 = 1;
+
+  /**
+   * `HGGPURenderer::UsingSharedStorage() const` — @Helium 0x17720
+   * (__ZNK13HGGPURenderer18UsingSharedStorageEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x17720  pushq %rbp             ; frame setup (no TS counterpart)
+   *   0x17721  movq  %rsp,%rbp        ; frame setup (no TS counterpart)
+   *   0x17724  cmpb  $0x2,0x4f0(%rdi) ; AT&T: computes this[+0x4f0] - 2
+   *   0x1772b  sete  %al              ; al = (this[+0x4f0] == 2)
+   *   0x1772e  popq  %rbp             ; frame teardown (no TS counterpart)
+   *   0x1772f  retq                   ; returns the bool in %al
+   *
+   * Decode notes:
+   *   * `cmpb` is a BYTE compare against the immediate 2 and `sete` keys on ZF
+   *     alone, so this is an exact equality test on one byte — not a
+   *     "non-zero" test and not a bitmask. Any other hint value (the default 1
+   *     @0x8944, the 0 that LoadTexture @0xf7d7 tests for, or an arbitrary
+   *     forced value from HG_RENDERER_ENV::FORCE_TEXTURE_STORAGE_HINT @0x9185)
+   *     yields false.
+   *   * `this` is read and never written; nothing else on the instance is
+   *     touched. No callq, no in-scope dependency, no extern, no indirect or
+   *     virtual dispatch (`depgraph.py deps` lists nothing).
+   *   * the port masks the field to 8 bits before comparing because the machine
+   *     only ever looks at the one byte at +0x4f0 — the neighbouring byte at
+   *     +0x4f1 that the ctor's 16-bit `movw $0x101` also writes is NOT part of
+   *     this test.
+   *
+   * @returns %al — true iff the +0x4f0 storage hint is exactly 2 (the value
+   *          Init() installs for an Intel GPU @0x9118).
+   */
+  UsingSharedStorage(): boolean {
+    // @0x17724..@0x1772b  cmpb $0x2,0x4f0(%rdi) ; sete %al
+    return (this.textureStorageHint_at_0x4f0 & 0xff) === 0x2;
   }
 }
