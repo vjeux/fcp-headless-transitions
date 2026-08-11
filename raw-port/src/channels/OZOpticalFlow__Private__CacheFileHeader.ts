@@ -22,6 +22,7 @@
 //   @0x4e5200  CacheFileHeader::totalFields()   __ZNK13OZOpticalFlow7Private15CacheFileHeader11totalFieldsEv
 //   @0x4e5210  CacheFileHeader::resolution()    __ZNK13OZOpticalFlow7Private15CacheFileHeader10resolutionEv
 //   @0x4e5270  CacheFileHeader::vectorsWidth()  __ZNK13OZOpticalFlow7Private15CacheFileHeader12vectorsWidthEv
+//   @0x4e5240  CacheFileHeader::fieldMode()     __ZNK13OZOpticalFlow7Private15CacheFileHeader9fieldModeEv
 //
 // Source disassembly (re-derived from the binary with
 // `raw-port/tools/disasm.sh --sym <mangled> Ozone`):
@@ -30,6 +31,7 @@
 //   raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader11totalFieldsEv.s   (7 lines)
 //   raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader10resolutionEv.s    (8 lines)
 //   raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader12vectorsWidthEv.s  (22 lines)
+//   raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader9fieldModeEv.s     (9 lines)
 //
 // ---------------------------------------------------------------------------
 // LAYOUT (offsets from the five bodies below, corroborated by the sibling
@@ -232,4 +234,43 @@ export class OZOpticalFlow__Private__CacheFileHeader {
     // @0x4e5294/@0x4e5297  movl 0x4(%rdi),%eax ; addl %eax,%eax — 32-bit double.
     return (w + w) >>> 0;
   }
+
+  /**
+   * `CacheFileHeader::fieldMode() const` — @Ozone 0x4e5240
+   *   __ZNK13OZOpticalFlow7Private15CacheFileHeader9fieldModeEv
+   *
+   * Full transcription — every instruction, in order (9-line disasm at
+   * raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader9fieldModeEv.s):
+   *
+   *   0x4e5240  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x4e5241  movq  %rsp,%rbp             ; frame setup (no TS counterpart)
+   *   0x4e5244  xorl  %eax,%eax             ; eax = 0 (clears the upper bits so
+   *                                         ;   the `sete` below is the whole u32)
+   *   0x4e5246  testb $0x2,0x10(%rdi)       ; flags on (flagsByte & 2) — no write
+   *   0x4e524a  sete  %al                   ; al = (bit1 == 0)
+   *   0x4e524d  popq  %rbp                  ; frame teardown (no TS counterpart)
+   *   0x4e524e  retq
+   *   0x4e524f  nop                         ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * `testb` ANDs without storing, so ZF=1 exactly when flags bit1 is CLEAR;
+   *     `sete` therefore returns 1 for a CLEAR bit and 0 for a SET bit — the
+   *     INVERSE of the stored bit, which is the whole point of the accessor:
+   *     `setFieldMode(FieldMode f)` @0x4e5250 stores `sete(f == 0)` doubled into
+   *     bit1 (see this file's header), so reading it back inverted recovers the
+   *     original `FieldMode` value's zero/non-zero-ness as 1/0.
+   *   * `xorl %eax,%eax` before the test is the standard zero-extension idiom:
+   *     the return is a full 32-bit 0 or 1, so the port returns a number, not a
+   *     boolean (same treatment as `resolution()` @0x4e5210 above).
+   *   * this is the OTHER bit of the same +0x10 byte `resolution()` reads (bit0)
+   *     and `vectorsWidth()` reads as a pair (bits 0-1) — no new field is
+   *     needed.
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps` lists nothing).
+   */
+  fieldMode(): number {
+    // @0x4e5244/@0x4e5246/@0x4e524a  xorl %eax,%eax ; testb $0x2,0x10(%rdi) ; sete %al
+    return ((this.flagsAt10 & 0xff) & 0x2) === 0 ? 1 : 0;
+  }
+
 }
