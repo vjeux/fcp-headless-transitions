@@ -93,6 +93,11 @@ import type {
   OZFactory,
 } from "./OZChannelDouble";
 
+// The class-scoped info singleton is an OZChannelAspectRatioFootageInfo (ProChannel 0x6780 C2,
+// already ported); the initializer inlined into __invoke @ProChannel 0x673c constructs one.
+// A VALUE import, not a type import — the initializer really calls that ctor.
+import { OZChannelAspectRatioFootageInfo } from "./OZChannelAspectRatioFootageInfo";
+
 // ------------------------------ Frontier stubs -------------------------------
 //
 // Everything below is a THROWing stub whose message cites the exact @0xADDR
@@ -175,27 +180,172 @@ function OZChannel_setInitialValue(
 }
 
 /**
- * OZChannelAspectRatioFootage::createOZChannelAspectRatioFootageInfo() —
- * static lambda under `_OZChannelAspectRatioFootageInfo_once`, bound
- * through `std::__1::__call_once_proxy`. Populates the class-scoped
- * `_OZChannelAspectRatioFootageInfo` global (a pointer to an
- * OZChannelAspectRatioFootageInfo instance).
+ * `OZChannelAspectRatioFootage::createOZChannelAspectRatioFootageInfo()`
+ *   — @ProChannel 0x6698
+ *   — __ZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageInfoEv
  *
- * Referenced by OZChannelAspectRatioFootage::C2 @0xbfd00-2f (once-flag +
- * proxy stub setup) and returned via a load of
- * `__ZN27OZChannelAspectRatioFootage32_OZChannelAspectRatioFootageInfoE`
- * @0xbfd58-69. NOT yet decoded.
+ * WAS a frontier throw-stub ("not yet decoded") for @ProChannel 0x6698; transcribed here.
+ * The name keeps its `_default` suffix because the Ozone ctor's null-info branch calls it
+ * through that name (see `newDouble` step F below) — same convention as the landed
+ * `createOZChannelAspectRatioFootageImpl_default` twin directly beneath it.
+ *
+ * WHICH BINARY THIS ADDRESS IS IN, because this file's other citations are Ozone's: the class
+ * is emitted into BOTH frameworks. Ozone carries the ctor (@0xbfc90) and inlines the once-guard
+ * at its own call sites (once-flag + proxy setup @0xbfd00-2f, singleton load @0xbfd58-69) but
+ * NOT this accessor as a standalone symbol; ProChannel emits the accessor @0x6698, its proxy
+ * @0x672c and the (inlined) initializer inside `__invoke` @0x673c. ProChannel's is the only
+ * copy that can be transcribed, and it is cited as such.
+ *
+ * Line-for-line transcription of the 20-line body. Every address below was re-derived from the
+ * RAW BYTES of the thin x86_64 slice rather than from otool's symbolized column, because
+ * `otool -tV` renders a RIP displacement (and an immediate) as a symbol name and that has
+ * already produced a wrong constant in this repo:
+ *
+ *   0x6698  55                    pushq  %rbp
+ *   0x6699  48 89 e5              movq   %rsp, %rbp
+ *   0x669c  48 83 ec 20           subq   $0x20, %rsp        ; 32-byte frame: libc++ tuple<lambda&&>
+ *   0x66a0  48 8b 05 09 51 0e 00  movq   0xe5109(%rip), %rax ; 0x66a7+0xe5109 = BSS 0xeb7b0 (once)
+ *   0x66a7  48 83 f8 ff           cmpq   $-0x1, %rax        ; libc++ writes ~0UL on completion
+ *   0x66ab  74 25                 je     0x66d2             ; fast path: skip __call_once
+ *   0x66ad  48 8d 45 ff           leaq   -0x1(%rbp), %rax   ; the captureless lambda's 1-byte slot
+ *   0x66b1  48 8d 4d e8           leaq   -0x18(%rbp), %rcx  ; the tuple<T&&> slot
+ *   0x66b5  48 89 01              movq   %rax, (%rcx)       ; tuple.head = &lambda-slot
+ *   0x66b8  48 8d 75 f0           leaq   -0x10(%rbp), %rsi  ; __call_once's `void* arg`
+ *   0x66bc  48 89 0e              movq   %rcx, (%rsi)       ; *arg = &tuple
+ *   0x66bf  48 8d 3d ea 50 0e 00  leaq   0xe50ea(%rip), %rdi ; 0x66c6+0xe50ea = BSS 0xeb7b0 (&once)
+ *   0x66c6  48 8d 15 5f 00 00 00  leaq   0x5f(%rip), %rdx   ; 0x66cd+0x5f = 0x672c (the proxy)
+ *   0x66cd  e8 f6 66 0a 00        callq  0xacdc8            ; 0x66d2+0xa66f6 = stub std::__call_once
+ *   0x66d2  48 8d 05 df 5b 0e 00  leaq   0xe5bdf(%rip), %rax ; 0x66d9+0xe5bdf = BSS 0xec2b8 (&global)
+ *   0x66d9  48 8b 00              movq   (%rax), %rax       ; the return value: the singleton pointer
+ *   0x66dc  48 83 c4 20           addq   $0x20, %rsp
+ *   0x66e0  5d                    popq   %rbp
+ *   0x66e1  c3                    retq
+ *
+ * The stack tuple at 0x66ad..0x66bc is an ABI artefact of libc++'s `__call_once` template
+ * instantiation — two levels of indirection so the proxy can find a captureless lambda that has
+ * no state to find. It has no observable effect, and the model below calls the proxy directly,
+ * exactly as the landed Impl twin does.
+ *
+ * MEASURED AGAINST THE LIVE BINARY (raw-port/re/oracle/OZChannelAspectRatioFootage_createInfo_probe.py,
+ * `arch -x86_64 /usr/bin/python3`, ProChannel slide 0x10a641000, 10/10 checks PASS). The symbol is
+ * a LOCAL (`t`) so it was called by address at slide+0x6698, and the probe first asserts the 19
+ * opcode bytes above are the ones actually mapped:
+ *   before   once @0xeb7b0 = 0            singleton @0xec2b8 = NULL
+ *   call #1  returns 0x60000392c060      once -> 0xffffffffffffffff, singleton == the return value
+ *   call #2  returns 0x60000392c060      once unchanged (the fast path at 0x66ab is taken)
+ *   object   +0x00 = 0xccaa8+slide (OZChannelAspectRatioFootageInfo vtable, written by C2 @0x67ce)
+ *            +0x50 = 0xccac8+slide (PCSingleton sub-object vtable, written by C2 @0x67d8)
+ * That last pair is what proves the initializer below really is `operator new(0x58)` + C2 @0x6780
+ * rather than something that merely returns a pointer. What the trace REFUTES is the `=== 1`
+ * sentinel of the 2026-07-29 call_once cheat (the flag reads ~0UL, never 1); what it CANNOT
+ * separate is `!== -1n` from `!== 0n`, since a single 0 -> ~0 transition satisfies both — the
+ * `-1` in the port comes from the `cmpq $-0x1` encoding at 0x66a7 (bytes `48 83 f8 ff`), not
+ * from the trace.
  */
 function createOZChannelAspectRatioFootageInfo_default(): OZChannelInfo {
-  throw new Error(
-    "OZChannelAspectRatioFootage::createOZChannelAspectRatioFootageInfo() " +
-      "(lambda under __ZZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageInfoEvE37_OZChannelAspectRatioFootageInfo_once) " +
-      "@Ozone — bound via " +
-      "__ZNSt3__117__call_once_proxyB9nqe210106INS_5tupleIJOZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageInfoEvEUlvE_EEEEEvPv. " +
-      "Not yet decoded; populates " +
-      "__ZN27OZChannelAspectRatioFootage32_OZChannelAspectRatioFootageInfoE " +
-      "(loaded @0xbfd58 in the info-fixup 'else' branch).",
-  );
+  // @0x66a0-0x66ab — the libc++ fast path: once == ~0UL means init already completed.
+  if (_OZChannelAspectRatioFootageInfo_once !== -1n) {
+    // @0x66ad-0x66cd — marshal the tuple and call std::__1::__call_once(&once, arg, proxy)
+    //   through ProChannel stub 0xacdc8 (libc++, a TRUE out-of-scope extern).
+    std_call_once_AspectRatioFootageInfo();
+  }
+  // @0x66d2-0x66d9 — return the global the initializer wrote (leaq &global, then deref).
+  if (_OZChannelAspectRatioFootageInfo === null) {
+    throw new Error(
+      "OZChannelAspectRatioFootage::createOZChannelAspectRatioFootageInfo() @ProChannel " +
+        "0x6698 completed std::__call_once without the initializer writing " +
+        "__ZN27OZChannelAspectRatioFootage32_OZChannelAspectRatioFootageInfoE (BSS 0xec2b8) — " +
+        "the load @0x66d9 would return NULL.",
+    );
+  }
+  // The C++ return is an implicit derived-to-base pointer conversion: the global holds an
+  // `OZChannelAspectRatioFootageInfo*` (built by the initializer below) and every consumer —
+  // the ctor's +0x80/+0x88 slots — types it as `OZChannelInfo*`. `OZChannelInfo` in this file is
+  // the OPAQUE BRAND from OZChannelDouble.ts (`{ readonly __brand }`), structurally unrelated to
+  // the concrete class, so the upcast has to be spelled out for tsc. No value is changed.
+  return _OZChannelAspectRatioFootageInfo as unknown as OZChannelInfo;
+}
+
+/**
+ * @ProChannel BSS 0xeb7b0
+ * `__ZZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageInfoEvE37_OZChannelAspectRatioFootageInfo_once`
+ * — the libc++ `std::once_flag` word read @0x6698's 0x66a0 and address-taken @0x66bf (both
+ * displacements resolve to 0xeb7b0). 0n = not started, -1n (~0UL) = completed, which is the only
+ * value the accessor's fast path @0x66a7 tests for. BSS is zero-filled at load, so it starts 0n —
+ * measured 0 before the first live call and 0xffffffffffffffff after it.
+ */
+let _OZChannelAspectRatioFootageInfo_once: bigint = 0n; // @ProChannel 0x66a0 read-site
+
+/**
+ * @ProChannel BSS 0xec2b8
+ * `__ZN27OZChannelAspectRatioFootage32_OZChannelAspectRatioFootageInfoE` — the singleton pointer,
+ * address-taken @0x66d2 and dereferenced @0x66d9 as the accessor's return value, and written by
+ * the initializer @0x6765. Zero-filled at load, i.e. nullptr. Also read by the Ozone ctor's
+ * info-fixup 'else' branch @0xbfd58.
+ *
+ * Typed as the CONCRETE class rather than the `OZChannelInfo` brand because that is what the
+ * initializer stores (`operator new(0x58)` + `OZChannelAspectRatioFootageInfoC2Ev`); the accessor
+ * widens it to the brand on return, which is the C++ upcast.
+ */
+let _OZChannelAspectRatioFootageInfo: OZChannelAspectRatioFootageInfo | null = null; // @ProChannel 0x66d2
+
+/**
+ * `std::__1::__call_once(flag&, void*, void(*)(void*))` — libc++, reached through ProChannel stub
+ * 0xacdc8 @0x66cd. A TRUE out-of-scope extern; there is no libc++ runtime here, so the contract
+ * the accessor depends on is modelled: run the initializer once, and write ~0UL into the flag ONLY
+ * on success. If the initializer raises, the flag stays 0 and a later call retries — which is what
+ * the real runtime does, and why the fast-path test @0x66a7 is against -1 rather than "non-zero".
+ *
+ * THE INITIALIZER IS TRANSCRIBED HERE, not deferred, and that is the one place this function
+ * departs from its landed Impl twin. For the Impl the lambda body is its own out-of-line symbol
+ * (`__ZZN27...createOZChannelAspectRatioFootageImplEvENKUlvE_clEv` @0x6890, a separate ledger
+ * unit). For the Info the compiler INLINED the lambda into the libc++ template instantiation
+ *   __ZNSt3__18__invokeB9nqe210106IJZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageInfoEvEUlvE_EEE...
+ * @ProChannel 0x673c — there is no `...NKUlvE_clEv` symbol for Info at all (checked in
+ * army/inventory/ProChannel.syms.txt: 0x672c proxy, 0x673c __invoke, then 0x6780 is already the
+ * Info ctor). STL template instantiations are auto-filtered out of the port queue, so deferring
+ * to "a separate ledger unit" would defer to a unit that can never be claimed, and its only
+ * in-scope callee — `OZChannelAspectRatioFootageInfo::OZChannelAspectRatioFootageInfo()`
+ * @ProChannel 0x6780 — is ALREADY PORTED (raw-port/src/channels/OZChannelAspectRatioFootageInfo.ts),
+ * so a throw here would be a throw-stub for a ported in-scope callee.
+ *
+ *   0x672c  proxy:  pushq %rbp / movq %rsp,%rbp / movq (%rdi),%rax / movq (%rax),%rdi /
+ *                   popq %rbp / jmp 0x673c            ; unpacks tuple<lambda&&> -> __invoke
+ *   0x673c  55 48 89 e5           pushq %rbp / movq %rsp,%rbp
+ *   0x6740  41 56 53              pushq %r14 / pushq %rbx
+ *   0x6743  4c 8d 35 6e 5b 0e 00  leaq  0xe5b6e(%rip),%r14   ; 0x674a+0xe5b6e = BSS 0xec2b8
+ *   0x674a  49 83 3e 00           cmpq  $0x0, (%r14)         ; already published?
+ *   0x674e  75 18                 jne   0x6768               ; yes -> return, allocate nothing
+ *   0x6750  bf 58 00 00 00        movl  $0x58, %edi          ; sizeof(OZChannelAspectRatioFootageInfo)
+ *   0x6755  e8 f2 66 0a 00        callq 0xace4c              ; stub for operator new (__Znwm)
+ *   0x675a  48 89 c3              movq  %rax, %rbx
+ *   0x675d  48 89 c7              movq  %rax, %rdi
+ *   0x6760  e8 1b 00 00 00        callq 0x6780               ; OZChannelAspectRatioFootageInfo::C2
+ *   0x6765  49 89 1e              movq  %rbx, (%r14)         ; publish the singleton
+ *   0x6768  5b 41 5e 5d c3        popq %rbx / popq %r14 / popq %rbp / retq
+ *   unwind pad @0x676d: movq %rax,%r14 / movq %rbx,%rdi / callq 0xace04 (operator delete) /
+ *                       movq %r14,%rdi / callq 0xacaf2 (_Unwind_Resume) — i.e. if C2 throws, the
+ *                       0x58-byte allocation is freed and the exception propagates WITHOUT the
+ *                       store @0x6765, so the global stays NULL. In TS the allocation is garbage
+ *                       collected and the exception propagates; the effect on the global (never
+ *                       written) is the same, and __call_once then leaves the flag at 0.
+ */
+function std_call_once_AspectRatioFootageInfo(): void {
+  if (_OZChannelAspectRatioFootageInfo_once === -1n) return; // libc++ fast path
+  // ---- the initializer, @0x673c-0x6768 ----------------------------------------------------
+  // @0x6743-0x674e — r14 = &global; if it is already non-null, allocate nothing and return.
+  if (_OZChannelAspectRatioFootageInfo === null) {
+    // @0x6750-0x6760 — operator new(0x58) (stub 0xace4c) then
+    //   __ZN31OZChannelAspectRatioFootageInfoC2Ev @0x6780. The ported C2 raises while its own
+    //   base (OZChannelInfo) is a frontier class; that raise is that class's gap, not this one's,
+    //   and it correctly leaves the flag at 0 through the `once.set(-1n)` below being skipped.
+    const created = new OZChannelAspectRatioFootageInfo();
+    // @0x6765 — publish: *(&global) = the new object.
+    _OZChannelAspectRatioFootageInfo = created;
+  }
+  // libc++ writes ~0UL into the flag only after the initializer returns normally (@0x66a7's
+  // sentinel). A throw above skips this line, exactly like the real runtime.
+  _OZChannelAspectRatioFootageInfo_once = -1n;
 }
 
 /**
@@ -454,7 +604,7 @@ export class OZChannelAspectRatioFootage {
     } else {
       // Load the once-init'd _OZChannelAspectRatioFootageInfo and store
       // to both slots (mirror equal).  @0xbfd58-6f.
-      self.info = createOZChannelAspectRatioFootageInfo_default(); // frontier throw
+      self.info = createOZChannelAspectRatioFootageInfo_default(); // -> the @ProChannel 0x6698 accessor
     }
 
     // Steps G-H — impl fixup.  @0xbfda4 tests -0x58(%rbp) (saved r15).
