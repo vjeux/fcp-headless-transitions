@@ -862,6 +862,24 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
 
 ## Open — reported 2026-08-11 by worker 5 (new)
 
+- **`disasm.sh --sym` CAN RETURN A 0-LINE RESULT FOR A SYMBOL THAT IS DEFINITELY PRESENT, AND ITS
+  MESSAGE POINTS AT THE WRONG CAUSE.** On `__ZN27CoreMediaMovieReader_Decode26getH264SoftwareThread
+  CountEb` it printed `0-line disasm … (wrong framework? stub/extern/ICF?) — no .s written`, twice,
+  each attempt taking ~5 minutes under load. The symbol is not missing: the cached inventory has it
+  at **Flexo 0xde8d90**, and
+
+      otool -arch x86_64 -tvV -p <mangled> /tmp/Flexo.x86_64
+
+  printed the whole body in **~7 seconds**. So the suggested diagnosis ("wrong framework") sends you
+  looking for a symbol that is right there, and the tool is ~40x slower than the fallback even when
+  it works. Two consequences worth knowing: (a) when `disasm.sh` comes back empty, try the direct
+  `otool -p` against the THIN slice before concluding anything about the symbol — and never treat
+  the empty result as an empty BODY, which is the failure mode #368 already cost us 198 symbols on;
+  (b) `otool -tvV -p <sym>` on `/tmp/<FW>.x86_64` is a good general fallback: it starts printing at
+  the named symbol and you can `head` it. Root cause not chased down (likely a stale/mismatched
+  `symidx` entry for symbols that also have `.cold.N` and `_block_invoke` companions — this one has
+  both).
+
 - **THE REBASE QUEUE RE-CLAIMS A PR THAT WAS ALREADY SUCCESSFULLY REBASED, BURNS THE 3-ATTEMPT CAP
   ON REDUNDANT RE-REBASES, AND AUTO-CLOSES IT — AND THE ADVERTISED RE-QUEUE NEVER HAPPENS, SO THE
   SYMBOL IS SILENTLY LOST.** Measured end to end on PR #389 (`port/HGRenderJob__slot7`) this
