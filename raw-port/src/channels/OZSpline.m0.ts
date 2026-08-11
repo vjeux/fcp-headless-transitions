@@ -216,11 +216,193 @@ export class OZSpline {
   }
 
   /**
-   * OZSpline::getVertexIter(void*) @ProChannel 0x2d49c — locate the iterator position of a vertex
-   * handle in the allVertices vector. Body not yet decoded (uses PCSpinLock + std::vector search).
+   * OZSpline::getVertexIter(void* handle) @ProChannel 0x2d49c
+   *   __ZN8OZSpline13getVertexIterEPv
+   *
+   * Locate a vertex handle's iterator position, with a one-element-wide
+   * "moving cursor" cache at +0x78. FULLY TRANSCRIBED (52 lines, verbatim):
+   *
+   *   0x2d49c  pushq  %rbp                     ; frame setup (no TS counterpart)
+   *   0x2d49d  movq   %rsp,%rbp                ; frame setup (no TS counterpart)
+   *   0x2d4a0  movq   0x28(%rdi),%rcx          ; rcx = validVertices.begin  (+0x28)
+   *   0x2d4a4  movq   0x78(%rdi),%rax          ; rax = cachedIndex          (+0x78)
+   *   0x2d4a8  movq   0x10(%rdi),%rdx          ; rdx = allVertices.begin    (+0x10)
+   *   0x2d4ac  movq   0x18(%rdi),%r8           ; r8  = allVertices.end      (+0x18)
+   *   0x2d4b0  subq   %rdx,%r8                 ; r8  = byte span of allVertices
+   *   0x2d4b3  sarq   $0x3,%r8                 ; r8  = allVertices COUNT (8-byte ptrs)
+   *   0x2d4b7  cmpq   %r8,%rax                 ; AT&T: cachedIndex - count
+   *   0x2d4ba  jae    0x2d4c2                  ; UNSIGNED: out of range -> skip probe 0
+   *   0x2d4bc  cmpq   %rsi,(%rdx,%rax,8)       ; allVertices[cachedIndex] == handle ?
+   *   0x2d4c0  je     0x2d530                  ;   hit -> return validBegin + idx*8
+   *   0x2d4c2  testq  %rax,%rax                ; SIGNED test of cachedIndex
+   *   0x2d4c5  jle    0x2d4d7                  ;   <= 0 -> skip the (idx-1) probe
+   *   0x2d4c7  leaq   -0x1(%rax),%r9           ; r9 = idx - 1
+   *   0x2d4cb  cmpq   %r8,%r9                  ; UNSIGNED bound check
+   *   0x2d4ce  jae    0x2d4d7
+   *   0x2d4d0  cmpq   %rsi,-0x8(%rdx,%rax,8)   ; allVertices[idx-1] == handle ?
+   *   0x2d4d5  je     0x2d526                  ;   hit -> cache r9, return validBegin + r9*8
+   *   0x2d4d7  leaq   0x1(%rax),%r9            ; r9 = idx + 1
+   *   0x2d4db  cmpq   %r8,%r9                  ; UNSIGNED bound check
+   *   0x2d4de  jae    0x2d4e7
+   *   0x2d4e0  cmpq   %rsi,0x8(%rdx,%rax,8)    ; allVertices[idx+1] == handle ?
+   *   0x2d4e5  je     0x2d526                  ;   hit -> cache r9, return validBegin + r9*8
+   *   -- slow path: linear scan of validVertices --
+   *   0x2d4e7  movq   0x30(%rdi),%rdx          ; rdx = validVertices.end    (+0x30)
+   *   0x2d4eb  movq   %rdx,%r8
+   *   0x2d4ee  movq   %rcx,%rax                ; rax = cursor = validBegin
+   *   0x2d4f1  subq   %rcx,%r8                 ; r8 = byte span of validVertices
+   *   0x2d4f4  je     0x2d50e                  ;   EMPTY -> straight to the store
+   *   0x2d4f6  cmpq   %rsi,(%rax)              ; *cursor == handle ?
+   *   0x2d4f9  je     0x2d50e                  ;   found
+   *   0x2d4fb  addq   $0x8,%rax                ; ++cursor
+   *   0x2d4ff  cmpq   %rdx,%rax
+   *   0x2d502  jne    0x2d4f6                  ; loop while cursor != end
+   *   0x2d504  sarq   $0x3,%r8                 ; NOT FOUND: r8 = validVertices COUNT
+   *   0x2d508  movq   %r8,0x78(%rdi)           ;   cachedIndex = count
+   *   0x2d50c  jmp    0x2d521                  ;   ... and return validBegin
+   *   0x2d50e  movq   %rax,%rsi                ; found/empty: rsi = cursor
+   *   0x2d511  subq   %rcx,%rsi                ;   rsi = cursor - validBegin (bytes)
+   *   0x2d514  sarq   $0x3,%rsi                ;   rsi = index
+   *   0x2d518  movq   %rsi,0x78(%rdi)          ;   cachedIndex = index
+   *   0x2d51c  cmpq   %rdx,%rax
+   *   0x2d51f  jne    0x2d534                  ;   cursor != end -> return cursor
+   *   0x2d521  movq   %rcx,%rax                ; else return validBegin
+   *   0x2d524  jmp    0x2d534
+   *   0x2d526  leaq   (%rcx,%r9,8),%rax        ; return validBegin + r9*8
+   *   0x2d52a  movq   %r9,0x78(%rdi)           ;   cachedIndex = r9
+   *   0x2d52e  jmp    0x2d534
+   *   0x2d530  leaq   (%rcx,%rax,8),%rax       ; return validBegin + idx*8
+   *                                            ;   (no +0x78 store — it ALREADY holds idx)
+   *   0x2d534  popq   %rbp                     ; teardown (no TS counterpart)
+   *   0x2d535  retq                            ; returns an iterator (pointer) in %rax
+   *
+   * DECODE NOTES — three things here are surprising and are transcribed, not
+   * smoothed over:
+   *
+   *   1. THE PROBES READ `allVertices`, THE RESULT INDEXES `validVertices`.
+   *      The three cached-index probes compare against `(%rdx,...)` = the
+   *      +0x10 vector (@0x2d4bc/@0x2d4d0/@0x2d4e0) and their bound is that
+   *      vector's count (@0x2d4b3), yet every return builds the iterator from
+   *      `%rcx` = the +0x28 vector's begin (@0x2d526/@0x2d530), which is also
+   *      the range the slow path scans (@0x2d4e7..@0x2d502). The fast path is
+   *      therefore only correct while the two vectors are index-parallel — an
+   *      invariant the binary assumes (validVertices is rebuilt from
+   *      allVertices; see the +0x91 "validListInit" flag). The port keeps the
+   *      two reads exactly where the machine puts them rather than "fixing"
+   *      the fast path to read the vector it indexes.
+   *   2. NOT FOUND RETURNS `begin`, NOT `end` (@0x2d504..@0x2d50c -> @0x2d521).
+   *      A caller cannot distinguish "found at index 0" from "not found" by
+   *      the return value alone — the discriminator is the cached index left
+   *      at +0x78: `count` when the scan failed, the hit's index otherwise.
+   *      The empty-vector path lands on the same `return begin` (@0x2d4f4 ->
+   *      @0x2d50e -> @0x2d521), where begin == end anyway.
+   *   3. THE BOUND CHECKS ARE UNSIGNED (`jae`) BUT THE `idx > 0` TEST IS
+   *      SIGNED (`jle` @0x2d4c5). A negative cached index therefore fails
+   *      every `jae` bound (it is huge unsigned) and skips the (idx-1) probe,
+   *      but the (idx+1) probe's r9 CAN pass the bound — with idx == -1 the
+   *      addressed element `0x8(%rdx,%rax,8)` is exactly allVertices[0]. The
+   *      port reproduces that arithmetic instead of clamping.
+   *
+   * MODEL: the C++ returns `std::vector<OZVertex*>::iterator`, i.e. a raw
+   * pointer into validVertices. This port returns the equivalent ELEMENT INDEX
+   * `(ret - validBegin) / 8` — the same representation the other OZSpline
+   * chunks already assume for this symbol (see `_OZSpline_getVertexIter` in
+   * OZSpline.m2.ts, which is typed `-> number`). Index 0 is `begin`, so quirk
+   * (2) shows up as "returns 0".
+   *
+   * +0x78 FOOTNOTE: this body proves the slot at +0x78 is a SCALAR cached
+   * index — it is compared against an element count (@0x2d4b7) and written
+   * with an index (@0x2d508/@0x2d518/@0x2d52a) — and not the `begin` pointer
+   * of a fourth vector, which is what this file's field name `_buf78_begin`
+   * guessed from the ctor's 16-byte zero store @0x2cddd. The field is REUSED
+   * here rather than shadowed by a second field, so one byte offset keeps one
+   * name (the OZRenderParams +0x1e5 double-modelling trap).
+   *
+   * CALLEES: none. No callq, no in-scope dependency, no extern, no indirect or
+   * virtual dispatch (`depgraph.py deps` lists nothing). It does NOT take the
+   * spinlock — the WithLock wrappers are separate symbols.
+   *
+   * @param handle the `void*` vertex handle in %rsi.
+   * @returns the element index of the iterator in %rax (0 == begin).
    */
-  getVertexIter(_handle: unknown): unknown {
-    throw new Error("OZSpline::getVertexIter @ProChannel 0x2d49c not yet transcribed");
+  getVertexIter(handle: unknown): number {
+    // @0x2d4a0  rcx = validVertices.begin (+0x28) — the array every return indexes.
+    const valid = this._validVertices;
+    // @0x2d4a4  rax = cachedIndex (+0x78).
+    const cachedIndex = this._buf78_begin;
+    // @0x2d4a8..@0x2d4b3  count of the +0x10 vector: (end - begin) >> 3.
+    const allCount = this._allVertices.length;
+
+    // @0x2d4b7..@0x2d4c0  probe 0: the cached index itself. `jae` is UNSIGNED,
+    // so a negative cached index fails the bound.
+    if (cachedIndex >= 0 && cachedIndex < allCount) {
+      if ((this._allVertices[cachedIndex] as unknown) === handle) {
+        // @0x2d530  leaq (%rcx,%rax,8) — return validBegin + idx*8. NOTE: no
+        // store to +0x78; it already holds this index.
+        return cachedIndex;
+      }
+    }
+
+    // @0x2d4c2..@0x2d4c5  testq/jle — SIGNED: only probe idx-1 when idx > 0.
+    if (cachedIndex > 0) {
+      const prev = cachedIndex - 1; // @0x2d4c7  leaq -0x1(%rax),%r9
+      // @0x2d4cb..@0x2d4ce  UNSIGNED bound check on r9.
+      if (prev < allCount) {
+        // @0x2d4d0  cmpq %rsi,-0x8(%rdx,%rax,8) — allVertices[idx-1].
+        if ((this._allVertices[prev] as unknown) === handle) {
+          // @0x2d52a  cachedIndex = r9 ; @0x2d526 return validBegin + r9*8.
+          this._buf78_begin = prev;
+          return prev;
+        }
+      }
+    }
+
+    // @0x2d4d7  leaq 0x1(%rax),%r9 — probe idx+1 (reached whether or not the
+    // idx-1 probe ran).
+    const next = cachedIndex + 1;
+    // @0x2d4db..@0x2d4de  UNSIGNED bound check on r9.
+    if (next >= 0 && next < allCount) {
+      // @0x2d4e0  cmpq %rsi,0x8(%rdx,%rax,8) — the element one slot past the
+      // cached index, i.e. allVertices[idx+1].
+      if ((this._allVertices[next] as unknown) === handle) {
+        // @0x2d52a  cachedIndex = r9 ; @0x2d526 return validBegin + r9*8.
+        this._buf78_begin = next;
+        return next;
+      }
+    }
+
+    // -- slow path @0x2d4e7: linear scan of validVertices --
+    // @0x2d4e7..@0x2d4f1  rdx = validVertices.end, cursor = begin, r8 = span.
+    const validCount = valid.length;
+    let cursor = 0;
+    // @0x2d4f4  je 0x2d50e — an EMPTY vector skips the loop entirely.
+    if (validCount !== 0) {
+      for (;;) {
+        // @0x2d4f6..@0x2d4f9  cmpq %rsi,(%rax) ; je 0x2d50e
+        if ((valid[cursor] as unknown) === handle) {
+          break;
+        }
+        // @0x2d4fb  addq $0x8,%rax
+        cursor += 1;
+        // @0x2d4ff..@0x2d502  cmpq %rdx,%rax ; jne — loop while cursor != end.
+        if (cursor === validCount) {
+          // @0x2d504..@0x2d508  NOT FOUND: cachedIndex = count …
+          this._buf78_begin = validCount;
+          // @0x2d50c -> @0x2d521  … and the returned iterator is `begin`.
+          return 0;
+        }
+      }
+    }
+
+    // @0x2d50e..@0x2d518  found (or empty): cachedIndex = cursor - begin.
+    this._buf78_begin = cursor;
+    // @0x2d51c..@0x2d51f  cmpq %rdx,%rax ; jne 0x2d534 — return the cursor …
+    if (cursor !== validCount) {
+      return cursor;
+    }
+    // @0x2d521  … else return `begin` (the empty-vector case, where they are
+    // the same position anyway).
+    return 0;
   }
 
   /**

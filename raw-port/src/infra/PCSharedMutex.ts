@@ -493,4 +493,97 @@ export class PCSharedMutex {
     //   entirely, the tail is a single unlock of the inner mutex.
     std_mutex_unlock_stub(this);
   }
+
+  /**
+   * `PCSharedMutex::~PCSharedMutex()` @Ozone 0x4d690
+   * (__ZN13PCSharedMutexD1Ev — Itanium ABI D1, complete-object dtor).
+   *
+   * NOTE ON THE FRAMEWORK: this class's other members are transcribed from
+   * ProCore (see the file header). The destructor is NOT emitted in ProCore at
+   * all — `nm ProCore | grep PCSharedMutex` lists the ctors and the four
+   * lock/unlock methods but no D0/D1/D2. Ozone carries the only copy, as a
+   * LOCAL (`nm` lowercase `t`) inline-emitted weak definition at 0x4d690, which
+   * is the symbol transcribed here. Same class, same header, different
+   * translation unit — exactly like the @Ozone in-place transform in
+   * raw-port/src/infra/PCMatrix44Tmpl.ts.
+   *
+   * Full transcription of the 17-line disasm
+   * (raw-port/re/disasm/__ZN13PCSharedMutexD1Ev.s) — every instruction, in
+   * order:
+   *
+   *   0x4d690  movq  0x50(%rdi),%rax   ; rax = readers.__begin_
+   *   0x4d694  testq %rax,%rax
+   *   0x4d697  je    <stub std::mutex::~mutex>  ; NEVER allocated -> just the
+   *                                             ;   base dtor (tail-jmp, no frame)
+   *   0x4d69d  pushq %rbp                       ; frame set up only on the
+   *   0x4d69e  movq  %rsp,%rbp                  ;   deallocating path
+   *   0x4d6a1  pushq %rbx
+   *   0x4d6a2  pushq %rax
+   *   0x4d6a3  movq  %rax,0x58(%rdi)   ; readers.__end_ = readers.__begin_
+   *   0x4d6a7  movq  %rdi,%rbx         ; rbx = this
+   *   0x4d6aa  movq  %rax,%rdi
+   *   0x4d6ad  callq <stub __ZdlPv>    ; operator delete(readers.__begin_)
+   *   0x4d6b2  movq  %rbx,%rdi         ; rdi = this
+   *   0x4d6b5  addq  $0x8,%rsp
+   *   0x4d6b9  popq  %rbx
+   *   0x4d6ba  popq  %rbp
+   *   0x4d6bb  jmp   <stub std::mutex::~mutex>  ; tail-jmp, this + 0x00
+   *
+   * DECODE NOTES
+   *   * This is `std::vector<ReaderInfo>::~vector()` INLINED (libc++'s
+   *     `__vdeallocate`: set `__end_ = __begin_`, then `operator delete` the
+   *     block — ReaderInfo is trivially destructible, so no element loop is
+   *     emitted) followed by the base/member `std::mutex` destructor. Both
+   *     exits go through that same mutex dtor; the only difference is whether
+   *     the storage block existed.
+   *   * The `movq %rax,0x58(%rdi)` @0x4d6a3 writes `__end_` (+0x58) with
+   *     `__begin_` (+0x50) BEFORE freeing — the "container is now empty" step —
+   *     and `__begin_`/`__cap_` are deliberately left stale, which is why the
+   *     port empties the array in place rather than replacing it.
+   *   * WHERE THE `std::mutex` LIVES. The tail-jmp passes `this + 0x00`, not
+   *     `this + 0x08`. That pins the mutex subobject at offset +0x00 — and the
+   *     ctor's `0x32aaaba7` store at +0x00 (@ProCore 0xacee5, quoted in this
+   *     file's header) is precisely Darwin's `_PTHREAD_MUTEX_SIG_init`
+   *     signature word, i.e. the FIRST field of the `pthread_mutex_t` inside
+   *     `std::mutex` — not a PCSharedMutex "magic" of its own. So the mutex
+   *     occupies +0x00..+0x3f (64-byte Darwin `pthread_mutex_t`) and the ctor's
+   *     `movups` sweep over +0x08..+0x38 is zeroing that struct's opaque tail,
+   *     leaving +0x40 ownerTid, +0x48 writerRecursion and +0x50/+0x58/+0x60 the
+   *     reader vector — every other offset in this file's header is unchanged.
+   *     (Refinement of one line of the header note, from evidence this dtor
+   *     supplies; nothing above is removed or renumbered.)
+   *   * BOTH callees are TRUE out-of-scope externs (libc++ runtime):
+   *     `operator delete(void*)` (`__ZdlPv`, Ozone stub 0x6dfc36) and
+   *     `std::__1::mutex::~mutex()` (Ozone stub 0x6dfbe2). Neither is stubbed
+   *     with a throw here, because in this port both are observably no-ops: JS
+   *     arrays own their storage and are reclaimed by GC (the same treatment
+   *     the landed FFAudioDuckingMasterRangeData.ts gives its `__ZdlPv` unwind
+   *     path), and the destructor of an unlocked mutex releases an OS primitive
+   *     this port never creates — consistent with `std_mutex_lock_stub` /
+   *     `std_mutex_unlock_stub` above, which are already modelled as no-ops.
+   *   * No in-scope callee, no indirect or virtual dispatch (`depgraph.py deps`
+   *     lists nothing).
+   */
+  destroy(): void {
+    // @0x4d690-0x4d697  movq 0x50(%rdi),%rax ; testq %rax,%rax ; je <mutex dtor>
+    //   — `__begin_ == nullptr` is true only for a vector that NEVER allocated.
+    //   This class's ctor calls `reserve(3)` (@ProCore 0xacf1e), so every
+    //   constructed instance owns a block; and in TS `this._readers` IS that
+    //   block and can never be null. The early-out therefore isn't reachable
+    //   from a constructed object, and the port takes the deallocating path —
+    //   which is also the only path with observable state changes.
+    //
+    // @0x4d6a3  movq %rax,0x58(%rdi) — __end_ = __begin_: the container is now
+    //   empty (__begin_ and __cap_ are deliberately left stale, which is why
+    //   the array is emptied IN PLACE rather than replaced).
+    this._readers.length = 0;
+
+    // @0x4d6ad  callq __ZdlPv — free the block. The elements and the block are
+    //   one object graph in TS, and the line above drops the last reference to
+    //   them, so GC performs the deallocation.
+
+    // @0x4d6bb  jmp <std::mutex::~mutex> with rdi = this — destroys the mutex
+    //   subobject at +0x00. Modelled as the no-op it is in this port (see the
+    //   lock/unlock stubs); reached identically from both paths.
+  }
 }

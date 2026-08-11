@@ -32,6 +32,11 @@ Repo: `~/random/final-cut-pro-transitions` on the box that has Final Cut Pro (th
 it). Merges go through GitHub PRs on `vjeux/fcp-headless-transitions`.
 
 --------------------------------------------------------------------------------
+> **Before you start: read `OPS_LOG.md`.** It lists the failures agents keep rediscovering (silent
+> detached HEAD, stale-lease theft, abandoned-branch stacking, dup_check false positives, the
+> `call_once` READY-but-blocked trap) and which are already fixed. If you hit something that is not
+> in it, put it in your exit report so it can be fixed once instead of re-debugged by everyone.
+
 ## The five load-bearing invariants (a new harness MUST preserve all five)
 --------------------------------------------------------------------------------
 1. **No agent spawns another agent.** The live agent count is bounded solely by how many processes
@@ -108,7 +113,16 @@ Full rules: read `DEP_WORKER_BRIEF.md` + `PR_FLOW.md` + `PORTING_SPEC.md`. Behav
     on shutdown: slot_lock.sh release worker N
 
 If a dep is unported or an indirect/virtual call is unresolved: release the worktree, do NOT stub it,
-just claim the next unit. A throw is allowed ONLY for a true out-of-scope extern (libc/ObjC/CF/Metal/
+and **requeue the unit so it is not lost**:
+
+    depclaim.py drop <mangled> "<why it is not portable yet>"
+
+This matters more than it looks. `depclaim.py next` skips anything already in `claims.jsonl`, and
+nothing else ever removes a claim — so for 5,799 claims this project had ZERO reopens, and every
+honest refusal to fake a port silently DELETED that symbol from the queue forever. Refusing is the
+correct behavior; it must not cost the project the unit. The reason string accumulates in
+`army/depgraph/blocked.jsonl` (`depclaim.py blocked`), which is how the real blocked-taxonomy gets
+built instead of dying in one agent's exit report. Then claim the next unit. A throw is allowed ONLY for a true out-of-scope extern (libc/ObjC/CF/Metal/
 CoreVideo/AVFoundation) citing @0xADDR — an in-scope throw-stub is a REJECTED cheat.
 
 --------------------------------------------------------------------------------
@@ -131,11 +145,12 @@ Full rules: read `REVIEWER_BRIEF.md` + `PR_FLOW.md` (honor the RESOLVED cheat ru
             re-derive disasm INDEPENDENTLY from the binary (disasm.sh --sym <mangled> <FW>, NOT the
             committed .s), classify + reach + LINE-BY-LINE; oracle where callable.
             if genuinely faithful:
+                ghapp/pr_review.sh <PR#> approve "<one-line evidence>"   # REAL GitHub approval
                 pr_land.sh <PR#>             # handles behind/update-branch -> merge server-side
                 pr_comment_once.sh <PR#> "<one-line evidence>"   # idempotent; ONE comment, no re-post
                 mark_ported.py
             else:
-                gh pr review <PR#> --request-changes -b "<exactly which instruction the TS omits>"
+                ghapp/pr_review.sh <PR#> request-changes "<exactly which instruction the TS omits>"
       review_claim.sh release <PR#> <headSHA>
       # keep looping
     on shutdown: slot_lock.sh release reviewer N
@@ -168,6 +183,8 @@ toward 8 workers + 8 reviewers (the 16-slot pool ceiling). To go past 16, raise 
 ## Tool reference (all under raw-port/army/tools/ unless noted)
 --------------------------------------------------------------------------------
   depclaim.py next            claim next dependency-ready PORT unit (append-only)
+  depclaim.py drop <sym> "why"  requeue a claimed-but-unportable unit + record the reason (WORKER)
+  depclaim.py blocked         show the accumulated blocked-reason taxonomy
   depgraph.py deps <mangled>  show a symbol's deps + ported status
   depgraph.py stats           READY NOW / ported / blocked tiers
   disasm.sh --sym <m> <FW>    (raw-port/tools/) exact disassembly for a mangled symbol

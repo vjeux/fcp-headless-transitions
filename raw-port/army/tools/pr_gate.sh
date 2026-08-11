@@ -26,32 +26,90 @@ HEAD_SHA=$(gh pr view "$PR" --repo "$REPO_SLUG" --json headRefOid  --jq .headRef
 HEAD_REF=$(gh pr view "$PR" --repo "$REPO_SLUG" --json headRefName --jq .headRefName)
 [ -z "$HEAD_SHA" ] && { echo "PR #$PR not found"; exit 3; }
 echo "PR #$PR  head=$HEAD_REF @ ${HEAD_SHA:0:12}  reviewed=$REVIEWED"
-post_status () { gh api -X POST "repos/$REPO_SLUG/statuses/$HEAD_SHA" -f state="$1" -f context="faithfulness-gate" -f description="$2" >/dev/null 2>&1 && echo "  status: $1 — $2" || echo "  WARN status post failed"; }
-post_status pending "gate running on vjeux-mac"
+# Post the required `faithfulness-gate` status as the REVIEWER app (falls back to operator auth if
+# the app is not configured). Having the gate come from the reviewer identity — not from whoever's
+# token happened to be handy — is what lets branch protection treat it as an independent check.
+GHAPP_G="$(cd "$(dirname "$0")" && pwd)/ghapp"
+post_status () { bash "$GHAPP_G/gh_as.sh" reviewer api -X POST "repos/$REPO_SLUG/statuses/$HEAD_SHA" -f state="$1" -f context="faithfulness-gate" -f description="$2" >/dev/null 2>&1 && echo "  status: $1 — $2" || echo "  WARN status post failed"; }
+
+# A PENDING must never overwrite a settled verdict. GitHub keeps only the LATEST status per context,
+# so a second agent starting a gate run on a PR that already has a red REJECT posts `pending` over
+# it and the rejection vanishes from the required check — reviewer-03 watched another agent's
+# POOL_BUSY pending erase its REJECT on #82 and had to restore it by hand. A concurrent gate run is
+# not new information about the port; a verdict is. Success/failure still overwrite freely (they ARE
+# new information), and a pending on a head with no verdict yet is posted normally.
+post_pending_if_undecided () {
+  local cur
+  cur=$(bash "$GHAPP_G/gh_as.sh" reviewer api "repos/$REPO_SLUG/commits/$HEAD_SHA/status" \
+          --jq '[.statuses[]?|select(.context=="faithfulness-gate")]|last|.state // ""' 2>/dev/null)
+  case "$cur" in
+    success|failure|error)
+      echo "  status: keeping existing '$cur' verdict on ${HEAD_SHA:0:8} (not overwriting with pending)";;
+    *) post_status pending "$1";;
+  esac
+}
+post_pending_if_undecided "gate running on vjeux-mac"
 
 git fetch -q origin main "+refs/pull/$PR/head:refs/prgate/$PR" 2>/dev/null || git fetch -q origin main "$HEAD_REF" 2>/dev/null
 # WARM POOL (2026-08-10): lease a pre-materialized worktree and detached-checkout the PR head into it,
 # instead of `git worktree add`/`remove` per PR (which wrote ~2,579 files -> corp Defender scan storm).
 # The pool reuses the checkout + a warm tsgo cache; release resets it to origin/main for the next PR.
 WT="$(bash "$CANON/raw-port/army/tools/wt_pool.sh" acquire-at "$HEAD_SHA")"
-[ -z "$WT" ] && { post_status pending "pool busy — retry"; echo "PR_GATE: POOL_BUSY (#$PR) — no free worktree, retry"; exit 3; }
-cleanup () { bash "$CANON/raw-port/army/tools/wt_pool.sh" release "$WT" >/dev/null 2>&1; }
+[ -z "$WT" ] && { post_pending_if_undecided "pool busy — retry"; echo "PR_GATE: POOL_BUSY (#$PR) — no free worktree, retry"; exit 3; }
+# A gate worktree is DISPOSABLE by construction: we detach it at the PR head and then deliberately
+# overwrite raw-port/army/{gate,tools} with the TRUSTED copies from origin/main, which leaves the tree
+# dirty on purpose. So it must be released with --force.
+#
+# This is not a detail. wt_pool's release guard (added to stop a reviewer's stale-lease reclaim from
+# wiping a WORKER's in-progress port) refuses to reset a dirty tree — so without --force every single
+# pr_gate run LEAKED its lease. All 16 pool slots filled with `gate/<sha>` leases, `acquire` then
+# blocked 120s and returned POOL_FULL, and the swarm deadlocked: reviewer-03 stopped entirely
+# ("all 16 warm-pool worktrees were leased by other agents for ~10 minutes straight, which makes
+# gating and therefore merging impossible"). The protection is right for a worker's port; a gate
+# checkout has nothing to protect.
+cleanup () { bash "$CANON/raw-port/army/tools/wt_pool.sh" release "$WT" --force >/dev/null 2>&1; }
 trap cleanup EXIT
 cd "$WT"
 for d in raw-port/node_modules venv; do ln -sfn "$CANON/$d" "$d" 2>/dev/null || true; done
 # TRUSTED gate tools from origin/main (never trust the PR's own gate)
 T="/tmp/prgate_tools_$$"; rm -rf "$T"; mkdir -p "$T"
-git --git-dir="$CANON/.git" archive origin/main raw-port/army/gate raw-port/army/tools | tar -x -C "$T" 2>/dev/null
-cp -R "$T/raw-port/army/gate" raw-port/army/ 2>/dev/null; cp -R "$T/raw-port/army/tools" raw-port/army/ 2>/dev/null; rm -rf "$T"
+# raw-port/army/verifier IS part of the gate: g5_impl_gate.py imports classify_disasm/reach_check
+# from it. Copying only gate/ and tools/ left TWO holes. (1) A PR could ship its OWN
+# verifier/classify_disasm.py — the very thing "a PR can't ship its own gate" is supposed to
+# prevent, since classify() is what decides TRAP/EMPTY/REAL. (2) Version skew: gate/ from current
+# main against verifier/ from a stale branch, which is how #322's new `names_class` import raised
+# ImportError on PR #341 and (before the gate.sh fix in this commit) skipped G5 entirely.
+git --git-dir="$CANON/.git" archive origin/main raw-port/army/gate raw-port/army/tools raw-port/army/verifier | tar -x -C "$T" 2>/dev/null
+cp -R "$T/raw-port/army/gate" raw-port/army/ 2>/dev/null; cp -R "$T/raw-port/army/tools" raw-port/army/ 2>/dev/null; cp -R "$T/raw-port/army/verifier" raw-port/army/ 2>/dev/null; rm -rf "$T"
 
 git fetch -q origin main 2>&1 | tail -1
 CHANGED=$(git diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
 if [ -z "$CHANGED" ]; then post_status success "no raw-port/src ports to gate (infra/tooling PR)"; echo "PR_GATE: PASS (no src changes) (#$PR)"; exit 0; fi
 echo "changed: $CHANGED"
 
+# ABSOLUTIZE before handing paths to gate.sh. `git diff --name-only` emits repo-RELATIVE paths, and
+# with a relative path G5's reach_check builds a file:// URL that node rejects on macOS
+# ("File URL host must be 'localhost' or empty"), so the fuzz returns hits=None -> REVIEW_NEEDED,
+# which pr_gate counts as a CHEAT. Reviewer-01 proved it in a controlled test: same worktree, same
+# content, same disasm — relative = REJECT, absolute = PASS with 0 cheats / 0 flags.
+#
+# This was not a nuisance, it was corrosive in two ways:
+#   * SELF-INFLICTED AND PERMANENT — the verdict flips only once the symbol's .s exists in the leased
+#     worktree, so performing the REQUIRED reviewer re-derivation is exactly what broke the gate for
+#     that PR, and wt_pool cleans without -x so it never cleared. #181 gated PASS and REJECT
+#     alternately within minutes.
+#   * PROGRESSIVE — #214 was rejected for 3 "cheats", two of them methods ALREADY LANDED on main. As
+#     disasm coverage grows, previously-mergeable files become unmergeable.
+# Corollary worth remembering: the gate was passing PRs largely when it could NOT see the disassembly.
+CHANGED_ABS=""
+for f in $CHANGED; do
+  case "$f" in /*) CHANGED_ABS="$CHANGED_ABS $f" ;; *) CHANGED_ABS="$CHANGED_ABS $PWD/$f" ;; esac
+done
+CHANGED_ABS="${CHANGED_ABS# }"
+
 FAIL=0; REASON=""
 GLOG=/tmp/prgate_gatelog_$$
-bash raw-port/army/gate/gate.sh $CHANGED 2>&1 | tee "$GLOG"
+bash raw-port/army/gate/gate.sh $CHANGED_ABS 2>&1 | tee "$GLOG"
 grep -q "GATE: PASS" "$GLOG" || { FAIL=1; REASON="G0-G5 gate reject"; }
 # G5 flags (blind-spot: NO-DISASM / dispatch-only) — a green status is NOT allowed while flags stand,
 # unless a reviewer has re-derived and passes --reviewed.
