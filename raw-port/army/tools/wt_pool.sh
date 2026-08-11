@@ -26,7 +26,12 @@
 set -uo pipefail
 CANON="$HOME/random/final-cut-pro-transitions"
 POOL="$HOME/.fct-pool"; WTDIR="$POOL/wt"; LEASES="$POOL/leases"
-NPOOL="${WT_POOL_SIZE:-16}"; WAIT="${WT_POOL_WAIT:-120}"
+# Pool sized ABOVE the agent count on purpose. HARNESS_LOOP invariant 4 caps concurrency at the pool
+# size, and running N agents against exactly N slots means every reviewer gate run competes with a
+# worker for the last slot — the POOL_FULL stall that halted gating in OPS_LOG #12. Reviewers hold a
+# lease per pr_gate AND per oracle differential, so the real demand is above one slot per agent.
+# 24 slots for 16 agents costs ~440MB of disk (160GB free) and removes the contention entirely.
+NPOOL="${WT_POOL_SIZE:-24}"; WAIT="${WT_POOL_WAIT:-120}"
 mkdir -p "$WTDIR" "$LEASES"
 touch "$POOL/.metadata_never_index" 2>/dev/null
 
