@@ -189,19 +189,28 @@ function CFURLCreateWithString(
 /**
  * `CFTypeRef _CFRetain(CFTypeRef cf)` — CoreFoundation.framework extern,
  * reached through the ProCore symbol stub 0xde018 (called from
- * `PCURL::PCURL(__CFURL const*)` [C1] @0x7007). TRUE out-of-scope extern, the
- * same boundary policy as `CFURLGetString` / `CFURLCreateWithString` above:
- * this port has no CoreFoundation runtime, and faking a retain would corrupt
- * the ownership model PCURL's dtor depends on, so it throws @0xde018.
+ * `PCURL::PCURL(__CFURL const*)` [C1] @0x7007).
+ *
+ * LIFETIME primitive, so per the RESOLVED CFRetain/CFRelease ruling the
+ * faithful boundary model is the IDENTITY, not a throw: JS GC owns the
+ * surrogate, there is no native refcount for a fake retain to corrupt, and
+ * the real call returns its argument unchanged. Landed precedent:
+ * `infra/PCCFRef_CFArray.ts` / `infra/PCCFRef_CFData.ts` ship
+ * `CFRelease` as a no-op and `channels/DisablePrioritizedWritesRAII.ts`
+ * ships `objc_retain` as `return lock`.
+ *
+ * Note the split this file already makes correctly one screen up:
+ * `CFURLGetString` and `CFURLCreateWithString` are VALUE-PRODUCING — JS
+ * cannot fabricate a CFURL — so those must throw. This one must not.
+ *
+ * It also matters for a reason independent of the ruling: `movq %rbx,(%r14)`
+ * @0x700c is the JOIN POINT of both paths, so the machine performs that
+ * store for NULL and non-NULL alike. A throw here would unwind at 0x7007 and
+ * delete the only real-work instruction this constructor has, for every
+ * non-NULL argument — i.e. exactly the inputs it exists for.
  */
-function CFRetain(_cf: CFURLRef): void {
-  throw new Error(
-    "_CFRetain @ProCore 0x7007 (stub 0xde018) — CoreFoundation extern " +
-      "(TRUE out-of-scope boundary). Called from PCURL::PCURL(__CFURL const*) " +
-      "[C1 @0x6ff2] to take this wrapper's owning retain on the incoming " +
-      "CFURLRef. Not transcribed; wire a real CoreFoundation runtime here if " +
-      "a parity harness needs the actual retain.",
-  );
+function CFRetain(cf: CFURLRef): CFURLRef {
+  return cf; // @0x7007 stub 0xde018 — TS-side identity.
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -314,11 +323,25 @@ export class PCURL {
    * a separate ledger unit and is not modelled here.
    *
    * FRONTIER CALLEE: `_CFRetain` (ProCore stub 0xde018) — the only call in the
-   * body; a TRUE out-of-scope CoreFoundation extern (see the stub above). No
-   * in-scope callee, no indirect and no virtual dispatch.
+   * body; an out-of-scope CoreFoundation LIFETIME primitive, so it is modelled
+   * as the identity per the RESOLVED CFRetain/CFRelease ruling (see the stub
+   * above), which is what keeps the @0x700c store on both paths. No in-scope
+   * callee, no indirect and no virtual dispatch.
    *
    * Source disassembly:
    *   raw-port/re/disasm/ProCore.__ZN5PCURLC1EPK7__CFURL.s (16 lines)
+   *
+   * ORACLE — raw-port/re/oracle/PCURL_ctorFromCFURL_oracle.py
+   *   (+ PCURL_ctorFromCFURL_driver.mts;
+   *    arch -x86_64 /usr/bin/python3 raw-port/re/oracle/PCURL_ctorFromCFURL_oracle.py)
+   * The C1 symbol is exported, so it is called live on a 32-byte 0xCD-poisoned
+   * arena. Measured: a NULL argument stores 0x0 and a non-NULL one stores the
+   * CFURLRef itself, with the 24 bytes past the field untouched in both cases,
+   * and CFGetRetainCount moving 5 -> 6 exactly once (the conditional retain
+   * @0x7007). The shipped port agrees on both paths. Negative control — the
+   * pre-fix model in which `_CFRetain` throws — DIVERGES: the store never
+   * happens for a non-NULL argument, because the unwind at 0x7007 skips
+   * 0x700c. That is the defect review found, reproduced by execution.
    *
    * @param url  the CFURLRef to adopt (may be NULL).
    */
