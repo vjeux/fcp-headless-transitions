@@ -1892,4 +1892,173 @@ export class OZChannelBase {
     // return it, NULL included, unretained.
     return this.parameterCtlrClassNameAt58;
   }
+
+  /**
+   * `OZChannelBase::testDefaultFlag(unsigned long long) const`
+   *   — @ProChannel 0x4a540
+   *   — __ZNK13OZChannelBase15testDefaultFlagEy
+   *
+   * The read side of the "default state" snapshot slot at +0x40: mask the
+   * saved word with the caller's bit set and report whether anything
+   * survives.
+   *
+   * FULL DISASM (raw-port/re/disasm/
+   * ProChannel.__ZNK13OZChannelBase15testDefaultFlagEy.s — 8 lines: the label
+   * plus seven listed lines), every instruction accounted for:
+   *
+   *   0x4a540  55           pushq %rbp              ; frame setup (no TS counterpart)
+   *   0x4a541  48 89 e5     movq  %rsp, %rbp        ; frame setup (no TS counterpart)
+   *   0x4a544  48 85 77 40  testq %rsi, 0x40(%rdi)  ; ZF = ((*(u64*)(this+0x40)) & mask) == 0
+   *   0x4a548  0f 95 c0     setne %al               ; al = !ZF = ((word & mask) != 0)
+   *   0x4a54b  5d           popq  %rbp              ; epilogue (no TS counterpart)
+   *   0x4a54c  c3           retq                    ; return %al (bool)
+   *   0x4a54d  90           nop                     ; alignment pad — not executed
+   *
+   * THE BODY IS COMPLETE, NOT TRUNCATED. The thirteen instruction bytes above
+   * run 0x4a540..0x4a54c inclusive, the `nop` pads 0x4a54d, and the next
+   * symbol in the table starts at exactly 0x4a54e
+   * (`__ZNK13OZChannelBase20getObjectManipulatorEv`), so there is no room for
+   * a further instruction. (Stated explicitly because a listing that ends
+   * early is how a truncated slice turns a REAL body into an apparently empty
+   * one.)
+   *
+   * AT&T OPERAND ORDER. `testq %rsi, 0x40(%rdi)` is `test src, dst`, i.e. the
+   * MEMORY operand is the destination: the machine computes
+   * `*(u64*)(this+0x40) & %rsi`, sets ZF from the result and discards it.
+   * `AND` is commutative, so no clamp/branch can be inverted by reading the
+   * operands the wrong way round here — but the direction is recorded because
+   * it establishes that the memory operand is a full QWORD (the `q` suffix /
+   * REX.W in `48 85 77 40`), so all 64 bits of the argument participate. A
+   * 32-bit transcription would silently answer `false` for any mask whose only
+   * set bits are above bit 31; the oracle below tests exactly that case.
+   *
+   * `setne %al` writes ONE byte. The upper bits of %eax are left as they were,
+   * which is the normal x86-64 convention for a `bool` return: the caller
+   * reads only %al. So the returned value is exactly the boolean below.
+   *
+   * WHICH SLOT, AND WHY IT IS THE "DEFAULT" ONE. +0x40 is the slot written by
+   * `saveStateAsDefault()` @ProChannel 0x4bb7c (`movq %rax, 0x40(%rdi)`
+   * @0x4bb8e, storing the live flags word from +0x38 masked with
+   * 0xFFFFFFFDECA4CF86) — already transcribed in this file as
+   * {@link OZChannelBase.saveStateAsDefault}, which is why this method reuses
+   * that field rather than introducing a second model of the same eight
+   * bytes. The live flags word is a DIFFERENT slot, +0x38: its setter
+   * `OZChannelBase::setFlags(unsigned long long)` @ProChannel 0x4a50a — the
+   * symbol immediately preceding this one — ends in `movq %rbx, 0x38(%r14)`
+   * @0x4a537, and it screens the incoming value with that same
+   * 0xFFFFFFFDECA4CF86 mask @0x4a517 before dispatching a virtual notify.
+   * So the pair reads: `setFlags`/`isLocked`/`setChildSolo` operate on the
+   * LIVE word at +0x38, while `saveStateAsDefault` snapshots it into +0x40
+   * and THIS method is how a caller asks a question of that snapshot.
+   *
+   * The `NK` in the mangled name marks the method `const`, and the body
+   * matches: one load, no store.
+   *
+   * DEPENDENCIES: none. No call, no jump, no indirect or virtual dispatch, no
+   * extern (`depgraph.py deps __ZNK13OZChannelBase15testDefaultFlagEy` lists
+   * nothing).
+   *
+   * MEASURED AGAINST THE LIVE BINARY — not read-only review.
+   * `raw-port/re/oracle/OZChannelBase_testDefaultFlag_oracle.py` (run under
+   * `arch -x86_64 /usr/bin/python3`, so dlsym resolves the same x86_64 slice
+   * this was transcribed from) dlsym's this exported `T` symbol, checks that
+   * the address is slide+0x4a540 and that the 13 mapped opcode bytes are the
+   * ones listed above, then runs a 204-case corpus over a 0xCD-poisoned
+   * 0x100-byte arena — all 64 single bits (including bit 63, which is what
+   * catches a 32-bit AND), the disjoint 0xAAAA…/0x5555… pair, the
+   * `saveStateAsDefault` mask itself, and seeded random pairs — against the
+   * REAL TypeScript below, executed by
+   * `OZChannelBase_testDefaultFlag_driver.mts` (no Python restatement of the
+   * port stands between the two sides). It also holds decoy values in the
+   * neighbouring +0x38 and +0x48 slots so that reading the wrong slot cannot
+   * pass, checks the arena is byte-identical after every call, and requires
+   * six deliberately wrong variants of this method (inverted, 32-bit-truncated,
+   * OR-instead-of-AND, +0x38-instead-of-+0x40, constant true, constant false)
+   * to DIVERGE from the live function on the same corpus.
+   *
+   * RESULT at ProChannel slide 0x10aa69000: **PASS, 0 checks failed** — dlsym landing on
+   * slide+0x4a540 exactly, the 13 live opcode bytes equal to the ones transcribed above, the
+   * TypeScript agreeing with the live function on 204 of 204 cases (132 true / 72 false, so the
+   * corpus exercises both answers), 0 of 256 arena bytes changed across all 204 calls, and every
+   * negative control caught: inverted 204/204 cases differ, +0x38-instead-of-+0x40 138, constant
+   * false 132, or-instead-of-and 71, constant true 72, and the 32-bit AND 33 (those 33 are the
+   * high-half cases — a `testl` transcription is invisible to any corpus that stays under bit 31).
+   *
+   * @param mask — %rsi, `unsigned long long`. The bit set being asked about.
+   */
+  testDefaultFlag(mask: bigint): boolean {
+    // @0x4a544  testq %rsi, 0x40(%rdi)
+    //   %rsi is a 64-bit register, so the argument participates as a u64 and
+    //   nothing above bit 63 exists to participate. Narrowing the incoming
+    //   bigint to that width is the truncation the register performs; the
+    //   literal is the register's own width at this instruction, not a value
+    //   read from the image.
+    const rsi: bigint = mask & 0xFFFFFFFFFFFFFFFFn;
+    //   ...and the destination is the QWORD at this+0x40 — the default-state
+    //   snapshot written by saveStateAsDefault @0x4bb8e.
+    const anded: bigint = this.__default_state_word_at_0x40 & rsi;
+    // @0x4a548  setne %al — the whole return value: ZF was set iff the AND
+    //   produced zero, so %al is 1 exactly when some bit survived.
+    return anded !== 0n;
+    // @0x4a54b..0x4a54c  popq %rbp ; retq — return %al.
+  }
+}
+
+/**
+ * `OZChannelBase::allowsDrag(OZChannelBase const*)` — @ProChannel 0x49f44
+ *   — `__ZN13OZChannelBase10allowsDragEPKS_` (exported `T`,
+ *     `raw-port/army/inventory/ProChannel.syms.txt:3025`)
+ *
+ * FULL transcription. The whole function is five instructions and one of them is the body:
+ *
+ *   0x49f44  55        pushq %rbp        ; frame setup (no TS counterpart)
+ *   0x49f45  48 89 e5  movq  %rsp, %rbp  ; frame setup (no TS counterpart)
+ *   0x49f48  b0 01     movb  $0x1, %al   ; the return value: 1
+ *   0x49f4a  5d        popq  %rbp        ; frame teardown (no TS counterpart)
+ *   0x49f4b  c3        retq              ; return %al
+ *
+ * IT IGNORES BOTH OPERANDS, and that is the finding rather than an omission: `%rdi` (`this`) and
+ * `%rsi` (the candidate channel) are never read — there is no load, no test, no branch, and no
+ * callee. The base class answers "yes, a drag is allowed" for every pair, and a subclass override
+ * is where any real policy lives. A port that consulted a flag here would be inventing a decision
+ * the binary does not make, so both parameters are named with a leading underscore and left unread.
+ *
+ * The `movb $0x1, %al` writes only the low BYTE of the return register, which is the C++ `bool`
+ * ABI: the caller reads `%al` alone, and the upper bits of `%eax` are left undefined by this
+ * function. The oracle reads the result as a `c_ubyte` for exactly that reason — declaring it an
+ * `int` would compare bits this function never set.
+ *
+ * ZERO callees: no in-scope call, no extern, no indirect and no virtual dispatch
+ * (`depgraph.py deps __ZN13OZChannelBase10allowsDragEPKS_` lists nothing).
+ *
+ * WHY AN `export function` IN A CLASS-SHAPED FILE. The rest of this file models the class with
+ * methods, which is the older style here; G5 only inspects `export function`, so a method is
+ * invisible to the one gate that classifies a body against its disassembly (reviewer 4 filed that
+ * hole today, and reviewer 1 noted on #647 that writing an export function is what makes G5 look at
+ * all). A one-instruction constant-returning body is precisely the shape that should be judged
+ * rather than taken on trust, so this unit is exported as a function. It reads no instance state,
+ * so nothing is lost by not being a method.
+ *
+ * ORACLE — EXECUTED, not read (`raw-port/re/oracle/OZChannelBase_allowsDrag_oracle.py`, under
+ * `arch -x86_64 /usr/bin/python3`; the symbol is `T`, so it is reached by dlsym after the recursive
+ * @rpath preload, and the 8 opcode bytes at the symbol are checked against the transcription first).
+ * Measured 2026-08-11: 49 (this, other) pairs — NULL, poison, 0x4141…, and real 0x100-byte
+ * 0xCD-filled arenas in every combination, including this == other — returned 1 every time; 0 of
+ * 512 arena bytes changed; and the two negative controls a constant cannot be told apart from by
+ * value alone are checked structurally instead, in the TS driver: `false` dies on all 49, "return
+ * whether other is non-null" dies on the 21 pairs with a NULL argument. The M0 control survives.
+ *
+ * Source disassembly:
+ *   raw-port/re/disasm/ProChannel.__ZN13OZChannelBase10allowsDragEPKS_.s (6 lines)
+ *
+ * @param _self  %rdi — the channel being asked. NEVER READ by this body.
+ * @param _other %rsi — the candidate channel. NEVER READ by this body.
+ * @returns `true`, unconditionally, as `movb $0x1, %al` does.
+ */
+export function OZChannelBase_allowsDrag(
+  _self: OZChannelBase,
+  _other: OZChannelBase | null,
+): boolean {
+  // @0x49f48  movb $0x1, %al — the entire body.
+  return true;
 }
