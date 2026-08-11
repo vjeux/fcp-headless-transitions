@@ -22,6 +22,7 @@
 //                                                                       separate ledger entry)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob24IsRequestedVirtualScreenEi.s
 //                                                                       (IsRequestedVirtualScreen)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob11GetUserNameEv.s         (GetUserName)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob20SetVirtualScreenMaskEj.s
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob20GetVirtualScreenMaskEv.s
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob16SetVirtualScreenEi.s    (these three read only
@@ -88,6 +89,8 @@
 //   UsesOnlyGPUResource     — none.
 //   GetType                 — none (5-instruction leaf load of this+0x0c).
 //   SetState                — none.
+//   GetUserName             — none (no call at all; the only non-register operand is the
+//                             rip-relative "" literal at @Helium 0x8f69cc).
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -114,6 +117,8 @@
 //       — HGRenderJob::IsRequestedVirtualScreen(int) @Helium 0x54ad0
 //   * __ZN11HGRenderJob8SetStateENS_5StateE
 //       — HGRenderJob::SetState(HGRenderJob::State) @Helium 0x54640
+//   * __ZN11HGRenderJob11GetUserNameEv
+//       — HGRenderJob::GetUserName() @Helium 0x54820
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — IsRequestedVirtualScreen @0x54ad0
@@ -923,6 +928,81 @@ export class HGRenderJob {
     // @0x54737..0x54738 — epilogue + retq.
     // ------------------------------------------------------------
     return this._type >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::GetUserName()` @Helium 0x54820
+   *   (__ZN11HGRenderJob11GetUserNameEv)
+   *
+   * The reader half of `SetUserName` @0x54670 above. Full 10-line body from
+   * raw-port/re/disasm/Helium.__ZN11HGRenderJob11GetUserNameEv.s:
+   *
+   *   0x54820  pushq   %rbp                        ; frame prologue
+   *   0x54821  movq    %rsp, %rbp
+   *   0x54824  movq    0xd8(%rdi), %rcx            ; rcx = this->userName
+   *   0x5482b  testq   %rcx, %rcx                  ; ZF = (userName == null)
+   *   0x5482e  leaq    0x8a2197(%rip), %rax        ; rax = &"" literal
+   *                                                ;   ## literal pool for: ""
+   *   0x54835  cmovneq %rcx, %rax                  ; if (userName != null) rax = userName
+   *   0x54839  popq    %rbp                        ; epilogue
+   *   0x5483a  retq                                ; returns char* in %rax
+   *   0x5483b  nopl    (%rax,%rax)                 ; padding — not executed
+   *
+   * There is NO branch: the machine loads the "" literal unconditionally and
+   * then `cmovneq` overwrites it with the field when `testq` cleared ZF (i.e.
+   * the pointer is non-null). Both operands are always evaluated, so the
+   * `??` below is a faithful model of the conditional move, not a shortcut
+   * around a branch the binary takes.
+   *
+   * The returned pointer is therefore NEVER null: an unset job answers with a
+   * pointer to a static empty C string, so the TS return type is `string`
+   * (not `string | null`) and the unset answer is `''`. Callers that test the
+   * result for null in C would never see one — modelling this as `null` would
+   * invert that contract.
+   *
+   * The `""` literal address is the rip-relative target of @0x5482e:
+   * `0x54835` (the address of the NEXT instruction) + `0x8a2197` =
+   * **@Helium 0x8f69cc**. Confirmed directly in the x86_64 slice: `__TEXT`
+   * has vmaddr 0 / fileoff 0, so that vmaddr is also the file offset, and the
+   * byte there is `0x00` — a zero-length C string (it is the tail padding
+   * after the `"…ntilCompleted"` literal).
+   *
+   * ORACLE — differential against the live Helium binary, 1,800 cases, 0
+   * divergences (raw-port/re/oracle/HGRenderJob_GetUserName_oracle.py). The
+   * symbol is exported (`nm -arch x86_64` type `T`), so the harness dlopens
+   * Helium under `arch -x86_64 /usr/bin/python3` — the port cites x86_64
+   * offsets, and calling the arm64 slice would compare against code this port
+   * did not transcribe (see OPS_LOG "wrong architecture") — and calls the real
+   * getter on a 0x200-byte object:
+   *   * 1,200 cases with a real C string at +0xd8 (empty, 1-char, 255-char,
+   *     embedded high bytes, random lengths 0..39 with random bytes): the
+   *     returned pointer is bit-identical to the stored pointer, and every
+   *     byte of the 0xAA-poisoned object outside +0xd8..+0xdf is unchanged —
+   *     the getter stores nothing.
+   *   * 600 cases with a NULL slot over randomly poisoned objects: the
+   *     returned pointer is exactly `slide + 0x8f69cc` every time, and the
+   *     byte it points at is `0x00`.
+   * NEGATIVE CONTROLS (measured on 400 mixed cases, i.e. 200 that can
+   * distinguish each mutant): reading +0xc8 (the neighbouring `userTag`
+   * slot) instead of +0xd8 -> 200 wrong; returning null instead of the ""
+   * literal when unset -> 200 wrong; always returning the "" literal
+   * (ignoring the field) -> 200 wrong.
+   *
+   * @returns the job's user name, or `''` when the field is unset — never null,
+   *          matching the never-null `char*` the machine returns.
+   */
+  GetUserName(): string {
+    // ------------------------------------------------------------
+    // @0x54820..0x54821 — prologue (no TS-visible effect).
+    // @0x54824 — movq 0xd8(%rdi), %rcx : rcx = this->userName.
+    // @0x5482b — testq %rcx, %rcx      : ZF = (userName == null).
+    // @0x5482e — leaq 0x8a2197(%rip), %rax : rax = &"" @Helium 0x8f69cc
+    //            (0x54835 + 0x8a2197), the empty C-string literal.
+    // @0x54835 — cmovneq %rcx, %rax    : ZF==0 (non-null) -> rax = userName.
+    // @0x54839..0x5483a — epilogue + retq, returning %rax.
+    // ------------------------------------------------------------
+    const userName = this.userName; // @0x54824
+    return userName ?? ''; // @0x5482b/@0x5482e/@0x54835 — cmov: field, else the "" literal
   }
 }
 
