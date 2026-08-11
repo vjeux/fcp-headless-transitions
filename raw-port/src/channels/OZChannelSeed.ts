@@ -78,6 +78,9 @@
 //     therefore throws with citation when the caller passes nullptr for the impl or info.
 
 import { OZChannelInfo } from "./OZChannelInfo";
+// A VALUE import, not a type import: the Info singleton's initializer really constructs one
+// (operator new(0x58) @ProChannel 0xfd8b + OZChannelSeedInfo::C2 @0xfdb6).
+import { OZChannelSeedInfo } from "./OZChannelSeedInfo";
 import type { OZChannelFolder } from "./OZChannelFolder";
 import type { PCString } from "../infra/PCString";
 import {
@@ -335,74 +338,174 @@ export class OZChannelSeed extends OZChannel {
   // ── static once-only singleton initialisers ───────────────────────────────────────────────
 
   /**
-   * `OZChannelSeed::createOZChannelSeedInfo()`  @ProChannel 0xfcce.
+   * `OZChannelSeed::createOZChannelSeedInfo()` — @ProChannel 0xfcce
+   *   (`__ZN13OZChannelSeed23createOZChannelSeedInfoEv`). THIS unit; the body below replaces a
+   *   placeholder whose guard ran BACKWARDS, exactly as the Impl twin's did.
    *
-   * Body is a bog-standard Itanium `std::call_once` wrapper:
-   *   @0xfcd6 movq _OZChannelSeedInfo_once(%rip),%rax
-   *   @0xfcdd cmpq $-1,%rax
-   *   @0xfce1 je  0xfd08                                    — fast path (already initialised)
-   *   @0xfce3..0xfd03 build the std::once_flag callable arg  and jump to
-   *                   std::__1::__call_once(guard, arg, proxy)
-   *   @0xfd08 leaq _OZChannelSeedInfo(%rip),%rax
-   *   @0xfd0f movq (%rax),%rax                              — return the singleton pointer.
+   * FULL transcription of the 20-instruction body — the Info twin of `createOZChannelSeedImpl`
+   * below, identical in shape and differing only in which three symbols it names. Every RIP target
+   * re-derived from the raw bytes of the thin x86_64 slice:
    *
-   * The lambda body invoked by __call_once_proxy allocates the OZChannelSeedInfo instance
-   * (see OZChannelSeedInfo.ts / its `OZChannelSeedInfo::OZChannelSeedInfo` ctor). We do NOT
-   * decode that lambda body here — it's just `new OZChannelSeedInfo()` guarded by the once
-   * flag. Faithfully: on first call we materialise the singleton; on subsequent calls we
-   * return the same instance.
+   *   0xfcce  55 / 48 89 e5 / 48 83 ec 20    prologue + the 32-byte libc++ tuple<lambda&&> frame
+   *   0xfcd6  48 8b 05 03 bb 0d 00           movq 0xdbb03(%rip),%rax  ; 0xfcdd+0xdbb03 = BSS 0xeb7e0
+   *                                          = __ZZN13OZChannelSeed23createOZChannelSeedInfoEvE23_OZChannelSeedInfo_once
+   *   0xfcdd  48 83 f8 ff                    cmpq $-0x1, %rax
+   *   0xfce1  74 25                          je   0xfd08              ; fast path
+   *   0xfce3..0xfcf2                         the tuple<T&&> marshalling (ABI artefact, no TS effect)
+   *   0xfcf5  48 8d 3d e4 ba 0d 00           leaq 0xdbae4(%rip),%rdi  ; 0xfcfc+0xdbae4 = BSS 0xeb7e0
+   *   0xfcfc  48 8d 15 5f 00 00 00           leaq 0x5f(%rip),%rdx     ; 0xfd03+0x5f = 0xfd62 (proxy)
+   *   0xfd03  e8 c0 d0 09 00                 callq 0xacdc8            ; std::__call_once stub
+   *   0xfd08  48 8d 05 e9 c5 0d 00           leaq 0xdc5e9(%rip),%rax  ; 0xfd0f+0xdc5e9 = BSS 0xec2f8
+   *   0xfd0f  48 8b 00                       movq (%rax),%rax         ; return the singleton pointer
+   *   0xfd12  48 83 c4 20 / 5d / c3          epilogue
+   *
+   * THE INITIALIZER IS TRANSCRIBED (unlike the Impl twin, and for a reason that is checkable):
+   * the Impl lambda is its own out-of-line symbol @0xfebc, but the Info lambda was INLINED into the
+   * libc++ template instantiation
+   *   __ZNSt3__18__invokeB9nqe210106IJZN13OZChannelSeed23createOZChannelSeedInfoEvEUlvE_EEE...
+   * @ProChannel 0xfd72 — there is no `...NKUlvE_clEv` symbol for the Info side (the inventory runs
+   * 0xfd62 proxy, 0xfd72 __invoke, then 0xfdb6 is already the Info ctor). STL instantiations are
+   * filtered out of the port queue, so deferring would defer to a unit nobody can claim, and its
+   * only in-scope callee — `OZChannelSeedInfo::OZChannelSeedInfo()` @0xfdb6 — is already ported in
+   * raw-port/src/channels/OZChannelSeedInfo.ts. Its body:
+   *
+   *   0xfd79  leaq  &_OZChannelSeedInfo, %r14        ; BSS 0xec2f8
+   *   0xfd80  cmpq  $0x0, (%r14)  /  jne 0xfd9e      ; already published -> allocate nothing
+   *   0xfd86  movl  $0x58, %edi   /  callq 0xace4c   ; operator new(0x58)
+   *   0xfd96  callq 0xfdb6                            ; OZChannelSeedInfo::OZChannelSeedInfo()
+   *   0xfd9b  movq  %rbx, (%r14)                      ; publish
+   *   unwind pad @0xfda3: operator delete then _Unwind_Resume — so a throwing ctor frees the
+   *   allocation and leaves the global NULL and the flag 0.
+   *
+   * MEASURED AGAINST THE LIVE BINARY
+   * (raw-port/re/oracle/OZChannelSeed_createInfo_probe.py, `arch -x86_64`, local (`t`) symbol so
+   * called by address at slide+0xfcce after an opcode self-check; 8/8 checks PASS):
+   *   before   once @0xeb7e0 = 0             singleton @0xec2f8 = NULL
+   *   call #1  returns 0x600003994720       once -> 0xffffffffffffffff, singleton == the return value
+   *   call #2  returns 0x600003994720       once unchanged (the fast path at 0xfce1 is taken)
+   *
+   * WHAT CHANGED: the previous body was `if (once === -1) { once = 0; _OZChannelSeedInfo = null; }`
+   * — the guard inverted, acting when the flag says "already initialised" and responding by
+   * clearing the flag and nulling the published singleton, with a comment explaining that
+   * construction was deferred because the ctor throws. The disasm branches the other way and the
+   * accessor stores nothing; the ctor's throw is the OZChannelInfo frontier one level down and
+   * belongs there, not here.
    */
   static createOZChannelSeedInfo(): OZChannelInfo {
-    if (OZChannelSeed_globals._OZChannelSeedInfo_once === -1) {
-      OZChannelSeed_globals._OZChannelSeedInfo_once = 0;
-      // The FCP lambda body would `new OZChannelSeedInfo()` here. OZChannelSeedInfo's ctor
-      // is a live throw (frontier — OZChannelInfo base ctor is not yet transcribed @0xfdb6). We
-      // defer construction to first *dereference* so the info-pointer plumbing above still
-      // succeeds when a non-null info is supplied by the caller (the common case).
-      // Faithful record: mark the guard as "initialised" once we've committed to storing a
-      // pointer (nulled below); the singleton value stays null until first-use materialises
-      // it via the lambda callee — which throws a CITED not-transcribed error (@0xfdb6).
-      OZChannelSeed_globals._OZChannelSeedInfo = null;
+    // @0xfcd6 loads the flag, @0xfcdd compares it against $-0x1 and @0xfce1 takes the fast path:
+    // -1 models the ~0UL the runtime writes on completion (this file's globals record documents
+    // the `number` encoding).
+    if (OZChannelSeed_globals._OZChannelSeedInfo_once !== -1) {
+      // @0xfce3-0xfd03 — marshal the tuple and call std::__1::__call_once(&once, arg, proxy)
+      //   through ProChannel stub 0xacdc8 (libc++, a TRUE out-of-scope extern).
+      std_call_once_OZChannelSeedInfo();
     }
-    // @0xfd0f movq (%rax),%rax — return whatever the singleton slot currently holds. If a
-    // caller ends up trying to use a null OZChannelInfo they'll hit the OZChannelInfo ctor
-    // throw at its own address — a loud gap, per Rule 3.
+    // @0xfd08-0xfd0f — leaq &_OZChannelSeedInfo then movq (%rax),%rax.
     const p = OZChannelSeed_globals._OZChannelSeedInfo;
-    if (p !== null) return p;
-    // Materialise on demand — this call re-enters the frontier stub in OZChannelInfo whose
-    // throw cites its own @ProChannel address (i.e. we are NOT inventing a fallback here).
-    throw new Error(
-      "OZChannelSeed::createOZChannelSeedInfo lambda body @ProChannel 0xfcce not yet " +
-        "transcribed (needs the `_OZChannelSeedInfo = new OZChannelSeedInfo()` lambda under " +
-        "__call_once_proxy<OZChannelSeed::createOZChannelSeedInfo::'lambda'()>)",
-    );
+    if (p === null) {
+      throw new Error(
+        "OZChannelSeed::createOZChannelSeedInfo @ProChannel 0xfcce completed std::__call_once " +
+          "without the initializer publishing __ZN13OZChannelSeed18_OZChannelSeedInfoE (BSS " +
+          "0xec2f8) — the load @0xfd0f would return NULL.",
+      );
+    }
+    return p;
   }
 
   /**
-   * `OZChannelSeed::createOZChannelSeedImpl()`  @ProChannel 0xfd18.
+   * `OZChannelSeed::createOZChannelSeedImpl()` — @ProChannel 0xfd18
+   *   (`__ZN13OZChannelSeed23createOZChannelSeedImplEv`). THIS unit; the body below replaces a
+   *   placeholder whose guard ran BACKWARDS (see "WHAT CHANGED" at the end of this comment).
    *
-   * Same call_once idiom as createOZChannelSeedInfo, guarding
-   *   __ZN13OZChannelSeed18_OZChannelSeedImplE   the OZChannelImpl* singleton slot
-   *   __ZZN13OZChannelSeed23createOZChannelSeedImplEvE23_OZChannelSeedImpl_once
-   *                                              the std::once_flag word.
+   * FULL transcription of the 20-instruction body. Every RIP target re-derived from the raw bytes
+   * of the thin x86_64 slice, not from otool's symbolized column:
    *
-   * The lambda body (frontier) allocates the OZChannelSeedImpl instance. Not decoded here;
-   * OZChannelSeedImpl itself is an un-transcribed ProChannel class (2 methods) whose ctor
-   * would throw with its own address citation.
+   *   0xfd18  55 / 48 89 e5 / 48 83 ec 20    prologue + the 32-byte libc++ tuple<lambda&&> frame
+   *   0xfd20  48 8b 05 c1 ba 0d 00           movq 0xdbac1(%rip),%rax  ; 0xfd27+0xdbac1 = BSS 0xeb7e8
+   *                                          = __ZZN13OZChannelSeed23createOZChannelSeedImplEvE23_OZChannelSeedImpl_once
+   *   0xfd27  48 83 f8 ff                    cmpq $-0x1, %rax         ; libc++ writes ~0UL when done
+   *   0xfd2b  74 25                          je   0xfd52              ; fast path
+   *   0xfd2d..0xfd3c                         the tuple<T&&> marshalling (ABI artefact, no TS effect)
+   *   0xfd3f  48 8d 3d a2 ba 0d 00           leaq 0xdbaa2(%rip),%rdi  ; 0xfd46+0xdbaa2 = BSS 0xeb7e8
+   *   0xfd46  48 8d 15 5e 01 00 00           leaq 0x15e(%rip),%rdx    ; 0xfd4d+0x15e = 0xfeab (proxy)
+   *   0xfd4d  e8 76 d0 09 00                 callq 0xacdc8            ; std::__call_once stub
+   *   0xfd52  48 8d 05 a7 c5 0d 00           leaq 0xdc5a7(%rip),%rax  ; 0xfd59+0xdc5a7 = BSS 0xec300
+   *   0xfd59  48 8b 00                       movq (%rax),%rax         ; return the singleton pointer
+   *   0xfd5c  48 83 c4 20 / 5d / c3          epilogue
+   *
+   * The accessor READS the flag and the singleton and writes NEITHER — every write happens inside
+   * libc++ and the initializer.
+   *
+   * MEASURED AGAINST THE LIVE BINARY
+   * (raw-port/re/oracle/OZChannelSeed_createImpl_probe.py, `arch -x86_64`, local (`t`) symbol so
+   * called by address at slide+0xfd18 after an opcode self-check; 8/8 checks PASS):
+   *   before   once @0xeb7e8 = 0             singleton @0xec300 = NULL
+   *   call #1  returns 0x600002074000       once -> 0xffffffffffffffff, singleton == the return value
+   *   call #2  returns 0x600002074000       once unchanged (the fast path at 0xfd2b is taken)
+   * The `0 -> ~0UL` transition refutes the `=== 1` sentinel of the 2026-07-29 call_once cheat; it
+   * cannot separate `!== -1` from `!== 0`, and the `-1` here comes from the `cmpq $-0x1` encoding
+   * (`48 83 f8 ff`) at 0xfd27.
+   *
+   * WHAT CHANGED, stated plainly because this is an edit to landed behaviour rather than an
+   * addition. The previous body was
+   *     if (once === -1) { once = 0; _OZChannelSeedImpl = null; }
+   * which is the guard INVERTED — it acted when the flag says "initialisation already completed",
+   * and its action was to clear the flag AND null the published singleton. The disasm branches the
+   * other way (`cmpq $-0x1` + `je` = when it equals -1, SKIP everything and return the pointer),
+   * and the accessor performs no store at all. As written it could only ever return null or
+   * destroy a singleton some other path had published, so nothing depended on it; the replacement
+   * is the transcription above.
    */
   static createOZChannelSeedImpl(): OZChannelImpl {
-    if (OZChannelSeed_globals._OZChannelSeedImpl_once === -1) {
-      OZChannelSeed_globals._OZChannelSeedImpl_once = 0;
-      OZChannelSeed_globals._OZChannelSeedImpl = null;
+    // @0xfd20-0xfd2b — the libc++ fast path: the flag reading ~0UL (-1 in this file's `number`
+    // model, as the globals record documents) means initialisation already completed.
+    if (OZChannelSeed_globals._OZChannelSeedImpl_once !== -1) {
+      // @0xfd2d-0xfd4d — marshal the tuple and call std::__1::__call_once(&once, arg, proxy)
+      //   through ProChannel stub 0xacdc8 (libc++, a TRUE out-of-scope extern).
+      std_call_once_OZChannelSeedImpl();
     }
+    // @0xfd52-0xfd59 — leaq &_OZChannelSeedImpl then movq (%rax),%rax.
     const p = OZChannelSeed_globals._OZChannelSeedImpl;
-    if (p !== null) return p;
-    throw new Error(
-      "OZChannelSeed::createOZChannelSeedImpl lambda body @ProChannel 0xfd18 not yet " +
-        "transcribed (needs the `_OZChannelSeedImpl = new OZChannelSeedImpl()` lambda under " +
-        "__call_once_proxy<OZChannelSeed::createOZChannelSeedImpl::'lambda'()>)",
-    );
+    if (p === null) {
+      throw new Error(
+        "OZChannelSeed::createOZChannelSeedImpl @ProChannel 0xfd18 completed std::__call_once " +
+          "without the initializer publishing __ZN13OZChannelSeed18_OZChannelSeedImplE (BSS " +
+          "0xec300) — the load @0xfd59 would return NULL.",
+      );
+    }
+    return p;
   }
+}
+
+/**
+ * `std::__1::__call_once(flag&, void*, void(*)(void*))` for the Seed IMPL singleton — libc++,
+ * reached through ProChannel stub 0xacdc8 @0xfd4d. A TRUE out-of-scope extern; there is no libc++
+ * runtime here, so the contract the accessor depends on is modelled: run the initializer once, and
+ * mark the flag done ONLY on success. If the initializer raises, the flag stays 0 and a later call
+ * retries — which is what the real runtime does, and why the fast-path test @0xfd27 is against -1
+ * rather than "non-zero".
+ *
+ * The initializer is NOT folded in here, and that is a scope decision with evidence rather than a
+ * shortcut: unlike the Info side of some sibling classes, this lambda is its OWN out-of-line symbol
+ * — `__ZZN13OZChannelSeed23createOZChannelSeedImplEvENKUlvE_clEv` @ProChannel 0xfebc, reached
+ * through the proxy @0xfeab — i.e. a separate ledger unit, and a substantial one: it null-checks
+ * the global @0xfecd, allocates 0x30 bytes @0xfed8 and 0xb0 bytes @0xfee5 via operator new, calls
+ * `OZCurveEnum::OZCurveEnum(double)` @0xfef3, then
+ * `OZChannelImpl::OZChannelImpl(OZCurve*, double, unsigned int, bool)` @0xff08 with edx=0 and
+ * ecx=1, then `PCSingleton::PCSingleton(unsigned int)` on this+0x28 with 0x64 @0xff19, before
+ * publishing. Three of those callees are themselves unported classes.
+ */
+function std_call_once_OZChannelSeedImpl(): void {
+  if (OZChannelSeed_globals._OZChannelSeedImpl_once === -1) return; // libc++ fast path
+  throw new Error(
+    "OZChannelSeed::createOZChannelSeedImpl()'s once-init lambda is a separate ledger unit and " +
+      "is not transcribed yet: __ZZN13OZChannelSeed23createOZChannelSeedImplEvENKUlvE_clEv " +
+      "@ProChannel 0xfebc, reached through the libc++ proxy @ProChannel 0xfeab from " +
+      "std::__1::__call_once @ProChannel 0xfd4d (stub 0xacdc8). It allocates 0x30 bytes @0xfed8 " +
+      "and 0xb0 bytes @0xfee5, constructs OZCurveEnum @0xfef3 and OZChannelImpl @0xff08 and a " +
+      "PCSingleton @0xff19, and publishes the result into " +
+      "__ZN13OZChannelSeed18_OZChannelSeedImplE (BSS 0xec300), which this accessor loads @0xfd59.",
+  );
 }
 
 // ── translation-unit-scope globals (module-scope statics in ProChannel) ────────────────────
@@ -438,4 +541,31 @@ function getOZChannelSeed_FactoryBase(): OZFactory | null {
       "__Z28getOZChannelSeed_FactoryBasev) not yet transcribed (called from " +
       "OZChannelSeed::OZChannelSeed 6-arg ctor @0x978be)",
   );
+}
+
+/**
+ * `std::__1::__call_once(flag&, void*, void(*)(void*))` for the Seed INFO singleton — libc++,
+ * reached through ProChannel stub 0xacdc8 @0xfd03. A TRUE out-of-scope extern, modelled as the Impl
+ * one above: run the initializer once, mark the flag done ONLY on success.
+ *
+ * The initializer itself is transcribed here rather than deferred — see the accessor's comment for
+ * why (the Info lambda is inlined into an STL instantiation that no ledger unit can ever cover, and
+ * its only in-scope callee is already ported).
+ */
+function std_call_once_OZChannelSeedInfo(): void {
+  if (OZChannelSeed_globals._OZChannelSeedInfo_once === -1) return; // libc++ fast path
+  // @0xfd79-0xfd84 — r14 = &_OZChannelSeedInfo; if already published, allocate nothing.
+  if (OZChannelSeed_globals._OZChannelSeedInfo === null) {
+    // @0xfd86-0xfd96 — operator new(0x58) (stub 0xace4c) then OZChannelSeedInfo::C2 @0xfdb6.
+    //   The ported ctor raises while its own OZChannelInfo base is a frontier class; that raise is
+    //   that class's gap, and skipping the two writes below is exactly what the unwind pad @0xfda3
+    //   does in the machine (free the allocation, leave the global NULL, leave the flag 0).
+    const created = new OZChannelSeedInfo();
+    // @0xfd9b — publish. The C++ store is an implicit derived-to-base pointer conversion
+    // (OZChannelSeedInfo* -> OZChannelInfo*); `OZChannelInfo` in this file is the separately-ported
+    // class from ./OZChannelInfo, structurally unrelated to OZChannelSeedInfo's own base member, so
+    // the upcast has to be spelled out for tsc. No value changes.
+    OZChannelSeed_globals._OZChannelSeedInfo = created as unknown as OZChannelInfo;
+  }
+  OZChannelSeed_globals._OZChannelSeedInfo_once = -1;
 }
