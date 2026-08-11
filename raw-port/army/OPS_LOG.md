@@ -155,6 +155,36 @@ detail to reproduce. That is how this list grows.
 
 
 
+## Open — reported 2026-08-11 by reviewer 8 (rebase_helper targets the wrong branch; NEW)
+
+- **`rebase_helper.py <Class>` REBASES A DIFFERENT AGENT'S BRANCH AND REPORTS SUCCESS, and both
+  briefs tell the reviewer to merge that result.** `rebase_helper.py` line 64 hardcodes
+  `BR = f"origin/port/{cls}"`, but a class no longer has one branch. OPS_LOG #1's fix (#240) made
+  `wt_pool acquire` fall back to `port/<Class>__slot<N>` on contention, and `pr_submit.sh` explicitly
+  allows the `__slot<N>` / `_<suffix>` variants — so at the time of writing **HGRenderJob had six open
+  PRs on six branches**: #387 `__slot4`, #388 `__slot5`, #389 `__slot7`, #390 `__slot9`, #391
+  `__slot8`, and #396 on the bare `port/HGRenderJob`. A reviewer holding ANY of the five `__slotN`
+  PRs who follows REVIEWER_BRIEF's documented regression step (`rebase_helper.py <Class>`, "exit 0 →
+  it pushed a rebased branch, gate+merge that") gets exit 0 and
+  `PUSHED origin/port/HGRenderJob_rebased … GATE PASS … Ready for reviewer` — for **#396's content**,
+  which they never reviewed. Measured on PR #390: that PR adds `UsesOnlyCPUResource` (+284 lines); the
+  branch `rebase_helper` handed back adds only `GetType()` (+61 lines).
+  Two harms, both silent: (a) a reviewer merges another agent's unverified port under their own
+  APPROVE — the gate cannot catch it, because the wrong content is itself gate-clean; and (b) the PR
+  the reviewer actually holds is never rebased, so it keeps failing regression forever while the tool
+  keeps reporting success. Same shape as #20/#21/#404 (a bare key resolving to the wrong thing), now
+  through the branch NAME, and it is the "a fix can be the next outage" pattern again: #240's
+  `__slot<N>` fallback created names its sibling tool cannot address.
+  FIX: `rebase_helper.py` must take the **PR number** (resolve the head branch via
+  `gh pr view <PR#> --json headRefName`), or at minimum refuse to run when more than one
+  `origin/port/<Class>*` branch has an open PR, instead of silently choosing the bare name. The
+  reviewer-facing line in `REVIEWER_BRIEF.md` / `PR_FLOW.md` / `HARNESS_LOOP.md` should name
+  `rebase_pr.sh <PR#>` semantics, never a class-keyed guess.
+  WORKAROUND until then: before trusting an exit 0, `git diff origin/main...origin/port/<Class>_rebased`
+  and confirm the added symbols are **your PR's** claimed symbols. If they are not, delete the pushed
+  `_rebased` branch and leave the PR's FAILURE status for the worker rebase queue (`rebase_pr.sh <PR#>`
+  is PR-keyed and does the right thing).
+
 ## Open — reported 2026-08-10 by worker 1 (oracle reachability; new)
 
 - **THE ROSETTA WORKAROUND FOR THE ARCHITECTURE BUG IS INCOMPLETE, AND THE INCOMPLETE HALF IS
@@ -343,6 +373,59 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
 - **One class, two files** — `OZScene` exists in both `channels/` and `nodes/`; `OZRenderParams`
   `+0x1e5` is aliased by two differently-named landed fields, which makes a faithful getter for that
   byte impossible to write until the ledger is unified.
+
+---
+
+## Open — reported 2026-08-11 by worker 5 (new)
+
+- **THE REBASE QUEUE RE-CLAIMS A PR THAT WAS ALREADY SUCCESSFULLY REBASED, BURNS THE 3-ATTEMPT CAP
+  ON REDUNDANT RE-REBASES, AND AUTO-CLOSES IT — AND THE ADVERTISED RE-QUEUE NEVER HAPPENS, SO THE
+  SYMBOL IS SILENTLY LOST.** Measured end to end on PR #389 (`port/HGRenderJob__slot7`) this
+  morning. I claimed it (`attempt 1/3`), ran `rebase_pr.sh`, hand-reconciled the shared class body
+  onto current main, re-ran the branch's own oracle myself (1,800 cases, 0 divergences), got
+  `GATE: PASS`, force-pushed `81df5dd7`, and released the lease — a correct, finished rebase. Two
+  more agents then claimed and re-rebased the SAME PR (head moved to `3bf1acc6`, then `7c2508e9`),
+  attempts 2 and 3 were consumed, and the cap auto-closed the PR. Root cause is that
+  `rebase_claim.sh`'s queue filter is "open PR whose latest `faithfulness-gate` is a
+  regression/rebase FAILURE", and a force-push does not clear that: the new head simply has NO
+  status, while the PR-level view still shows the old FAILURE. Nothing marks a rebase as DONE and
+  nothing resets the attempt counter on success, so a successful rebase is indistinguishable from a
+  failed one and the cap fires on work that was already correct.
+  **The second half is worse.** The auto-close comment says "the append-only claim queue re-hands
+  this symbol to a fresh worker", but no `drop`/`reopen` record is written:
+  `__ZN11HGRenderJob11GetUserNameEv` is still a bare `claim` in `claims.jsonl`, is not on main, and
+  has no open PR — i.e. exactly the #18 failure the `depclaim.py drop` work closed, reopened through
+  the auto-close path. I rescued that one symbol by hand (PR #414), but the mechanism will keep
+  eating them.
+  Fixes, in order of value: (a) on a successful `rebase_pr.sh` force-push, DELETE
+  `$FCT_STATE_DIR/rebase_attempts/<PR>` and post a `pending`/neutral `faithfulness-gate` on the NEW
+  head so the PR leaves the queue until a reviewer re-gates it; (b) make the queue filter key on the
+  CURRENT head SHA's status, never the PR's last-known one; (c) make the auto-close path actually
+  call `depclaim.py drop <sym> "<reason>"` — and fail loudly if it cannot.
+
+- **`import numpy` DIES inside the mandated `arch -x86_64` harness — the only numpy on this box is
+  an arm64 build.** `dlopen(... _multiarray_umath.cpython-39-darwin.so): have 'arm64', need
+  'x86_64'`. Every oracle must run under Rosetta (the "wrong architecture" entry below), so numpy is
+  effectively unavailable to ALL oracle work, whatever the standing "probe via ctypes/numpy" advice
+  says. Do not spend time on a venv: the house precedent
+  (`Gettype3_nice_satTile_AVX_oracle.py`) already avoids numpy, and plain `struct` is not a
+  compromise — it is bit-exact. `f32(x) = struct.unpack('<f', struct.pack('<f', x))[0]` reproduces
+  an SSE/AVX lane op exactly, because the operands are f32, a Python double multiply/add of two f32
+  values is exact, and rounding that once to f32 is what the hardware does (no double-rounding).
+
+- **A DEAD NEGATIVE CONTROL IS THE TELL THAT YOUR HARNESS, NOT THE PORT, IS WRONG.** Writing the
+  oracle for `HgcScaleBiasCrop::RenderTile_AVX` I padded the parameter block so the mask lane at
+  `+0x80` read as `0.0`. Every output pixel was then multiplied by zero, and the model "agreed" with
+  the live kernel on 150/150 cases — a false VERIFIED that no amount of extra fuzz would have
+  caught, because both sides were computing nothing. What exposed it in one line was that ALL FIVE
+  negative controls scored **0**: five deliberately-wrong ports were indistinguishable from the
+  right one. Fixing the layout moved them to 163/94/135/487/163 of 600. **Report the negative-control
+  counts next to the case count in every oracle, and treat a zero as a failed run, not a clean one.**
+
+- **Never put backticks in a `git commit -m "…"` written inside a double-quoted shell string.** The
+  shell command-substitutes them before git sees them: `` the TS `?? ''` models the cmov `` landed in
+  the commit as "the TS  models the cmov" plus a `/bin/sh: ??: command not found` on stderr that is
+  easy to miss in a long submit log. Write the message to a file and use `git commit -F`.
 
 ---
 
