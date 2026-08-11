@@ -146,7 +146,17 @@ def layer2():
     print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
           "PASS" if ok11 else "FAIL")
     if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11
+    # 2l — nothing may force-push a PR head. pr_land squashes, so main's linear history never came
+    # from rebasing the branch; the force-push bought three destructive incidents instead (files
+    # silently dropped, 92 reviewer-verified lines replaced by an empty branch, and a PR CLOSED by
+    # forcing onto a commit already on main). Every path now merges main in and fast-forwards.
+    # Offline: local bare repo, stubbed gh. ~1s.
+    r12 = run(["bash", os.path.join(TOOLS, "test_no_force_push.sh")])
+    ok12 = "test_no_force_push: PASS" in r12.stdout
+    print("LAYER 2l (no force-push at a PR head — a PR head may only GAIN commits):",
+          "PASS" if ok12 else "FAIL")
+    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11 and ok12
 
 def _reach(spec, expect):
     import tempfile
