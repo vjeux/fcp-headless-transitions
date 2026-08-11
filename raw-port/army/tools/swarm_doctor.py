@@ -589,10 +589,59 @@ def check_rebase_actionable():
            + live)
 
 
+def check_ops_contention():
+    """No single file should be the swarm's merge bottleneck.
+
+    OPS_LOG.md was 28% of the last 259 merges (73 of them) because every agent appended to it, so
+    every pair of ops reports conflicted by construction — five at once at the worst, three of them
+    reviewer-APPROVED and unmergeable for over an hour. `ops/` (one file per entry) removes the
+    class. This check exists so the convention cannot quietly lapse back: if one file starts
+    dominating merges again, say so before it costs another afternoon of hand-merges.
+    """
+    r = sh("git log origin/main --name-only --pretty=format: -200 -- raw-port/army raw-port/tools")
+    if r.returncode != 0:
+        return record("ops-contention", UNKNOWN, "could not read git history")
+    files = [l.strip() for l in r.stdout.splitlines() if l.strip()]
+    if not files:
+        return record("ops-contention", UNKNOWN, "no history returned")
+    top, n = collections.Counter(files).most_common(1)[0]
+    pct = 100.0 * n / 200
+    if pct >= 20:
+        return record("ops-contention", FAIL,
+                      f"{top} is in {n} of the last 200 commits ({pct:.0f}%) — one file that hot is "
+                      f"a merge bottleneck by construction; file findings with "
+                      f"`new_ops_entry.sh` (one file per entry) instead", "#ops-dir")
+    record("ops-contention", OK, f"hottest shared file is {top} at {pct:.0f}% of recent commits")
+
+
+def check_ops_contention():
+    """No single file should be the swarm's merge bottleneck.
+
+    OPS_LOG.md was 28% of the last 259 merges (73 of them) because every agent appended to it, so
+    every pair of ops reports conflicted by construction — five at once at the worst, three of them
+    reviewer-APPROVED and unmergeable for over an hour. `ops/` (one file per entry) removes the
+    class. This check exists so the convention cannot quietly lapse back: if one shared file starts
+    dominating merges again, say so before it costs another afternoon of hand-merges.
+    """
+    r = sh("git log origin/main --name-only --pretty=format: -200 -- raw-port/army raw-port/tools")
+    if r.returncode != 0 or not r.stdout.strip():
+        return record("ops-contention", UNKNOWN, "could not read git history")
+    files = [l.strip() for l in r.stdout.splitlines() if l.strip()]
+    top, n = collections.Counter(files).most_common(1)[0]
+    pct = 100.0 * n / 200
+    if pct >= 20:
+        return record("ops-contention", FAIL,
+                      f"{top} is in {n} of the last 200 commits ({pct:.0f}%) — one file that hot is a "
+                      f"merge bottleneck by construction; file findings with `new_ops_entry.sh` "
+                      f"(one file per entry) instead", "#ops-dir")
+    record("ops-contention", OK, f"hottest shared file is {top} at {pct:.0f}% of recent commits")
+
+
 CHECKS = [check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
-          check_brief_flags_exist, check_rebase_actionable]
+          check_brief_flags_exist, check_rebase_actionable,
+          check_ops_contention]
 
 
 def main():
