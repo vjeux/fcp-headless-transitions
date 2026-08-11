@@ -111,7 +111,7 @@ def _sweep_curve(node, worker, metrics):
     for args in case_list:
         try:
             o_out = oracle.call(oentry, args)
-            e_out = worker.eval(node["ts_fn"], args)
+            e_out = worker.eval(node["ts_fn"], args, node)
         except Exception as ex:
             failures.append({"case": args, "error": str(ex)}); continue
         for name in compare:
@@ -197,7 +197,7 @@ def _sweep_sequence(node, worker):
     for seed in seeds:
         try:
             o_seq = oracle.dsfmt_sequence(seed, n)
-            e_out = worker.eval(node["ts_fn"], {"seed": seed, "n": n})
+            e_out = worker.eval(node["ts_fn"], {"seed": seed, "n": n}, node)
             e_seq = e_out["seq"]
         except Exception as ex:
             failures.append({"seed": seed, "error": str(ex)}); continue

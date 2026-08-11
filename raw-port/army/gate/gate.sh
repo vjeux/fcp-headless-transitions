@@ -68,6 +68,14 @@ if [ -n "$CHANGED" ] && [ -f "$ROOT/army/gate/oracle_map.json" ]; then
     # Trust the driver's own verdict: DIVERGED/FAILED/ERROR = reject. (VERIFIED with a tiny
     # float-rounding max_abs_err like 3e-14 is a PASS — don't re-judge the magnitude here.)
     grep -qiE "DIVERGED|FAILED|ERROR|NO_SIGNAL" /tmp/gate_oracle.txt && { echo "  ORACLE DIVERGENCE"; FAIL=1; }
+    # A BROKEN ORACLE IS NOT A PASS. The driver prints "HARNESS_BROKEN — refusing to record" when it
+    # cannot run at all, and that string was NOT in the grep above — so G4, the only un-fakeable
+    # gate, could report nothing while the gate printed PASS. It had been dead since #63 deleted
+    # engine/ (fct/parity/bridge.py still pointed its TS worker at <repo>/engine, which has not
+    # existed for months): every oracle-mapped file since then was gated by silence. Found by
+    # worker-02. Fail loudly instead — a gate that cannot run must never look like a gate that ran.
+    grep -qiE "HARNESS_BROKEN|refusing to record" /tmp/gate_oracle.txt && {
+      echo "  ORACLE HARNESS BROKEN — G4 could not run (this is a REJECT, not a pass)"; FAIL=1; }
   else echo "  (no oracle-mapped node for changed files)"; fi
 else echo "  (skipped: no changed files given or no oracle_map)"; fi
 # CoreMedia differential oracle. The registry/driver path above only covers hand-registered FCP
@@ -88,6 +96,15 @@ echo "== G5 semantic completeness (un-gameable: classify disasm + reach fuzz + o
 python3 "$ROOT/army/gate/g5_impl_gate.py" "$@"
 G5=$?
 [ "$G5" = 2 ] && { echo "  G5 REJECT"; FAIL=1; }
+# A GATE THAT CANNOT RUN IS NOT A PASS. Exit 0 = clean, 2 = reject; ANY other status means g5 died
+# (traceback, ImportError, missing interpreter) and the semantic check never happened. That used to
+# fall through to "GATE: PASS" and post a GREEN faithfulness-gate with G5 silently skipped — the one
+# check standing between the swarm and the 7385eb01 cheat family. Observed for real on 2026-08-10
+# (PR #341): g5 raised ImportError and the gate still printed PASS. Fail loudly instead.
+if [ "$G5" != 0 ] && [ "$G5" != 2 ]; then
+  echo "  G5 ERROR — g5_impl_gate.py exited $G5 without a verdict; the semantic check DID NOT RUN"
+  FAIL=1
+fi
 
 echo "== G6 add-only (no landed symbol may be deleted) =="
 # G6 catches the ONE loss mode G0-G5 are all blind to: a change that REMOVES a ported symbol which
