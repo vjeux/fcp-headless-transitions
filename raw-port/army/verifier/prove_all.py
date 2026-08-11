@@ -32,83 +32,80 @@ def layer1():
     if not ok: print(r.stdout[-800:], r.stderr[-400:])
     return ok
 
-def layer2():
-    r = run([sys.executable, os.path.join(HERE, "test_classify.py")])
-    ok = "test_classify: PASS" in r.stdout
-    print("LAYER 2 (structural classifier):", "PASS" if ok else "FAIL")
-    if not ok: print(r.stdout[-800:], r.stderr[-400:])
+# ── LAYER 2 TABLE ────────────────────────────────────────────────────────────────────────────────
+# One row per sub-layer: (label, description, command, pass-token). ADD A ROW; touch nothing else.
+# The label is a string, so no two PRs can be assigned the same letter by the merge — and if two
+# rows ever DO share one, `check_layer_labels` below says so instead of one silently shadowing the
+# other. Rows run in order; a row's own comment sits above it, where it survives a merge intact.
+LAYER2 = [
+    ("2",
+     "structural classifier",
+     [sys.executable, os.path.join(HERE, "test_classify.py")],
+     "test_classify: PASS"),
     # 2b — RESOLUTION, not just classification. "Given the right .s, is the verdict right?" is only
     # half the contract; the other half is "is it the right .s at all?". A class name that is a
     # substring of another class's name resolved to the WRONG class's body (PR #253: HGRenderNode ->
     # OZHGRenderNodeBase::finished, DISPATCH_ONLY) — a false REJECT there, and a false ACCEPT
     # wherever the wrong body happens to be EMPTY. Locked by fixtures in test_find_disasm.py.
-    r2 = run([sys.executable, os.path.join(HERE, "test_find_disasm.py")])
-    ok2 = "test_find_disasm: PASS" in r2.stdout
-    print("LAYER 2b (disasm resolution — right function, not just right verdict):",
-          "PASS" if ok2 else "FAIL")
-    if not ok2: print(r2.stdout[-1200:], r2.stderr[-400:])
+    ("2b",
+     "disasm resolution — right function, not just right verdict",
+     [sys.executable, os.path.join(HERE, "test_find_disasm.py")],
+     "test_find_disasm: PASS"),
     # 2c — the same question one level FINER, and for G5 itself: within the right class, is it the
     # right METHOD? #322 made a bare-key hit prove it names the CLASS, but not the method, so
     # find_disasm(<class>) handed whichever of the class's methods was cached to EVERY export in the
     # file — 11 fabricated cheat verdicts on one landed file, triggered by deriving the disasm the
     # worker brief REQUIRES. Locked by fixtures in test_g5_bare_key.py.
-    r3 = run([sys.executable, os.path.join(HERE, "test_g5_bare_key.py")])
-    ok3 = "test_g5_bare_key: PASS" in r3.stdout
-    print("LAYER 2c (G5 bare-key guard — right method, not just right class):",
-          "PASS" if ok3 else "FAIL")
-    if not ok3: print(r3.stdout[-1200:], r3.stderr[-400:])
+    ("2c",
+     "G5 bare-key guard — right method, not just right class",
+     [sys.executable, os.path.join(HERE, "test_g5_bare_key.py")],
+     "test_g5_bare_key: PASS"),
     # 2d — the status reconciler's fast path must agree with the reference it replaced. The
     # depth/enclosing-class test decides whether a throw-only body demotes a unit from `ported` to
     # `stub`; drift there moves the headline number silently, in the flattering direction. The
     # batch scanner is 29x faster than the per-def originals, which remain in the tree AS the
     # reference this compares against.
-    r4 = run([sys.executable, os.path.join(HERE, "test_brace_context.py")])
-    ok4 = "BRACE_CONTEXT: PASS" in r4.stdout
-    print("LAYER 2d (status reconciler brace-context — fast path == reference):",
-          "PASS" if ok4 else "FAIL")
-    if not ok4: print(r4.stdout[-1200:], r4.stderr[-400:])
-
+    ("2d",
+     "status reconciler brace-context — fast path == reference",
+     [sys.executable, os.path.join(HERE, "test_brace_context.py")],
+     "BRACE_CONTEXT: PASS"),
     # 2e — the rebase path. Not a cheat-detection layer: a work-PRESERVATION one. Three failures in
     # one day routed finished work into the discard pile — a cited .s filename read as a symbol and
     # false-BAILed a disjoint union, a class-keyed branch guess handed a reviewer another PR's
     # content, and a rebase silently dropped the branch's non-src files (an oracle harness, lost to
     # a force-push). None could be caught by a gate: each produces output that is itself gate-clean.
-    r5 = run([sys.executable, os.path.join(HERE, "test_rebase_tools.py")])
-    ok5 = "test_rebase_tools: PASS" in r5.stdout
-    print("LAYER 2e (rebase path — no phantom symbols, no branch guessing, no dropped files):",
-          "PASS" if ok5 else "FAIL")
-    if not ok5: print(r5.stdout[-1200:], r5.stderr[-400:])
+    ("2e",
+     "rebase path — no phantom symbols, no branch guessing, no dropped files",
+     [sys.executable, os.path.join(HERE, "test_rebase_tools.py")],
+     "test_rebase_tools: PASS"),
     # 2f — the guards that stop a TOOL from overriding a PERSON. A mechanical success must not paper
     # over a reviewer's rejection; a signature must not slide onto a head that moved; a slot must not
     # be handed on mid-rebase or carrying disasm residue that switches off the blind-spot flag.
     # Every case is mutation-checked (revert the fix, watch it go red) — one of them originally
     # passed with its own fix deleted, because it matched the explanatory comment rather than code.
-    r6 = run([sys.executable, os.path.join(HERE, "test_guards.py")])
-    ok6 = "test_guards: PASS" in r6.stdout
-    print("LAYER 2f (guards — no status override, no head drift, no dirty slot handover):",
-          "PASS" if ok6 else "FAIL")
-    if not ok6: print(r6.stdout[-1200:], r6.stderr[-400:])
+    ("2f",
+     "guards — no status override, no head drift, no dirty slot handover",
+     [sys.executable, os.path.join(HERE, "test_guards.py")],
+     "test_guards: PASS"),
     # 2g — pr_land's approval CARRY. It decides whether a reviewer's APPROVE survives the head move
     # that pr_land's own `update-branch` causes, i.e. it is a guard about a MERGE, and its first
     # version failed OPEN (two unreadable commits hashed to the same empty digest and compared
     # equal). It shipped with a suite that NOTHING RAN — OPS_LOG row 44's exact shape, and worse
     # than no test, because pr_land's comment told the next reader the function was pinned. This is
     # that caller. 1.4s, and every case is mutation-checked inside the suite.
-    r7 = run(["bash", os.path.join(TOOLS, "test_pr_land_carry.sh")])
-    ok7 = "TEST_PR_LAND_CARRY: PASS" in r7.stdout
-    print("LAYER 2g (pr_land approval carry — tree identity, never fail-open):",
-          "PASS" if ok7 else "FAIL")
-    if not ok7: print(r7.stdout[-1200:], r7.stderr[-400:])
+    ("2g",
+     "pr_land approval carry — tree identity, never fail-open",
+     ["bash", os.path.join(TOOLS, "test_pr_land_carry.sh")],
+     "TEST_PR_LAND_CARRY: PASS"),
     # 2h — the walk that recovers WHICH HEAD a reviewer signed. GitHub re-points a review's
     # commit_id forward onto every `Merge branch 'main' into …` that update-branch makes (+3s to
     # +39s after submission; two hops on #585), so 2g's comparison is only as good as the walk that
     # finds the reviewed commit. One hop too far compares against an older head; one too few
     # compares a commit with itself and always agrees. 0.3s.
-    r8 = run(["bash", os.path.join(TOOLS, "test_pr_land_signed_head.sh")])
-    ok8 = "TEST_PR_LAND_SIGNED_HEAD: PASS" in r8.stdout
-    print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
-          "PASS" if ok8 else "FAIL")
-    if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
+    ("2h",
+     "pr_land signed-head recovery — the rebound commit_id is not the reviewed head",
+     ["bash", os.path.join(TOOLS, "test_pr_land_signed_head.sh")],
+     "TEST_PR_LAND_SIGNED_HEAD: PASS"),
     # 2i — swarm_doctor's COVERAGE check, the one assertion that re-states a queue's behaviour
     # (it lifts each selector, then re-applies rebase_claim's status-description grep). A
     # re-statement that drifts does not fail loudly: it accuses PRs the queue is handing out, or
@@ -116,22 +113,20 @@ def layer2():
     # version of that check did report two live PRs backwards in one run. Pinned here because
     # rebase_claim can now select a CONFLICTED PR without reading any description. Offline (gh, sh
     # and from_main are stubbed), ~0.2s, every case mutation-checked inside the suite.
-    r9 = run([sys.executable, os.path.join(HERE, "test_queue_coverage.py")])
-    ok9 = "test_queue_coverage: PASS" in r9.stdout
-    print("LAYER 2i (queue coverage — the doctor follows the queues instead of disagreeing):",
-          "PASS" if ok9 else "FAIL")
-    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
+    ("2i",
+     "queue coverage — the doctor follows the queues instead of disagreeing",
+     [sys.executable, os.path.join(HERE, "test_queue_coverage.py")],
+     "test_queue_coverage: PASS"),
     # 2j — THE PR'S BASE. Nothing in the swarm read `baseRefName`: pr_gate diffs `origin/main...HEAD`
     # while pr_land merges into the PR's OWN base, so a PR stacked on another PR's branch got a green
     # status covering three PRs' commits and would have been merged where no branch protection
     # applies. Both tools now refuse; this pins both refusals AND the two decisions inside them (the
     # gate posts no status, so the PR stays claimable; pr_land fails OPEN on an unanswered query, so
     # a TLS blip cannot wedge every merge). Offline, guards extracted from the shipped files. ~1s.
-    r10 = run(["bash", os.path.join(TOOLS, "test_pr_base_is_main.sh")])
-    ok10 = "test_pr_base_is_main: PASS" in r10.stdout
-    print("LAYER 2j (a PR's base must be main — the gate and the merge target must agree):",
-          "PASS" if ok10 else "FAIL")
-    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
+    ("2j",
+     "a PR's base must be main — the gate and the merge target must agree",
+     ["bash", os.path.join(TOOLS, "test_pr_base_is_main.sh")],
+     "test_pr_base_is_main: PASS"),
     # 2k — WHICH QUEUE OWNS A G5-FLAGGED PR. The gate cannot clear a NO-DISASM blind spot itself; it
     # fails with "reviewer must re-derive disasm" and hands the PR back to a reviewer. No queue
     # offered it: review_claim excluded every FAILURE, rebase_claim takes regression/rebase only,
@@ -141,21 +136,19 @@ def layer2():
     #  (PR base) while this PR was open. Renumbered again on this rebase, as its own note asked —
     #  two layers claiming one letter is the kind of silent collision this suite exists to refuse.
     #  Third collision on this line today; the letters are allocated by whoever merges first.)
-    r11 = run(["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")])
-    ok11 = "test_review_claim_g5: PASS" in r11.stdout
-    print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
-          "PASS" if ok11 else "FAIL")
-    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    ("2k",
+     "queue ownership of a G5-flagged PR — the gate asked for a reviewer",
+     ["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")],
+     "test_review_claim_g5: PASS"),
     # 2l — the cross-queue lease guard. A PR that is CHANGES_REQUESTED *and* CONFLICTING sits in
     # BOTH worker queues, and until #643 taught rebase_claim to see DIRTY branches that combination
     # was rare. It is not rare now: measured the same hour, two workers held the two leases on #656
     # 66 seconds apart and both began reconciling the same 936-line PR. Offline, ~0.2s, and each
     # case is mutation-checked inside the suite.
-    r12 = run(["bash", os.path.join(TOOLS, "test_cross_queue_lease.sh")])
-    ok12 = "TEST_CROSS_QUEUE_LEASE: PASS" in r12.stdout
-    print("LAYER 2l (cross-queue lease — one PR is never handed to two workers):",
-          "PASS" if ok12 else "FAIL")
-    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
+    ("2l",
+     "cross-queue lease — one PR is never handed to two workers",
+     ["bash", os.path.join(TOOLS, "test_cross_queue_lease.sh")],
+     "TEST_CROSS_QUEUE_LEASE: PASS"),
     # 2s — the self-heal that clears attempt counters whose PR has already merged. It only looked at
     # counters AT the cap, while swarm_doctor flags any dead counter at all, so the tool reporting
     # the fault and the tool fixing it disagreed by construction and the board could never go green.
@@ -172,13 +165,71 @@ def layer2():
     # army/ops/2026-08-11-two-prove-all-layers-sharing-an-ok-variable-make-a-red-layer.md. One
     # worker is holding five merges on this tail right now, allocated disjointly in both letters and
     # variables: #656 2m/2n/2o r13-r15, #715 2p r16, #714 2q r17, #655 2r r18/r19, this one 2s r20.
-    r20 = run(["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")])
-    ok20 = "test_reap_dead_counters: PASS" in r20.stdout
-    print("LAYER 2s (dead attempt counters — the reaper can reach what the doctor reports):",
-          "PASS" if ok20 else "FAIL")
-    if not ok20: print(r20.stdout[-1200:], r20.stderr[-400:])
-    return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
-            and ok11 and ok12 and ok20)
+    ("2s",
+     "dead attempt counters — the reaper can reach what the doctor reports",
+     ["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")],
+     "test_reap_dead_counters: PASS"),
+]
+
+def check_layer_labels():
+    """A label may appear once. Two rows sharing one is the old `ok12` collision in table form:
+    both print, and a reader reconciling `LAYER 2l` against a PR cannot tell which row answered.
+    Cheap, and it runs before anything else so the suite cannot report on a table it distrusts."""
+    seen, dupes = set(), []
+    for label, *_ in LAYER2:
+        if label in seen:
+            dupes.append(label)
+        seen.add(label)
+    return dupes
+
+
+def layer2():
+    """LAYER 2 and its sub-layers, as DATA.
+
+    THIS USED TO BE THIRTEEN HAND-NUMBERED BLOCKS, and the numbering was the single busiest merge
+    conflict in the repo: every new check appended a `LAYER 2<letter>`, an `r<N>`/`ok<N>` pair, and a
+    term in one `return ok and ok2 and …` line, so any two tooling PRs collided on all three. Six
+    were in flight on this tail at once; one worker had to allocate letters AND variables by hand
+    across five PRs (2m-2u, r13-r22), and the block below this docstring carried a comment recording
+    its THIRD renumbering (2i -> 2j -> 2l -> 2s).
+
+    The conflict was never the danger. These were:
+
+      * "take mine" on that hunk silently DELETES a peer's landed layer. The file parses, the suite
+        prints PASS, and the dropped check never runs again — invisible to every gate.
+      * two blocks assigning the same `ok12` both PRINT correctly (each print follows its own
+        assignment) while the single `return` names `ok12` once, so the later block decides the
+        verdict for both and **a RED layer returns PASS**. Measured, with `LAYER 2l … FAIL` printed
+        directly above `PROVE_ALL: PASS`, exit 0.
+      * a mechanical merge left TWO `return` statements, the second unreachable, so the conjunction
+        was computed without the new layer.
+
+    A table has none of those failure modes by construction: there is no letter to collide (the
+    label is text in a row), no variable to share (results are a list), and no conjunction to edit
+    (`all(...)`). Two PRs adding a layer now conflict only if they add it at the same position, and
+    the union of two rows is obviously correct in a way the union of three edits is not.
+
+    Adding a layer = adding one row. Nothing else.
+    """
+    dupes = check_layer_labels()
+    if dupes:
+        print(f"LAYER 2: DUPLICATE LABEL(S) {dupes} — two rows claim the same layer, so a reader "
+              f"cannot tell which one answered. Fix the table before trusting this run.")
+        return False
+    results = []
+    for label, desc, cmd, token in LAYER2:
+        r = run(cmd)
+        ok = token in r.stdout
+        print(f"LAYER {label} ({desc}):", "PASS" if ok else "FAIL")
+        if not ok:
+            print(r.stdout[-1200:], r.stderr[-400:])
+        results.append(ok)
+    # EVERY row is counted. The old conjunction had to name each variable, which is exactly how a
+    # layer got computed, printed, and then left out of the verdict.
+    if len(results) != len(LAYER2):
+        print(f"PROVE_ALL: INTERNAL — ran {len(results)} of {len(LAYER2)} layers")
+        return False
+    return all(results)
 
 def _reach(spec, expect):
     import tempfile
