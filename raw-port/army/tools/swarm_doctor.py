@@ -693,31 +693,52 @@ def check_no_double_lease():
 
 # ── 6. Slot locks must carry a heartbeat ────────────────────────────────────────────────────────
 def check_heartbeats():
-    """#32: the lock recorded only `<epoch> pid-agent`, written once at acquire, so the 90-minute
-    stale-reclaim measured TICK AGE rather than idleness — a healthy long-running reviewer looked
-    exactly like a corpse, and a holder that died at minute 5 held the slot for the full 90."""
+    """A slot held by an agent that is gone is worse than a slot nobody holds: the roster still
+    reads full, so nothing refills it and the swarm quietly shrinks.
+
+    #32 gave the lock a heartbeat so its mtime measures IDLENESS rather than tick age. What was
+    missing is anybody looking at that mtime before the reclaim window expires — this check said
+    `16 slot(s) beating` about a fleet containing a corpse whose agent had exited 44 minutes
+    earlier, because it only complained past 90 minutes, which is also when the lock reclaims
+    itself. A check that fires exactly when the problem is already fixing itself reports nothing.
+
+    THE RECORDED PID IS NOT LIVENESS, and this is the note that stops the next person from
+    "improving" this check into an outage. The lock's second field used to be `pid-$$` — the pid of
+    the `slot_lock.sh` shell, which exits milliseconds later. Measured on a full 16-slot swarm:
+    every single recorded pid was dead, including a slot that had beaten 2 seconds before. An agent
+    is a model session; no local process outlives one `bash -c`. Testing that pid would free every
+    slot at once. The mtime is the only signal.
+
+    Thresholds, from that same measurement: live slots had all beaten within 6 minutes (median
+    ~100s, max 343s); the dead one sat at 44 minutes. FAIL at 20 leaves a 3x margin over the worst
+    live slot and still names the corpse ~25 minutes before the lock would free itself.
+    """
     slots = os.path.join(STATE, "slots")
     if not os.path.isdir(slots):
         return record("heartbeats", OK, "no slots held")
-    stale, noheart = [], []
+    dead_min = int(os.environ.get("SLOT_DEAD_MIN", "20"))
+    reclaim_min = int(os.environ.get("SLOT_STALE_MIN", "45"))
+    ages, dead = {}, []
     for s in sorted(os.listdir(slots)):
         held = os.path.join(slots, s, "held")
         if not os.path.exists(held):
             continue
-        body = open(held, errors="replace").read().strip()
-        age_min = (time.time() - os.path.getmtime(held)) / 60
-        if "pid-agent" in body:
-            noheart.append(s)
-        if age_min > 90:
-            stale.append(f"{s} ({age_min:.0f}m since last beat)")
-    msg = []
-    if stale:
-        msg.append(f"stale beyond the reclaim window: {', '.join(stale)}")
-    if noheart:
-        msg.append(f"no real pid (pre-heartbeat tool): {', '.join(noheart)}")
-    if stale:
-        return record("heartbeats", FAIL, "; ".join(msg), "#32")
-    record("heartbeats", OK, "; ".join(msg) or f"{len(os.listdir(slots))} slot(s) beating")
+        age = (time.time() - os.path.getmtime(held)) / 60
+        ages[s] = age
+        if age > dead_min:
+            dead.append(f"{s} ({age:.0f}m)")
+    if not ages:
+        return record("heartbeats", OK, "no slots held")
+    oldest = max(ages, key=ages.get)
+    spread = f"{len(ages)} slot(s), oldest beat {ages[oldest]:.0f}m ({oldest})"
+    if dead:
+        return record("heartbeats", FAIL,
+                      f"{len(dead)} slot(s) have not beaten in over {dead_min}m and are almost "
+                      f"certainly held by an agent that has exited: {', '.join(dead)} — the roster "
+                      f"still reads full, so nothing refills them. Clear the lock "
+                      f"(`rm -rf $FCT_STATE_DIR/slots/<slot>`) and respawn that slot; the lock "
+                      f"would otherwise free itself only at {reclaim_min}m. [{spread}]", "#32")
+    record("heartbeats", OK, spread)
 
 
 # ── 7. The tests that guard all this must still be able to FAIL ─────────────────────────────────
@@ -1262,9 +1283,22 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quiet", action="store_true", help="print only problems (for cron)")
     ap.add_argument("--json", action="store_true")
+    # Run one check by name. Added because the heartbeats check is pure filesystem and its test
+    # should not have to make a dozen network calls to exercise it — and because an agent chasing
+    # one FAIL should not pay for the other ten.
+    ap.add_argument("--only", default="", help="comma-separated check names, e.g. --only heartbeats")
     args = ap.parse_args()
 
-    for c in CHECKS:
+    checks = CHECKS
+    if args.only:
+        want = {w.strip() for w in args.only.split(",") if w.strip()}
+        checks = [c for c in CHECKS if c.__name__.replace("check_", "").replace("_", "-") in want
+                  or c.__name__ in want]
+        if not checks:
+            print(f"swarm_doctor: no check matches --only {args.only!r}; known: "
+                  + ", ".join(c.__name__.replace("check_", "").replace("_", "-") for c in CHECKS))
+            return 2
+    for c in checks:
         try:
             c()
         except Exception as e:
