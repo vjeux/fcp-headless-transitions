@@ -12,6 +12,7 @@
 //                                                                       (SetRenderThreadPriority)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE.s
 //                                                                       (SetGPUGraphicsAPI)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob19UsesOnlyGPUResourceEv.s (UsesOnlyGPUResource)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob17GetGPUGraphicsAPIEv.s   (GetGPUGraphicsAPI —
 //                                                                       read only to pin the
 //                                                                       +0x64 offset/width; the
@@ -67,6 +68,7 @@
 //   SetType                 — none.
 //   SetRenderThreadPriority — none.
 //   SetGPUGraphicsAPI       — none.
+//   UsesOnlyGPUResource     — none.
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -85,6 +87,8 @@
 //       — HGRenderJob::SetRenderThreadPriority(HGRenderJob::RenderThreadPriority) @Helium 0x544b0
 //   * __ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE
 //       — HGRenderJob::SetGPUGraphicsAPI(HGRenderJob::GPUGraphicsAPI) @Helium 0x54490
+//   * __ZN11HGRenderJob19UsesOnlyGPUResourceEv
+//       — HGRenderJob::UsesOnlyGPUResource() @Helium 0x54b20
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — SetUserTag @0x54650
@@ -205,6 +209,18 @@ export type HGRenderJobMetalShaderPrecision = number;
 export type HGRenderJobGPUGraphicsAPI = number;
 
 /**
+ * The pointee shape that `UsesOnlyGPUResource` @Helium 0x54b20 dereferences — both at
+ * `this+0x18` (`cmpl $0x1, 0x8(%rcx)` @0x54b40) and for every entry of the vector at
+ * `this+0x28..+0x30` (`cmpl $0x0, 0x8(%rax)` @0x54b74). Only the u32 at +0x08 is read by
+ * any decoded instruction, so only that word is modelled; naming the rest would be the
+ * magic-offset guesswork PORTING_SPEC Rule 5 forbids.
+ */
+export interface HGRenderJobTaggedRef {
+  /** +0x08 (u32) — compared against 1 @0x54b40 and against 0 @0x54b74. */
+  tag08: number;
+}
+
+/**
  * `HGRenderJob` — Helium render job. This file ports the setters listed in
  * "Symbols ported here" (see file header); every other method is a
  * separate ledger entry. Field offsets not yet decoded are omitted; the
@@ -261,6 +277,25 @@ export class HGRenderJob {
    *  four bytes at +0x64 change. Zero-initialised to a neutral tag until a ctor is
    *  transcribed to reveal the true default. */
   gpuGraphicsAPI: HGRenderJobGPUGraphicsAPI = 0; // @Helium HGRenderJob@0x64
+
+  /** @Helium HGRenderJob@0x18 — a nullable pointer to a tagged object whose u32 at
+   *  +0x08 is compared against 1 by UsesOnlyGPUResource @0x54b40
+   *  (`cmpl $0x1, 0x8(%rcx)`). Nothing else in the decoded methods touches it, so
+   *  only the tag word is modelled; the pointee's remaining layout is undecoded. */
+  taggedRef18: HGRenderJobTaggedRef | null = null; // @Helium HGRenderJob@0x18
+
+  /** @Helium HGRenderJob@0x28 / +0x30 — begin/end of a std::vector of 16-BYTE entries
+   *  (`addq $0x10` stride @0x54b5f/0x54b80), each of which starts with a pointer that
+   *  UsesOnlyGPUResource dereferences at +0x08 (`movq -0x10(%rdx), %rax ; cmpl $0x0,
+   *  0x8(%rax)` @0x54b70). Modelled as the array of pointed-to objects, so `.length`
+   *  is the (end-begin)/16 the machine computes; the other 8 bytes of each entry are
+   *  not read by any decoded method. */
+  taggedRefs: Array<HGRenderJobTaggedRef> = []; // @Helium HGRenderJob@0x28..+0x30
+
+  /** @Helium HGRenderJob@0x50 — an 8-byte slot that UsesOnlyGPUResource tests only for
+   *  non-null (`cmpq $0x0, 0x50(%rdi)` @0x54b46). Its type is undecoded, so it is
+   *  modelled as an opaque nullable reference. */
+  slot50: unknown | null = null; // @Helium HGRenderJob@0x50
 
   /**
    * `HGRenderJob::SetUserTag(unsigned long long)` @Helium 0x54650
@@ -502,6 +537,84 @@ export class HGRenderJob {
     // @0x54497..0x54498 — epilogue + retq.
     // ------------------------------------------------------------
     this.gpuGraphicsAPI = api >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::UsesOnlyGPUResource()` @Helium 0x54b20
+   *   (__ZN11HGRenderJob19UsesOnlyGPUResourceEv)
+   *
+   * Full transcription of the 40-line body (raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob19UsesOnlyGPUResourceEv.s). Returns `bool` in %al.
+   *
+   *   0x54b20  movl  0x10(%rdi), %ecx        ; ecx = this->_resource (u32 @+0x10)
+   *   0x54b23  movb  $0x1, %al               ; default answer = true
+   *   0x54b25  leal  -0x2(%rcx), %edx        ; edx = resource - 2
+   *   0x54b28  cmpl  $0x4, %edx
+   *   0x54b2b  jae   0x54b2e                 ; UNSIGNED >= 4 -> keep going
+   *   0x54b2d  retq                          ;   else return true (no frame was built)
+   *   0x54b2e  cmpl  $0x6, %ecx
+   *   0x54b31  jne   0x54b4f                 ; resource != 6 -> 0x54b4f: xorl %eax,%eax; ret
+   *   0x54b33  pushq %rbp ; movq %rsp,%rbp
+   *   0x54b37  movq  0x18(%rdi), %rcx        ; rcx = this->taggedRef18
+   *   0x54b3b  testq %rcx, %rcx
+   *   0x54b3e  je    0x54b46                 ; null -> skip the tag test
+   *   0x54b40  cmpl  $0x1, 0x8(%rcx)
+   *   0x54b44  je    0x54b4d                 ; tag08 == 1 -> return true (al still 1)
+   *   0x54b46  cmpq  $0x0, 0x50(%rdi)
+   *   0x54b4b  je    0x54b52                 ; slot50 == null -> walk the vector
+   *   0x54b4d  popq  %rbp ; retq             ;   else return true
+   *   0x54b4f  xorl  %eax, %eax ; retq       ; the resource != 6 exit -> false
+   *   0x54b52  movq  0x28(%rdi), %rdx        ; rdx = vector begin
+   *   0x54b56  movq  0x30(%rdi), %rcx        ; rcx = vector end
+   *   0x54b5a  cmpq  %rcx, %rdx
+   *   0x54b5d  je    0x54b88                 ; EMPTY vector -> 0x54b88: xorl %eax,%eax -> false
+   *   0x54b5f  addq  $0x10, %rdx             ; pre-advance; entries are 16 bytes
+   *   0x54b70  movq  -0x10(%rdx), %rax       ; rax = entry[i].ptr
+   *   0x54b74  cmpl  $0x0, 0x8(%rax)
+   *   0x54b78  setne %al                     ; al = (ptr->tag08 != 0)
+   *   0x54b7b  je    0x54b4d                 ; a ZERO tag returns immediately with al = 0
+   *   0x54b7d  cmpq  %rcx, %rdx
+   *   0x54b80  leaq  0x10(%rdx), %rdx
+   *   0x54b84  jne   0x54b70                 ; loop while the pre-increment cursor != end
+   *   0x54b86  jmp   0x54b4d                 ; ran out -> return al, which is 1
+   *
+   * So: resource in {2,3,4,5} is unconditionally GPU-only; anything other than 6 is not;
+   * and resource == 6 is GPU-only when EITHER `taggedRef18->tag08 == 1` OR `slot50` is
+   * non-null, else when the +0x28 vector is non-empty and EVERY entry's `tag08` is
+   * non-zero. An empty vector on that last path answers FALSE.
+   *
+   * Note the two branches that are easy to invert: `cmpl $0x4,%edx ; jae` is UNSIGNED, so
+   * resource 0 and 1 wrap to 0xfffffffe/0xffffffff and take the `jae` (they are NOT in the
+   * true set); and `je 0x54b52` fires when slot50 IS null, i.e. the vector walk is the
+   * fallback, not the primary test.
+   *
+   * DIFFERENTIAL against the live binary (exported `T`, so dlsym reaches it; run under
+   * `arch -x86_64`): raw-port/re/oracle/HGRenderJob_UsesOnlyGPUResource_oracle.py builds
+   * synthetic jobs — every resource value 0..8, taggedRef18 null / tag 0 / 1 / 2, slot50
+   * null or not, and vectors of length 0..3 with every tag combination — and compares the
+   * live answer to this body: 2,880 cases, 1,522 TRUE / 1,358 FALSE, 0 divergences.
+   *
+   * @returns true when the job needs only GPU resources.
+   */
+  UsesOnlyGPUResource(): boolean {
+    // @0x54b20/0x54b25/0x54b28 — UNSIGNED (resource - 2) < 4, i.e. resource in {2,3,4,5}
+    const resource = this._resource >>> 0;
+    if (((resource - 2) >>> 0) < 4) return true; // @0x54b2b jae not taken -> @0x54b2d ret al=1
+    // @0x54b2e/0x54b31 — anything but 6 is false
+    if (resource !== 6) return false; // @0x54b4f xorl %eax,%eax ; retq
+    // @0x54b37..0x54b44 — taggedRef18 != null && taggedRef18->tag08 == 1 -> true
+    const ref = this.taggedRef18;
+    if (ref !== null && (ref.tag08 >>> 0) === 1) return true; // @0x54b44 je -> @0x54b4d (al=1)
+    // @0x54b46/0x54b4b — slot50 non-null -> true; null -> fall through to the vector walk
+    if (this.slot50 !== null && this.slot50 !== undefined) return true; // @0x54b4d (al=1)
+    // @0x54b52..0x54b5d — an empty vector answers false
+    const refs = this.taggedRefs;
+    if (refs.length === 0) return false; // @0x54b88 xorl %eax,%eax
+    // @0x54b70..0x54b84 — every entry's tag08 must be non-zero; the first zero returns false
+    for (let i = 0; i < refs.length; i++) {
+      if ((refs[i].tag08 >>> 0) === 0) return false; // @0x54b78 setne al=0 ; @0x54b7b je
+    }
+    return true; // @0x54b86 jmp 0x54b4d with al = 1 from the last setne
   }
 
   /**
