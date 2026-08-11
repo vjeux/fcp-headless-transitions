@@ -22,10 +22,39 @@ REPO_SLUG="vjeux/fcp-headless-transitions"
 CANON="$HOME/random/final-cut-pro-transitions"
 cd "$CANON"
 
-HEAD_SHA=$(gh pr view "$PR" --repo "$REPO_SLUG" --json headRefOid  --jq .headRefOid)
-HEAD_REF=$(gh pr view "$PR" --repo "$REPO_SLUG" --json headRefName --jq .headRefName)
+PRMETA=$(gh pr view "$PR" --repo "$REPO_SLUG" --json headRefOid,headRefName,baseRefName \
+          --jq '"\(.headRefOid)\t\(.headRefName)\t\(.baseRefName)"' 2>/dev/null)
+HEAD_SHA=${PRMETA%%$'\t'*}
+HEAD_REF=$(printf '%s' "$PRMETA" | cut -f2)
+BASE_REF=$(printf '%s' "$PRMETA" | cut -f3)
 [ -z "$HEAD_SHA" ] && { echo "PR #$PR not found"; exit 3; }
-echo "PR #$PR  head=$HEAD_REF @ ${HEAD_SHA:0:12}  reviewed=$REVIEWED"
+echo "PR #$PR  head=$HEAD_REF @ ${HEAD_SHA:0:12}  base=$BASE_REF  reviewed=$REVIEWED"
+
+# EVERYTHING BELOW THIS LINE ASSUMES THE BASE IS `main`, AND NOTHING USED TO CHECK.
+#
+# This script diffs `origin/main...HEAD` and hands that file list to regression_check and dup_check;
+# pr_land merges with `gh pr merge --squash`, which targets the PR's OWN base. For a PR stacked on
+# another PR's branch those are two different questions, and answering the first while GitHub acts
+# on the second is how a green `faithfulness-gate` came to certify three commits belonging to three
+# PRs (#651 -> tools/review-claim-g5 -> tools/lease-ownership -> main, with the bottom of the stack
+# carrying an un-dismissed CHANGES_REQUESTED). Measured when this landed: `grep -c baseRefName` was
+# 0 in review_claim.sh, rework_claim.sh, rebase_claim.sh, swarm_doctor.py and every file under
+# army/tools and army/gate. pr_submit.sh always passes `--base main`, so only a hand-rolled
+# `gh pr create` can produce one — which is exactly how the ops/tooling PRs are opened.
+#
+# REFUSE TO JUDGE, AND POST NOTHING. Posting `failure` here would be worse than the bug: review_claim
+# selects on the head's STATUS and skips FAILURE, so a red status would hide the PR from the only
+# queue that can tell its author to retarget — the "stranded in no queue" shape this log already
+# carries three times. With no status posted the PR stays `NONE` and stays claimable, and the next
+# reviewer sees this message instead of a verdict.
+if [ "$BASE_REF" != "main" ] && [ "${FCT_ALLOW_NONMAIN_BASE:-0}" != "1" ]; then
+  echo "PR_GATE: REFUSING (#$PR) — base is '$BASE_REF', not 'main'."
+  echo "  This gate diffs origin/main...HEAD, so its verdict would cover every commit in the stack,"
+  echo "  not this PR's; and pr_land would merge into '$BASE_REF', bypassing main's protection."
+  echo "  Remedy (no code change): gh pr edit $PR --repo $REPO_SLUG --base main   [then re-gate]"
+  echo "  No status posted, so the PR stays visible to review_claim."
+  exit 3
+fi
 # Post the required `faithfulness-gate` status as the REVIEWER app (falls back to operator auth if
 # the app is not configured). Having the gate come from the reviewer identity — not from whoever's
 # token happened to be handy — is what lets branch protection treat it as an independent check.

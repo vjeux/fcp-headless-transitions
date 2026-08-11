@@ -121,7 +121,18 @@ def layer2():
     print("LAYER 2i (queue coverage — the doctor follows the queues instead of disagreeing):",
           "PASS" if ok9 else "FAIL")
     if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
-    # 2j — the stale-file guard's own suite. `stale_file_check.py` is a HARD gate inside pr_gate,
+    # 2j — THE PR'S BASE. Nothing in the swarm read `baseRefName`: pr_gate diffs `origin/main...HEAD`
+    # while pr_land merges into the PR's OWN base, so a PR stacked on another PR's branch got a green
+    # status covering three PRs' commits and would have been merged where no branch protection
+    # applies. Both tools now refuse; this pins both refusals AND the two decisions inside them (the
+    # gate posts no status, so the PR stays claimable; pr_land fails OPEN on an unanswered query, so
+    # a TLS blip cannot wedge every merge). Offline, guards extracted from the shipped files. ~1s.
+    r10 = run(["bash", os.path.join(TOOLS, "test_pr_base_is_main.sh")])
+    ok10 = "test_pr_base_is_main: PASS" in r10.stdout
+    print("LAYER 2j (a PR's base must be main — the gate and the merge target must agree):",
+          "PASS" if ok10 else "FAIL")
+    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
+    # 2k — the stale-file guard's own suite. `stale_file_check.py` is a HARD gate inside pr_gate,
     # ABOVE the "no raw-port/src ports to gate" early exit, so it runs on the whole non-src
     # population — 15 of the 16 open PRs when it landed. A later edit that broke its
     # still-on-main filter would therefore hard-fail honest PRs across the entire queue, and the one
@@ -130,12 +141,12 @@ def layer2():
     # pr_gate and swarm_doctor all referenced it zero times — which is OPS_LOG row 44's shape ("a
     # guard that exists, works, and is never called is indistinguishable from no guard at all, and
     # reads as reassurance"). 0.4s.
-    r10 = run(["bash", os.path.join(TOOLS, "test_stale_file_check.sh")])
-    ok10 = "TEST_STALE_FILE_CHECK: PASS" in r10.stdout
-    print("LAYER 2j (stale-file guard — a deletion main still has is caught, a pure append is not):",
-          "PASS" if ok10 else "FAIL")
-    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
+    r11 = run(["bash", os.path.join(TOOLS, "test_stale_file_check.sh")])
+    ok11 = "TEST_STALE_FILE_CHECK: PASS" in r11.stdout
+    print("LAYER 2k (stale-file guard — a deletion main still has is caught, a pure append is not):",
+          "PASS" if ok11 else "FAIL")
+    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11
 
 def _reach(spec, expect):
     import tempfile
