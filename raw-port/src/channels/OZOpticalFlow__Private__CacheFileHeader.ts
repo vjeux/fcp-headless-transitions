@@ -3,9 +3,10 @@
 //
 // The fixed-size header at the front of an optical-flow motion-vector cache
 // file (the struct `OZOpticalFlow::Private::ReadHeader(FILE*, CacheFileHeader&)`
-// @0x4e52d0 fills). FIVE accessors are transcribed in this file. The rest of the
-// class (the ctors @0x4e5150/@0x4e5170, setSwap/needsSwap, the three setters,
-// fieldMode/setFieldMode, setResolution, vectorsHeight @0x4e52a0,
+// @0x4e52d0 fills). SIX accessors and TWO setters are transcribed in this file.
+// The rest of the class (the ctors @0x4e5150/@0x4e5170, needsSwap @0x4e51a0, the
+// two remaining setters setSourceWidth @0x4e51b0 / setSourceHeight @0x4e51d0,
+// setFieldMode @0x4e5250, setResolution @0x4e5220, vectorsHeight @0x4e52a0,
 // hasMaxDisplacements @0x4e52c0) are SEPARATE ledger units and are NOT ported
 // here; do not add them without their own disassembly and address citations.
 //
@@ -16,13 +17,16 @@
 // Provenance (Ozone framework, x86_64):
 //   /Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/Versions/A/Ozone
 //
-// Symbols ported in this file (all `const` accessors):
+// Symbols ported in this file (the `const` accessors, plus one setter):
 //   @0x4e51c0  CacheFileHeader::sourceWidth()   __ZNK13OZOpticalFlow7Private15CacheFileHeader11sourceWidthEv
 //   @0x4e51e0  CacheFileHeader::sourceHeight()  __ZNK13OZOpticalFlow7Private15CacheFileHeader12sourceHeightEv
 //   @0x4e5200  CacheFileHeader::totalFields()   __ZNK13OZOpticalFlow7Private15CacheFileHeader11totalFieldsEv
 //   @0x4e5210  CacheFileHeader::resolution()    __ZNK13OZOpticalFlow7Private15CacheFileHeader10resolutionEv
 //   @0x4e5270  CacheFileHeader::vectorsWidth()  __ZNK13OZOpticalFlow7Private15CacheFileHeader12vectorsWidthEv
 //   @0x4e5240  CacheFileHeader::fieldMode()     __ZNK13OZOpticalFlow7Private15CacheFileHeader9fieldModeEv
+//   @0x4e51f0  CacheFileHeader::setTotalFields(unsigned int)
+//                                               __ZN13OZOpticalFlow7Private15CacheFileHeader14setTotalFieldsEj
+//   @0x4e5190  CacheFileHeader::setSwap(bool)   __ZN13OZOpticalFlow7Private15CacheFileHeader7setSwapEb
 //
 // Source disassembly (re-derived from the binary with
 // `raw-port/tools/disasm.sh --sym <mangled> Ozone`):
@@ -32,19 +36,28 @@
 //   raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader10resolutionEv.s    (8 lines)
 //   raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader12vectorsWidthEv.s  (22 lines)
 //   raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader9fieldModeEv.s     (9 lines)
+//   raw-port/re/disasm/__ZN13OZOpticalFlow7Private15CacheFileHeader14setTotalFieldsEj.s (7 lines)
+//   raw-port/re/disasm/__ZN13OZOpticalFlow7Private15CacheFileHeader7setSwapEb.s        (7 lines)
 //
 // ---------------------------------------------------------------------------
-// LAYOUT (offsets from the five bodies below, corroborated by the sibling
+// LAYOUT (offsets from the bodies below, corroborated by the sibling
 // bodies cited under each field — those siblings are EVIDENCE, not ports):
 //
 //   struct CacheFileHeader {                 // >= 0x11 bytes
 //     uint16_t version;      // +0x00  ctor writes `movw $0x6,(%rdi)` @0x4e5154
 //     uint8_t  needsSwap;    // +0x01  the whole body of needsSwap() @0x4e51a4 is
 //                            //        `movzbl 0x1(%rdi),%eax` (the high byte of
-//                            //        that same movw, hence 0 after the ctor)
+//                            //        that same movw, hence 0 after the ctor);
+//                            //        WRITTEN @0x4e5194 (`movb %sil,0x1(%rdi)` —
+//                            //        the setSwap setter ported below, a 1-byte
+//                            //        store, which is what fixes the field's WIDTH
+//                            //        at one byte rather than sharing the u16 at
+//                            //        +0x00)
 //     uint32_t sourceWidth;  // +0x04  read @0x4e51c4 / @0x4e5283 / @0x4e528d / @0x4e5294
 //     uint32_t sourceHeight; // +0x08  read @0x4e51e4
-//     uint32_t totalFields;  // +0x0c  read @0x4e5204
+//     uint32_t totalFields;  // +0x0c  read @0x4e5204; WRITTEN @0x4e51f4
+//                            //        (`movl %esi,0xc(%rdi)` — the setter ported
+//                            //         below, a 32-bit store to the same slot)
 //     uint8_t  flags;        // +0x10  read @0x4e5214 (resolution) and @0x4e5274
 //                            //        (vectorsWidth); ctor sets it to 3 @0x4e5168
 //   };
@@ -63,7 +76,7 @@
 //                       bit is CLEAR.
 //   The ctor's `movb $0x3,0x10(%rdi)` @0x4e5168 therefore defaults BOTH bits set.
 //
-// CALLEES: none in any of the five bodies. No in-scope call, no extern, no
+// CALLEES: none in any of the bodies ported here. No in-scope call, no extern, no
 // indirect and no virtual dispatch (`depgraph.py deps` lists nothing for any of
 // them).
 
@@ -71,12 +84,24 @@
  * `OZOpticalFlow::Private::CacheFileHeader` — the motion-vector cache-file
  * header.
  *
- * Only the four slots the five ported accessors read are modelled; see the file
+ * Only the four slots the ported members touch are modelled; see the file
  * header for the byte layout and the evidence behind each offset.
  *
  * @Ozone 0x4e51c0 (and the four sibling accessor addresses listed above)
  */
 export class OZOpticalFlow__Private__CacheFileHeader {
+  /**
+   * +0x01 — the byte-swap flag, kept as the raw BYTE the machine moves.
+   *
+   * Written by `setSwap(bool)`'s single `movb %sil,0x1(%rdi)` @0x4e5194 (ported
+   * below) and read back by `needsSwap()` @0x4e51a4 with `movzbl 0x1(%rdi),%eax`
+   * — a zero-extending byte load, so the accessor's result is this byte's
+   * unsigned value, not a boolean. The ctor @0x4e5154 writes the u16 0x0006
+   * across +0x00..+0x01, leaving this byte 0 (see the file header), which is the
+   * default used here.
+   */
+  needsSwapAt1 = 0;
+
   /** +0x04 — uint32 source width (`movl 0x4(%rdi),%eax` @0x4e51c4). */
   sourceWidthAt4 = 0;
 
@@ -271,6 +296,84 @@ export class OZOpticalFlow__Private__CacheFileHeader {
   fieldMode(): number {
     // @0x4e5244/@0x4e5246/@0x4e524a  xorl %eax,%eax ; testb $0x2,0x10(%rdi) ; sete %al
     return ((this.flagsAt10 & 0xff) & 0x2) === 0 ? 1 : 0;
+  }
+
+  /**
+   * `CacheFileHeader::setTotalFields(unsigned int)` — @Ozone 0x4e51f0
+   *   __ZN13OZOpticalFlow7Private15CacheFileHeader14setTotalFieldsEj
+   *
+   * The mutator paired with `totalFields()` @0x4e5200 above: it writes the very
+   * slot that accessor reads.
+   *
+   * Full transcription — every instruction, in order (7-line disasm at
+   * raw-port/re/disasm/__ZN13OZOpticalFlow7Private15CacheFileHeader14setTotalFieldsEj.s):
+   *
+   *   0x4e51f0  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x4e51f1  movq  %rsp,%rbp             ; frame setup (no TS counterpart)
+   *   0x4e51f4  movl  %esi,0xc(%rdi)        ; this->totalFields = n (32-bit store)
+   *   0x4e51f7  popq  %rbp                  ; frame teardown (no TS counterpart)
+   *   0x4e51f8  retq
+   *   0x4e51f9  nopl  (%rax)                ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * `movl` (not `movq`/`movw`/`movb`) — a 32-bit store, and the argument is
+   *     `unsigned int`, so the port truncates to u32 with `>>> 0`. This is the
+   *     exact inverse of `totalFields()`'s `movl 0xc(%rdi),%eax` @0x4e5204, and
+   *     the same width/offset pair the sibling setters use one slot lower
+   *     (`setSourceHeight` @0x4e51d4 stores `movl %esi,0x8(%rdi)`) — evidence
+   *     only; those are their own ledger units.
+   *   * NO validation, NO clamp, NO flag update: the store is the entire
+   *     function. The `unsigned` parameter is written verbatim, including 0 and
+   *     values ≥ 2^31.
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps` lists nothing).
+   *
+   * @param n the new total field count (`unsigned int`, arriving in %esi).
+   */
+  setTotalFields(n: number): void {
+    // @0x4e51f4  movl %esi,0xc(%rdi) — 32-bit store of the u32 argument.
+    this.totalFieldsAtC = n >>> 0;
+  }
+
+  /**
+   * `CacheFileHeader::setSwap(bool)` — @Ozone 0x4e5190
+   *   __ZN13OZOpticalFlow7Private15CacheFileHeader7setSwapEb
+   *
+   * The mutator for the +0x01 byte-swap flag — the slot `needsSwap()` @0x4e51a0
+   * reads (`movzbl 0x1(%rdi),%eax` @0x4e51a4; its own ledger unit, cited here as
+   * the evidence that pins this offset and width).
+   *
+   * Full transcription — every instruction, in order (7-line disasm at
+   * raw-port/re/disasm/__ZN13OZOpticalFlow7Private15CacheFileHeader7setSwapEb.s):
+   *
+   *   0x4e5190  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x4e5191  movq  %rsp,%rbp             ; frame setup (no TS counterpart)
+   *   0x4e5194  movb  %sil,0x1(%rdi)        ; this->needsSwap = swap (1-BYTE store)
+   *   0x4e5198  popq  %rbp                  ; frame teardown (no TS counterpart)
+   *   0x4e5199  retq
+   *   0x4e519a  nopw  (%rax,%rax)           ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * `movb %sil` — the LOW BYTE of the argument register, and only that byte:
+   *     +0x00's u16 `version` and +0x02.. are untouched. That one-byte width is
+   *     why the field is modelled as a byte rather than folded into the version
+   *     word.
+   *   * the parameter is a C++ `bool`, which the System V x86-64 psABI passes as
+   *     0 or 1 in the low byte of %rsi, so the stored byte is exactly 0 or 1 —
+   *     hence `swap ? 1 : 0` reproduces the store's observable effect (and
+   *     `needsSwap()`'s zero-extended read of it) for every ABI-legal input.
+   *   * NO read-modify-write, NO masking, NO other field touched: the store is
+   *     the entire function. Compare `setResolution` @0x4e5220 /
+   *     `setFieldMode` @0x4e5250, which DO read-modify-write the +0x10 flags
+   *     byte — this one does not, because +0x01 is a whole field of its own.
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps` lists nothing).
+   *
+   * @param swap the new byte-swap flag (`bool`, arriving in %sil).
+   */
+  setSwap(swap: boolean): void {
+    // @0x4e5194  movb %sil,0x1(%rdi) — one-byte store of the bool argument.
+    this.needsSwapAt1 = swap ? 1 : 0;
   }
 
 }
