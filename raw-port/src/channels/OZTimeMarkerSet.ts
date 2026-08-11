@@ -35,6 +35,30 @@ import type { CMTime } from "../infra/CMTime.js";
 import { CMTimeCompare } from "../infra/CMTime.js";
 
 /**
+ * The libc++ `__tree_end_node` shape — the ONE quadword at +0x00 that every
+ * object in this tree has, and the reason a walk pointer can address a real
+ * node and the set's embedded END node interchangeably.
+ *
+ * In libc++ a red-black tree's end node is a `__tree_end_node` holding only
+ * `__left_` (the tree ROOT), and a real `__tree_node_base` DERIVES from it,
+ * adding right/parent. That is exactly what this binary does: the set's +0x10
+ * is the end node, its +0x00 (== the set's +0x10) is the root pointer, and a
+ * node's +0x00 is its left child. `cmpq (%rax),%r15` @0x2126e4 reads that word
+ * through whichever of the two it happens to hold, with NO test — so the port
+ * declares it ONCE on a shared base rather than as two fields reinterpreted
+ * with a cast at each use.
+ *
+ * @Ozone 0x2126e4 (the read), 0x21170b (the ctor zeroing it)
+ */
+export interface OZTimeMarkerTreeEndNode {
+  /**
+   * +0x00 — the LEFT CHILD when this is a real node, the tree ROOT when this
+   * is the set's end node. One quadword, one read site, one declaration.
+   */
+  leftAt0: OZTimeMarkerNode | null;
+}
+
+/**
  * A node of the ordered marker tree `OZTimeMarkerSet` holds at +0x08/+0x10.
  *
  * Every offset below is read by `findNextMarker(CMTime) const` @0x212620 and
@@ -52,19 +76,22 @@ import { CMTimeCompare } from "../infra/CMTime.js";
  *                   u32 flags, i64 epoch}
  *
  * +0x18 and +0x20 are NOT touched by this body and are therefore not modelled.
+ *
  * The set's own +0x10 slot (see {@link OZTimeMarkerSetSentinel}) is the tree's
- * END node: this body only ever compares POINTERS against it (@0x212638,
- * @0x212653) and never dereferences it, which is why the sentinel keeps its
- * existing two-quadword shape rather than being retyped.
+ * END node. It is mostly compared by POINTER (@0x212638, @0x212653), but the
+ * climb at @0x2126e4 DOES dereference it — when the walk reaches the root, the
+ * `(%rax)` it reads is the end node's own +0x00, i.e. the tree root. Both
+ * therefore derive from {@link OZTimeMarkerTreeEndNode}, which is what lets
+ * one walk pointer hold either and makes `=== end` a legal comparison instead
+ * of two disjoint types bridged by casts.
  *
  * @Ozone 0x212620
  */
-export interface OZTimeMarkerNode {
-  /** +0x00 — left child (NULL when absent). */
-  leftAt0: OZTimeMarkerNode | null;
+export interface OZTimeMarkerNode extends OZTimeMarkerTreeEndNode {
   /** +0x08 — right child (NULL when absent). */
   rightAt8: OZTimeMarkerNode | null;
-  /** +0x10 — parent; the root's parent is the set's END node. */
+  /** +0x10 — parent; the root's parent is the set's END node, which is why
+   *  this is the union and not `OZTimeMarkerNode`. */
   parentAt10: OZTimeMarkerNode | OZTimeMarkerSetSentinel;
   /** +0x28 — the marker's CMTime key (24 bytes). */
   keyAt28: CMTime;
@@ -89,26 +116,15 @@ export interface OZTimeMarkerNode {
  *
  * @Ozone 0x211708 (the address whose 16 bytes this covers)
  */
-export interface OZTimeMarkerSetSentinel {
-  /** +0x10 — first zeroed quadword. */
+export interface OZTimeMarkerSetSentinel extends OZTimeMarkerTreeEndNode {
+  /** +0x10 — first zeroed quadword, as the ctor's `movups` writes it. THE SAME
+   *  8 BYTES as the inherited {@link OZTimeMarkerTreeEndNode.leftAt0}, which is
+   *  the decoded view of this word: raw here, typed there. A JS object cannot
+   *  literally alias two fields, so the ctor writes both in their zero form
+   *  (`0n` / `null`) and this unit only ever READS the decoded one. */
   qword10: bigint;
   /** +0x18 — second zeroed quadword. */
   qword18: bigint;
-  /**
-   * +0x10 AGAIN, now DECODED — the same quadword as {@link qword10}, viewed as
-   * what `findNextMarker` @0x212620 proves it to be: the tree's ROOT pointer.
-   *
-   * The successor climb @0x2126e4 does `cmpq (%rax), %r15` where `%rax` is the
-   * node's PARENT — and the root's parent IS this end node, so that load reads
-   * the end node's own +0x00, i.e. the set's +0x10. Climbing off the maximum
-   * therefore terminates exactly when `end.root === cur`. The ctor's
-   * `movups %xmm0, 0x10(%rdi)` @0x21170b zeroes it (empty tree = NULL root),
-   * which is why it initialises to `null` alongside the two raw quadwords.
-   *
-   * Optional so that existing structural users of this interface keep
-   * typechecking; the insert path that maintains it is a separate ledger unit.
-   */
-  rootAt10?: OZTimeMarkerNode | null;
 }
 
 /**
@@ -140,7 +156,7 @@ export class OZTimeMarkerSet {
    * +0x10..+0x1f — the embedded sentinel the +0x08 head points at.
    * Zeroed by the `movups` @0x21170b.
    */
-  sentinelAt10: OZTimeMarkerSetSentinel = { qword10: 0n, qword18: 0n, rootAt10: null };
+  sentinelAt10: OZTimeMarkerSetSentinel = { leftAt0: null, qword10: 0n, qword18: 0n };
 
   /**
    * +0x08 — the head pointer. Set to `this + 0x10`, i.e. to
@@ -185,7 +201,7 @@ export class OZTimeMarkerSet {
    */
   constructor() {
     // @0x211708/@0x21170b  xorps %xmm0,%xmm0 ; movups %xmm0,0x10(%rdi)
-    this.sentinelAt10 = { qword10: 0n, qword18: 0n, rootAt10: null };
+    this.sentinelAt10 = { leftAt0: null, qword10: 0n, qword18: 0n };
     // @0x211704/@0x21170f  leaq 0x10(%rdi),%rax ; movq %rax,0x8(%rdi)
     //   — the address of the just-zeroed sentinel, stored into the head slot.
     this.headAt8 = this.sentinelAt10;
@@ -340,19 +356,25 @@ export class OZTimeMarkerSet {
           const parent = cur.parentAt10;
           // @0x2126e4  cmpq (%rax),%r15 — reads the PARENT's +0x00. When the
           //   parent is the END node that word is the set's +0x10, i.e. the
-          //   tree ROOT (see OZTimeMarkerSetSentinel.rootAt10); for a real node
-          //   it is its left child. One load in the machine, one read here.
-          const parentLeft: OZTimeMarkerNode | null | undefined =
-            parent === end
-              ? (parent as OZTimeMarkerSetSentinel).rootAt10
-              : (parent as OZTimeMarkerNode).leftAt0;
+          //   tree ROOT; for a real node it is its left child. The machine
+          //   does ONE load and no test, and because both types derive from
+          //   OZTimeMarkerTreeEndNode this is ONE read with no cast here
+          //   either — the aliasing lives in the type, not at the use site.
+          const parentLeft: OZTimeMarkerNode | null = parent.leftAt0;
           const wasLeftChild = parentLeft === cur;
-          cur = parent as OZTimeMarkerNode;
           if (wasLeftChild) {
+            // @0x2126ec  the loop exits with `cur` == that parent, which MAY
+            //   be the end node — that is how climbing off the maximum
+            //   terminates.
+            next = parent;
             break;
           }
+          // Not the end node on this path: if it were, its +0x00 is the tree
+          // ROOT, and the climb only reaches the end node from the maximum,
+          // where root === cur — i.e. through the branch above. `movq %rax,%r15`
+          // runs every iteration, so `cur` advances to the parent each time.
+          cur = parent as OZTimeMarkerNode;
         }
-        next = cur;
       }
       // @0x212650-0x212656  movq %rax,%r15 ; cmpq %rbx,%rax ; je 0x2126f4
       node = next;
