@@ -12,11 +12,14 @@
 //     __ZNK13HGGPURenderer10GetGLStateEv
 //   * HGGPURenderer::UsingSharedStorage() const  @Helium 0x17720
 //     __ZNK13HGGPURenderer18UsingSharedStorageEv
+//   * HGGPURenderer::GetMetalHandler() const     @Helium 0x11d30
+//     __ZNK13HGGPURenderer15GetMetalHandlerEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZN13HGGPURenderer15GetMetalContextEv.s
 //   raw-port/re/disasm/Helium.__ZNK13HGGPURenderer10GetGLStateEv.s
 //   raw-port/re/disasm/Helium.__ZNK13HGGPURenderer18UsingSharedStorageEv.s
+//   raw-port/re/disasm/Helium.__ZNK13HGGPURenderer15GetMetalHandlerEv.s
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (7 lines, @0xa560..@0xa56c)
@@ -27,6 +30,17 @@
 //     0xa564  movq   0x458(%rdi), %rax        ; rax = this[+0x458]
 //     0xa56b  popq   %rbp                     ; frame epilogue
 //     0xa56c  retq
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM (6 lines, @0x11d30..@0x11d3c)
+// -----------------------------------------------------------------------------
+//   __ZNK13HGGPURenderer15GetMetalHandlerEv:
+//     0x11d30  pushq  %rbp                    ; frame prologue
+//     0x11d31  movq   %rsp, %rbp
+//     0x11d34  movq   0x520(%rdi), %rax       ; rax = this[+0x520]
+//     0x11d3b  popq   %rbp                    ; frame epilogue
+//     0x11d3c  retq
+//     0x11d3d  nopl   (%rax)                  ; alignment padding (not code)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (7 lines, @0x12070..@0x1207c)
@@ -101,6 +115,28 @@ export interface HGGLState {
 }
 
 /**
+ * `HGMetalHandler` — opaque handle to Helium's Metal command handler, the object
+ * `HGGPURenderer::GetMetalHandler() const` @Helium 0x11d30 hands back from this[+0x520].
+ *
+ * PROVENANCE OF THE TYPE NAME (a load has no type, so the name is evidence-backed, not guessed):
+ * the SLOT's writer is `HGGPURenderer::InitMetal()` @Helium 0x9d8f..0x9dab, which allocates
+ * 0x790 bytes with `operator new` (`movl $0x790, %edi ; callq __Znwm`), passes the renderer's own
+ * `HGMetalContext*` from +0x458 (`movq 0x458(%rbx), %rsi`), calls
+ * `__ZN14HGMetalHandlerC1EP14HGMetalContext` — i.e. `HGMetalHandler::HGMetalHandler(
+ * HGMetalContext*)` — and stores the result with `movq %r14, 0x520(%rbx)` @0x9dab. That
+ * matched 8-byte store/load pair is what fixes both the offset and the width, and the ctor's own
+ * mangled name is what fixes the type.
+ *
+ * Nothing about the pointee is modelled: HGMetalHandler is its own (not yet ported) ledger unit,
+ * and inventing fields for a 0x790-byte object from a single load would be exactly the
+ * magic-offset guesswork PORTING_SPEC Rule 5 forbids. Branded like the two handles above so the
+ * opaque pointers cannot be interchanged at the type level.
+ */
+export interface HGMetalHandler {
+  readonly __hgMetalHandler: unique symbol;
+}
+
+/**
  * `HGGPURenderer` — Helium GPU-backed renderer. Only the field touched
  * by `GetMetalContext` is decoded here; every other field is undecoded
  * and NOT modelled (per Rule 5 — no fabricated fields).
@@ -118,6 +154,21 @@ export class HGGPURenderer {
    * OUT OF SCOPE for this ledger unit.
    */
   metalContext_at_0x458: HGMetalContext | null = null;
+
+  /**
+   * @Helium offset +0x520 — the `HGMetalHandler*` this renderer owns. Read by
+   * `GetMetalHandler` @0x11d34 via `movq 0x520(%rdi), %rax`, and written by `InitMetal`
+   * @0x9dab via `movq %r14, 0x520(%rbx)` after `HGMetalHandler::HGMetalHandler(HGMetalContext*)`
+   * constructs a fresh 0x790-byte instance from this[+0x458].
+   *
+   * NULLABLE, and that is not a modelling convenience: the slot is only filled by `InitMetal`,
+   * and the dtor @0xa0d7/@0xa235 plus `FinishMetalCommandBuffer` @0xa4c5, `RenderEnd` @0xc22b,
+   * `FrameEnd` @0xc3d9/@0xc42d, `WaitForCommandBuffers` @0xc4d2, `FlushMetalCommandBuffer`
+   * @0x106eb and `ReadbackMetalTexture` @0xb84f all load it, so a renderer that never ran
+   * InitMetal hands back whatever the ctor left there. The getter below does NOT null-check —
+   * neither does the machine.
+   */
+  metalHandler_at_0x520: HGMetalHandler | null = null;
 
   /**
    * `HGGPURenderer::GetMetalContext()` — @Helium 0xa560
@@ -259,5 +310,45 @@ export class HGGPURenderer {
   UsingSharedStorage(): boolean {
     // @0x17724..@0x1772b  cmpb $0x2,0x4f0(%rdi) ; sete %al
     return (this.textureStorageHint_at_0x4f0 & 0xff) === 0x2;
+  }
+
+  /**
+   * `HGGPURenderer::GetMetalHandler() const` — @Helium 0x11d30
+   * (__ZNK13HGGPURenderer15GetMetalHandlerEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x11d30  pushq %rbp             ; frame setup (no TS counterpart)
+   *   0x11d31  movq  %rsp,%rbp        ; frame setup (no TS counterpart)
+   *   0x11d34  movq  0x520(%rdi),%rax ; rax = this[+0x520]
+   *   0x11d3b  popq  %rbp             ; frame teardown (no TS counterpart)
+   *   0x11d3c  retq                   ; returns the pointer in %rax
+   *   0x11d3d  nopl  (%rax)           ; alignment padding (not code)
+   *
+   * Decode notes:
+   *   * A single 8-byte load and a return. No branch, no null check, no callq, no extern, no
+   *     indirect or virtual dispatch (`depgraph.py deps` lists nothing) — the value is handed
+   *     back RAW, null included. Adding a guard the binary does not have would be a rewrite.
+   *   * `const` in the mangled name (`__ZNK...`) and in the body: `this` is only read.
+   *   * The structural twin of `GetMetalContext` @0xa560 and `GetGLState` @0x12070 above, one
+   *     slot over; the only thing that differs is the offset and therefore the handle type.
+   *
+   * ORACLE: verified against the live Helium binary. The symbol is EXPORTED
+   * (raw-port/army/inventory/Helium.syms.txt: `0000000000011d30 T`), so the harness dlopens
+   * Helium under `arch -x86_64 /usr/bin/python3` — the port is transcribed from the x86_64 slice
+   * and calling the arm64 image would compare against code this port did not transcribe — and
+   * calls the real method on a 0x600-byte object POISONED with 0xEE, with a distinct sentinel
+   * written into +0x520 for each case. See
+   * raw-port/re/oracle/HGGPURenderer_GetMetalHandler_oracle.py: 1,000 sentinels (0, 1, -1, the
+   * canary patterns, and seeded-random 64-bit values) all round-trip exactly, the poison at every
+   * other offset never leaks into the result, and writing the SAME sentinel to the neighbouring
+   * slots +0x518 / +0x528 while leaving +0x520 alone does not change the answer — which is what
+   * pins the offset rather than merely being consistent with it.
+   *
+   * @returns %rax — the `HGMetalHandler*` at this[+0x520], unfiltered.
+   */
+  GetMetalHandler(): HGMetalHandler | null {
+    // @0x11d34  movq 0x520(%rdi),%rax — returned raw, exactly as loaded.
+    return this.metalHandler_at_0x520;
   }
 }
