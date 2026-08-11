@@ -88,11 +88,11 @@ check "literal multi-word body"       0 "two words" -- 600 two words
 check "-- then a literal body"        0 "after the dashes" -- 600 -- "after the dashes"
 
 echo "-- the shapes that must REFUSE (each one would post a flag as the record) --"
-check "body-file with EMPTY value"    2 NONE -- 600 --body-file ""
+check "body-file with EMPTY value"    2 NONE -- 600 --body-file "" "real evidence"
 check "body-file with NO value"       2 NONE -- 600 --body-file
 check "literal body BEFORE body-file" 2 NONE -- 600 "real evidence" --body-file "$SB/body.md"
 check "body-file plus trailing words" 2 NONE -- 600 --body-file "$SB/body.md" and some words
-check "unknown flag"                  2 NONE -- 600 --nope --body-file "$SB/body.md"
+check "unknown flag"                  2 NONE -- 600 --nope "real evidence"
 check "unreadable body file"          2 NONE -- 600 --body-file "$SB/nope.md"
 check "no body at all"                2 NONE -- 600
 

@@ -14,8 +14,9 @@ Runs three layers and asserts every fixture verdict:
      class-C (REAL + throw)    -> REJECT_CHEAT
      real-work port            -> LIKELY_REAL
 
-  LAYER 2i — the argv contracts of pr_review.sh / pr_comment_once.sh: an unknown
+  LAYER 2j — the argv contracts of pr_review.sh / pr_comment_once.sh: an unknown
      flag must be a usage error, never the review or comment BODY.
+     (2i is main's queue-coverage layer; this one is renumbered around it.)
 
 Exit 0 iff ALL layers pass. This is the gate that MUST pass before any swarm restart.
 """
@@ -112,7 +113,19 @@ def layer2():
     print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
           "PASS" if ok8 else "FAIL")
     if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
-    # 2i — THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed
+    # 2i — swarm_doctor's COVERAGE check, the one assertion that re-states a queue's behaviour
+    # (it lifts each selector, then re-applies rebase_claim's status-description grep). A
+    # re-statement that drifts does not fail loudly: it accuses PRs the queue is handing out, or
+    # certifies stranded ones, in the report AGENT_ENTRY tells every agent to trust — and the first
+    # version of that check did report two live PRs backwards in one run. Pinned here because
+    # rebase_claim can now select a CONFLICTED PR without reading any description. Offline (gh, sh
+    # and from_main are stubbed), ~0.2s, every case mutation-checked inside the suite.
+    r9 = run([sys.executable, os.path.join(HERE, "test_queue_coverage.py")])
+    ok9 = "test_queue_coverage: PASS" in r9.stdout
+    print("LAYER 2i (queue coverage — the doctor follows the queues instead of disagreeing):",
+          "PASS" if ok9 else "FAIL")
+    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
+    # 2j — THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed
     # the thing they exist to preserve, in the same way, at exit 0, behind a plausible success line:
     # an unrecognised flag falls through to `BODY="$*"` and is posted AS the record. `pr_review.sh`
     # lost 11KB of a differential that way (row 43) and was fixed in #596; `pr_comment_once.sh` was
@@ -122,16 +135,17 @@ def layer2():
     # this very hazard — so both are wired here, in the change that closes the second hole.
     # Fully offline: each drives the real script against a fake `gh`/`gh_as.sh` in a scratch sandbox,
     # so nothing is posted to a live PR and a GitHub 5xx cannot flake the startup gate. ~18s total.
-    r9 = run(["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")])
-    ok9 = r9.returncode == 0 and "test_pr_review_argv:" in r9.stdout and "0 failed" in r9.stdout
-    r10 = run(["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")])
-    ok10 = (r10.returncode == 0 and "test_pr_comment_once_argv:" in r10.stdout
-            and "0 failed" in r10.stdout)
-    print("LAYER 2i (evidence-recording tools — an unknown flag must never become the record):",
-          "PASS" if (ok9 and ok10) else "FAIL")
-    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
+    r10 = run(["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")])
+    ok10 = r10.returncode == 0 and "test_pr_review_argv:" in r10.stdout and "0 failed" in r10.stdout
+    r11 = run(["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")])
+    ok11 = (r11.returncode == 0 and "test_pr_comment_once_argv:" in r11.stdout
+            and "0 failed" in r11.stdout)
+    print("LAYER 2j (evidence-recording tools — an unknown flag must never become the record):",
+          "PASS" if (ok10 and ok11) else "FAIL")
     if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
+    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
+            and ok10 and ok11)
 
 def _reach(spec, expect):
     import tempfile
