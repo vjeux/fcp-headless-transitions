@@ -181,10 +181,21 @@ def check_queue_coverage():
     Change a filter and this check follows it, instead of silently disagreeing with it.
     """
     prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 "
-                       "--json number,reviewDecision,mergeStateStatus,statusCheckRollup")
+                       "--json number,reviewDecision,mergeStateStatus,statusCheckRollup,baseRefName")
     if prs is None:
         return record("queue-coverage", UNKNOWN, f"could not list PRs: {err}", "#33/#41")
-    open_nums = {pr["number"] for pr in prs}
+    # A PR whose base is NOT main is deliberately outside every queue (the three selectors filter on
+    # `.baseRefName=="main"`), because no worker or reviewer ACTION can make it reach main: merging
+    # it writes onto a peer's branch, and pr_gate/pr_land now refuse it outright (#46). It is not an
+    # orphan of the coverage kind this check is about — its remedy is an unstacking DECISION no
+    # queue can perform — so it is excluded here and owned by `check_pr_base` above, which names it
+    # with the right reason and the right remedy (`gh pr edit <n> --base main`). Counting it here
+    # too would report the same PR twice under a description that is true and useless, and would
+    # bury the real orphans this check exists to surface. The pairing is load-bearing in the other
+    # direction as well: skipping such a PR in the queues is only safe BECAUSE check_pr_base still
+    # names it every run — a queue that silently drops work is #33.
+    off_main = {pr["number"] for pr in prs if (pr.get("baseRefName") or "main") != "main"}
+    open_nums = {pr["number"] for pr in prs} - off_main
 
     def numbers_from(tool, var):
         """Run the tool's OWN selector; return (numbers, row-fields by number, error).

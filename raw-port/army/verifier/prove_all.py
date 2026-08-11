@@ -219,6 +219,23 @@ LAYER2 = [
      "the doctor can still read this table — a refactor must not silently retire its check",
      [sys.executable, os.path.join(TOOLS, "test_doctor_layer_labels.py")],
      "test_doctor_layer_labels: PASS"),
+    # 2t — AND NO QUEUE MAY OFFER SUCH A PR IN THE FIRST PLACE. 2j stops the two tools that would
+    # act wrongly on an off-main PR; this stops the three queues that hand it out. Both halves are
+    # wanted: #650 reached a reviewer's signature and #656 was leased to a WORKER as a rebase task
+    # whose DIRTY was a conflict with a peer branch, and the refusals do not give those slots back.
+    # `check_pr_base` keeps such a PR VISIBLE, which is what makes skipping it safe rather than
+    # stranding (see the note in that check and the ops/ entry). Offline, jq-backed fixtures; the
+    # mutation cases strip the clause from a copy of each tool and require the wrong answer. ~2s.
+    #
+    # LETTER: this block held 2k/r11, then 2t/r21 against the hand-numbered tail; main has since
+    # replaced that tail with this table, which is the real fix for the collision it was renumbered
+    # around twice. As a ROW there is no variable left to share — the failure that made the
+    # renumbering dangerous — and check_layer_labels() refuses a duplicate label before any layer
+    # runs. 2t is kept because it is the label the review of this PR cites.
+    ("2t",
+     "a queue may only offer PRs that can reach main",
+     ["bash", os.path.join(TOOLS, "test_queue_base_main.sh")],
+     "test_queue_base_main: PASS"),
     # 2q — the two refusals that stand between a rebase tool and a PR's content. Wired in the same
     # change that adds them (row 44: a guard nothing runs is indistinguishable from no guard). It
     # exists because on 2026-08-11 rebase_pr.sh force-pushed a branch it had accidentally cut from

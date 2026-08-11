@@ -59,7 +59,13 @@ export PATH="$R/bin:$PATH"
 export FIXTURE_ROWS="$R/rows" FIXTURE_DESC="$R/desc" FIXTURE_DECISION="$R/decision" FIXTURE_REJSHA="$R/rejsha"
 
 # rows <PR> <sha> <gate-state> -> the GraphQL shape `gh pr list --json ...` returns
-rows () { printf '[{"number":%s,"headRefOid":"%s","reviewDecision":null,"statusCheckRollup":[{"context":"faithfulness-gate","state":"%s"}]}]' "$1" "$2" "$3"; }
+# `baseRefName` is part of the shape because the selector now READS it: #696 taught review_claim to
+# offer only PRs whose base is main, and a fixture that omits a field the query selects on drops
+# every row — the suite then reports NONE everywhere and every "claimed" case goes red. That is a
+# fixture bug, not a tool bug, and it only surfaced when the two changes met at a merge. A fixture
+# has to model the shape the tool asks GitHub for, not the shape it asked for when the case was
+# written; there is a case below that pins the base filter itself, so this default cannot hide it.
+rows () { printf '[{"number":%s,"baseRefName":"%s","headRefOid":"%s","reviewDecision":null,"statusCheckRollup":[{"context":"faithfulness-gate","state":"%s"}]}]' "$1" "${4:-main}" "$2" "$3"; }
 # desc <text> -> the REST shape `commits/<sha>/statuses` returns, NEWEST FIRST. The older `pending`
 # the gate posts when it starts is included so the query's `first` is pinned to mean "newest": if it
 # ever meant "oldest", every re-gated PR would be judged on the reason for the PREVIOUS run.
@@ -116,6 +122,15 @@ want claimed "a G5 failure whose rejection predates the head is claimable again"
 
 # 7. UNCHANGED BEHAVIOUR: an ungated PR is still the ordinary case this queue exists for.
 want claimed "a PR with no gate at all is still claimed" "$(run "$(rows 646 $SHA NONE)" "$(desc "")")"
+
+# 7b. THE BASE FILTER, pinned here as well as in test_queue_base_main.sh. The `rows` fixture above
+#     now defaults `baseRefName` to main, and a default that nothing tests is a default that can
+#     quietly become the only behaviour: if the `.baseRefName=="main"` clause were dropped from the
+#     selector, every case in this file would still pass. So drive one row whose base is another
+#     PR's branch — a stacked PR, which cannot reach main and whose gate is measured against the
+#     wrong thing — and require this queue not to offer it.
+want none "a PR based on another branch is not offered to a reviewer" \
+     "$(run "$(rows 660 $SHA NONE tools/some-other-pr)" "$(desc "")")"
 
 # 8. MUTATION. Cases 2-5 are all "none", so a selector that admits NOTHING would pass most of this
 #    file. Drop FAILURE back out of the rollup filter and case 1 must go red.
