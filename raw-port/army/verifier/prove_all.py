@@ -204,6 +204,21 @@ LAYER2 = [
      "verifier contention — the doctor counts RUNS, not the wrappers around them",
      [sys.executable, os.path.join(TOOLS, "test_verifier_contention.py")],
      "test_verifier_contention: PASS"),
+    # LETTER: this went out as 2v and is renumbered to 2w because #735 took 2v first —
+    # a collision between two PRs neither of which could see the other's choice, which is
+    # the thing THIS row's check reports. Keeping both rows is the only safe resolution;
+    # taking a side would delete a layer and the suite would still print PASS.
+    # 2w — the doctor's own duplicate-label check, which THIS table's arrival silently retired: its
+    # pattern was `print("LAYER 2<letter>` and it matched nothing here, so `swarm_doctor` reported
+    # `?? layer-letters … not evidence of anything` on every run, permanently, against a main whose
+    # fifteen labels were all distinct. An UNKNOWN that no correct state can clear is a check that
+    # has stopped checking while still occupying a line in the report. The suite feeds the extractor
+    # BOTH shapes plus an unrecognisable one, so the next refactor of this file fails a suite instead
+    # of quietly retiring a guard. Offline — no gh, no network, no pool. ~2s.
+    ("2w",
+     "the doctor can still read this table — a refactor must not silently retire its check",
+     [sys.executable, os.path.join(TOOLS, "test_doctor_layer_labels.py")],
+     "test_doctor_layer_labels: PASS"),
 ]
 
 def check_layer_labels():
