@@ -44,7 +44,31 @@ for round in 1 2 3 4 5 6; do
   # "verify before merge" client-side: a stale approval on an older SHA does not count.
   if [ -f "${FCT_STATE_DIR:-$HOME/.fct-pool}/ghapp/reviewer.json" ]; then
     HEAD_SHA=$(ghr pr view "$PR" --repo "$SLUG" --json headRefOid --jq .headRefOid 2>/dev/null)
-    APPROVED=$(ghr api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null | python3 -c "
+    REVJSON=$(ghr api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null)
+    # HARD STOP ON AN OUTSTANDING REJECTION. All reviewer slots share ONE bot identity, so GitHub's
+    # per-user "latest review wins" does NOT protect us: slot B's APPROVE silently supersedes slot A's
+    # CHANGES_REQUESTED. That is how a rejected port landed — reviewer-06 rejected #221, a peer
+    # approved a newer head, and the NaN-branch defect went to main as eb6f6086 (issue #224).
+    # Rule: ANY CHANGES_REQUESTED that has not been explicitly DISMISSED blocks the merge. Overriding
+    # a peer's rejection must be a deliberate act (dismiss it with a reason), never an accident of
+    # ordering.
+    BLOCKED_BY=$(printf '%s' "$REVJSON" | python3 -c "
+import json,sys
+try: rs=json.load(sys.stdin)
+except Exception: raise SystemExit
+out=[r for r in rs if r.get('state')=='CHANGES_REQUESTED']
+if out:
+    r=out[-1]
+    print('%s @%s' % ((r.get('user') or {}).get('login','?'), (r.get('commit_id') or '')[:8]))
+" 2>/dev/null)
+    if [ -n "$BLOCKED_BY" ]; then
+      echo "pr_land: REFUSING to merge PR #$PR — an un-dismissed CHANGES_REQUESTED stands ($BLOCKED_BY)."
+      echo "  A rejection is not superseded by a later approval (all slots share one bot identity)."
+      echo "  If it is genuinely resolved, dismiss it deliberately:"
+      echo "    gh api -X PUT repos/$SLUG/pulls/$PR/reviews/<review_id>/dismissals -f message='<why>'"
+      exit 5
+    fi
+    APPROVED=$(printf '%s' "$REVJSON" | python3 -c "
 import json,sys
 try: rs=json.load(sys.stdin)
 except Exception: raise SystemExit
