@@ -35,6 +35,39 @@ _EASE = {
     "outputs": ["outVal"],
 }
 
+# The TS side of S2. `bridge.TSWorker.eval` speaks TWO protocols: the legacy name-keyed one
+# ({"fn": ...}) used by the DELETED engine worker, and the module-addressed one
+# ({"modulePath", "exportName", "args"}) that the surviving raw-port/army/verifier/
+# generic_worker.ts implements. It picks between them on whether the caller passes a `node`
+# carrying "ts_module". S2 was written for the deleted worker and never updated, so it sent a
+# name-keyed request that generic_worker answers with `path argument must be of type string.
+# Received undefined` — which made the SELF-TEST fail and therefore reported every G4 run as
+# HARNESS_BROKEN (a REJECT) regardless of the file being gated. This node is what driver.py's
+# real sweep already passes for the same symbol (registry.json id "curve.interp.ease").
+_EASE_TS_NODE = {
+    "ts_module": "raw-port/src/infra/PCMath.ts",
+    "oracle": {"signature": _EASE["signature"]},
+}
+
+
+def _ts_ease_value(reply):
+    """The eased value out of generic_worker's reply.
+
+    generic_worker returns {"ok":true,"ret":<the port's return>,"outArgs":{...}} and the port
+    `PCMath.easeInOut` returns {out, speed} (the C function writes its two results through
+    out-pointers; the TS port returns them as an object). The oracle's name for the first one is
+    "outVal". Kept explicit — and raising if the shape is not what we expect — so that a worker
+    that answers with something else FAILS S2 instead of silently passing it.
+    """
+    if not isinstance(reply, dict):
+        raise TypeError("TS worker reply is %r, expected a dict" % type(reply).__name__)
+    ret = reply.get("ret", reply)
+    if isinstance(ret, dict) and "out" in ret:
+        return ret["out"]
+    if isinstance(reply, dict) and "outVal" in reply:      # legacy name-keyed worker
+        return reply["outVal"]
+    raise KeyError("no eased value in TS worker reply: %r" % (reply,))
+
 
 def run(worker=None):
     """Return (ok, [(name, ok, detail)...]). Reuses a worker if given."""
@@ -52,9 +85,12 @@ def run(worker=None):
         worker = TSWorker(); own = True
     try:
         try:
-            e = worker.eval("PCMath_easeInOut", {"t": 0.5, "easeIn": 0.25, "easeOut": 0.25, "v0": 0.0, "v1": 1.0})
-            ok = abs(e["outVal"] - 0.5) < 1e-9
-            results.append(("S2_TS_WORKER_LIVE", ok, "TS easeInOut(0.5)=%r" % e["outVal"]))
+            e = worker.eval("easeInOut",
+                            {"t": 0.5, "easeIn": 0.25, "easeOut": 0.25, "v0": 0.0, "v1": 1.0},
+                            _EASE_TS_NODE)
+            v = _ts_ease_value(e)
+            ok = abs(v - 0.5) < 1e-9
+            results.append(("S2_TS_WORKER_LIVE", ok, "TS easeInOut(0.5)=%r" % v))
         except Exception as ex:
             results.append(("S2_TS_WORKER_LIVE", False, "worker raised: %s" % ex))
         # S3 negative control: compare a real oracle value against a deliberately biased one.

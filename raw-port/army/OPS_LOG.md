@@ -37,6 +37,7 @@ detail to reproduce. That is how this list grows.
 | 21 | G5 computed **476 of its 1,745 verdicts from a different class's function** — `AUPassThrough_D1` judged against `LiMaterialLayer::D1` (TRAP), `AdvanceScopingWindowTask_performTask` against `UpdateScrubRateTask::performTask` (EMPTY), every `*_ctor` export in the repo against one arbitrary framework's ctor | #307 anchored the CLASS key but left the BARE METHOD key: when no cited mangled symbol and no `<Class>.<method>` resolves, G5 falls back to `find_disasm(method)` / `find_disasm(class)`, and a method name alone is shared by hundreds of unrelated classes. Same both-ways harm: a wrong EMPTY/TRAP waves an empty-body-for-REAL-work port through, a wrong REAL condemns an honest @0xADDR-cited sibling stub as class-C | #317 — a bare-key hit must still NAME the class being ported (export-name prefix, else the file's class), via the shared `names_class` rule; otherwise it is discarded and the existing NO-DISASM FLAG asks the reviewer to re-derive. 476 fabricated verdicts -> 0, at the cost of flags on 106 landed files |
 | 22 | Load hit 73 on a 10-core box with 16 agents; `nm` processes pinned a core each for 60-120s | Agents answered one-off symbol questions with `nm -arch x86_64 "/Applications/Final Cut Pro.app/.../Flexo"` — a **78 MB fat** binary, rescanned by Defender/Cyberhaven on every open. The same answer was already cached in `army/inventory/<FW>.syms.txt` (144,642 defined symbols, all 5 frameworks). Measured: **nm on fat Flexo >120s vs `grep` on the cache 0.078s (~1000x)**. Same shape as #10 | **Use the cached inventory.** `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` -> `<addr> <T|t> <mangled>`. Only for UNDEFINED symbols or a flag the cache cannot answer, run nm against the THIN slice `/tmp/<FW>.x86_64` (regenerate with `lipo -thin x86_64`) and capture it ONCE into a variable instead of piping nm twice in one command. **Measured follow-up: thinning barely helps** — under swarm load the same nm took 4m24s fat vs 3m54s thin, so the cost is the symbol-table walk + the security stack, not the fat header. The cache is the only real fix; if it is stale, ONE agent should regenerate it for everyone with `dump_syms.sh` |
 | 23 | 9 concurrent identical `mark_ported.py` runs, ~4 min each at 176% CPU | It is a GLOBAL, idempotent, whole-repo reconciliation, but every agent runs it after every merge, so N agents produce N identical answers and N full scans of `src/` | `pgrep -f mark_ported` first and **skip if one is already running** — that run's result covers your commit too. A coalescing lock inside the tool is the stronger fix and is still open |
+| 24 | **G4 — the only un-fakeable gate — could not run AT ALL, and its way of failing is a REJECT, so every file mapped to an oracle node was unmergeable no matter what it contained** (OZInterpolator, OZBezierInterpolator, PCMath, OZSpline, OZLinearInterpolator, OZSCurveInterpolator, CMTime). Diagnosed as open by worker 1 earlier the same day; hit again by worker 6 on an oracle-VERIFIED port, where the gate REJECTED the file *unmodified on main* too | The engine parity worker was replaced by the module-addressed `generic_worker.ts` and FOUR callers were never migrated, each failing one layer deeper. (a) `selftest.py` S2 sent the deleted name-keyed request `{"fn": ...}`, so the worker got `modulePath: undefined` → Node's *The "path" argument must be of type string* → S2 FAIL → `HARNESS_BROKEN` → REJECT before any port was called. (b) `bridge.eval`'s positional marshalling kept only `kind == "in"` args and silently DROPPED every `in_array`, so `OZBezierEval(ctrl[4], u)` was invoked as `OZBezierEval(u)`, returned undefined, and the driver died on `float - NoneType`. (c) Nothing mapped `{ok, ret, outArgs}` into the ORACLE's output names → `KeyError: 'outVal'`. (d) A port that returns an object because the C function used out-pointers (`easeInOut -> {out, speed}`) has no derivable mapping to `outVal`/`outDeriv`. Note the shape: RED for a harness reason on exactly the files it can actually measure — the mirror image of #6 | #438 — S2 speaks the module-addressed protocol; `bridge.eval` includes `in_array` inputs and sends `argKinds`; new `bridge._normalize_outputs` maps the reply into oracle names via an explicit `ts_outputs` contract in registry.json (worker 1's recommendation; added to `curve.interp.ease`). PROVEN BOTH WAYS: three previously-dark nodes now sweep GREEN against the live binary — `curve.interp.bezier.eval` 166 cases 0.0e+00, `curve.interp.bezier.findparam` 135 cases 5.0e-16, `curve.interp.ease` 201 cases 0.0e+00 (state.json shows they last swept 2026-07-29/30, i.e. the migration is when they went dark) — AND the gate still REJECTS a deliberately sabotaged `OZBezierEval` (DIVERGED, max_abs_err 4.5e+01), a sabotaged `easeInOut` (S2 FAIL, 0.123), and a bogus `ts_module` (S2 FAIL). **Reviewers: `sweeping <node> ... -> VERIFIED` in G4 output is NEW — before this, G4 printing nothing but a stack trace was the normal state.** |
 
 ---
 
@@ -151,6 +152,13 @@ detail to reproduce. That is how this list grows.
 
 ## Open — reported 2026-08-11 by worker 1 (G4 oracle; NOT fixed — diagnosis only)
 
+> **FIXED 2026-08-11 by worker 6 — see row 24 of the Fixed table.** The diagnosis below is exactly
+> right and its recommended contract (`ts_outputs` in registry.json, plumbed through
+> `bridge.eval`) is what was implemented, deliberately and in its own PR rather than as a drive-by,
+> with negative controls in both directions. TWO MORE layers sat behind the two below: `bridge.eval`
+> dropped every `in_array` argument, and nothing mapped the worker's `{ok, ret, outArgs}` reply into
+> the oracle's output names. Three previously-dark nodes now sweep GREEN against the live binary.
+
 - **G4, the only un-fakeable gate, cannot run AT ALL right now, so every oracle-mapped file on main
   is unmergeable.** Reproduced in a fresh pool worktree AND in the canonical checkout, so it is not
   a worktree artifact:
@@ -185,6 +193,55 @@ detail to reproduce. That is how this list grows.
      deliberately, not as a drive-by inside a port PR. Left unfixed and reported instead.
 
 
+
+## Open — reported 2026-08-11 by reviewer 5 (three reviewer-side traps; NEW)
+
+Independently hit while reviewing #385/#389/#394/#402/#403/#406/#421/#428/#431/#443. The first one
+cost a WRONG REJECT on a correct PR, which is the expensive direction for a reviewer.
+
+- **`git diff origin/main <branchHead>` IS NOT A MERGE PREVIEW, and reading it as one makes every
+  stale-base PR look like it deletes landed work.** Reviewing #403 I checked "does this branch drop
+  content main already has" with a two-ref diff. It showed 40 lines of worker 2's
+  differential-harness-traps section (landed minutes earlier as #417) on the `-` side, so I filed a
+  blocking REQUEST_CHANGES for a regression that does not exist: a two-ref diff renders *the branch
+  is behind* as deletions. The real three-way result keeps everything —
+
+      git merge-tree --write-tree origin/main <branchHead>   # prints the merged TREE sha
+      git show <tree>:<path>                                 # inspect the ACTUAL merge result
+
+  354 lines = main's 324 + the PR's 30, with all 6 keyword hits of the "deleted" section intact. I
+  dismissed my own review with the reason and landed the PR. Stale-base is the NORMAL state in this
+  swarm, so this false-rejects almost everything if a reviewer adopts it as a habit. Note
+  `regression_check` already gets this right with a 3-dot `-`-side check; the briefs never say out
+  loud that the two-ref form is the wrong tool.
+  **RULE: `git diff origin/main...<branchHead>` (three dots, against the merge base) or
+  `git merge-tree --write-tree`. NEVER `git diff origin/main <branchHead>`.**
+  (Smaller, related, and NOT what bit me: `pr_gate.sh` skips regression_check entirely when a PR
+  touches no `raw-port/src` file — it prints "no raw-port/src ports to gate (infra/tooling PR)" and
+  posts SUCCESS. Harmless for a non-conflicting doc edit because git unions it; it would only
+  matter for an infra PR that rewrites a shared file wholesale, the #9 shape.)
+
+- **Backticks inside the double-quoted evidence string of `ghapp/pr_review.sh` are
+  command-substituted, silently deleting text from the durable review body.** Approving #389 with
+  ``... so `?? ''` models the cmov ...`` posted an APPROVED review reading "so  models the cmov",
+  and printed `/bin/sh: ??: command not found` AFTER the success line where it is easy to miss.
+  Reviewer evidence is quoted CODE (`movl 0x44(%rdi),%eax`, `!== -1n`, `?? ''`), so backticks are
+  the natural way to write it, and in a double-quoted shell argument they are substitution — which
+  also EXECUTES whatever is inside them. The verdict still posts, so nothing fails loudly; the
+  evidence of record just quietly loses a token.
+  FIX: give `pr_review.sh` a `--body-file`/stdin path. WORKAROUND: single-quote the evidence
+  string (or heredoc it); never double quotes.
+
+- **A reviewer's own `wt_pool.sh acquire-at` lease cannot be released without `--force`, so manual
+  oracle work still leaks pool slots (the #12/#372 family, through a third door).** `acquire-at`
+  leaves the worktree detached at the PR head, which is BY DEFINITION a commit not on origin/main,
+  so `release` reads it as unfinished work and refuses with "commit+push it (pr_submit.sh), or
+  re-run with --force to abandon it deliberately". #258/#372 fixed exactly this for `pr_gate.sh`
+  (it releases `--force`); a reviewer who leases a worktree by hand to drive a TS differential —
+  which REVIEWER_BRIEF asks for — hits it every time, and one who does not read the refusal leaks
+  the slot. That is the failure that stopped the swarm in #12.
+  FIX: `release` should treat a detached `acquire-at` lease as disposable, the same self-healing
+  rule as the `gate/<sha>` leases, since it can never hold authored work.
 
 ## Open — reported 2026-08-11 by reviewer 8 (rebase_helper targets the wrong branch; NEW)
 
@@ -292,6 +349,69 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by reviewer 6 (a G5 FLAG is not reproducible; a plain re-run can clear it; new)
+
+- **The same PR head gates to a DIFFERENT verdict run to run, because whether G5 can see a symbol's
+  disassembly depends on WHICH POOL SLOT `pr_gate` happened to lease.** `raw-port/re/disasm/` is
+  gitignored (`.gitignore` line 51) and each warm worktree accumulates its own partial cache, so the
+  slots hold DIFFERENT subsets — measured just now: wt/1 17 files, wt/2 21, wt/3 7, wt/4 13, wt/5 19,
+  wt/9 18, wt/11 27, wt/13 no `re/disasm` directory at all, against 110 in the canonical checkout.
+  When the leased slot lacks the symbol's `.s`, G5 cannot resolve it and raises the NO-DISASM FLAG;
+  when the leased slot happens to have it, G5 judges normally and the PR gates clean.
+  OBSERVED on PR #482 (`HgcBT2446_Method_A_TMO::GetDOD`), four runs on ONE unchanged head:
+  `pr_gate` -> `failure — 1 G5 flag`; `pr_gate` again minutes later -> `success — 0 flags`;
+  `pr_land`'s internal re-gate -> `1 G5 flag` again (it correctly refused to merge);
+  `pr_gate --reviewed` -> pass. Nothing about the PR changed between any of them.
+  **THE DANGEROUS DIRECTION IS THE LAUNDERING ONE.** REVIEWER_BRIEF is explicit that "the mechanical
+  gate does NOT clear flags; only your adversarial re-derivation does" — but in practice a reviewer
+  who simply runs `pr_gate` a second time has a good chance of watching the flag disappear and a
+  green `faithfulness-gate` get posted, with no re-derivation performed and nothing recording that a
+  blind spot was ever raised. `review_claim` will then hand that green-but-unreviewed PR to a
+  reviewer as an ordinary clean-gate PR. The flag exists precisely to force a human look at the case
+  where the gate is blind (the fabricated-constant hole — on #482 the flag was hiding whether the
+  data symbol `_HGRectNull` really is 16 zero bytes; it is, at 0x3d2284 in `__TEXT,__const`, but the
+  gate could not know that either way).
+  Same root shape as #16 (gitignored Layer-3 fixtures absent in a fresh worktree) and as the
+  inventory gap fixed by #473 — a gitignored artifact that the tooling assumes is present.
+  FIX: make the disasm cache uniformly visible to every gate run the way #473 did for
+  `inventory/*.syms.txt` — symlink `raw-port/re/disasm/` from the canonical checkout into each pool
+  worktree (it is a pure, regenerable, content-addressed cache, so sharing it is safe and also kills
+  the repeated regeneration cost). Failing that, `pr_gate` should REGENERATE the `.s` for any symbol
+  it cannot resolve before deciding to flag, so the verdict is a property of the PR and not of the
+  slot. Until then: never treat a flag that vanished on a re-run as cleared — only your own
+  re-derivation clears it, and say so in the approval.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 6 (review bodies silently lose evidence; new)
+
+- **`pr_review.sh` takes the verdict body ONLY as shell argv, so any markdown backtick in a
+  reviewer's evidence is executed as command substitution and its contents are DELETED from the
+  permanent review record — silently, leaving a fluent sentence with a hole in it.** `pr_review.sh`
+  line 33 is `BODY="${*:-}"`; there is no `--body-file`. The corruption happens in the CALLER's shell
+  before the script ever sees the text, so nothing downstream can detect or warn about it.
+  This bites precisely because of what the brief asks for: REVIEWER_BRIEF tells every reviewer to
+  sign with substantive prose evidence, and evidence in this project is dense with backticked
+  identifiers (`cmovneq`, `std::string`, `origin/port/<Class>`) and expressions.
+  HIT LIVE on PR #445: a CHANGES_REQUESTED body lost two clauses — the expression naming the exact
+  defect (`(a - b)` vs `-(b - a)`) and the formula quoted from the PR under review — turning the
+  decisive sentence into "the classic  vs  / negate-then-multiply swap". The verdict, the minimal
+  reproducer and the measured rates survived, so the review was still actionable and I posted an
+  errata comment; a shorter review could have lost its entire point. The author sees no error. The
+  reviewer only sees it if they happen to read their own shell's stderr, where the failed
+  substitutions appear as `/bin/sh: a: command not found` — which looks like unrelated noise.
+  WHY IT IS NOT JUST "quote it properly": single-quoting works until the evidence contains an
+  apostrophe (it usually does — "author's", "doesn't"), at which point the agent switches back to
+  double quotes and re-arms the trap. Asking every agent to hand-escape prose is the kind of advice
+  ANTI_SHORTCUT.md exists to replace with a mechanism.
+  FIX: add `pr_review.sh <PR#> <verdict> --body-file <path>` (and the same for
+  `pr_comment_once.sh`), and have the briefs tell reviewers to write the body to a temp file rather
+  than pass prose through argv. The script already pipes JSON to `gh api --input -`, so it is a
+  few lines: read the file into BODY instead of `${*}`. Until then, prefer single quotes and check
+  the posted body with `gh api repos/<slug>/pulls/<PR>/reviews --jq '.[-1].body'` after signing.
+
+---
+
 ## Open — reported 2026-08-11 by reviewer 6 (the rebase attempt cap counts CLAIMS, not failures; new)
 
 - **`rebase_attempts/<PR>` is incremented on every rebase CLAIM and is NEVER reset by a SUCCESSFUL
@@ -335,6 +455,51 @@ detail to reproduce. That is how this list grows.
   Until fixed: a reviewer who finds a faithful-but-rebase-blocked PR should record the verified body
   in a PR comment (`pr_comment_once.sh`) so that if the cap closes it, the transcription is not lost
   and the next worker can carry it over verbatim rather than re-deriving it.
+
+---
+
+## Open — reported 2026-08-11 by worker 7 (new)
+
+- **LOCAL (`t`) symbols ARE oracle-able, and the recipe avoids `nm` entirely — this closes the
+  "Rosetta workaround is incomplete" item below.** Worker 1 correctly found that
+  `local_call.py::_vmaddr`'s bare `nm -n` reports **arm64** addresses even under Rosetta, so
+  `local_fn()` computes (arm64 vmaddr + x86_64 slide) and calls the wrong function. The fix does not
+  require fixing `nm` at all, because the x86_64 vmaddr is **already on disk**: it is the first
+  column of `raw-port/army/inventory/<FW>.syms.txt`. Working recipe, verified end-to-end on
+  `hg_read_span_4s_wxyz_m1_gqt_m1_premul` (Helium `t` @0x18adf0, a symbol `dlsym` cannot find at all):
+
+      # under arch -x86_64 /usr/bin/python3
+      libc = ctypes.CDLL(None)
+      libc._dyld_get_image_name.restype = ctypes.c_char_p
+      libc._dyld_get_image_vmaddr_slide.restype = ctypes.c_void_p
+      ctypes.CDLL(FW_PATH, ctypes.RTLD_GLOBAL)
+      i     = <index whose _dyld_get_image_name(i) == FW_PATH>
+      slide = libc._dyld_get_image_vmaddr_slide(i)
+      fn    = ctypes.CFUNCTYPE(<restype>, *<argtypes>)(slide + VMADDR_FROM_INVENTORY)
+
+  Measured slide 0x10ab6e000, called an 8-pixel span, and confirmed the function's own `count == 0`
+  early-out leaves the destination untouched. **Consequence for reviewers and workers: "the symbol is
+  local, so I could not oracle it" is no longer a valid reason to sign a port on reading alone.**
+  Roughly a third of the remaining queue is `t`-class. Worth folding into `local_call.py` as the
+  `_vmaddr` implementation (read the inventory, never shell out to `nm`), which would also make it
+  ~1000x faster than the `nm` it replaces.
+
+- **The nested-class file-naming convention and the landed precedent CONTRADICT each other, across a
+  whole family.** `PORTING_SPEC.md` says a nested class joins its outer names with a DOUBLE
+  underscore (`OZOpticalFlow::Private::CacheFileHeader` -> `OZOpticalFlow__Private__CacheFileHeader.ts`),
+  and both worker briefs repeat it as a rule that exists because it was violated. But the
+  `OZChannelColorNoAlpha_*Impl.ts` family already on main — `greyImpl`, `whiteImpl`, `gammaImpl`,
+  `colorSpaceIDImpl`, `blueSample1Impl`, `redSample1Impl` and friends, ~10 files — are *equally*
+  nested (e.g. `__ZN21OZChannelColorNoAlpha30OZChannelColorNoAlpha_greyImpl11getInstanceEv` is
+  Outer=`OZChannelColorNoAlpha`, Inner=`OZChannelColorNoAlpha_greyImpl`) and every one of them is
+  filed under the INNER name alone. So a worker handed one of these units cannot satisfy both the
+  spec and the precedent, and whichever they pick looks wrong to a reviewer diffing against the
+  other. This is the exact setup PORTING_SPEC's own rationale warns about — two workers filing one
+  class under `_` and `__`, both landing. It needs a project-level ruling (and, if the spec wins, a
+  rename of the existing family) rather than a per-worker coin flip. Filed
+  `OZChannelColor__OZChannelColor_alpha_zeroImpl.ts` per the spec and flagged it in the file header
+  (PR #440); `check_duplicate_classes.py` does not catch the divergence because the two spellings
+  normalise differently.
 
 ---
 
@@ -411,6 +576,23 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   `for (let i = 0; i < s.length; i++) out.push(s.charCodeAt(i))`. Related to the existing JSON/NaN
   note above: **exchange code units, never JS strings, on an oracle wire.**
 
+- **A THIRD input-mangling trap: `ctypes.c_float(python_float)` QUIETS A SIGNALLING NaN.** Building a
+  float argument from Python goes through a C double, so 0x7f800001 arrives at the callee as
+  0x7fc00001. Measured on `HGMultiTexBlend<5>::setWeight` @Helium 0x110bc0: 10 of 120 cases reported
+  a divergence against a port that was byte-for-byte correct, and the "wrong" value was wrong before
+  the call, not after it. Same family as the two above — the harness corrupted the case, then blamed
+  the port. Fix: build the argument bit-exactly —
+  `cf = ctypes.c_float(); ctypes.memmove(ctypes.byref(cf), struct.pack('<I', bits), 4)` — and pass
+  `cf`. General rule now confirmed three different ways: **on an oracle boundary, move BIT PATTERNS,
+  never language-level floats** — into the callee, out of the callee, and across the TS wire.
+
+- **Do not put an allocator-reuse check in an oracle's VERDICT.** For a dtor/free unit the obvious
+  second signal — "the next same-size malloc returns the same address" — is RUN-DEPENDENT: the same
+  unmodified harness measured 0, 12, 57 and 64 of 64 across four consecutive runs
+  (`HeapAllocator_anon_D0_oracle.py`). `malloc_size(p) == 0` is stable (64/64 every run, and False
+  for a live block, so it still discriminates). Report reuse if you like, but a verdict that includes
+  it fails correct code about half the time.
+
 - **The two OPEN Ozone/`nm` items above now have a drop-in fix: `raw-port/re/oracle/ozone_loader.py`**
   (landed with the OZLightingFolder_Factory port). `load_framework(fw)` preloads the `@rpath` chain
   depth-first so Ozone/Flexo load outside the app bundle with no env vars; `nm_addr(fw, sym)` uses
@@ -458,6 +640,35 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   "no such branch" case its own exit code so the brief can route it.
 
 ---
+
+## Open — reported 2026-08-11 by worker 2 (rebase drops files; new, and it DESTROYS WORK)
+
+- **`rebase_pr.sh`'s `REBASE_MANUAL` path SILENTLY DROPS every net-new file of the branch that did
+  not conflict.** It prepares a pool worktree from CURRENT `origin/main` plus the branch's version of
+  each CONFLICTING file, and tells the worker to re-apply "your net-new methods" — but a branch
+  typically adds more than the class file: an oracle harness and a TS driver under
+  `raw-port/re/oracle/`. Those are not conflicting, so they are not staged into the worktree, and the
+  rebased commit + force-push REMOVES them from the PR. Hit twice today, on two different PRs:
+  * #390 (another worker's branch, rebased by me) — `HGRenderJob_UsesOnlyCPUResource_{oracle.py,driver.ts}`
+    would have been dropped; I noticed only because I diffed the branch against main first and
+    restored them by hand with `git show origin/<branch>:<path>`.
+  * #449 (my own) — `HGBufferDumper_D1_oracle.py` WAS dropped and had to be restored from the
+    pre-force-push commit (`git cat-file -p <old-sha>:<path>`); the force-push had already made it
+    unreachable from any ref.
+  It is silent in both directions: the gate does not look at `re/oracle/`, and `git status` in the
+  fresh worktree shows nothing missing. The only reason it was caught is that the ported .ts CITES
+  its harness by path — a PR whose lost file nothing referenced would just lose it.
+  **Workaround until fixed:** before committing a REBASE_MANUAL, run
+  `git diff --stat origin/main origin/<branch>` and re-add every file the branch adds that is not in
+  your reconciliation. **Fix:** `rebase_pr.sh` should stage the branch's ADDED files (paths present
+  in `origin/<branch>` and absent from main) into the prepared worktree automatically, and say so.
+
+- **Adapting, not importing, is the right move when main has re-modelled your class underneath you.**
+  When #449 was rebased, main had landed the same class with a DIFFERENT model of the same three
+  `std::string` members (content-as-JS-string vs a {isLong, data} pair). Re-applying the branch's
+  method verbatim would have put two models of one layout in one file — the exact drift
+  PORTING_SPEC Rule 5 and the `Outer__Inner` note exist to prevent. Re-apply the SYMBOL, adapted to
+  the model that landed, and say in the file what the landed model cannot express.
 
 ## Open — known, not yet fixed
 
