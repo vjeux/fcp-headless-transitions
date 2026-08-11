@@ -41,9 +41,14 @@ import sys
 import time
 
 # READ-ONLY IS AN INVARIANT OF THIS FILE, not an accident of its current contents: it takes no
-# lease, posts nothing, writes no file and issues no mutating API call. It is safe to run at any
-# time, from any slot, including against a live swarm — which is the only reason AGENT_ENTRY can
-# tell every agent to run it. Any future check that needs to WRITE belongs in a different tool.
+# lease, posts nothing and issues no mutating API call. It is safe to run at any time, from any
+# slot, including against a live swarm — which is the only reason AGENT_ENTRY can tell every agent
+# to run it. Any future check that needs to WRITE belongs in a different tool.
+#
+# TWO WRITES EXIST AND BOTH ARE INERT, named here so the sentence above stays literally true:
+# a unique temp copy of a tool read from origin/main (deleted after use), and the git OBJECTS
+# pulled by `rework_claim.sh would-skip`, which does a best-effort `git fetch refs/pull/<n>/head`
+# so it can read the commits it is judging. Neither touches a ref, a lease, a counter or GitHub.
 SLUG = os.environ.get("FCT_REPO", "vjeux/fcp-headless-transitions")
 CANON = os.path.expanduser("~/random/final-cut-pro-transitions")
 STATE = os.environ.get("FCT_STATE_DIR", os.path.expanduser("~/.fct-pool"))
@@ -284,8 +289,11 @@ def check_queue_coverage():
     # assumed: an older rework_claim without the subcommand leaves the set exactly as it was.
     rework_src = from_main("raw-port/army/tools/rework_claim.sh")
     if rework_src and "would-skip)" in rework_src:
-        rw_path = os.path.join(tempfile.gettempdir(), "swarm_doctor_rework_claim.sh")
-        with open(rw_path, "w") as fh:
+        # A UNIQUE temp file, not a fixed name: two doctors can run at once (this check is safe to
+        # run against a live swarm from any slot, which is the whole point of the tool), and a
+        # partial write racing another process's read is a miserable thing to debug. mkstemp is free.
+        rw_fd, rw_path = tempfile.mkstemp(prefix="swarm_doctor_rework_claim_", suffix=".sh")
+        with os.fdopen(rw_fd, "w") as fh:
             fh.write(rework_src)
         rw_kept = set()
         for n in sorted(coverage.get("rework_claim.sh", set())):
@@ -295,6 +303,7 @@ def check_queue_coverage():
                 continue                     # the queue will not offer it; not covered by it
             rw_kept.add(n)                   # OFFER, or UNKNOWN -> the tool errs toward offering
         coverage["rework_claim.sh"] = rw_kept
+        os.unlink(rw_path)
 
     # pr_land is not a queue anyone polls, but a PR that is APPROVED + green + mergeable is not
     # stranded: it is waiting on a reviewer's merge step. Counted as covered, and named as such.

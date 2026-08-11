@@ -26,8 +26,9 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 # ── extract author_answered() verbatim from the shipped script ────────────────────────────────
-awk '/^author_answered \(\) \{/,/^\}/' "$SRC" > "$WORK/fn.sh"
-if ! grep -q 'rev-list --no-merges' "$WORK/fn.sh" || ! grep -q 'cat-file -e' "$WORK/fn.sh"; then
+awk '/^_branch_patch_ids \(\) \{/,/^\}/' "$SRC"  > "$WORK/fn.sh"
+awk '/^author_answered \(\) \{/,/^\}/'   "$SRC" >> "$WORK/fn.sh"
+if ! grep -q 'patch-id' "$WORK/fn.sh" || ! grep -q 'cat-file -e' "$WORK/fn.sh"; then
   echo "test_rework_author_answered: FAIL (could not extract author_answered from rework_claim.sh)"
   exit 1
 fi
@@ -118,8 +119,29 @@ GONE=$(printf '%s' "$REJ" | sed 's/^./f/')   # a well-formed SHA that is not in 
 [ "$(run_case "$E")" = "ANSWERED" ] && ok "a later head with its own commits -> answered" \
   || bad "rewritten branch" "expected ANSWERED"
 E_ANS=$( cd "$REPO" && . "$WORK/fn.sh" && if author_answered 7 "$GONE" "$E"; then echo ANSWERED; else echo AUTHORS-TURN; fi )
-[ "$E_ANS" = "ANSWERED" ] && ok "the rejected commit is unreachable (force-push) -> answered" \
-  || bad "unreachable rejection" "expected ANSWERED"
+# FLIPPED on reviewer 2's finding: in a swarm where a QUEUE force-pushes rebased branches, an
+# unreachable rejected commit says nothing about who wrote what — and with it unreadable the two
+# patch-id sets cannot be compared at all. Not knowing is not a verdict: OFFER.
+[ "$E_ANS" = "AUTHORS-TURN" ] \
+  && ok "the rejected commit is unreachable -> offer (a force-push is not authorship)" \
+  || bad "unreachable rejection" "expected AUTHORS-TURN: it cannot be compared, so it cannot be a skip"
+
+# E2. THE REBASE PATH, found by reviewer 2 on #690 and the reason this predicate compares
+#     patch-ids rather than commits. `rebase_pr.sh` Attempt 2 runs `git rebase -q origin/main` and
+#     force-pushes: every commit on the branch is new, non-merge, and not on main, yet not one line
+#     of it is the author's and the reviewer's asks are untouched.
+git -C "$REPO" checkout -q -B case_e2 "$REJ"
+git -C "$REPO" rebase -q "$MAIN2" >/dev/null 2>&1 || git -C "$REPO" rebase --abort >/dev/null 2>&1
+E2=$(git -C "$REPO" rev-parse HEAD)
+git -C "$REPO" update-ref refs/remotes/origin/main "$MAIN2"
+if [ "$E2" = "$REJ" ]; then
+  bad "case E2 setup" "the rebase did not rewrite the branch"
+else
+  E2_ANS=$( cd "$REPO" && . "$WORK/fn.sh" && if author_answered 7 "$REJ" "$E2"; then echo ANSWERED; else echo AUTHORS-TURN; fi )
+  [ "$E2_ANS" = "AUTHORS-TURN" ] \
+    && ok "a REBASE onto main rewrote every SHA -> still the author's turn (patch-ids unchanged)" \
+    || bad "rebased branch" "expected AUTHORS-TURN: a rebase preserves patch-ids, so nothing new was written"
+fi
 
 # F. it cannot see the head at all -> OFFER, never a silent skip.
 UNKNOWN_SHA=$(printf '%s' "$MAIN1" | sed 's/^./f/')
@@ -146,6 +168,25 @@ if [ "$M_B" = "ANSWERED" ]; then
   ok "mutation — the old bare-SHA test calls the #656 merge an answer, and case B catches it"
 else
   bad "mutation" "the pre-fix test did not reproduce the bug, so case B proves nothing"
+fi
+
+# SECOND MUTANT: the COMMIT-COUNTING predicate this change shipped in its first revision. It fixes
+# the merge case and still loses the rebase case, so it is the mutant that proves patch-ids are the
+# mechanism and not decoration. If case E2 ever stops catching it, patch-ids have stopped mattering.
+cat > "$WORK/mutant2.sh" <<'MUT2'
+author_answered () {  # "any non-merge commit since the rejection that is not on main"
+  local num="$1" rej="$2" head="$3"
+  [ -n "$rej" ] && [ "$rej" != "null" ] || return 1
+  [ "$rej" = "$head" ] && return 1
+  [ -n "$(git rev-list --no-merges "${rej}..${head}" --not origin/main 2>/dev/null | head -1)" ]
+}
+MUT2
+M_E2=$( cd "$REPO" && . "$WORK/mutant2.sh" && if author_answered 7 "$REJ" "$E2"; then echo ANSWERED; else echo AUTHORS-TURN; fi )
+M2_B=$( cd "$REPO" && . "$WORK/mutant2.sh" && if author_answered 7 "$REJ" "$B"; then echo ANSWERED; else echo AUTHORS-TURN; fi )
+if [ "$M_E2" = "ANSWERED" ] && [ "$M2_B" = "AUTHORS-TURN" ]; then
+  ok "mutation — commit-counting fixes the merge case and STILL loses the rebase case (E2 catches it)"
+else
+  bad "mutation 2" "expected the commit-counting mutant to pass case B and fail case E2 (got B=$M2_B, E2=$M_E2)"
 fi
 
 if [ "$fails" = 0 ]; then echo "test_rework_author_answered: PASS"; else

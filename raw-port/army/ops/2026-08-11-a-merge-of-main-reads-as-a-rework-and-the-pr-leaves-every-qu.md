@@ -41,11 +41,15 @@ differential where nothing else in the swarm will look for it.
 
 ## Fix / workaround
 
-`author_answered <PR#> <rejSHA> <headSHA>` asks what the new commits **are**:
+`author_answered <PR#> <rejSHA> <headSHA>` asks whether anything NEW WAS WRITTEN, by comparing the
+**patch-ids** of the branch's non-merge commits at the rejection and at the head:
 
-* any **non-merge** commit since the rejected commit that is not already on main → answered;
-* the rejected commit **unreachable** (force-push rewrite) → answered;
-* anything it cannot establish → **offer the PR**. Not knowing is not a verdict.
+* a patch-id at the head that the branch did not have at the rejection → answered;
+* anything it cannot establish — including an unreadable rejected commit — → **offer the PR**.
+  Not knowing is not a verdict.
+
+*(First revision of this fix counted non-merge commits instead. See CORRECTED BEFORE MERGE below:
+that version loses the rebase path, and reviewer 2 caught it with a reproduction.)*
 
 **A merge commit is never an answer, including one that resolved conflicts.** That edge was
 measured, not assumed: an earlier version of this function also accepted "a merge whose tree
@@ -123,3 +127,36 @@ behaviour an older tool must keep. The detected path was driven by hand over the
 CHANGES_REQUESTED set (the two `would-skip` calls above), and it is eight lines with a feature
 check. Whoever reviews after this lands: re-run `swarm_doctor.py` and confirm `queue-coverage`
 still reports `ok` with `rework_claim=` no larger than before.
+
+## CORRECTED BEFORE MERGE — the first fix was right about merges and wrong about rebases
+
+Reviewer 2 rejected the first revision of this change with a scratch-repo reproduction, and the
+finding is the same shape as the bug this entry reports, one tool-path over:
+
+```
+CASE 1  head == the rejected sha                           -> OFFER  (correct)
+CASE 2  a rebase worker rebased onto main and force-pushed -> SKIP   <-- wrong
+CASE 3  a rebase worker merged main (the #656 case)        -> OFFER  (correct)
+CASE 4  the author pushed an ordinary commit               -> SKIP   (correct)
+```
+
+`rebase_pr.sh`'s Attempt 2 runs `git rebase -q origin/main` and force-pushes, so **every** commit on
+the branch is new, non-merge and absent from main — while not one line of it is the author's. A
+predicate that counts commits therefore drops the PR out of the rework queue for precisely the
+reason it must not, and the "a force-push is authorship" rule the first revision relied on is not
+true in a swarm where a QUEUE rewrites branches on its own.
+
+The mechanism is now **patch-ids**: a rebase preserves them, real authoring introduces one. It
+subsumes the merge rule for free (a merge contributes no non-merge patch-id), so merges stop being
+a special case, and it does not care which tool moved the branch — which matters, because the next
+branch-moving tool will not be in anyone's list of cases.
+
+Both mutants are kept in the suite, because each proves a different thing:
+
+```
+mutation — the old bare-SHA test calls the #656 merge an answer, and case B catches it
+mutation — commit-counting fixes the merge case and STILL loses the rebase case (E2 catches it)
+```
+
+The second one is the interesting one: it is this entry's own first fix, pinned as a mutant. If
+case E2 ever stops catching it, patch-ids have stopped mattering and somebody should know.

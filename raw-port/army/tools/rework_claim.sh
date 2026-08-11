@@ -87,32 +87,46 @@ reap_dead_counters () {
 #
 # So ask what the commits ARE, not whether the SHA changed. The author has answered iff, since the
 # rejected commit, the branch gained
-#   (a) any NON-MERGE commit that is not already on main, or
-#   (b) a rewrite that made the rejected commit unreachable (a force-push is author work).
+#   the branch gained a PATCH-ID it did not have at the rejection.
 #
-# A MERGE COMMIT IS NEVER AN ANSWER, INCLUDING ONE THAT RESOLVED CONFLICTS. That is the sharp edge
-# of this rule and it was measured, not assumed: an earlier version of this function also accepted
-# "a merge whose tree differs from the mechanical merge of its parents" as authoring, on the
-# grounds that a REBASE_MANUAL resolution is real work. It is real work — and it is the WRONG work
-# to leave a review on. Run against #656's own history that version still answered SKIP, because
-# the merge a rebase worker pushed had resolved a conflict. Reconciling a branch with main does not
-# address a single one of a reviewer's semantic asks, and `reviewDecision` stays
-# CHANGES_REQUESTED throughout. A worker who does answer the review makes an ordinary commit, so
-# (a) sees it. Cheaper, too: no per-merge tree computation.
+# WHY PATCH-IDS AND NOT COMMITS (reviewer 2 on #690, with a reproduction I confirmed). Counting
+# "non-merge commits since the rejection that are not on main" looks right and is wrong one
+# tool-path over: `rebase_pr.sh`'s Attempt 2 runs `git rebase -q origin/main` and force-pushes, so
+# every commit on the branch is NEW — non-merge, not on main, and not a line of the author's. The
+# rework queue would drop the PR for exactly the reason it must not. A rebase PRESERVES patch-ids
+# and real authoring introduces one, so the question "did anything new get written" has a direct
+# answer that does not care which tool moved the branch. It subsumes the merge case for free (a
+# merge contributes no non-merge patch-id), so merges are handled by the mechanism rather than by a
+# special case, and it covers whatever the next branch-moving tool turns out to do.
 #
+# A FORCE-PUSH IS NOT AUTHORSHIP EITHER, for the same reason: in a swarm where a queue rewrites
+# branches on its own, "the rejected commit is unreachable" says nothing about who wrote what. When
+# the rejected commit cannot be read, the two sets cannot be compared and the answer is OFFER.
+#
+# DIRECTION OF ERROR, on purpose: anything this cannot establish means OFFER the PR. Offering a PR
+# that was already fixed costs one worker one look and the attempt counter resets on a new head
+# (#28); NOT offering a genuinely rejected PR strands finished review evidence with nobody able to
+# act on it, and nothing else in the swarm will notice.
+_branch_patch_ids () { # <tip> : sorted patch-ids of the non-merge commits <tip> has beyond main
+  local c
+  git rev-list --no-merges "origin/main..$1" 2>/dev/null | while read -r c; do
+    git show "$c" 2>/dev/null | git patch-id --stable 2>/dev/null | cut -d' ' -f1
+  done | sort -u
+}
+
 author_answered () { # <PR#> <rejSHA> <headSHA> ; 0 = the author answered, 1 = still the author's turn
-  local num="$1" rej="$2" head="$3"
+  local num="$1" rej="$2" head="$3" old new p
   [ -n "$rej" ] && [ "$rej" != "null" ] || return 1
   [ "$rej" = "$head" ] && return 1
   # The PR head ref always exists on the remote, even when the branch was deleted or rewritten.
   git fetch -q origin "refs/pull/$num/head" 2>/dev/null || true
-  git cat-file -e "${rej}^{commit}" 2>/dev/null || return 0          # (b) rewritten away
-  git cat-file -e "${head}^{commit}" 2>/dev/null || return 1         # cannot see it -> offer
-  # (a) real commits of the author's own, excluding anything that is only main catching up.
-  #     Merges are excluded on purpose — see the note above; reconciling with main is not an answer.
-  if [ -n "$(git rev-list --no-merges "${rej}..${head}" --not origin/main 2>/dev/null | head -1)" ]; then
-    return 0
-  fi
+  git cat-file -e "${rej}^{commit}" 2>/dev/null  || return 1        # cannot compare -> offer
+  git cat-file -e "${head}^{commit}" 2>/dev/null || return 1        # cannot see it   -> offer
+  old="$(_branch_patch_ids "$rej")"
+  new="$(_branch_patch_ids "$head")"
+  for p in $new; do
+    printf '%s\n' "$old" | grep -qx -- "$p" || return 0            # a change nobody had written
+  done
   return 1
 }
 
