@@ -552,6 +552,63 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
 
 ---
 
+## Open — reported 2026-08-11 by reviewer 3 (the approval binds to the LIVE head, not the reviewed one; NEW)
+
+- **`ghapp/pr_review.sh <PR#> approve` resolves the PR's head SHA AT CALL TIME, so a push that
+  lands while you were reviewing silently moves your APPROVE onto code you never looked at.**
+  The review queue leases by PR#+head-SHA precisely so two reviewers never gate the same head — but
+  nothing stops the *author* (or a worker pulling the same PR off the rebase queue) from pushing a
+  new head under an in-flight review, and `pr_review.sh` does not take the SHA you leased. It asks
+  GitHub for the current head and signs that.
+  Measured today, three times in six PRs, on a 16-agent swarm:
+  * **#384** — leased and fully verified `f741d2b2` (UsesOnlyGPUResource + SetGPUGraphicsAPI). While
+    the differential was running a worker pushed `e52779ce`, adding `IsRequestedVirtualScreen`
+    (+119 lines). `pr_review.sh … approve` printed `PR #384 @ e52779ce -> APPROVED`. Had I then run
+    `pr_land.sh`, **119 lines nobody reviewed would have landed under a real reviewer APPROVE** —
+    and every mechanical gate would have been green, because the added code was itself gate-clean.
+    (Caught only because the tool echoes the SHA it signed and it did not match my lease. I then
+    verified the new method too — it was faithful — but that was luck, not process.)
+  * **#388** and **#391** — same shape via the rebase path: a peer force-pushed a union-rebase onto
+    the PR branch between my `pr_gate` and my `approve`, so the approval landed on `a8faaf96` /
+    `0d722917` rather than the `531e72bf` / `52e95f1b` I leased.
+  This is the same failure class as #7 (a rejected port landing because a lease was keyed to a head
+  that moved), arriving through the APPROVE side instead of the merge side, and `required_pull_request_reviews`
+  is still `null` on `main` (GITHUB_APPS.md "Recommended follow-up"), so **`dismiss_stale_reviews`
+  is not protecting anyone** — nothing drops the approval when the head changes.
+  FIX (in order of value): (a) `pr_review.sh` should take the head SHA the reviewer verified —
+  `pr_review.sh <PR#> approve --head <sha> "<evidence>"` — and REFUSE (non-zero, loud) when the
+  live head differs, exactly as `pr_land` refuses to mint an approval (#234); (b) turn on
+  `required_approving_review_count=1` **with** `dismiss_stale_reviews=true`, which makes GitHub drop
+  the approval server-side on every push and turns this from a silent hazard into a re-review;
+  (c) `pr_gate.sh`/`pr_land.sh` should print the leased SHA alongside the live one so the drift is
+  visible in the log rather than only in the approval line.
+  WORKAROUND until then, and it is cheap — **re-read the head immediately before signing and compare
+  it to your lease**:
+
+      H=$(gh pr view <PR#> --repo vjeux/fcp-headless-transitions --json headRefOid -q .headRefOid)
+      [ "$H" = "<the SHA review_claim.sh leased you>" ] || { echo "HEAD MOVED — re-review"; }
+
+  and after any merge, diff what actually landed against the blob you verified
+  (`git show origin/main:<path>` vs `git show <verified-sha>:<path>`) before you consider the PR
+  signed. If the head moved, either verify the delta too or say plainly that you did not.
+
+- **`pr_land.sh` REBASE-RACE is now the dominant merge cost at 16 agents, and each losing round pays
+  a full gate.** #420 (a 5-instruction EMPTY port) burned **12 rounds across two invocations** —
+  every round `PR_GATE: PASS` then `mergeState=BEHIND` again — and never merged, because with 8
+  reviewers landing PRs, `main` advances faster than the `update-branch` → wait-for-new-head →
+  `pr_gate` → merge cycle can close. The work is not wasted review time, it is wasted *gate* time: a
+  pool worktree lease plus a tsgo typecheck per round, i.e. the losing rounds are themselves a large
+  part of what makes main advance so fast. Strict "require branches up to date" + a required status
+  that only an agent can post is the structural cause: GitHub auto-merge can update the branch, but
+  the new head then has NO `faithfulness-gate` status, so it parks until a reviewer gates it.
+  Not fixed here. Candidates: gate the MERGE COMMIT rather than the head; allow `pr_gate` to post the
+  status for a head it has already gated with an identical tree hash (the common case — an
+  update-branch merge that changes no file the PR touches, which a `git diff --quiet <old> <new> --
+  <changed paths>` can prove in milliseconds); or serialise landings behind a short repo-wide merge
+  lock so rounds stop competing. Until then: on REBASE-RACE, post the evidence comment, leave the
+  green status and the approval, release the lease and move on — do NOT keep re-running `pr_land`,
+  which is what turns one race into twelve gate runs.
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
