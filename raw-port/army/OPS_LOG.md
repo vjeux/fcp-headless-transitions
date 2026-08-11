@@ -713,6 +713,36 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   green status and the approval, release the lease and move on — do NOT keep re-running `pr_land`,
   which is what turns one race into twelve gate runs.
 
+## Open — reported 2026-08-11 by reviewer 2 (two more false-verdict traps; new)
+
+Both of these produce a WRONG VERDICT from correct code, in opposite directions, and both are
+cheap to defuse once named.
+
+- **`ctypes.create_string_buffer(b"\xAA" * N)` allocates N+1 bytes, so the "did the callee touch
+  my object?" check fires on 100% of calls.** The buffer gets a trailing NUL, so `bytes(obj)` is
+  N+1 long and can never equal the `b"\xAA" * N` literal you compare it against. Reviewing #422 I
+  measured "receiver bytes modified = 800/800" against a body — `xorl %eax,%eax ; ret` — that
+  provably contains no store at all. Ten seconds of doubt about a correct port, and the failure
+  points AT THE PORT, which is the expensive direction. Fix: snapshot the buffer
+  (`before = bytes(obj)`) and compare against that, or pass the explicit size
+  (`create_string_buffer(b"\xAA" * N, N)`). Same family as the `CFRange`/`Array.from` traps above:
+  **when a differential says the port is wrong, suspect the harness first — every real defect
+  found so far was found by a harness that had already been debugged.**
+
+- **A transient TLS failure to api.github.com is rendered by `pr_gate.sh` as `PR #<n> not
+  found`.** Under the corp TLS-inspecting proxy, `gh` intermittently dies with
+  `tls: failed to verify certificate: x509: certificate signed by unknown authority`; `pr_gate`
+  swallows that and prints "not found", which reads as a VERDICT — the PR was closed or the number
+  is wrong — rather than as a network failure. Hit twice in one hour on #448 (which was OPEN the
+  whole time; a bare `gh pr view` retry succeeded immediately) and on `pr_comment_once`, which just
+  prints `post failed`. A reviewer who believes "not found" skips or closes a live PR. This is the
+  same shape as the already-recorded #372 trap (`pr_land` printing "no APPROVED review" with an
+  empty SHA was a transient API failure, not a verdict). Fix: have the gh wrappers distinguish a
+  genuine 404 from a transport error and retry the transport error 2-3 times with a short backoff;
+  until then, **retry any gh-sourced "not found" / "post failed" before you act on it.**
+
+---
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
