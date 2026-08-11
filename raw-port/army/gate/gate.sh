@@ -68,6 +68,14 @@ if [ -n "$CHANGED" ] && [ -f "$ROOT/army/gate/oracle_map.json" ]; then
     # Trust the driver's own verdict: DIVERGED/FAILED/ERROR = reject. (VERIFIED with a tiny
     # float-rounding max_abs_err like 3e-14 is a PASS — don't re-judge the magnitude here.)
     grep -qiE "DIVERGED|FAILED|ERROR|NO_SIGNAL" /tmp/gate_oracle.txt && { echo "  ORACLE DIVERGENCE"; FAIL=1; }
+    # A BROKEN ORACLE IS NOT A PASS. The driver prints "HARNESS_BROKEN — refusing to record" when it
+    # cannot run at all, and that string was NOT in the grep above — so G4, the only un-fakeable
+    # gate, could report nothing while the gate printed PASS. It had been dead since #63 deleted
+    # engine/ (fct/parity/bridge.py still pointed its TS worker at <repo>/engine, which has not
+    # existed for months): every oracle-mapped file since then was gated by silence. Found by
+    # worker-02. Fail loudly instead — a gate that cannot run must never look like a gate that ran.
+    grep -qiE "HARNESS_BROKEN|refusing to record" /tmp/gate_oracle.txt && {
+      echo "  ORACLE HARNESS BROKEN — G4 could not run (this is a REJECT, not a pass)"; FAIL=1; }
   else echo "  (no oracle-mapped node for changed files)"; fi
 else echo "  (skipped: no changed files given or no oracle_map)"; fi
 # CoreMedia differential oracle. The registry/driver path above only covers hand-registered FCP
