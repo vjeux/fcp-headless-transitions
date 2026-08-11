@@ -14,12 +14,16 @@
 //     __ZNK14HGMetalContext11texturePoolEv
 //   * HGMetalContext::textureInfiniPool() const     @Helium 0x1d3500
 //     __ZNK14HGMetalContext17textureInfiniPoolEv
+//   * HGMetalContext::setCommandBufferLimits(unsigned int, unsigned long)
+//                                                   @Helium 0x1d3530
+//     __ZN14HGMetalContext22setCommandBufferLimitsEjm
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZNK14HGMetalContext16bufferInfiniPoolEv.s
 //   raw-port/re/disasm/Helium.__ZNK14HGMetalContext10deviceInfoEv.s
 //   raw-port/re/disasm/Helium.__ZNK14HGMetalContext11texturePoolEv.s
 //   raw-port/re/disasm/Helium.__ZNK14HGMetalContext17textureInfiniPoolEv.s
+//   raw-port/re/disasm/Helium.__ZN14HGMetalContext22setCommandBufferLimitsEjm.s
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (12 lines, @0x1d34e0..@0x1d34f7)
@@ -431,5 +435,92 @@ export class HGMetalContext {
     // @0x1d3512  popq %rbp
     // @0x1d3513  retq
     return wrapper!.textureInfiniPoolAt0x48;
+  }
+
+  /**
+   * @Helium offset +0x40 — a `uint32_t` written by `setCommandBufferLimits`
+   * @0x1d3534 (`movl %esi, 0x40(%rdi)`), i.e. a FOUR-byte store of the first
+   * argument. No decoded instruction reads it yet, so nothing pins what the
+   * limit counts; the name keeps the offset rather than inventing a meaning.
+   *
+   * NOTE for readers of this file: this is `HGMetalContext+0x40`, which is NOT
+   * the `+0x40` that appears in `bufferInfiniPool` above — that one is an offset
+   * inside the WRAPPER object hanging off `HGMetalContext+0x18`
+   * (`HGMetalBufferWrapperInfinipool.poolAt0x40`). Two different objects.
+   *
+   * Zero-initialised here; the ctor is a separate ledger entry, so the true
+   * default is not yet grounded.
+   */
+  commandBufferLimit_u32_at_0x40: number = 0; // @Helium HGMetalContext@0x40
+
+  /**
+   * @Helium offset +0x48 — a `uint64_t` written by `setCommandBufferLimits`
+   * @0x1d3537 (`movq %rdx, 0x48(%rdi)`), i.e. an EIGHT-byte store of the second
+   * argument (`unsigned long`). Held as a bigint per PORTING_SPEC Rule 4: the
+   * slot is 64 bits wide and the setter accepts values above 2^53 (the oracle
+   * drives 0x7fffffffffffffff and 0xffffffffffffffff through it unchanged).
+   *
+   * Same caution as the field above: `HGMetalContext+0x48` is a different slot
+   * from the wrapper's `+0x48` read by `textureInfiniPool`.
+   *
+   * Zero-initialised here; the ctor is a separate ledger entry.
+   */
+  commandBufferLimit_u64_at_0x48: bigint = 0n; // @Helium HGMetalContext@0x48
+
+  /**
+   * `HGMetalContext::setCommandBufferLimits(unsigned int, unsigned long)`
+   *   @Helium 0x1d3530 (__ZN14HGMetalContext22setCommandBufferLimitsEjm)
+   *
+   * Full 8-line body
+   * (raw-port/re/disasm/Helium.__ZN14HGMetalContext22setCommandBufferLimitsEjm.s):
+   *
+   *   0x1d3530  pushq %rbp                  ; frame prologue
+   *   0x1d3531  movq  %rsp, %rbp
+   *   0x1d3534  movl  %esi, 0x40(%rdi)      ; this->+0x40 (u32) = arg1
+   *   0x1d3537  movq  %rdx, 0x48(%rdi)      ; this->+0x48 (u64) = arg2
+   *   0x1d353b  popq  %rbp                  ; epilogue
+   *   0x1d353c  retq
+   *   0x1d353d  nopl  (%rax)                ; padding — not executed
+   *
+   * Two independent stores, no branch, no call, no validation, no read-back.
+   * The widths differ and that is load-bearing: the first is a `movl` (four
+   * bytes, leaving +0x44 alone) and the second a `movq` (all eight bytes of
+   * +0x48). Which limit is which is NOT pinned by anything decoded — the method
+   * name says "Limits" and the ABI says (u32, u64); no instruction here reads
+   * either slot back — so the fields carry their offsets, not invented roles.
+   *
+   * ORACLE — differential against the live Helium binary, 1,200 cases, 0
+   * divergences (raw-port/re/oracle/HGMetalContext_setCommandBufferLimits_oracle.py).
+   * The symbol is exported (`T`), so the harness dlsym's it and calls it under
+   * `arch -x86_64 /usr/bin/python3` (the port cites x86_64 offsets; the arm64
+   * slice would be different code — OPS_LOG) on a 0xAA-poisoned 0x200-byte
+   * object. Inputs cover 0, 1, 2, 0x7fffffff, 0x80000000, 0xfffffffe,
+   * 0xffffffff for the u32 and 0, 1, 0xffffffff, 0x100000000, 2^53, 2^53+1,
+   * 0x7fffffffffffffff, 0x8000000000000000, 0xffffffffffffffff plus random
+   * values for the u64. Every case: the dword at +0x40 equals arg1, all eight
+   * bytes at +0x48 equal arg2, the four bytes at +0x44 are STILL 0xAA
+   * (1200/1200 — proving the `movl`), and no other byte of the object changed.
+   * NEGATIVE CONTROLS (300 cases each): storing arg1 as 64 bits -> 300/300
+   * wrong; swapping the two slots -> 300/300 wrong; truncating arg2 to 32 bits
+   * -> 300/300 wrong.
+   *
+   * @param limitU32 %esi — the first limit (u32).
+   * @param limitU64 %rdx — the second limit (u64, `unsigned long`).
+   */
+  setCommandBufferLimits(limitU32: number, limitU64: bigint): void {
+    // ------------------------------------------------------------
+    // @0x1d3530..0x1d3531 — prologue (no TS-visible effect).
+    // @0x1d3534 — movl %esi, 0x40(%rdi) : 32-bit store. `>>> 0` models the
+    //   truncation so a negative / oversized JS number lands the same bit
+    //   pattern the machine would (identical treatment to the u32 setters in
+    //   HGRenderJob.ts).
+    // ------------------------------------------------------------
+    this.commandBufferLimit_u32_at_0x40 = limitU32 >>> 0;
+    // ------------------------------------------------------------
+    // @0x1d3537 — movq %rdx, 0x48(%rdi) : 64-bit store. BigInt.asUintN(64, …)
+    //   models the register's width for the same reason.
+    // @0x1d353b..0x1d353c — epilogue + retq (void).
+    // ------------------------------------------------------------
+    this.commandBufferLimit_u64_at_0x48 = BigInt.asUintN(64, limitU64);
   }
 }
