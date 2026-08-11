@@ -19,4 +19,38 @@ export class OZImageElement extends OZElement {
     // OZImageElement-specific tags (0x1/0x5) are advanced; the media/transform come from the
     // <parameter> channel subtree handled by the channel driver.
   }
+
+  /**
+   * `OZImageElement::setIsPassthroughPlaceholder(int)` @Ozone 0xd9090
+   * (__ZN14OZImageElement27setIsPassthroughPlaceholderEi).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0xd9090  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0xd9091  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0xd9094  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0xd9095  retq                       ; void return
+   *   0xd9096  nopw  %cs:(%rax,%rax)      ; alignment padding, not executed
+   *
+   * An EMPTY BODY — the four instructions are the frame prologue/epilogue and
+   * nothing else. Neither `%rdi` (`this`) nor `%esi` (the `int` argument) is
+   * read, no field is written, no flag is set, and there is no callee of any
+   * kind (`depgraph.py deps` lists nothing). The argument is accepted and
+   * DISCARDED by the machine.
+   *
+   * This is the base implementation of a virtual hook: a subclass (or another
+   * element type) overrides it to record the passthrough-placeholder state,
+   * while `OZImageElement` itself keeps no such slot — exactly the shape of the
+   * landed no-op hooks `OZChannelBase::undoWillReplace()` @0x1fbe0 and
+   * `undoDidReplace()` @0x1fbf0. Writing a field here would INVENT state the
+   * binary does not have.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZImageElement27setIsPassthroughPlaceholderEi.s
+   *   (6 lines)
+   */
+  setIsPassthroughPlaceholder(_isPassthroughPlaceholder: number): void {
+    // @0xd9090-0xd9095 — prologue, epilogue, void return. The `int` argument
+    // in %esi is never read: the body is intentionally empty.
+  }
 }
