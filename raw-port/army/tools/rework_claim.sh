@@ -38,6 +38,24 @@ CAP="${REWORK_ATTEMPT_CAP:-3}"; LEASE_MIN="${REWORK_LEASE_MIN:-90}"
 
 lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
   local lk="$LEAS/$1"
+  # ── THE OTHER WORKER QUEUE'S LEASE COUNTS TOO ─────────────────────────────────────────────────
+  # A PR that is CHANGES_REQUESTED *and* CONFLICTING is selected by BOTH worker queues, and until
+  # now neither looked at the other's lease directory — so two workers were handed the same PR.
+  # Measured 2026-08-11 on #656 (a 936-line tooling PR): a peer took the REBASE lease at 13:32:36
+  # and was 43 files into a merge in ~/.fct-pool/wt/3 when this queue handed the same PR to worker 8
+  # at 13:33:42, 66 seconds later. Nothing in either tool could see the collision; the second worker
+  # only found it because `git checkout` refused a branch another worktree already held.
+  # The combination became common the same hour: #643 taught `rebase_claim` to select DIRTY PRs
+  # (right, and it un-stranded four), and the side effect is that every rejected+conflicted PR is
+  # now double-claimable. Both workers then reconcile the same conflicts and one of them loses the
+  # race at push time — the duplicated-evidence waste this log already records for the REWORK queue
+  # alone ("two workers can transcribe the same reviewer's finding").
+  # Same staleness window as our own leases, so a dead peer cannot block the PR forever.
+  local peer="$STATE/rebase_leases/$1"
+  if [ -d "$peer" ] && [ -z "$(find "$peer/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
+    echo "rework_claim: PR #$1 is already leased by the REBASE queue — skipping (a rejected PR that also conflicts is in both queues; one worker is enough)" >&2
+    return 1
+  fi
   mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; return 0; }
   if [ -n "$(find "$lk/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
     echo "$(date +%s)" > "$lk/held"; return 0; fi
@@ -111,11 +129,31 @@ cmd_claim () {
     # author has already answered and the PR belongs to the review queue (`review_claim.sh` selects
     # on the head's faithfulness-gate status, and a freshly pushed head has none, so it is visible
     # there as an ordinary unreviewed head).
-    local rej
-    rej=$(gh api "repos/$SLUG/pulls/$num/reviews" \
-            --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
-    # An EMPTY answer is a transport failure or an API shape change, never a verdict — offer the PR
-    # rather than starving the queue on it (OPS_LOG: a gh "not found" is not information).
+    # RETRY BEFORE FAILING OPEN. The fail-open below is right in principle and it is reached far too
+    # often in practice: `gh` on this box intermittently dies with
+    # `tls: failed to verify certificate: x509: certificate signed by unknown authority`, and the
+    # identical call succeeds on the next attempt. When that lands here the guard sees an empty
+    # answer, offers a PR the author has ALREADY answered, and a worker spends a full run
+    # rediscovering it — the exact cost #36 was written to remove. Measured 2026-08-11: #655 was
+    # handed to me at attempt 1/3 with its rejection recorded on dbeb23cc and its head at 998dfc5f,
+    # two pushes and a peer's completed rework later. Re-running this very query three times
+    # immediately afterwards returned dbeb23cc every time — the data was there, the call was not.
+    local rej="" _try
+    for _try in 1 2 3; do
+      rej=$(gh api "repos/$SLUG/pulls/$num/reviews" \
+              --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
+      [ -n "$rej" ] && [ "$rej" != "null" ] && break
+      [ "$_try" -lt 3 ] && sleep 2
+    done
+    # An EMPTY answer AFTER THREE TRIES is a transport failure or an API shape change, never a
+    # verdict — offer the PR rather than starving the queue on it (OPS_LOG: a gh "not found" is not
+    # information). Say so out loud, though: a silent fail-open is indistinguishable from a real
+    # offer, and the worker who receives the PR is the only one who can tell the difference.
+    if [ -z "$rej" ] || [ "$rej" = "null" ]; then
+      echo "rework_claim: WARNING PR #$num — could not read the rejection's commit after 3 tries;" >&2
+      echo "              offering it anyway (fail-open). If its head has moved since the review it" >&2
+      echo "              may already be reworked — check before redoing the work." >&2
+    fi
     if [ -n "$rej" ] && [ "$rej" != "null" ] && [ "$rej" != "$sha" ]; then
       echo "rework_claim: PR #$num already reworked (rejection was on ${rej:0:8}, head is now ${sha:0:8}) — it is waiting on a REVIEWER, skipping" >&2
       rm -f "$ATT/$num" "$ATT/$num.sha" 2>/dev/null

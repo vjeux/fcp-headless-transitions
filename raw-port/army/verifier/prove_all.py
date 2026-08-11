@@ -146,21 +146,39 @@ def layer2():
     print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
           "PASS" if ok11 else "FAIL")
     if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
-    # (2l, renumbered on this rebase for the SECOND time: this block went out as 2i, became 2j,
-    #  and main has since taken 2i/2j/2k. Keeping both sides is the only safe resolution here —
-    #  a layer that is not in the file cannot fail. See
-    #  army/ops/2026-08-11-every-tooling-pr-conflicts-on-prove-alls-layer-tail.md.)
-    # 2l — the self-heal that clears attempt counters whose PR has already merged. It only looked at
+    # 2l — the cross-queue lease guard. A PR that is CHANGES_REQUESTED *and* CONFLICTING sits in
+    # BOTH worker queues, and until #643 taught rebase_claim to see DIRTY branches that combination
+    # was rare. It is not rare now: measured the same hour, two workers held the two leases on #656
+    # 66 seconds apart and both began reconciling the same 936-line PR. Offline, ~0.2s, and each
+    # case is mutation-checked inside the suite.
+    r12 = run(["bash", os.path.join(TOOLS, "test_cross_queue_lease.sh")])
+    ok12 = "TEST_CROSS_QUEUE_LEASE: PASS" in r12.stdout
+    print("LAYER 2l (cross-queue lease — one PR is never handed to two workers):",
+          "PASS" if ok12 else "FAIL")
+    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
+    # 2s — the self-heal that clears attempt counters whose PR has already merged. It only looked at
     # counters AT the cap, while swarm_doctor flags any dead counter at all, so the tool reporting
     # the fault and the tool fixing it disagreed by construction and the board could never go green.
     # Offline, function extracted from the shipped file, stubbed gh. ~0.5s.
-    r12 = run(["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")])
-    ok12 = "test_reap_dead_counters: PASS" in r12.stdout
-    print("LAYER 2l (dead attempt counters — the reaper can reach what the doctor reports):",
-          "PASS" if ok12 else "FAIL")
-    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
+    #
+    # LETTER AND VARIABLES, third renumbering of this block (2i -> 2j -> 2l -> 2s): main took 2l and
+    # r12/ok12 for the cross-queue lease above. Keeping BOTH sides is the only safe resolution — a
+    # layer that is not in the file cannot fail
+    # (army/ops/2026-08-11-every-tooling-pr-conflicts-on-prove-alls-layer-tail.md) — and the VARIABLE
+    # has to move with the letter, which is the half that is easy to miss: two blocks both assigning
+    # `ok12` still PRINT correctly, because each print follows its own assignment, while the single
+    # `return` names `ok12` once, so the later block's result silently decides the verdict for both
+    # and a RED layer returns PASS. Measured, and filed as
+    # army/ops/2026-08-11-two-prove-all-layers-sharing-an-ok-variable-make-a-red-layer.md. One
+    # worker is holding five merges on this tail right now, allocated disjointly in both letters and
+    # variables: #656 2m/2n/2o r13-r15, #715 2p r16, #714 2q r17, #655 2r r18/r19, this one 2s r20.
+    r20 = run(["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")])
+    ok20 = "test_reap_dead_counters: PASS" in r20.stdout
+    print("LAYER 2s (dead attempt counters — the reaper can reach what the doctor reports):",
+          "PASS" if ok20 else "FAIL")
+    if not ok20: print(r20.stdout[-1200:], r20.stderr[-400:])
     return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
-            and ok11 and ok12)
+            and ok11 and ok12 and ok20)
 
 def _reach(spec, expect):
     import tempfile
