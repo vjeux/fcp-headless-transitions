@@ -53,6 +53,12 @@ EXTERN_PREFIXES = (
     "__ZGV",     # guard variables
 )
 
+def _is_degenerate(sym):
+    """Too short to be a real Itanium symbol. A bare `__ZL` token was being 'found' on main and
+    counted as a duplicate of everything."""
+    return len(sym) < 8
+
+
 def _is_extern(sym):
     return sym.startswith(EXTERN_PREFIXES) or "__cxa" in sym or "__cxxabi" in sym
 
@@ -65,9 +71,42 @@ def _mangled(text):
     return {m[:-2] if m.endswith(".s") else m for m in MANGLED.findall(text)}
 
 def _exists_on_main(main_ref, sym):
+    """Is `sym` genuinely IMPLEMENTED on main — not merely mentioned in a comment?
+
+    v3 still used a plain text grep, so a symbol named in a PROVENANCE COMMENT counted as "already
+    landed". That is not an edge case: every ported file cites sibling mangled names in its
+    documentation. It produced real false DUP verdicts on work that exists nowhere on main —
+    #180 (HGFreeAlign: main's only match is a `//   raw-port/re/disasm/__ZL11HGFreeAlignPv.s` line
+    inside HGAllocAlign.ts) and #197 (matched a sibling's evidence comment). Two reviewers
+    independently warned that closing those as dups would have destroyed real work.
+
+    So: look for the symbol OUTSIDE comments. Block comments are handled crudely but
+    conservatively — when in doubt we treat a mention as a comment, biasing toward NEW, because a
+    missed dup is cheap cleanup while a false dup destroys a real port.
+    """
     r = subprocess.run(["git","grep","-l","--fixed-strings",sym,main_ref,"--","raw-port/src"],
                        capture_output=True, text=True)
-    return r.returncode == 0 and bool(r.stdout.strip())
+    if r.returncode != 0 or not r.stdout.strip():
+        return False
+    for path in r.stdout.split():
+        path = path.split(":", 1)[-1]
+        txt = _show(main_ref, path)
+        if txt is None: continue
+        in_block = False
+        for line in txt.splitlines():
+            st = line.strip()
+            if in_block:
+                if "*/" in st:
+                    in_block = False; st = st.split("*/", 1)[1]
+                else:
+                    continue
+            if st.startswith("//") or st.startswith("*"):
+                continue
+            if "/*" in st and "*/" not in st:
+                in_block = True; st = st.split("/*", 1)[0]
+            if sym in st.split("//", 1)[0]:
+                return True      # a real code reference: genuinely on main
+    return False
 
 def main(argv):
     if len(argv) < 3:
@@ -80,7 +119,7 @@ def main(argv):
         introduced |= (b - m)
     # Runtime externs are not units of work; counting them is what made libc++ noise look like
     # "everything here already exists on main".
-    introduced = {s for s in introduced if not _is_extern(s)}
+    introduced = {s for s in introduced if not _is_extern(s) and not _is_degenerate(s)}
     if not introduced:
         # v2 called this a DUP. It is not: it means the file cites its methods by @0xADDR only,
         # which is common and legal -- #110's OZPasteEntry does not exist on main in any form and
