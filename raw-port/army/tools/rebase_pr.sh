@@ -32,8 +32,38 @@ PR="${1:?usage: rebase_pr.sh <PR#>}"
 SLUG="vjeux/fcp-headless-transitions"; CANON="$HOME/random/final-cut-pro-transitions"; cd "$CANON"
 git fetch -q origin main 2>/dev/null || true
 
-BR=$(gh pr view "$PR" --repo "$SLUG" --json headRefName --jq .headRefName 2>/dev/null)
-[ -z "$BR" ] && { echo "rebase_pr: PR #$PR not found"; exit 1; }
+# A TRANSPORT FAILURE IS NOT A VERDICT, and this lookup used to report one as the other. The corp
+# TLS proxy fails intermittently on this box — `Post "https://api.github.com/graphql": tls: failed
+# to verify certificate: x509: certificate signed by unknown authority`, measured 3 times in 25
+# minutes by one reviewer and twice in one minute here — and with stderr swallowed by 2>/dev/null
+# an empty answer printed `rebase_pr: PR #656 not found` about a PR that was open, conflicted and
+# had just been handed to me by rebase_claim. Two costs, both real: the worker is told the wrong
+# thing (I went looking for a deleted PR), and the rebase LEASE is already charged, so the queue
+# has spent one of the PR's three attempts on a blip. Retry, and when the query still cannot be
+# answered say THAT instead of inventing a fact about the PR.
+BR=""; LOOKUP_ERR=""
+for _try in 1 2 3; do
+  BR=$(gh pr view "$PR" --repo "$SLUG" --json headRefName --jq .headRefName 2>/tmp/rebase_pr_${PR}_lookup.err)
+  [ -n "$BR" ] && break
+  LOOKUP_ERR=$(tr -d '\r' < /tmp/rebase_pr_${PR}_lookup.err | tail -1)
+  sleep $((_try * 2))
+done
+if [ -z "$BR" ]; then
+  # GitHub ANSWERING "there is no such PR" is a verdict; anything else is the transport. Told apart
+  # by the error text, because both arrive as an empty stdout and a non-zero exit:
+  #   verdict    GraphQL: Could not resolve to a PullRequest with the number of 999999.
+  #   transport  Post "https://api.github.com/graphql": tls: failed to verify certificate: ...
+  if printf '%s' "$LOOKUP_ERR" | grep -qiE 'could not resolve to a (pullrequest|repository)|no pull requests found'; then
+    echo "rebase_pr: PR #$PR not found (GitHub answered: $LOOKUP_ERR)"; exit 1
+  fi
+  if [ -n "$LOOKUP_ERR" ]; then
+    echo "rebase_pr: could not READ PR #$PR after 3 tries — this is a transport failure, not a"
+    echo "           verdict about the PR. Last error: $LOOKUP_ERR"
+    echo "           Re-run; if it persists, check \`gh auth status\`. The PR has NOT been examined."
+    exit 7
+  fi
+  echo "rebase_pr: PR #$PR not found (gh answered, and it has no head branch)"; exit 1
+fi
 CLS="${BR#port/}"; CLS="${CLS%_rebased}"
 # THE PR'S BASE IS NOT ALWAYS main, AND MERGEABILITY IS COMPUTED AGAINST THE BASE. This tool used to
 # merge/rebase `origin/main` unconditionally, so for a STACKED PR (base = another open branch) the

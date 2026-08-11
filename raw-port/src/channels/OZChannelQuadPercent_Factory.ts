@@ -18,12 +18,15 @@
 //   0xa761a / 0xa763e   D1 / D0                                        dtors
 //   0xa766a  …6createERK8PCStringj                                     create(PCString const&, unsigned)
 //   0xa76c2  …10createCopyEP13OZFactoryBasej                           createCopy(...)
-//   0xa77fe  …17getIconIDInternalEv                                    <- THIS UNIT
-// Only getIconIDInternal is transcribed here; the others are unclaimed and deliberately ABSENT
-// rather than stubbed. This file will grow method by method, ADD-only.
+//   0xa77fe  …17getIconIDInternalEv                                    <- an EARLIER unit
+//   0xa7788  __ZN28OZChannelQuadPercent_Factory8revisionEv             revision()  <- THIS UNIT
+// Only getIconIDInternal and revision are transcribed here; the others are unclaimed and
+// deliberately ABSENT rather than stubbed. This file will grow method by method, ADD-only.
 //
-// Source disasm: raw-port/re/disasm/ProChannel.__ZN28OZChannelQuadPercent_Factory17getIconIDInternalEv.s,
-// re-derived with `raw-port/tools/disasm.sh --sym … ProChannel` after deleting any cached copy.
+// Source disasm: raw-port/re/disasm/ProChannel.__ZN28OZChannelQuadPercent_Factory17getIconIDInternalEv.s
+// and raw-port/re/disasm/ProChannel.__ZN28OZChannelQuadPercent_Factory8revisionEv.s,
+// re-derived with `raw-port/tools/disasm.sh --sym … ProChannel` after deleting any cached copy, so
+// each body below is read from the binary and not from a peer's leftover scratch in the pool slot.
 
 /**
  * `getIconIDInternal()` returns `-1`: the body loads the immediate `$0xffffffff` into %eax, and
@@ -65,5 +68,42 @@ export class OZChannelQuadPercent_Factory {
    */
   getIconIDInternal(): number {
     return OZ_CHANNEL_QUAD_PERCENT_FACTORY_ICON_ID_INTERNAL; // @0xa7802 movl $0xffffffff, %eax
+  }
+
+  /**
+   * `OZChannelQuadPercent_Factory::revision()` -> unsigned
+   * @ProChannel __ZN28OZChannelQuadPercent_Factory8revisionEv @0xa7788..0xa778f
+   *
+   * FULL DISASM — the whole function, five instructions, and the symbol is exactly eight bytes
+   * wide (the next symbol in the cached inventory, `getCategoryName`, starts at 0xa7790):
+   *   0xa7788  pushq %rbp                 ; frame
+   *   0xa7789  movq  %rsp, %rbp
+   *   0xa778c  xorl  %eax, %eax           ; return 0
+   *   0xa778e  popq  %rbp
+   *   0xa778f  retq
+   *
+   * The factory reports revision 0. `this` is never dereferenced — %rdi is dead on entry — so the
+   * value belongs to the class rather than to an instance, which is why it can be read off a
+   * factory that was never constructed. `xorl` on a 32-bit register zeroes the whole 64-bit %rax,
+   * so there is no garbage in the upper half for a `unsigned`-returning caller to see; the probe
+   * below reads %rax as a u64 to check exactly that.
+   *
+   * This is the same five instructions as the landed `OZStyle_Factory::revision` @Ozone 0x196f0
+   * and `OZChannelDecibel_Factory::revision` @ProChannel 0x1027c, and it sits directly beside this
+   * class's own `version()` @0xa777c, which instead loads `$0x1` — so 0 here is this method's own
+   * value and not a family default.
+   *
+   * ORACLED against the live symbol (a local `t` symbol is still callable by address):
+   * `raw-port/re/oracle/OZChannelQuadPercent_Factory_revision_probe.py`, ProChannel loaded under
+   * `arch -x86_64` through the recursive `@rpath` preloader, the eight prologue bytes at
+   * slide+0xa7788 checked against `554889e531c05dc3` before the address is trusted, four receivers
+   * (NULL, an unmapped 1, 0xdeadbeef, and a live arena) all returning 0, the full %rax 0x0, and a
+   * 0x200-byte `this` arena poisoned with 0xCD byte-identical afterwards. Three live mutation
+   * controls on neighbouring methods of the same class are all KILLED — `getIconIDInternal`
+   * @0xa77fe (-1), `version` @0xa777c (1), and `getIconNameInternal` @0xa77ce, which writes 8
+   * bytes into its own poisoned arena and so proves the arena comparison can detect a store.
+   */
+  revision(): number {
+    return 0; // @0xa778c xorl %eax, %eax
   }
 }
