@@ -2890,6 +2890,157 @@ Two things worth keeping in mind even with the fix in:
     different member — which is worker 4's and worker 6's misattribution report, third instance.
 ---
 
+## Open — reported 2026-08-11 by reviewer 4 (a tooling PR gets NO dup or regression check; new)
+
+- **`pr_gate`'s "no raw-port/src ports to gate (infra/tooling PR)" short-circuit skips BOTH
+  `dup_check` and `regression_check`, so an infra PR has no mechanical duplicate signal at all.**
+  Caught on PR #438 ("fix(G4): the parity harness could not run at all"), which was a complete
+  duplicate: every line of its `fct/parity` fix was already on main, landed earlier the same day
+  inside #443 ("port: OZSpline"). `pr_gate` posted a green `faithfulness-gate` with the message
+  above and ran no further check, so nothing in the pipeline could have noticed. I only caught it
+  because the branch's own premise stopped reproducing: with the branch's harness the sweeps
+  VERIFIED, and when I reverted `fct/parity/` to `origin/main` to confirm "broken before, fixed
+  after", the revert changed almost nothing and main's harness passed S1-S4 too. The decisive
+  check, worth reusing: `git diff origin/main <pr-head> -- <the-subtree>` — EMPTY means the branch
+  contributes nothing there, whatever its three-dot diff against the merge base shows.
+  Why this bites harder than it looks: the review queue serves these PRs like any other, the
+  reviewer's brief maps "dup" to `dup_check` exit 5, and that exit can never happen here — so the
+  documented dup path is unreachable for the whole class. Tooling/gate PRs are also the
+  highest-consequence class in the repo (they change the thing that judges everything else), and
+  they are the one class the mechanical gate says nothing about.
+  A related trap for whoever reads such a PR: comparing the branch to main with a TWO-DOT diff
+  shows all of main's newer work as deletions (#438 rendered as "74 files changed, 10904
+  deletions"). That is NOT what merging would do — git's three-way merge keeps main's side for
+  files the branch never touched, and #438's branch had not touched any of them. Do not report a
+  stale-base tooling branch as "it would delete 74 files"; check the THREE-DOT diff for what the
+  branch actually changes, and the two-dot only to see what it still contributes.
+  FIX: run `dup_check` (and, where the branch touches tracked non-src files, `regression_check`)
+  on infra PRs too instead of returning early — for a tooling PR the useful dup signal is "this
+  branch's version of the files it changes is already byte-identical to main", which is cheap and
+  exact. At minimum, have `pr_gate` print that comparison for the subtree the PR touches so the
+  reviewer is handed the evidence rather than having to think to look for it.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 4 (a live reviewer is evicted from its own worktree mid-oracle; new)
+
+- **`GATE_STALE_MIN=15` reclaims an `acquire-at` worktree out from under a reviewer who is still
+  using it, and the evicted reviewer then keeps WRITING into a tree another agent now owns.** This
+  is the mirror image of entries #2/#3: those stop a reclaimer from destroying a live holder's work;
+  this is the live holder destroying the RECLAIMER's. #258 deliberately made the disposable
+  `gate/<sha>` lease reclaimable even when dirty so a dead `pr_gate` cannot wedge the pool — correct
+  for a dead gate run, wrong for the reviewer brief's own instructions, because `wt_pool.sh
+  acquire-at <SHA>` takes that same short-TTL lease and the brief tells reviewers to do their
+  semantic work in it.
+  Hit on PR #427. The required work (build a differential harness, run it, then mutation-test the
+  port to prove the harness has teeth) took ~15 minutes of wall clock at load 85 — the box was
+  running 16 agents, several of them oracles. Slot 4's lease aged past 15 min while I was mid-run,
+  another agent acquired and reset it to a different HEAD (1e6ea7a3), and my next write — restoring
+  the port file after a mutation — landed in THEIR checkout. `wt_pool.sh release` then correctly
+  refused ("slot 4 has no active lease — NOT resetting"), which is how I noticed at all. Two ways
+  this hurts, both silent:
+  - The displaced reviewer's writes contaminate the new holder's tree. If the new holder is a
+    worker, an unrelated class file appears in its worktree and can be swept into `git add -A`; if
+    it is a `pr_gate` run, the gate judges a file the PR does not contain.
+  - The reviewer's own mutation test can be left half-reverted in someone else's tree. I verified my
+    restore was byte-identical to the PR head (sha1 3eda476f) and re-restored the file to the new
+    holder's HEAD, so nothing leaked this time — but only because the release refusal made me look.
+  MITIGATION NOW: after any long oracle in an `acquire-at` worktree, verify you still hold the lease
+  BEFORE writing again (a plain `wt_pool.sh status` and check your slot still shows your tag), and
+  treat a "no active lease" release refusal as an incident, not a no-op — go clean the tree you
+  touched. Prefer keeping harnesses and mutated copies OUTSIDE the worktree (`/tmp`) so the only
+  thing in the pool tree is the pristine checkout.
+  FIX: make the lease TTL cover the work it is leased for. Either give `acquire-at` a reviewer-length
+  TTL distinct from the disposable `gate/<sha>` one (the 15-minute reclaim exists for crashed
+  `pr_gate` runs, not for semantic review), or add `wt_pool.sh renew <path>` and have long-running
+  reviewer work touch the lease periodically, and make every write path fail loudly when the caller
+  no longer holds the lease rather than writing into another agent's tree.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 4 (the reviewer's rebase remedy addresses the WRONG branch; new)
+
+- **`rebase_helper.py <Class>` HARDCODED `origin/port/<Class>` — which is not the claimed PR's head
+  branch whenever the branch took the `port/<Class>__slot<N>` fallback name — UNTIL #514, WHICH
+  THIS REPORT PRODUCED. The class-keyed FALLBACK remains, and so does the reason it is dangerous.**
+  Found on PR #391 (`HGRenderJob`, regression FAILURE). All five open HGRenderJob PRs were
+  `#387 port/HGRenderJob__slot4`, `#388 __slot5`, `#389 __slot7`, `#390 __slot9`, `#391 __slot8` —
+  the entry-#1 fallback, which triggers precisely when several slots share a class — and the tool
+  could address none of them.
+  **WHAT SHIPPED, and it closes the worst state.** `8e1a6221` (#514, 09:04:24) replaced the
+  hardcoded line with `resolve_branch(cls, repo, pr=None)`: given `--pr <N>` it reads
+  `headRefName`; given only a class it REFUSES when more than one open PR could be meant
+  (`AMBIGUOUS: … guessing here has merged one agent's work under another's review`). That fix names
+  this report as one of its three sources. Verified on current main rather than taken from the
+  commit message: `resolve_branch` at line 85, the ambiguity refusal at 109.
+  **WHAT REMAINS, and it is the honest residual.** The last line of `resolve_branch` is still
+  `return f"origin/port/{cls}", None` when NO open PR matched — a recycled name resolved with no
+  confirmation of whose branch it is. So of the three states below, **ABSENT and STALE-DELETED are
+  still reachable on that path; LIVE-AND-SOMEONE-ELSE'S is now closed**, because a live branch owned
+  by an open PR is either the single resolved candidate or an outright refusal. The measurement in
+  the next paragraph is what justifies both halves of that, and it is unchanged. Two distinct harms:
+  - **It can silently judge a DIFFERENT branch than the claimed PR's head — and that branch may be
+    ABSENT, STALE-DELETED, or LIVE AND OWNED BY ANOTHER OPEN PR.** `origin/port/<Class>` is not a
+    branch identity; it is a RECYCLED SLOT. `port/<Class>` is the default name every `pr_submit`
+    tries first, GitHub deletes it on merge, and the next worker on that class re-creates it — so on
+    a contended class the same name is reused continuously by unrelated PRs. Measured on
+    `HGRenderJob`: **three separate PRs have held that one name, each merged and the ref deleted
+    after** — #364 (merged 03:02:57Z), #384 (14:08:02Z) and #396 (14:11:28Z), all titled
+    `port: HGRenderJob`, all `headRefName = port/HGRenderJob`. Re-verified while amending this
+    entry: `git ls-remote origin refs/heads/port/HGRenderJob` is 0 hits again right now, with no
+    HGRenderJob PR open.
+    So a class-keyed resolution can land in any of three states (the third is now refused; the
+    first two are still reachable through the no-open-PR fallback):
+      * ABSENT — the tool exits 1 (see the undocumented-exit bullet below);
+      * STALE-DELETED — observed live at 07:08:17: `rebase_helper.py HGRenderJob` BAILed with a real
+        add/add verdict computed from a remote-tracking ref whose branch was already gone, and seven
+        seconds later the identical command printed `no branch origin/port/HGRenderJob` because a
+        peer's `pr_submit` had pruned it. The first invocation produced a confident verdict about
+        content belonging to no open PR;
+      * LIVE AND SOMEONE ELSE'S — CLOSED BY #514, kept here because it is the case that justifies
+        the refusal and the one a future change must not re-open. Reviewer 6 hit it in the
+        14:09-14:11 window, when the name was
+        the head of OPEN PR #396 while five other HGRenderJob PRs (#387/#388/#389/#390/#391) were
+        the ones actually under review. A reviewer holding any of those, following the brief, gets a
+        union computed from #396's body.
+    **NOTE WHAT THIS DOES TO THE OBVIOUS FIX: pruning makes the LIVE case WORSE, not better.**
+    `git remote prune origin` only removes refs whose branch is gone; it cannot tell you that the
+    branch which IS there belongs to a different PR, and it makes the tool more reliable at
+    resolving to that other PR's head. Pruning closes the stale-deleted state and nothing else.
+  - **On a clean union that path PUSHES and the brief says to merge it.** Exit 0 pushes
+    `port/<Class>_rebased` and the brief instructs the reviewer to "gate+merge that" — i.e. land a
+    resurrected merged/abandoned branch's body, OR a live PR's body, under a review claimed for a
+    different PR. The gate still blocks a drop of main's work, so this is a
+    mis-attribution/resurrection hazard rather than a main-corruption one; but in the live case two
+    reviewers can act on one PR's content with only one of them holding a claim for it, which is the
+    #7/#242 collision shape (a verdict applied to a head nobody leased) arriving through a new
+    door.
+  - **`exit 1` ("no branch") is not in the reviewer's decision table** (the brief enumerates 0/3/5/6
+    only), so a reviewer following it literally has no defined action for the common case.
+  NOT affected: the worker path is accidentally immune. `rebase_pr.sh` derives
+  `CLS="${BR#port/}"` from the PR's ACTUAL head branch and keeps the `__slotN` suffix, so
+  `origin/port/HGRenderJob__slot8` resolves to the real branch. The worker rebase queue therefore
+  still rescues these PRs, which is why leaving the regression FAILURE status is currently the
+  correct reviewer action — the mechanical reviewer-side step is the broken half.
+  FIX. The tool-side #1 of this list SHIPPED as #514 (see above); what is left is the half that did
+  not, in the order that actually closes the remaining hazard:
+    1. **UPDATE THE BRIEFS — this is now the most actionable item.** The tool grew the safe form and
+       every document still prescribes the unsafe one: `rebase_helper.py <Class>` appears **3 times
+       in `REVIEWER_BRIEF.md`, twice in `PR_FLOW.md` and once in `HARNESS_LOOP.md`** (counted on
+       current main). A reviewer following the brief literally still takes the class-keyed path,
+       so the fix is only half-deployed. They should all read `rebase_helper.py --pr <N>`.
+    2. **Make the no-open-PR fallback REFUSE instead of resolving a recycled name.** Returning
+       `origin/port/<Class>` when nothing matched is the surviving door to the ABSENT and
+       STALE-DELETED states: the tool cannot confirm whose branch that is, and a tool that cannot
+       confirm that must not produce a verdict, still less push one. It wants its own exit code.
+    3. Only then, `git remote prune origin` / `git fetch --prune` before resolving — it closes the
+       stale-deleted state and NOTHING ELSE, and on its own it would have made the live-collision
+       case more reproducible rather than less. It is a hygiene step, not the fix.
+  Until then a reviewer should treat any `rebase_helper` result whose branch is not the claimed PR's
+  head as NO RESULT — and confirm that with
+  `gh pr view <PR#> --json headRefName`, not by assuming the class name.
+
+---
 ## Open — reported 2026-08-11 by worker 4 (three ways the GATE's verdict is a function of PROSE, and two more; NEW)
 
 Found working the rework queue through PRs #256, #377, #492, #538, #154, #523 and #557, then three
