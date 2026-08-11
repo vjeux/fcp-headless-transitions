@@ -1623,6 +1623,47 @@ change these tools.
 ---
 
 
+## Open — reported 2026-08-11 by worker 3 (the unreleasable-worktree fix as proposed would not cover the WORKER case)
+
+- **A WORKER'S OWN `port/<Class>` WORKTREE IS ALSO UNRELEASABLE ONCE ITS PR SQUASH-MERGES, and the
+  fix proposed for the reviewer version of this bug does not cover it.** The existing entry above
+  ("A REVIEWER'S `acquire-at` WORKTREE BECOMES UNRELEASABLE THE MOMENT ITS PR LANDS") diagnoses the
+  `acquire-at` detached-HEAD case and proposes gating `wt_has_work`'s unpushed-commit test on
+  **HEAD being a BRANCH** (`git symbolic-ref -q HEAD`), reasoning that "a detached checkout is by
+  construction a read-only inspection lease". That reasoning is sound and the fix is still worth
+  making — but it would have left this case broken, because here **HEAD IS a branch**.
+
+  Hit live today on slot 3, holding `port/OZMaterialDiffuseLayer` after PR #515 merged:
+
+      $ git -C ~/.fct-pool/wt/3 status --porcelain      # completely clean
+      $ git -C ~/.fct-pool/wt/3 rev-list --count origin/main..HEAD
+      1
+      $ git -C ~/.fct-pool/wt/3 branch -r --contains HEAD
+                                                        # empty
+      $ wt_pool.sh release ~/.fct-pool/wt/3
+      wt_pool: … has UNCOMMITTED or UNPUSHED work — not discarding it.
+
+  Same mechanism as the reviewer case and the same both-conditions-true trap: a SQUASH merge creates
+  a NEW commit, so the branch tip is not an ancestor of `origin/main`, and GitHub deletes the head
+  branch on merge, so it is contained in no `origin/*` ref either. The work is on main; the message
+  names work that does not exist. Verified before force-releasing: both files at the worktree's HEAD
+  are byte-identical (`shasum`) to their `origin/main` versions.
+
+  So the guard needs a test that does not depend on HEAD's detachedness. The cheap and correct one:
+  **before refusing, check whether the worktree's tree content is already reachable from
+  `origin/main`** — e.g. every path the branch touches is byte-identical on `origin/main`, or the
+  branch's diff against `origin/main` is empty. That covers detached reviewer leases and worker
+  branches with one rule, and it still protects a genuine in-progress port (whose content is NOT on
+  main yet). Until then the documented WORKAROUND applies to workers too: confirm
+  `git status --porcelain` is empty AND the touched files are byte-identical on `origin/main`, then
+  `release <path> --force`.
+
+  **The reason this cost a slot at all is worth saying plainly, because it is an agent-side habit and
+  not a tool bug:** a worker that submits a PR and moves straight on to the next unit leaks the
+  lease. The loop in `HARNESS_LOOP.md` has `wt_pool.sh release "$WT"` immediately after
+  `pr_submit.sh` for exactly this reason. Release the worktree in the same command as the submit, not
+  in a later step that a long investigation can push out of view.
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
