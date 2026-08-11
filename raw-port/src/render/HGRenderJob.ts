@@ -5,6 +5,7 @@
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob10SetUserTagEy.s          (SetUserTag)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetUserNameEPKc.s       (SetUserName)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob7SetTypeENS_4TypeE.s      (SetType)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob8SetStateENS_5StateE.s    (SetState)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetPriorityENS_8PriorityE.s (SetPriority)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetResourceENS_8ResourceE.s (SetResource)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetResourceENS_8ResourceE.s (SetResource)
@@ -14,6 +15,8 @@
 //                                                                       (SetGPUGraphicsAPI)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob19UsesOnlyGPUResourceEv.s (UsesOnlyGPUResource)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob7GetTypeEv.s              (GetType)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob23SpecifiesComputeDevicesEv.s
+//                                                                       (SpecifiesComputeDevices)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob17GetGPUGraphicsAPIEv.s   (GetGPUGraphicsAPI —
 //                                                                       read only to pin the
 //                                                                       +0x64 offset/width; the
@@ -43,7 +46,13 @@
 //   uint32_t type;      // offset 0x0c — HGRenderJob::Type enum tag.
 //                       // SetType @0x54514 writes it via `movl %esi, 0xc(%rdi)`.
 //                       // Values not enumerated here; opaque u32.
-//   ...                          // fields 0x10..0x6f not yet decoded
+//   ...                          // fields 0x10..0x6b not yet decoded
+//   uint32_t state;     // offset 0x6c — HGRenderJob::State enum tag.
+//                       // SetState @0x54644 writes it via `movl %esi, 0x6c(%rdi)`
+//                       // and GetState @0x54744 reads it back via
+//                       // `movl 0x6c(%rdi), %eax` — a matched 32-bit store/load
+//                       // pair, which pins both the offset and the width.
+//                       // Values not enumerated here; opaque u32.
 //   uint32_t renderThreadPriority; // offset 0x70 — HGRenderJob::RenderThreadPriority
 //                       // enum tag. SetRenderThreadPriority @0x544b4 writes it
 //                       // via `movl %esi, 0x70(%rdi)`. Values not enumerated
@@ -80,6 +89,7 @@
 //   SetGPUGraphicsAPI       — none.
 //   UsesOnlyGPUResource     — none.
 //   GetType                 — none (5-instruction leaf load of this+0x0c).
+//   SetState                — none.
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -104,6 +114,10 @@
 //       — HGRenderJob::GetType() @Helium 0x54730
 //   * __ZN11HGRenderJob24IsRequestedVirtualScreenEi
 //       — HGRenderJob::IsRequestedVirtualScreen(int) @Helium 0x54ad0
+//   * __ZN11HGRenderJob8SetStateENS_5StateE
+//       — HGRenderJob::SetState(HGRenderJob::State) @Helium 0x54640
+//   * __ZN11HGRenderJob23SpecifiesComputeDevicesEv
+//       — HGRenderJob::SpecifiesComputeDevices() @Helium 0x54bf0
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — IsRequestedVirtualScreen @0x54ad0
@@ -266,6 +280,18 @@ export type HGRenderJobMetalShaderPrecision = number;
 export type HGRenderJobGPUGraphicsAPI = number;
 
 /**
+ * HGRenderJob::State — enum tag stored at +0x6c. Values are not yet enumerated
+ * here: `SetState` @Helium 0x54644 passes `esi` (an unsigned 32-bit int) straight
+ * into the slot with no validation, masking or branching, and its reader
+ * `GetState` @Helium 0x54744 hands the same 32 bits back
+ * (`movl 0x6c(%rdi), %eax`), so no decoded instruction pins a single enumerator.
+ * That matched 32-bit store/load pair is what fixes both the offset and the
+ * width. Model as an opaque u32 alias until a ctor or a comparison site reveals
+ * the values — same treatment as `HGRenderJobGPUGraphicsAPI` above.
+ */
+export type HGRenderJobState = number;
+
+/**
  * The pointee shape that `UsesOnlyGPUResource` @Helium 0x54b20 dereferences — both at
  * `this+0x18` (`cmpl $0x1, 0x8(%rcx)` @0x54b40) and for every entry of the vector at
  * `this+0x28..+0x30` (`cmpl $0x0, 0x8(%rax)` @0x54b74). Only the u32 at +0x08 is read by
@@ -293,6 +319,15 @@ export class HGRenderJob {
    *  Written by SetPriority @0x544a4 via `movl %esi, 0x68(%rdi)`. Zero-
    *  initialised until a ctor pins the true default. */
   _priority: HGRenderJobPriority = 0; // @Helium HGRenderJob@0x68
+
+  /** @Helium HGRenderJob@0x6c — the u32 HGRenderJob::State enum tag.
+   *  Written by SetState @0x54644 via a single `movl %esi, 0x6c(%rdi)`, and read
+   *  back by GetState @0x54744 via `movl 0x6c(%rdi), %eax` — a matched 32-bit
+   *  store/load pair, which is what fixes both the offset and the width.
+   *  Confirmed by calling the live pair on a 0xAA-filled buffer under
+   *  `arch -x86_64`: only the four bytes at +0x6c change. Zero-initialised to a
+   *  neutral tag until a ctor is transcribed to reveal the true default. */
+  state: HGRenderJobState = 0; // @Helium HGRenderJob@0x6c
 
   /** @Helium HGRenderJob@0x10 — the u32 HGRenderJob::Resource enum tag.
    *  Written by SetResource @0x54384 via `movl %esi, 0x10(%rdi)`. Zero-
@@ -687,6 +722,87 @@ export class HGRenderJob {
   }
 
   /**
+   * `HGRenderJob::SpecifiesComputeDevices()` @Helium 0x54bf0
+   *   (__ZN11HGRenderJob23SpecifiesComputeDevicesEv)
+   *
+   * Full transcription of the 19-line body (raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob23SpecifiesComputeDevicesEv.s). Returns `bool` in %al.
+   *
+   *   0x54bf0  pushq %rbp                    ; frame prologue
+   *   0x54bf1  movq  %rsp, %rbp
+   *   0x54bf4  cmpl  $0x6, 0x10(%rdi)        ; compare this->_resource (u32 @+0x10) with 6
+   *                                          ;   -- FLAGS DEAD, see the note below
+   *   0x54bf8  movq  0x18(%rdi), %rcx        ; rcx = this->taggedRef18
+   *   0x54bfc  movb  $0x1, %al               ; default answer = true
+   *   0x54bfe  testq %rcx, %rcx              ; (this is what actually sets the flags)
+   *   0x54c01  je    0x54c05                 ; taggedRef18 == null -> keep testing
+   *   0x54c03  popq  %rbp ; retq             ;   else return true
+   *   0x54c05  cmpq  $0x0, 0x50(%rdi)
+   *   0x54c0a  jne   0x54c03                 ; slot50 != null -> return true
+   *   0x54c0c  movq  0x28(%rdi), %rcx        ; rcx = vector begin
+   *   0x54c10  cmpq  0x30(%rdi), %rcx        ; AT&T: computes rcx - this->[+0x30] (begin - end)
+   *   0x54c14  jne   0x54c03                 ; begin != end (NON-EMPTY vector) -> return true
+   *   0x54c16  xorl  %eax, %eax              ; all three empty -> false
+   *   0x54c18  popq  %rbp
+   *   0x54c19  retq
+   *   0x54c1a  nopw  (%rax,%rax)             ; padding — not executed
+   *
+   * So the predicate is a plain three-way "is anything set?": TRUE when the +0x18
+   * pointer is non-null, OR the +0x50 slot is non-null, OR the +0x28..+0x30 vector is
+   * non-empty; FALSE only when all three are empty. It is the same field trio that
+   * `UsesOnlyGPUResource` @0x54b20 (above) reads, which is what pins the offsets — but
+   * this method reads ONLY the pointers/emptiness. It never dereferences `taggedRef18`
+   * and never walks the vector, so no `tag08` and no vector element participates.
+   *
+   * THE DEAD COMPARE @0x54bf4 IS REAL AND IS TRANSCRIBED AS A NO-OP. `cmpl $0x6,
+   * 0x10(%rdi)` sets the flags from `_resource - 6`, but nothing consumes them: the two
+   * instructions that follow (`movq`, `movb`) do not touch flags, and `testq %rcx, %rcx`
+   * @0x54bfe overwrites them before the only conditional branch (`je` @0x54c01) reads
+   * them. The `$0x6` is the same resource tag `UsesOnlyGPUResource` branches on
+   * (`cmpl $0x6, %ecx` @0x54b2e), so this is the residue of an inlined predicate whose
+   * result the optimiser folded away. It is kept here as a documented load-and-discard
+   * rather than deleted, because the instruction IS in the body; it has no effect on the
+   * return value, and the differential below proves that empirically (the answer is
+   * invariant across every resource value 0..8, including 6).
+   *
+   * DIFFERENTIAL against the live binary (exported `T` @0x54bf0, so dlsym reaches it; run
+   * under `arch -x86_64` because every address here is an x86_64 offset):
+   * raw-port/re/oracle/HGRenderJob_SpecifiesComputeDevices_oracle.py builds synthetic jobs
+   * over resource 0..8 x {ref18 null, tag 0, 1, 2} x {slot50 null, non-null} x vectors of
+   * length 0..3 with every tag combination — 2,880 cases, 2,871 TRUE / 9 FALSE,
+   * **0 divergences**. The 9 FALSE cases are exactly the all-three-empty jobs, one per
+   * resource value, which is also the empirical proof that the @0x54bf4 compare is dead:
+   * resource 6 answers FALSE there like every other resource.
+   * NEGATIVE CONTROLS (measured on the same corpus, each a plausible mis-read of the
+   * body): gating the whole thing on `_resource == 6` (i.e. treating the dead compare as
+   * live) diverges on 2,552 cases; requiring ALL three fields rather than any diverges on
+   * 1,818; inverting the empty-vector branch (`jne` @0x54c14) diverges on 360; and copying
+   * the sibling's `taggedRef18->tag08 == 1` dereference instead of testing the pointer
+   * diverges on 18 (only the 18 jobs where a non-null ref18 carries a tag other than 1 and
+   * nothing else is set can tell those two models apart — few, but the corpus does contain
+   * them, and the live binary sides with the pointer test).
+   *
+   * @returns true when the job specifies compute devices.
+   */
+  SpecifiesComputeDevices(): boolean {
+    // @0x54bf4 — cmpl $0x6, 0x10(%rdi): the u32 at +0x10 is read and compared with 6,
+    //   but the flags are dead (clobbered by `testq` @0x54bfe before the `je` @0x54c01).
+    //   Transcribed as an explicit load-and-discard so the instruction is not silently
+    //   dropped; `void` documents that the machine's own result is unused too.
+    void (this._resource >>> 0);
+    // @0x54bf8/@0x54bfc/@0x54bfe/@0x54c01 — rcx = taggedRef18; al = 1; branch if null.
+    if (this.taggedRef18 !== null) return true; // @0x54c03 popq %rbp ; retq with al = 1
+    // @0x54c05/@0x54c0a — cmpq $0x0, 0x50(%rdi) ; jne: a non-null slot50 returns true.
+    if (this.slot50 !== null && this.slot50 !== undefined) return true; // @0x54c03 (al = 1)
+    // @0x54c0c/@0x54c10/@0x54c14 — begin(+0x28) != end(+0x30), i.e. a NON-EMPTY vector,
+    //   returns true. `.length !== 0` is exactly that pointer inequality: the array models
+    //   the [begin, end) range, so begin == end is length 0.
+    if (this.taggedRefs.length !== 0) return true; // @0x54c14 jne -> @0x54c03 (al = 1)
+    // @0x54c16..0x54c19 — xorl %eax,%eax ; epilogue ; retq.
+    return false;
+  }
+
+  /**
    * `HGRenderJob::SetMetalShaderPrecision(HGRenderJob::MetalShaderPrecision)`
    *   @Helium 0x54500
    *   (__ZN11HGRenderJob23SetMetalShaderPrecisionENS_20MetalShaderPrecisionE)
@@ -735,6 +851,52 @@ export class HGRenderJob {
     // @0x5450a..0x5450b — epilogue + retq.
     // ------------------------------------------------------------
     this.metalShaderPrecision = precision >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::SetState(HGRenderJob::State)` @Helium 0x54640
+   *   (__ZN11HGRenderJob8SetStateENS_5StateE)
+   *
+   * Faithful line-for-line transcription of the whole 6-line function: one u32
+   * store into the `state` slot at `this+0x6c`. Structural twin of
+   * `SetGPUGraphicsAPI` / `SetRenderThreadPriority` above, a different slot.
+   * No callees, no validation, no branches. From raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob8SetStateENS_5StateE.s:
+   *
+   *   0x54640  pushq %rbp                    ; frame prologue
+   *   0x54641  movq  %rsp, %rbp
+   *   0x54644  movl  %esi, 0x6c(%rdi)        ; this->state (u32) = esi
+   *   0x54647  popq  %rbp                    ; epilogue
+   *   0x54648  retq
+   *   0x54649  nopl  (%rax)                  ; padding
+   *
+   * The offset and width are pinned by the matching reader `GetState`
+   * @Helium 0x54740 (`movl 0x6c(%rdi), %eax` @0x54744), and confirmed by
+   * DIFFERENTIAL against the live binary: both symbols are exported (`nm` class
+   * T), so calling the pair through dlsym on a 0x200-byte buffer pre-filled with
+   * 0xAA, under `arch -x86_64` (the port's addresses are x86_64 offsets, and the
+   * arm64 slice can differ — a wrong-slice oracle fails silently toward
+   * VERIFIED), gives across 513 cases (0, 1, 2, 3, 7, 0xaaaaaaaa, 0xffffffff,
+   * 0x12345678, 0x80000000, 0xdeadbeef, 0x100000000, 0x1ffffffff,
+   * 0xffffffffffffffff and 500 random 64-bit words): the four bytes at +0x6c
+   * hold the LOW 32 bits little-endian, `GetState` returns exactly those 32 bits,
+   * and EVERY other byte of the buffer is still 0xAA — i.e. the setter really is
+   * this single 32-bit store, it truncates rather than widening, and it touches
+   * nothing else. A second store overwrites the slot outright (Set(0xffffffff)
+   * then Set(1) leaves `01000000`), confirming a plain `movl` and not a
+   * read-modify-write.
+   *
+   * @param state — HGRenderJob::State enum value (SysV %esi, u32).
+   */
+  SetState(state: HGRenderJobState): void {
+    // ------------------------------------------------------------
+    // @0x54640..0x54641 — prologue (no TS-visible effect).
+    // @0x54644 — movl %esi, 0x6c(%rdi) : store u32 at offset +0x6c.
+    //   Model 32-bit truncation with `>>> 0` so a negative / oversized
+    //   JS number stores the same bit-pattern the machine would.
+    // @0x54647..0x54648 — epilogue + retq.
+    // ------------------------------------------------------------
+    this.state = state >>> 0;
   }
 
   /**
