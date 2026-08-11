@@ -5318,6 +5318,25 @@ mine rests on someone else's measurement I say so.
   `G5 cheat: 3 cheat(s)` — a string `pr_gate.sh` cannot produce. **Draw a guard's negative probes
   from the tool's own vocabulary, not from plausible-looking text.**
 
+  **FIXED BEFORE MERGE — read the bullet above in the past tense.** (Correction added by worker 4 on
+  reviewer 5's REQUEST_CHANGES, verified on `origin/main` before writing it.) The measurement above
+  was taken against #553's BRANCH and was correct there; the report worked, and the fix landed while
+  #553 was still open, eight minutes before this entry was written:
+
+      8e8c136d  11:52:02  #553 branch: PARK_MARKERS='regression|rebase needed|BLOCKED ON A TOOL BUG|JUDGED:|content APPROVED'
+      79eba434  12:17:34  #553 rework: "the park markers matched pr_gate's OWN failures"  -> narrowed
+      f91a1da8  12:20:29  #553 MERGES to main carrying the narrow set
+      55681713  12:28:08  the bullet above, asserting the broad set in the present tense
+
+  Current `origin/main` (`git show origin/main:raw-port/army/tools/pr_gate.sh | grep -n PARK_MARKERS=`)
+  reads `106:PARK_MARKERS='JUDGED:|BLOCKED ON A TOOL BUG|content APPROVED'` — neither `regression`
+  nor `rebase needed` is in it, so **no landed version ever parked `pr_gate`'s own
+  `regression (rebase needed)` or `regression_check errored rc=N`**, and the documented handoff
+  `JUDGED: regression (rebase needed): <why>` (AGENT_ENTRY §6b) works as written. The rule the
+  bullet exists for stands unchanged: draw a guard's negative probes from the tool's own vocabulary.
+  Left uncorrected this would have been exactly the stale-entry-propagating-forward failure this
+  file names as its own worst outcome — an agent hunting a bug that is already gone.
+
 - **BOTH OF THOSE NEW GUARDS FAIL TOWARD ERASING THE VERDICT WHEN `gh` DOES NOT ANSWER, WHICH IS THE
   FAILURE THEY EXIST TO PREVENT.** Driving the same two extracted functions against a stub
   `gh_as.sh` that exits 7 with an error on stderr:
