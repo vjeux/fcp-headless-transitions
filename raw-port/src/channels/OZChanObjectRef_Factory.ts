@@ -166,4 +166,52 @@ export class OZChanObjectRef_Factory {
     // @0x292b..0x2930 — epilogue + retq.
     return _instance;
   }
+
+  /**
+   * `OZChanObjectRef_Factory::getIconIDInternal()` — @ProChannel 0x13054
+   * (__ZN23OZChanObjectRef_Factory17getIconIDInternalEv).
+   *
+   * FULL DISASM (raw-port/re/disasm/
+   * ProChannel.__ZN23OZChanObjectRef_Factory17getIconIDInternalEv.s, 5 instructions):
+   *
+   *   0x13054  pushq %rbp
+   *   0x13055  movq  %rsp, %rbp
+   *   0x13058  movl  $0xffffffff, %eax    ; return -1
+   *   0x1305d  popq  %rbp
+   *   0x1305e  retq
+   *
+   * The whole body is one immediate move: this factory declares NO icon. `%eax` is
+   * written as the 32-bit `0xffffffff`, and the C++ return type is a signed 32-bit
+   * icon ID, so the value is -1 — the same "none" sentinel the class's own
+   * `getInstance` fast-path compares `_instanceOnce` against @0x28f6. It is a
+   * constant, not a lookup: there is no load, no call, no branch and no reference to
+   * `this` (the method does not even move %rdi).
+   *
+   * NOT AN EMPTY BODY, and the distinction matters for anyone re-deriving it: an
+   * empty C++ body would leave %eax undefined, and this function deliberately sets
+   * it. The whole family does the same — OZChannelBase_Factory @0x3046,
+   * OZChannelButton_Factory @0xd268 and OZChannelText_Factory @0xd968 are
+   * instruction-for-instruction identical, each with its own address — so a reviewer
+   * seeing "returns a constant" is seeing the function, not a stub.
+   *
+   * Added as a static on the landed class rather than as a new `export function`,
+   * which is this file's existing convention for `getInstance` (and is what keeps
+   * `<Class>_<method>` join rules out of it: the class name itself contains an
+   * underscore, so an exported `OZChanObjectRef_Factory_getIconIDInternal` would
+   * yield the method token `Factory_getIconIDInternal`, which no Itanium symbol's
+   * last component can ever equal).
+   *
+   * ORACLE: raw-port/re/oracle/OZChanObjectRef_Factory_getIconIDInternal_oracle.py
+   * calls the live symbol (a LOCAL `t` symbol, reached by dyld slide + the x86_64
+   * vmaddr from the inventory, with the 9 prologue bytes verified at that address
+   * first) and gets -1 on every call, matching this body. It carries a SENSITIVITY
+   * control because a constant-returning function cannot otherwise be told apart
+   * from a harness that never reads %eax.
+   */
+  static getIconIDInternal(): number {
+    // @0x13054..0x13055 — prologue.
+    // @0x13058 movl $0xffffffff,%eax — the 32-bit immediate, read as a signed int32.
+    // @0x1305d..0x1305e — epilogue + retq.
+    return -1;
+  }
 }

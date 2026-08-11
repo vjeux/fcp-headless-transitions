@@ -136,6 +136,72 @@ export class HGLinearFilter2D {
   flags: number = 0;
 
   /**
+   * `HGLinearFilter2D::HGLinearFilter2D(float vector[4] const*, int, int, int, int, int)` [C2]
+   * @Helium __ZN16HGLinearFilter2DC2EPKDv4_fiiiii @0x10b0f0..0x10b113
+   *
+   * FULL DISASM — the whole constructor, ten instructions:
+   *   0x10b0f0  pushq %rbp ; movq %rsp,%rbp     ; frame
+   *   0x10b0f4  movl  0x10(%rbp), %eax          ; the SIXTH argument, off the stack
+   *   0x10b0f7  movq  %rsi, (%rdi)              ; +0x00 data   = the tap pointer
+   *   0x10b0fa  movl  %edx, 0x8(%rdi)           ; +0x08 offsetX
+   *   0x10b0fd  movl  %ecx, 0xc(%rdi)           ; +0x0c offsetY
+   *   0x10b100  movl  %r8d, 0x10(%rdi)          ; +0x10 width
+   *   0x10b104  movl  %r9d, 0x14(%rdi)          ; +0x14 height
+   *   0x10b108  movl  $0x0, 0x18(%rdi)          ; +0x18 count  = CONSTANT ZERO
+   *   0x10b10f  movl  %eax, 0x1c(%rdi)          ; +0x1c flags  = the sixth argument
+   *   0x10b112  popq %rbp ; retq
+   *
+   * TWO THINGS THE ARGUMENT ORDER GETS WRONG IF YOU TRANSCRIBE IT NAIVELY, and the oracle's
+   * negative control is built from exactly that mistake: `+0x18` takes a CONSTANT ZERO rather
+   * than an argument, and the sixth argument SKIPS it to land in `+0x1c`.
+   *
+   * What that means for the object: this overload ADOPTS a caller-owned tap array. `data` is set
+   * while `count` — the ALLOCATED tap count, per the field's own doc and `reset`'s use of it —
+   * is left at zero, so nothing here owns anything, and the caller passes the flags word itself
+   * (whether it sets FLAG_OWNS_DATA is the caller's business, and no instruction here inspects
+   * it). Nothing else in the object is written: not `alloc`'s bookkeeping, and nothing past
+   * +0x1f.
+   *
+   * A STATIC rather than a real `constructor`, following the landed `PCBuffer.ts` convention
+   * (`ctor_4arg` / `ctor_0arg`): this class has several C2 overloads, `HGConvolution.ts` already
+   * builds it with the zero-argument form (`new HGLinearFilter2D()`), and a required-argument
+   * TypeScript constructor would break that caller.
+   *
+   * ORACLED against the live exported symbol: `raw-port/re/oracle/HGLinearFilter2D_ctor_6arg_oracle.py`,
+   * run under `arch -x86_64`, with the ten prologue bytes at slide+0x10b0f0 checked against
+   * `554889e58b4510488937` before the address is trusted. 64 cases (zeros, small values,
+   * negatives, both int32 extremes and 60 random int32 tuples) on a 0x40-byte object poisoned
+   * with 0xEE: **64/64 put every argument in the field above, +0x18 zero in all 64, and 0 cases
+   * wrote a byte past +0x1f.** NEGATIVE CONTROL: the in-order mis-transcription (arg6 into +0x18)
+   * correctly differs.
+   *
+   * @param self  the object being constructed (%rdi).
+   * @param data  the caller-owned tap array (%rsi); adopted, not copied.
+   * @param offsetX %edx -> +0x08
+   * @param offsetY %ecx -> +0x0c
+   * @param width   %r8d -> +0x10
+   * @param height  %r9d -> +0x14
+   * @param flags   the sixth argument, from 0x10(%rbp) -> +0x1c
+   */
+  static ctor_6arg(
+    self: HGLinearFilter2D,
+    data: Float32Array | null,
+    offsetX: number,
+    offsetY: number,
+    width: number,
+    height: number,
+    flags: number,
+  ): void {
+    self.data = data;        // @0x10b0f7  movq %rsi, (%rdi)
+    self.offsetX = offsetX;  // @0x10b0fa  movl %edx, 0x8(%rdi)
+    self.offsetY = offsetY;  // @0x10b0fd  movl %ecx, 0xc(%rdi)
+    self.width = width;      // @0x10b100  movl %r8d, 0x10(%rdi)
+    self.height = height;    // @0x10b104  movl %r9d, 0x14(%rdi)
+    self.count = 0;          // @0x10b108  movl $0x0, 0x18(%rdi) — a constant, not an argument
+    self.flags = flags;      // @0x10b10f  movl %eax, 0x1c(%rdi) — the SIXTH argument
+  }
+
+  /**
    * HGLinearFilter2D::reset(int width, int height)
    *
    * If either dimension is zero, free any owned buffer, zero data+offset+
