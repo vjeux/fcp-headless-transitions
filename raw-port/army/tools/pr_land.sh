@@ -50,6 +50,29 @@ carry_tree_identity () {
   [ -n "$t1" ] && [ -n "$t2" ] && [ "$t1" = "$t2" ]
 }
 
+# signed_head_of <sha> — the head a reviewer ACTUALLY signed, recovered from a rebound commit_id.
+#
+# GitHub re-points a review's commit_id forward onto each `Merge branch 'main' into <branch>` that
+# `update-branch` creates — measured +3s to +39s AFTER submission on #599/#610/#585, two hops on the
+# last — so the field is not a durable record of what was read. The FIRST-PARENT CHAIN is: GitHub
+# makes those merges with the branch head as parent 1 and main as parent 2, so walking parent 1 back
+# through them lands on the commit the reviewer had in front of them. The walk stops at anything
+# that is not such a merge, which is the safety property: an author commit ends it.
+# Bounded at 20 hops. Locked by test_pr_land_signed_head.sh (prove_all LAYER 2h).
+signed_head_of () {
+  local c="$1" hops=0 subj p1
+  while [ "$hops" -lt 20 ]; do
+    subj=$(git log -1 --format=%s "$c" 2>/dev/null) || break
+    case "$subj" in "Merge branch 'main' into "*) ;; *) break ;; esac
+    # exactly two parents: `rev-list --parents -n1` prints <commit> <p1> <p2> = 3 words
+    [ "$(git rev-list --parents -n1 "$c" 2>/dev/null | wc -w | tr -d ' ')" = "3" ] || break
+    p1=$(git rev-parse -q --verify "${c}^1" 2>/dev/null) || break
+    [ -n "$p1" ] || break
+    c="$p1"; hops=$((hops+1))
+  done
+  printf '%s' "$c"
+}
+
 for round in 1 2 3 4 5 6; do
   st=$(ghr pr view "$PR" --repo "$SLUG" --json state --jq .state 2>/dev/null)
   [ "$st" = "MERGED" ] && { echo "pr_land: PR #$PR already MERGED"; exit 0; }
@@ -221,6 +244,66 @@ print(a[-1]['commit_id'] if a else '')
       echo "  head is ${MERGE_SHA:0:8}, and the PR's contribution DIFFERS between them. GitHub rebinds"
       echo "  a review to later commits on its own, so an approval can walk onto code nobody read."
       echo "  Re-review the current head, or dismiss and re-sign it deliberately."
+      exit 6
+    fi
+  fi
+  # LAST GATE BEFORE AN IRREVERSIBLE MERGE: does the approval actually cover what we are merging?
+  #
+  # GitHub REBINDS a review to a later commit on its own. On #585 the review was submitted at
+  # 18:41:58Z and is bound to a merge commit created at 18:42:37Z — thirty-nine seconds after the
+  # verdict — and pr_land's own `update-branch` is what produced that commit. So "which commit is
+  # the review on?" is not a fact the reviewer controls, and sending `commit_id` at POST time (#619)
+  # cannot help: the rebinding happens afterwards.
+  #
+  # THREE CORRECTIONS from reviewer 2's review of the first version of this block, each measured:
+  #  (1) NO `APPROVED_AT != HEAD` PRECONDITION. The rebinding is exactly what makes those two EQUAL:
+  #      on four consecutive landings (#621, #625, #611, #608) the approval had already been dragged
+  #      onto the merge commit by this point, so a guard gated on them differing skipped every one —
+  #      and where they DO differ (an author push), the "no APPROVED review on the current head"
+  #      check above has already refused. Inert on one path, dominated on the other.
+  #  (2) RECOVER THE HEAD THAT WAS SIGNED, with `signed_head_of` above, rather than trusting the
+  #      rebound field.
+  #  (3) TREE IDENTITY, NOT A THREE-DOT DIFF HASH — and rather than write that comparison twice,
+  #      this calls `carry_tree_identity`, which #603 added for the same question one step earlier.
+  #      (A three-dot diff measures each side against its own merge base, so main touching the same
+  #      file — the normal state of OPS_LOG.md — makes identical contributions differ and would
+  #      REFUSE a legitimate landing; and a FAILED diff hashes to the stable da39a3ee… of empty
+  #      input on both sides, so two unreadable objects compare equal and the guard switches itself
+  #      off. merge-tree refuses instead, and #603's wrapper also refuses a conflicted tree.)
+  APPROVED_AT=$(ghr api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null | python3 -c "
+import json,sys
+try: rs=json.load(sys.stdin)
+except Exception: raise SystemExit
+a=[r for r in rs if r.get('state')=='APPROVED']
+print(a[-1]['commit_id'] if a else '')
+" 2>/dev/null)
+  MERGE_SHA=$(ghr pr view "$PR" --repo "$SLUG" --json headRefOid --jq .headRefOid 2>/dev/null)
+  if [ -n "$APPROVED_AT" ] && [ -n "$MERGE_SHA" ]; then
+    # SEPARATE FETCHES. `git fetch origin main "$A" "$B"` aborts the WHOLE fetch when any one
+    # refspec fails (rc=128), so a single GC'd sha or transport blip left BOTH objects unfetched AND
+    # origin/main un-refreshed, and the comparison ran against whatever was on disk.
+    git fetch -q origin main >/dev/null 2>&1 \
+      || echo "pr_land: could not refresh origin/main — the content check below may defer or refuse"
+    git fetch -q origin "$APPROVED_AT" >/dev/null 2>&1 || true
+    git fetch -q origin "+refs/pull/$PR/head:refs/prland/$PR" >/dev/null 2>&1 || true
+    SIGNED=$(signed_head_of "$APPROVED_AT")
+    [ "$SIGNED" = "$APPROVED_AT" ] \
+      || echo "pr_land: the approval is recorded on ${APPROVED_AT:0:8}; walking the update-branch merge(s) back, the head that was SIGNED is ${SIGNED:0:8}"
+    if ! carry_tree_identity "$SIGNED" "$MERGE_SHA"; then
+      # MAIN MOVING UNDER THIS ROUND IS NOT A REJECTION, and must not be reported as one. The
+      # comparison is against origin/main AS OF NOW, while the head was merged with main as of a
+      # moment ago; on a swarm landing a PR every couple of minutes those differ routinely, and the
+      # answer is another round of update-branch, not a message telling a reviewer their approval is
+      # suspect. So ask GitHub: BEHIND (or not yet computed) means the ordinary race — loop.
+      ms2=$(ghr pr view "$PR" --repo "$SLUG" --json mergeStateStatus --jq .mergeStateStatus 2>/dev/null)
+      if [ "$ms2" = "BEHIND" ] || [ "$ms2" = "UNKNOWN" ] || [ -z "$ms2" ]; then
+        echo "pr_land: content check deferred — main moved (mergeState=${ms2:-unknown}); re-updating and re-checking"
+        continue
+      fi
+      echo "pr_land: REFUSING to merge PR #$PR — the approval does NOT cover the merged content."
+      echo "  signed head ${SIGNED:0:8} (approval recorded on ${APPROVED_AT:0:8}), head ${MERGE_SHA:0:8}; hashes above."
+      echo "  GitHub rebinds a review to later commits on its own, so an approval can walk onto code"
+      echo "  nobody read. Re-review the current head, or dismiss and re-sign it deliberately."
       exit 6
     fi
   fi
