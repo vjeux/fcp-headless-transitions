@@ -25,6 +25,8 @@
 //   __ZN7OZScene18setRawWorkingGamutE19PCWorkingGamutValue             @0x81de0  ← CORE
 //   __ZN7OZScene30setDynamicRangeTrackingEnabledEb                    @0x81ed0  ← CORE
 //   __ZN7OZScene19gotoHeadOfPlayRangeEv                               @0x71ea0  ← CORE
+//   __ZN7OZScene7end_selEv                                            @0x51340  ← CORE
+//   __ZN7OZScene8rend_selEv                                           @0x63930  ← CORE
 //
 // WHY THIS FILE (and not raw-port/src/nodes/OZScene.ts): two files carry the
 // name OZScene. THIS one is the raw transcription of Ozone's C++ class — every
@@ -246,6 +248,45 @@ export interface OZSceneAllSelIterator {
   zero40: [number, number, number, number];
   /** +0x50 — f32 = 1.0 (0x3f800000 == Math.fround(1.0)). */
   f50: number;
+}
+
+/**
+ * The 0x44-byte iterator `OZScene::end_sel()` @Ozone 0x51340 and
+ * `OZScene::rend_sel()` @Ozone 0x63930 build in their sret slot.
+ *
+ * It is a SMALLER, differently-shaped sibling of {@link OZSceneAllSelIterator}
+ * above: same two source slots (+0x3d0 sentinel address, +0x3d8 companion) but
+ * a different payload layout — a one-BYTE flag at +0x18 instead of a 16-byte
+ * zero block, no +0x28 word, and the 1.0f at +0x40 rather than +0x50. Both
+ * bodies write EXACTLY these seven fields:
+ *
+ *   +0x00  node    = &this->allSelSentinel   (`movq %rsi,(%rdi)`      @0x51367/@0x63957)
+ *   +0x08  aux     = *(this+0x3d8)           (`movq %rcx,0x8(%rdi)`   @0x5136a/@0x6395a)
+ *   +0x10  nodeAlt = &this->allSelSentinel   (`movq %rsi,0x10(%rdi)`  @0x5136e/@0x6395e)
+ *   +0x18  b18     = 0  (ONE byte)           (`movb $0x0,0x18(%rdi)`  @0x51372/@0x63962)
+ *   +0x20  zero20  = 16 zero bytes           (`movups %xmm0,0x20(%rdi)`@0x5135c/@0x6394c)
+ *   +0x30  zero30  = 16 zero bytes           (`movups %xmm0,0x30(%rdi)`@0x51358/@0x63948)
+ *   +0x40  f40     = 1.0f                    (`movl $0x3f800000,0x40(%rdi)` @0x51360/@0x63950)
+ *
+ * Nothing at or past +0x44 is written, so the struct's decoded extent is
+ * 0x44 bytes (the ABI may round it up; this port models only what is stored).
+ * Each field carries its documented offset per Rule 5.
+ */
+export interface OZSceneSelIterator {
+  /** +0x00 — &OZScene::allSelSentinel (past-the-end node). */
+  node: OZSceneAllSelSentinelHandle;
+  /** +0x08 — companion pointer copied from OZScene+0x3d8. */
+  aux: OZSceneAllSelNodeHandle | null;
+  /** +0x10 — same sentinel address as `node` (stored twice by both bodies). */
+  nodeAlt: OZSceneAllSelSentinelHandle;
+  /** +0x18 — a single zeroed BYTE (`movb $0x0`), not a word. */
+  b18: number;
+  /** +0x20 — 16 bytes, zero-initialized. */
+  zero20: [number, number, number, number];
+  /** +0x30 — 16 bytes, zero-initialized. */
+  zero30: [number, number, number, number];
+  /** +0x40 — f32 = 1.0 (0x3f800000 == Math.fround(1.0)). */
+  f40: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -963,6 +1004,119 @@ export class OZScene {
       zero30: [0, 0, 0, 0], // @0x50cdc  movups %xmm0,0x30(%rdi)
       zero40: [0, 0, 0, 0], // @0x50cd8  movups %xmm0,0x40(%rdi)
       f50: Math.fround(1.0), // @0x50ce4  movl $0x3f800000,0x50(%rdi)
+    };
+  }
+
+  /**
+   * OZScene::end_sel()  @Ozone 0x51340
+   *   __ZN7OZScene7end_selEv
+   *
+   * Builds the past-the-end iterator of the scene's SELECTION collection into
+   * the caller's sret slot. Returns a {@link OZSceneSelIterator} — the 0x44-byte
+   * shape, NOT the 0x54-byte one `end_all_sel` @0x50cb0 returns.
+   *
+   * Full transcription — every instruction, in order (15-line disasm at
+   * raw-port/re/disasm/__ZN7OZScene7end_selEv.s):
+   *
+   *   0x51340  pushq  %rbp                        ; frame setup (no TS counterpart)
+   *   0x51341  movq   %rsp,%rbp                   ; frame setup (no TS counterpart)
+   *   0x51344  movq   %rdi,%rax                   ; ABI: return the sret pointer in rax
+   *   0x51347  movq   0x3d8(%rsi),%rcx            ; rcx = *(this+0x3d8)  (companion qword)
+   *   0x5134e  addq   $0x3d0,%rsi                 ; rsi = &this+0x3d0    (sentinel address)
+   *   0x51355  xorps  %xmm0,%xmm0                 ; xmm0 = 128 zero bits
+   *   0x51358  movups %xmm0,0x30(%rdi)            ; ret[+0x30..+0x3f] = 0
+   *   0x5135c  movups %xmm0,0x20(%rdi)            ; ret[+0x20..+0x2f] = 0
+   *   0x51360  movl   $0x3f800000,0x40(%rdi)      ; ret[+0x40] = 1.0f
+   *   0x51367  movq   %rsi,(%rdi)                 ; ret[+0x00] = &this+0x3d0
+   *   0x5136a  movq   %rcx,0x8(%rdi)              ; ret[+0x08] = *(this+0x3d8)
+   *   0x5136e  movq   %rsi,0x10(%rdi)             ; ret[+0x10] = &this+0x3d0 (again)
+   *   0x51372  movb   $0x0,0x18(%rdi)             ; ret[+0x18] = 0  (ONE byte)
+   *   0x51376  popq   %rbp                        ; frame teardown (no TS counterpart)
+   *   0x51377  retq
+   *
+   * Decode notes:
+   *   * `%rdi` is the hidden sret pointer (the struct is far larger than 16
+   *     bytes), so `%rsi` is `this` — the same shape the landed
+   *     `end_all_sel`/`getCurrentTime` ports document. `movq %rdi,%rax`
+   *     @0x51344 just hands the sret pointer back as the ABI requires.
+   *   * the companion is loaded BEFORE the sentinel address is formed, and the
+   *     zero/1.0f payload is written BEFORE the three pointer stores; the TS
+   *     object literal below lists the fields in the machine's store order.
+   *   * `addq $0x3d0,%rsi` forms an ADDRESS (the collection's embedded sentinel
+   *     at +0x3d0), which is why +0x00 and +0x10 hold the SAME value — modelled
+   *     by assigning the same `allSelSentinel` object to both, exactly as
+   *     `end_all_sel` does.
+   *   * +0x18 is written with `movb`, a single byte — it is NOT the 16-byte
+   *     zero block `end_all_sel` writes there, which is what makes this a
+   *     different iterator type.
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps` lists nothing).
+   */
+  end_sel(): OZSceneSelIterator {
+    // @0x51347  movq 0x3d8(%rsi),%rcx — companion qword read first.
+    const companion = this.allSelSentinelCompanion;
+    // @0x5134e  addq $0x3d0,%rsi — address-of the sentinel slot.
+    const sentinel = this.allSelSentinel;
+    return {
+      zero30: [0, 0, 0, 0], // @0x51358  movups %xmm0,0x30(%rdi)
+      zero20: [0, 0, 0, 0], // @0x5135c  movups %xmm0,0x20(%rdi)
+      f40: Math.fround(1.0), // @0x51360  movl $0x3f800000,0x40(%rdi)
+      node: sentinel, // @0x51367  movq %rsi,(%rdi)
+      aux: companion, // @0x5136a  movq %rcx,0x8(%rdi)
+      nodeAlt: sentinel, // @0x5136e  movq %rsi,0x10(%rdi)
+      b18: 0, // @0x51372  movb $0x0,0x18(%rdi)
+    };
+  }
+
+  /**
+   * OZScene::rend_sel()  @Ozone 0x63930
+   *   __ZN7OZScene8rend_selEv
+   *
+   * The reverse-end iterator of the same SELECTION collection. Its body is
+   * INSTRUCTION-FOR-INSTRUCTION IDENTICAL to `end_sel` @0x51340 above — same
+   * loads (+0x3d8 companion, +0x3d0 address-of), same seven stores in the same
+   * order, same 1.0f immediate — only the addresses differ (verified by diffing
+   * the two .s files with the address column stripped: the sole difference is
+   * the symbol line). Two separately-emitted bodies, two ledger symbols, so both
+   * are transcribed rather than one delegating to the other.
+   *
+   * Full transcription — every instruction, in order (17-line disasm at
+   * raw-port/re/disasm/__ZN7OZScene8rend_selEv.s):
+   *
+   *   0x63930  pushq  %rbp                        ; frame setup (no TS counterpart)
+   *   0x63931  movq   %rsp,%rbp                   ; frame setup (no TS counterpart)
+   *   0x63934  movq   %rdi,%rax                   ; ABI: return the sret pointer in rax
+   *   0x63937  movq   0x3d8(%rsi),%rcx            ; rcx = *(this+0x3d8)  (companion qword)
+   *   0x6393e  addq   $0x3d0,%rsi                 ; rsi = &this+0x3d0    (sentinel address)
+   *   0x63945  xorps  %xmm0,%xmm0                 ; xmm0 = 128 zero bits
+   *   0x63948  movups %xmm0,0x30(%rdi)            ; ret[+0x30..+0x3f] = 0
+   *   0x6394c  movups %xmm0,0x20(%rdi)            ; ret[+0x20..+0x2f] = 0
+   *   0x63950  movl   $0x3f800000,0x40(%rdi)      ; ret[+0x40] = 1.0f
+   *   0x63957  movq   %rsi,(%rdi)                 ; ret[+0x00] = &this+0x3d0
+   *   0x6395a  movq   %rcx,0x8(%rdi)              ; ret[+0x08] = *(this+0x3d8)
+   *   0x6395e  movq   %rsi,0x10(%rdi)             ; ret[+0x10] = &this+0x3d0 (again)
+   *   0x63962  movb   $0x0,0x18(%rdi)             ; ret[+0x18] = 0  (ONE byte)
+   *   0x63966  popq   %rbp                        ; frame teardown (no TS counterpart)
+   *   0x63967  retq
+   *   0x63968  nopl (%rax,%rax)                   ; alignment padding, not executed
+   *
+   * The decode notes on `end_sel` above apply verbatim (sret in %rdi, `this` in
+   * %rsi, address-of at +0x3d0 stored twice, single-byte +0x18, no callees of
+   * any kind).
+   */
+  rend_sel(): OZSceneSelIterator {
+    // @0x63937  movq 0x3d8(%rsi),%rcx — companion qword read first.
+    const companion = this.allSelSentinelCompanion;
+    // @0x6393e  addq $0x3d0,%rsi — address-of the sentinel slot.
+    const sentinel = this.allSelSentinel;
+    return {
+      zero30: [0, 0, 0, 0], // @0x63948  movups %xmm0,0x30(%rdi)
+      zero20: [0, 0, 0, 0], // @0x6394c  movups %xmm0,0x20(%rdi)
+      f40: Math.fround(1.0), // @0x63950  movl $0x3f800000,0x40(%rdi)
+      node: sentinel, // @0x63957  movq %rsi,(%rdi)
+      aux: companion, // @0x6395a  movq %rcx,0x8(%rdi)
+      nodeAlt: sentinel, // @0x6395e  movq %rsi,0x10(%rdi)
+      b18: 0, // @0x63962  movb $0x0,0x18(%rdi)
     };
   }
 
