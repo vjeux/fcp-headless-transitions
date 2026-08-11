@@ -23,6 +23,8 @@ import { PCSerializerReadStream } from "../infra/PCSerializerReadStream.js";
 import { PCStreamElement } from "../infra/PCStreamElement.js";
 import { OZChannelBase } from "../channels/OZChannelBase.js";
 import { buildChannelTree } from "../channels/OZChannelFolder.js";
+import type { OZRenderState } from "../channels/OZRenderState.js";
+import type { LiCamera } from "../channels/LiCamera.js";
 
 // Child-node factory hook. Registered by nodeFactory.ts to avoid a circular import
 // (nodeFactory imports the OZGroup/OZImageElement subclasses which extend this base).
@@ -53,6 +55,12 @@ export interface OZAttachedBehavior {
   id?: number;
   pluginUUID?: string;
   pluginName?: string;
+}
+
+/** PCVector2<float> - two packed float32, x @+0x00 and y @+0x04 (8 bytes, passed by const&). */
+interface PCVector2Float {
+  x: number; // +0x00
+  y: number; // +0x04
 }
 
 export class OZSceneNode {
@@ -143,4 +151,45 @@ export class OZSceneNode {
         break; // not an OZSceneNode-level tag; base/subclass handles it
     }
   }
+
+  /**
+   * hitCheck(PCVector2<float> const&, OZRenderState const&, LiCamera const*, PCVector3<double>&,
+   * unsigned int) @Ozone 0x90e70 - the BASE implementation, transcribed in full.
+   *
+   * The whole function is five instructions. It takes no branch, reads none of its five arguments
+   * and writes nothing:
+   *
+   *   0x90e70  pushq %rbp             ; frame setup, no locals, no callee-saved registers
+   *   0x90e71  movq  %rsp, %rbp
+   *   0x90e74  xorl  %eax, %eax       ; return value := 0
+   *   0x90e76  popq  %rbp
+   *   0x90e77  retq
+   *   0x90e78  nopl  (%rax,%rax)      ; alignment padding up to 0x90e80, not part of the body
+   *
+   * A bare scene node carries no geometry to test a point against, so the base answers "no hit"
+   * and leaves the caller's PCVector3<double> out-parameter (%r8) untouched; the concrete
+   * overrides do the work - OZElement @0x9d5c0, OZGroup @0xea1a0, OZTransformNode @0x1d2f40,
+   * OZCamera @0x444230, OZImageMask @0x322200, OZRotoshape @0x41b1f0.
+   *
+   * The result is a bool: `xorl %eax, %eax` clears the whole 32-bit register, and the overrides
+   * produce their answer in %al (`movb $0x1, %al` @0x9d8d6 and `xorl %eax, %eax` @0x9d88c inside
+   * OZElement::hitCheck), which callers consume with `testb %al, %al` (@0x9d60a).
+   *
+   * Differential against the live binary (re/oracle/OZSceneNode_hitCheck_oracle.py): Ozone loaded
+   * out of the app bundle under `arch -x86_64`, this symbol called on randomised argument sets
+   * with every caller-owned buffer poisoned to 0xCD - every call returned 0 and left all of the
+   * arenas (receiver, point, render state, camera, hit point) byte-identical, and the TS port
+   * agrees on every case.
+   */
+  hitCheck(
+    _point: PCVector2Float,   // %rsi - PCVector2<float> const&
+    _state: OZRenderState,    // %rdx - OZRenderState const&
+    _camera: LiCamera | null, // %rcx - LiCamera const* (may be null)
+    _hitPoint: Float64Array,  // %r8  - PCVector3<double>& out-parameter (x/y/z @ +0x00/+0x08/+0x10)
+    _flags: number,           // %r9d - unsigned int
+  ): boolean {
+    // 0x90e74  xorl %eax, %eax - the only instruction that computes anything.
+    return false;
+  }
+
 }
