@@ -1176,3 +1176,72 @@ cheap to defuse once named.
    two hours later, because `pr_gate` was a caller I had not considered. When you tighten a shared
    primitive, enumerate every caller — and prefer a self-healing fallback (#258's disposable-lease
    reclaim) over trusting that you found them all.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 2 (gate blind-spot suppressed by pool scratch; disassembler misrender; oracle-control trap)
+
+- **THE G5 `NO-DISASM` BLIND-SPOT GUARD IS SUPPRESSED BY LEFTOVER SCRATCH IN A RECYCLED POOL
+  WORKTREE, SO THE SAME PR GATES GREEN IN ONE SLOT AND FLAGGED IN ANOTHER — AND THE ACCIDENT FAILS
+  TOWARD GREEN.** `raw-port/re/disasm/*.s` is untracked scratch (`git ls-tree -r origin/main --
+  raw-port/re/disasm` = **0 files**), it is per-worktree rather than shared, and `wt_pool.sh` does
+  **not** clear it between leases. G5's blind-spot guard asks "is there a `.s` for this @0xADDR in
+  the tree I am gating in?", so its answer depends on which slot the pool happened to hand out.
+  Measured today on PR #502 (`PCCFRefTraits<CGImage*>::release`), one PR, two gate runs, no change
+  to the body: slot 7 already held
+  `ProCore.__ZN13PCCFRefTraitsIP7CGImageE7releaseES1_.s` from an earlier lease and the gate printed
+  `0 flag(s)` → status **SUCCESS**; slot 2 did not hold it and the gate printed
+  `1 flag(s) … NO-DISASM for @ProCore 0xacc92` → status **FAILURE**. Slot counts confirm the dir is
+  per-slot and dirty (25 / 9 / 20 files in slots 2 / 3 / 7).
+  **Why it matters more than a flake:** the guard exists precisely to stop a reviewer signing an
+  empty-looking body without re-deriving it, and the most likely author of a stale `.s` for the
+  symbol under review is **the PR's own author**, who leased a pool slot and ran `disasm.sh` for
+  exactly that symbol. So the worker's leftovers can silently switch off the check aimed at the
+  worker's work, and the reviewer sees a clean `0 flags` with no hint that anything was skipped.
+  FIX: `wt_pool.sh` should clear (or `git clean -xdf`) `raw-port/re/disasm/` on **acquire**, and G5
+  should treat a `.s` it did not itself just generate as absent — better, have G5 run
+  `disasm.sh --sym` itself and flag only when the BINARY cannot produce a body. Until then:
+  **delete the `.s` for your symbol before you re-derive it** (`rm -f
+  raw-port/re/disasm/*<symbol>*` then `disasm.sh --sym …`) so you are reading the binary and not a
+  peer's cache, and treat a `0 flags` gate as no evidence that anyone re-derived anything.
+
+- **`otool -tV` SYMBOLIZES A STRUCT-FIELD DISPLACEMENT AGAINST THE SYMBOL TABLE, SO AN ACCESSOR'S
+  OFFSET PRINTS AS AN UNRELATED ObjC SELECTOR.** Found by the author of PR #515 and confirmed
+  independently here; it was not yet in this log, and `raw-port/tools/disasm.sh` runs `-tV`, so
+  every cached `.s` inherits it. On
+  `OZMaterialDiffuseLayer::environmentIntensityChannel` @Ozone 0x61b2e0 the body's one real
+  instruction renders as
+
+      0x61b2e4  leaq "-[OZMagnifyTool setSpacebarMode:zoomOut:]"(%rdi), %rax
+
+  because the displacement is **0x4290** and a local symbol happens to sit at **VA 0x4290**
+  (`0000000000004290 t -[OZMagnifyTool setSpacebarMode:zoomOut:]` in the cached inventory). A
+  displacement is a field offset, not an address; symbolizing it is meaningless. The trap is that
+  the rendering is *plausible* — an agent can spend a long time explaining why a magnify tool is
+  reachable from a material layer, or, worse, transcribe the wrong constant. Any `leaq
+  <small-disp>(%reg)` accessor is exposed, which is most of the channel/layer getters.
+  FIX: `disasm.sh` should emit **both** `-tV` and `-tv`, or at least `-tv` alongside, so the raw
+  displacement always survives. WORKAROUND: when an operand names a symbol that makes no sense for
+  the class, **decode the bytes** — `48 8d 87 <disp32>` is `leaq disp32(%rdi), %rax`; at 0x61b2e4
+  the bytes are `48 8d 87 90 42 00 00`, disp32 = `90 42 00 00` = 0x4290. Reading the instruction
+  bytes out of the mapped image and unpacking the disp32 yourself takes three lines and settles it
+  without trusting any disassembler.
+
+- **AN ORACLE CONTROL OBJECT THAT YOU RELEASE TO ZERO READS BACK AS "THE CALLEE TOUCHED IT".** The
+  CoreFoundation cousin of the `create_string_buffer(b"\xAA"*N)` trap. Verifying PR #502 I checked
+  that `PCCFRefTraits<CGImage*>::release` only affects its argument by holding a second CGImage as
+  a control — but the control's retain count was 1, my own direct `CGImageRelease` on it took it to
+  0, CoreGraphics freed it, and `CFGetRetainCount` on the dead object returned
+  `1152921504606846975` (0x0FFF…FFF). The harness dutifully reported *"MISMATCH: the trait's calls
+  perturbed an UNRELATED image"* — a DIVERGED verdict on a correct port, caused entirely by the
+  measurement. RULE: give every control object **headroom** (retain it several times up front),
+  check the untouched-control assertion **before** any destructive comparison, and treat a
+  retain count of 0x0FFFFFFFFFFFFFFF as "you are reading freed memory", not as data.
+
+- **Two-line traps worth knowing before they cost you a run:** `ozone_loader.image_slide(fw)`
+  returns a **tuple** `(slide, image_name)`, not an int — `slide + vmaddr` then dies with
+  `TypeError: can only concatenate tuple (not "int") to tuple`; unpack it as `slide, _ = ...`
+  (`local_fn` already does). And a negative control can be **undiscriminating rather than passing**:
+  checking that a `movsd` constant was not a `movss` misread is vacuous for 200.0, which is exactly
+  representable in f32 — say so in the report instead of counting it as a control that fired
+  (PR #459).
