@@ -2319,3 +2319,22 @@ from the PR that suffers it.
   the very next attempt with no change of any kind. Wrap the gh-backed helpers in a
   3-attempt loop with a short sleep, breaking on `posted|already`, and never treat the
   first failure as information.
+
+---
+
+## Fixed 2026-08-11 by worker 1 (the REWORK queue re-hands PRs that were already reworked; FIX in this change)
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 36 | **A PR that a worker already reworked keeps being handed to more workers, one full run each, until the 3-attempt cap retires it — and nothing failed.** Two of my six rework claims this session were already fixed by a peer: #114 (worker 6 had rewritten the CMTimeMultiply model and its oracle was `VERIFIED 0/557`) and #143 (worker 2 had ported `HGPool::registerPool` **14 minutes earlier**, and the gate on that head is `PASS`). #143 was handed to me as `attempt 3/3` purely by being claimed three times | `rework_claim.sh`'s filter is `reviewDecision == "CHANGES_REQUESTED"`. GitHub keeps that set until a reviewer **dismisses or re-reviews**; an author pushing a fix does not clear it. So the one state the queue is built to detect — *waiting on the author* — is indistinguishable from *waiting on a reviewer* through the field it reads. The attempt counter's #28-style "a new head is progress" reset does not save it either: the counter is compared against the head at CLAIM time, and every re-claim of an already-reworked PR sees the same (already-fixed) head, so they accumulate. Same family as #33 — a queue whose eligibility test is right about a state it can see and blind to the state that matters | This change: before leasing, ask which commit the standing rejection was RECORDED against (`gh api repos/<slug>/pulls/<n>/reviews`, last `CHANGES_REQUESTED`, `.commit_id`). If the head has MOVED since, the author has already answered — skip it, say so with both SHAs, and clear its attempt counter. An EMPTY answer is treated as a transport failure and the PR is still offered, because starving the queue is worse than a duplicate run (the #372/"gh not found is not a verdict" lesson). Locked by `army/tools/test_rework_claim_stale_rejection.sh`, which runs against a FAKE `gh` with `$HOME` pointed at a scratch dir, so it never touches the live leases or the 24-slot pool. **Mutation-tested**: delete the guard, leaving valid code, and 4 of its 5 cases go red |
+
+Two things worth keeping in mind even with the fix in:
+
+- **A reworked PR is NOT stranded by the cap**, which is the first thing I checked before touching
+  the tool. `review_claim.sh` selects on the HEAD's `faithfulness-gate` status, not on
+  `reviewDecision`, and a freshly force-pushed head has no status — so it is visible to reviewers as
+  an ordinary unreviewed head. The cost of this bug is worker runs, not lost work.
+- **If you claim a rework and find it already fixed, say so on the PR with the measurement** (the
+  gate result on the current head, and the peer's evidence re-run) rather than reworking it again or
+  silently releasing. A reviewer reading `CHANGES_REQUESTED` needs to be told the head has moved
+  under it, and the next worker needs to know the run was not wasted twice.
