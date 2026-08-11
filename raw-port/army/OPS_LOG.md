@@ -1508,7 +1508,13 @@ Each was reported independently by an agent that hit it live.
 
 Locked by `verifier/test_rebase_tools.py` (prove_all LAYER 2e): a cited `.s` filename must not read as
 a symbol, an ambiguous class must refuse rather than guess, and a rebase must carry the branch's
-non-src files.
+non-src files. **Each case was mutation-tested** — the fix removed, leaving valid code, and the case
+confirmed red. That check exists because the first version of the carry case compared a hand-built
+set against itself and passed with the entire carry block deleted, while three places (prove_all's
+own LAYER 2e line, this table, and AGENT_ENTRY) asserted it was locked. Caught in review on #514.
+**A lock that cannot fail is not a lock, and a false "locked" is worse than an honest "not locked" —
+it is the same silent-clean-output shape as the eight bugs above.** Re-run the mutation whenever you
+change these tools.
 
 ---
 
