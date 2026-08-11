@@ -344,3 +344,38 @@ export function OZExportSettings_setRenderQuality(
 
   // @0x33e1c1/@0x33e1c2 — epilogue, void return.
 }
+
+/**
+ * `OZExportSettings::~OZExportSettings()` [D1] — @Ozone 0x33df60
+ *   __ZN16OZExportSettingsD1Ev
+ *
+ * A TRIVIAL destructor: the entire body is the frame pair.
+ *
+ * Full transcription — every instruction, in order (6-line disasm at
+ * raw-port/re/disasm/__ZN16OZExportSettingsD1Ev.s):
+ *
+ *   0x33df60  pushq %rbp                 ; frame setup (no TS counterpart)
+ *   0x33df61  movq  %rsp,%rbp            ; frame setup (no TS counterpart)
+ *   0x33df64  popq  %rbp                 ; frame teardown (no TS counterpart)
+ *   0x33df65  retq
+ *   0x33df66  nopw %cs:(%rax,%rax)       ; alignment padding, not executed
+ *
+ * Decode notes:
+ *   * NOTHING is read or written: no member is touched, no vptr is re-installed,
+ *     no `operator delete` is called (that lives in the D0 deleting dtor
+ *     @0x33df70, a separate ledger unit), and there is no base-class dtor call.
+ *     Consistent with the layout this file already documents — every field is a
+ *     POD scalar block, so no member needs destruction.
+ *   * `pushq %rbp ; movq %rsp,%rbp ; popq %rbp` is the frame the compiler emits
+ *     even for an empty body at -O0-ish codegen; it has no observable effect, so
+ *     the faithful port is an empty function, NOT a throw. (D2 @0x33df50, the
+ *     base-object variant, is a separate symbol with the same shape and is not
+ *     ported here.)
+ *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+ *     dispatch (`depgraph.py deps` lists nothing).
+ *
+ * @param _self the instance (`%rdi`) — never dereferenced by this body.
+ */
+export function OZExportSettings_dtor(_self: OZExportSettings_Fields): void {
+  // @0x33df60..0x33df65 — frame setup and teardown only; the body is empty.
+}
