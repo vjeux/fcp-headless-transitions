@@ -15,6 +15,11 @@
 //   __ZNK18OZFxPlugSharedBase12blendModeSetEv
 //     — OZFxPlugSharedBase::blendModeSet() const          @Ozone 0x29bda0
 //
+// ADDITIVE EXTENSION (third ledger unit — nothing above removed):
+//
+//   __ZNK18OZFxPlugSharedBase10OSCIsPointEv
+//     — OZFxPlugSharedBase::OSCIsPoint() const            @Ozone 0x29bdd0
+//
 // This is a FRESH class (not previously on origin/main). Future
 // OZFxPlugSharedBase methods are separate ledger entries and must be ADDED to
 // this file (additive extension only), never rewritten.
@@ -158,5 +163,60 @@ export class OZFxPlugSharedBase {
     // @0x29bda4 movzbl 0xd1(%rdi), %eax : zero-extending byte load of +0xd1.
     // @0x29bdac retq                    : return that zero-extended byte.
     return this.blendModeSet_at_0xd1;
+  }
+
+  /**
+   * (this+0xd5) — the "on-screen control is a POINT control" flag byte.
+   *
+   * One byte, read with a single zero-extending load (`movzbl 0xd5(%rdi), %eax`
+   * @Ozone 0x29bdd4) — the same shape as `blendModeSet_at_0xd1` above, and it sits
+   * one byte past the flag `hasOSC() const` @Ozone 0x29bdc0 reads (`movzbl 0xd4(%rdi)`),
+   * so +0xd4/+0xd5 are adjacent one-byte OSC flags. `hasOSC` is its OWN ledger unit and
+   * is deliberately not ported here.
+   *
+   * Unlike +0xd1 there is no `setOSCIsPoint(bool)` symbol in Ozone's symbol table to pin
+   * the width from the writing side, so the width comes from the load itself (one byte)
+   * and from the measurement below: the live method returns 255 for a 0xff byte, which a
+   * wider or a masked slot could not produce.
+   *
+   * Modelled as `number` in [0, 255] for the same reason as +0xd1: the getter does NOT
+   * normalize (no `andb $0x1`, no `setne`), so a byte other than 0/1 is returned verbatim.
+   */
+  OSCIsPoint_at_0xd5 = 0;
+
+  /**
+   * `OZFxPlugSharedBase::OSCIsPoint() const` — @Ozone 0x29bdd0
+   *   (__ZNK18OZFxPlugSharedBase10OSCIsPointEv).
+   *
+   * FULL transcription of the 6-line body. Bytes (`55 48 89 e5 0f b6 87 d5 00 00 00 5d c3`)
+   * were read out of the mapped image and checked before the oracle ran, because otool
+   * symbolizes displacements and this function IS its displacement:
+   *
+   *   @0x29bdd0  55                    pushq  %rbp                ; prologue (no TS counterpart)
+   *   @0x29bdd1  48 89 e5              movq   %rsp, %rbp
+   *   @0x29bdd4  0f b6 87 d5 00 00 00  movzbl 0xd5(%rdi), %eax    ; eax = zero_extend32(this->OSCIsPoint_at_0xd5)
+   *   @0x29bddb  5d                    popq   %rbp                ; epilogue
+   *   @0x29bddc  c3                    retq                       ; return eax
+   *   @0x29bddd  0f 1f 00              nopl   (%rax)              ; alignment pad, never executed
+   *
+   * No callees, no branches, no arithmetic, and `depgraph.py deps` lists nothing — a plain
+   * byte-field getter. ZERO-extension, not sign-extension: `movzbl`, so 0xff is 255.
+   *
+   * ORACLE (executed, not read — raw-port/re/oracle/OZFxPlugSharedBase_OSCIsPoint_probe.py):
+   * the symbol is `t` (local) so it is not dlsym-able; it was called BY ADDRESS at
+   * `_dyld_get_image_vmaddr_slide(Ozone) + 0x29bdd0` under `arch -x86_64` (slide 0x124632000,
+   * 44 images preloaded through the @rpath chain, 0 failed), against a 0x200-byte arena
+   * poisoned with 0xCD. Live Ozone returned the byte VERBATIM for every value tried —
+   * 0x00->0, 0x01->1, 0x02->2, 0x7f->127, 0x80->128, 0xff->255 — with the whole arena
+   * byte-identical afterwards (the method is `const` and writes nothing), and with 0xd4/0xd6
+   * set to different values, and again with every other byte 0xff. That is what fixes the
+   * three decisions in this port: the offset is 0xd5 and not a neighbour, the result is NOT
+   * normalized (an `& 1` model returns 1 where the machine returns 255, and a `!== 0` boolean
+   * model returns true where the machine returns 128), and the extension is zero not sign.
+   */
+  OSCIsPoint(): number {
+    // @0x29bdd4 movzbl 0xd5(%rdi), %eax : zero-extending byte load of +0xd5.
+    // @0x29bddc retq                    : return that zero-extended byte.
+    return this.OSCIsPoint_at_0xd5;
   }
 }

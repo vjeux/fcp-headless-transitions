@@ -6,9 +6,10 @@
 // VAs from `otool -tV`). Disassembly source:
 //   raw-port/re/disasm/ProChannel.__ZN35OZChannelAspectRatioFootage_Factory11getInstanceEv.s
 //
-// Only `getInstance()` @ProChannel 0x1a44 is ported here. The remaining
-// methods on this factory (C2/D1/D0/create*/createChannel*/version/
-// getBundleID/getIconIDInternal/... etc.) are separate ledger entries.
+// Ported here: `getInstance()` @ProChannel 0x1a44 and `getIconIDInternal()` @ProChannel 0x64b0
+// (added by its own ledger unit; ADD-only, see G6). The remaining methods on this factory
+// (C2/D1/D0/create*/createChannel*/version/getBundleID/getIconNameInternal/... etc.) are
+// separate ledger entries and get ADDED to this same file when they are claimed.
 //
 // Structurally identical to the OZChanObjectRef_Factory /
 // OZChannelBase_Factory / OZChannelQuad_Factory / OZChannelColor_
@@ -163,5 +164,51 @@ export class OZChannelAspectRatioFootage_Factory {
     // @0x1a81..0x1a88 — rax = _instance.
     // @0x1a8b..0x1a90 — epilogue + retq.
     return _instance;
+  }
+
+  /** The int32 this factory reports for "no icon ID" — the immediate written by
+   *  `movl $0xffffffff, %eax` @ProChannel 0x64b4. Written 32 bits wide into %eax, so it is the
+   *  int32 -1 rather than the 4294967295 a 64-bit-wide write would leave in %rax. Measured: a
+   *  live call read back as u64 gives 0xffffffff, i.e. the upper half of %rax is zero. */
+  static readonly ICON_ID_NONE: number = -1;
+
+  /**
+   * `OZChannelAspectRatioFootage_Factory::getIconIDInternal()` — @ProChannel 0x64b0
+   * (`__ZN35OZChannelAspectRatioFootage_Factory17getIconIDInternalEv`).
+   *
+   * FULL transcription — the body is 5 executed instructions and nothing else. Bytes read out of
+   * the thin x86_64 slice (`55 48 89 e5 b8 ff ff ff ff 5d c3`) and re-checked against the mapped
+   * image before the oracle below ran, because `otool -tV` symbolizes immediates as well as
+   * displacements and this function IS its immediate:
+   *
+   *   0x64b0  55                 pushq %rbp               ; frame setup (no TS counterpart)
+   *   0x64b1  48 89 e5           movq  %rsp, %rbp         ; frame setup (no TS counterpart)
+   *   0x64b4  b8 ff ff ff ff     movl  $0xffffffff, %eax  ; %eax = int32 -1   <-- the whole body
+   *   0x64b9  5d                 popq  %rbp               ; frame teardown (no TS counterpart)
+   *   0x64ba  c3                 retq                     ; returns the int32 in %eax
+   *   0x64bb  90                 nop                      ; alignment padding, never executed
+   *
+   * `this` (%rdi) is never dereferenced; there is no callq, no load, no allocation and no
+   * indirect/virtual dispatch — `depgraph.py deps` lists no dependency at all, which is why this
+   * unit was handed out with an empty dep set.
+   *
+   * -1 IS THE IMPLEMENTATION, NOT AN UNPORTED GAP: it is the shipped "this factory contributes no
+   * icon ID" sentinel, the same one-instruction body the landed
+   * `OZChanObjectManipRef_Factory::getIconIDInternal` @Ozone 0x1a8d0 carries (that file's census
+   * found 94 of Ozone's 127 concrete overrides are byte-identical to it).
+   *
+   * ORACLE (executed, not read — raw-port/re/oracle/OZChannelAspectRatioFootage_Factory_getIconIDInternal_probe.py):
+   * the symbol is `t` (local) so it is not dlsym-able; it was called BY ADDRESS in a Rosetta
+   * x86_64 process at `_dyld_get_image_vmaddr_slide(ProChannel) + 0x64b0` (slide 0x10ea24000),
+   * after asserting the 11 opcode bytes above are the ones mapped. Live ProChannel returned -1
+   * for all four receivers — NULL, 1, 0xdeadbeef and a live 0x200-byte buffer — which also
+   * demonstrates the body never touches `this`, and a u64-typed call returned 0xffffffff, which
+   * is the 32-bit-write fact above.
+   *
+   * @returns %eax — always -1 (@0x64b4).
+   */
+  getIconIDInternal(): number {
+    // @0x64b4  movl $0xffffffff, %eax   /   @0x64ba  retq
+    return OZChannelAspectRatioFootage_Factory.ICON_ID_NONE;
   }
 }

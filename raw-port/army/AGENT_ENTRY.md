@@ -38,7 +38,11 @@ Reviewers additionally run `python3 raw-port/army/verifier/prove_all.py` once at
    there, release it. `git worktree add` is forbidden. Release every lease you take, oracle work
    included.
 3. **Take your slot lock first, release it last:** `slot_lock.sh acquire <role> <N>`. `BUSY` means a
-   previous run of your slot is still alive — stop immediately.
+   previous run of your slot is still alive — stop immediately. **Then export the id it prints:
+   `export FCT_AGENT_ID=<role>-<N>`.** GitHub cannot tell one agent from another (every PR is
+   authored by the worker app and the operator login is shared), so this variable is the only thing
+   that lets `pr_submit.sh` stamp the PRs you opened and `review_claim.sh` skip them instead of
+   leasing you your own work. With it unset both tools say so out loud and the skip is inert.
 4. **Workers never merge. Reviewers never merge a PR whose `faithfulness-gate` is not success**, and
    never a REJECT/CHEAT/SKELETON. Never a bare `gh pr merge`.
 5. **No stubs, throw-stubs, or skeletons for in-scope symbols.** Every in-scope callee you are handed
@@ -137,6 +141,19 @@ Use `arch -x86_64 /usr/bin/python3` for any address-based work.
   and a green gate said nothing, because the gate only inspects the `.ts` files you hand it — that is
   how an oracle harness was destroyed (#25). The tools now carry those files and assert they survived;
   check anyway, because the failure is silent and irreversible.
+- **Sign with `--expect-head <sha>`: `ghapp/pr_review.sh <PR#> approve --expect-head <the sha you
+  verified> --body-file <path>`.** The tool resolves the head at call time, so without this a push
+  landing while you verify moves your signature onto code you never read — measured 3 times in 6 PRs,
+  once onto +119 unreviewed lines with every gate green. You leased a SHA; pass it. A moved head is
+  then a refusal instead of a signature (OPS_LOG #35).
+- **Parking a head is a JUDGEMENT, so mark it: start the status description with `JUDGED:`.** A
+  green-but-conflicted non-src PR cannot carry a CHANGES_REQUESTED (there is nothing semantic to
+  reject), so a hand-posted `failure` status is the only rejection available — and `pr_gate` refuses
+  to post `success` over one. It can only refuse over a description a TOOL could not have written:
+  `regression (rebase needed)` is pr_gate's own wording, so a marker set containing it made the gate
+  park its own message and wedge the head. Write
+  `JUDGED: regression (rebase needed): <why>` — it still matches `rebase_claim`'s grep, so the PR
+  still routes to a worker.
 - **Write a review body to a file: `ghapp/pr_review.sh <PR#> approve --body-file <path>`.** Backticks
   inside a double-quoted `bash -c` are expanded by YOUR shell before the tool sees them, which
   silently deleted the clause naming a defect from two permanent records (#30). Same door as a
@@ -151,6 +168,31 @@ Use `arch -x86_64 /usr/bin/python3` for any address-based work.
 
 Requeue it: `python3 raw-port/army/tools/depclaim.py drop <mangled> "<why>"`. Skim
 `depclaim.py blocked` before claiming — parked units carry reasons and some are recoverable.
+
+## 7b. If something in the swarm itself looks wrong
+
+Run the doctor before you theorise:
+
+    python3 raw-port/army/tools/swarm_doctor.py
+
+It asserts the standing invariants that OPS_LOG's 35 fixed entries taught us — is every open PR
+claimable by some queue, is every guard actually invoked, is the canonical tree current, is work
+stranded at an attempt cap, are leases and slot heartbeats healthy, can the guard suite still fail,
+does the symbol inventory exist where you work. It reports what is broken NOW, where OPS_LOG records
+what broke once. `UNKNOWN` means a check could not run — never that it passed. It is READ-ONLY by
+design: no lease, no post, no write, so it is safe to run against a live swarm from any slot.
+
+Two things it does deliberately, because the first version of it got them wrong and reported two
+live PRs backwards in one run: it **asks each queue's own selector** (the `rows=`/`cand=` query
+lifted out of `review_claim.sh` / `rework_claim.sh` / `rebase_claim.sh`, plus the status-DESCRIPTION
+grep that rebase_claim applies after its prefilter) instead of re-implementing the filters, and it
+reads every tool it inspects **from `origin/main`** rather than from the canonical checkout, which
+is routinely tens of commits behind. A re-implemented filter is a second source of truth, and a
+check that reads a stale tree reports a fix that landed an hour ago as missing.
+
+**If you find a swarm-level fault it does not check for, add the check in the same PR as the fix.**
+Nearly every entry in OPS_LOG was found by an agent tripping over it, at the cost of a unit of real
+work; a check turns that one-off collision into something the next agent never has to pay for.
 
 ## 8. Before you stop
 
