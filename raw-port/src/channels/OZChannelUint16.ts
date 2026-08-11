@@ -94,6 +94,11 @@
 //     if (_OZChannelUint16Impl_once != -1)
 //       std::call_once(_OZChannelUint16Impl_once,
 //                      OZChannelUint16::createOZChannelUint16Impl() lambda) @0x5ae729
+//     NOTE the compiler emitted this TEST TWICE, once per side of the info diamond above:
+//     @0x5ae6d3 (info != 0 path, `jne 0x5ae707` / `jmp 0x5ae72e` @0x5ae6e0) and @0x5ae6fa
+//     (info == 0 fallthrough, `je 0x5ae72e` @0x5ae705); both jump into the SHARED marshalling
+//     at 0x5ae707..0x5ae729. Same condition, so the port models one guard. 0x5ae73b is NOT part
+//     of this range — it is the `_OZChannelUint16Impl` literal-pool load in the branch below.
 //   Impl-arg branch (0x5ae72e..0x5ae749):
 //     if (arg6 impl != 0):
 //       rax = this[0x78]                                             @0x5ae735
@@ -432,8 +437,22 @@ export class OZChannelUint16 {
    *
    * Distinct from the two Ozone-side frontier stubs above (`ensureOZChannelUint16ImplOnce`,
    * `loadOZChannelUint16Impl`), which describe the copy of this logic that Ozone INLINES into the
-   * ctor at 0x5ae6d3..0x5ae73b. Those are left untouched; when the Ozone ctor path is transcribed it
-   * can route here instead.
+   * ctor. SETTLED against the Ozone ctor's own disassembly (`__ZN15OZChannelUint16C2EiRK8PCString…`
+   * @0x5ae620), because this file used to give that range two different ends: the once-guard is
+   * **0x5ae6d3..0x5ae729** and 0x5ae73b is NOT part of it — 0x5ae73b is the literal-pool load of
+   * `_OZChannelUint16Impl` in the *impl-arg* branch that follows (`movq 0x2735b6(%rip),%rax`), i.e.
+   * what `loadOZChannelUint16Impl` describes, a different construct. What the shorter range hides,
+   * and neither spelling mentioned, is that the compiler emitted the guard's TEST TWICE, once on
+   * each side of the info diamond:
+   *
+   *   0x5ae6d3  movq _OZChannelUint16Impl_once(%rip),%rax ; 0x5ae6da cmpq $-0x1  ; 0x5ae6de jne 0x5ae707
+   *   0x5ae6e0  jmp  0x5ae72e                              ;   (reached when info != 0)
+   *   0x5ae6fa  movq _OZChannelUint16Impl_once(%rip),%rax ; 0x5ae701 cmpq $-0x1  ; 0x5ae705 je  0x5ae72e
+   *   0x5ae707..0x5ae729  the shared marshalling + callq __call_once (stub 0x6dfb2e)
+   *
+   * Both tests are the same `!= -1` fast path this accessor models, so one modelled guard is
+   * faithful; the duplication is the compiler's, not a second condition. Those stubs are left
+   * untouched; when the Ozone ctor path is transcribed it can route here instead.
    */
   static createOZChannelUint16Impl(): OZChannelImplPtr {
     // @0xf536-0xf541 — the libc++ fast path: once == ~0UL means init already completed.
@@ -584,11 +603,29 @@ export type { OZCompoundChannel };
  * `createOZChannelUint16Info`, whose lambda the compiler inlined into an STL template
  * instantiation, this one is its own out-of-line symbol —
  * `__ZZN15OZChannelUint1625createOZChannelUint16ImplEvENKUlvE_clEv` @ProChannel 0xf6d2, reached
- * through the proxy @0xf6c1 — i.e. a SEPARATE ledger unit. Its first instructions
- * (`leaq` the global @0xf6d7, `cmpq $0x0,(%r15)` @0xf6de, `movl $0x30,%edi` + `__Znwm` @0xf6e7,
- * then `movl $0xb0,%edi` + `__Znwm` @0xf6f3 and a ctor call @0xf706) show it allocates a 0x30-byte
- * OZChannelUint16Impl plus a 0xb0-byte sub-object, so it is real work with its own callees rather
- * than something to fold in here.
+ * through the proxy @0xf6c1 — i.e. a SEPARATE ledger unit. This is the HANDOFF for that unit, so
+ * every address below is an instruction boundary re-derived from the lambda's own disassembly
+ * (`disasm.sh --sym …UlvE_clEv ProChannel`), not an eyeballed offset:
+ *
+ *   0xf6dc  leaq  _OZChannelUint16Impl(%rip),%r15   ; the BSS slot 0xec260
+ *   0xf6e3  cmpq  $0x0,(%r15)                       ; already published?
+ *   0xf6e7  jne   0xf74f                            ;   -> yes: return
+ *   0xf6e9  movl  $0x30,%edi                        ; sizeof(OZChannelUint16Impl)
+ *   0xf6ee  callq __Znwm                            ;   -> %rbx @0xf6f3
+ *   0xf6f6  movl  $0xb0,%edi                        ; sizeof(OZCurveInt)
+ *   0xf6fb  callq __Znwm                            ;   -> %r14 @0xf700
+ *   0xf709  callq OZCurveInt::OZCurveInt(double)    ; the 0xb0 sub-object, xmm0 = 0.0 @0xf703
+ *   0xf721  callq OZChannelImpl::OZChannelImpl(OZCurve*, double, unsigned int, bool)
+ *                                                   ; the 0x30 outer object: (curve, 0.0, 1, 1)
+ *   0xf732  callq PCSingleton::PCSingleton(unsigned int)   ; on this+0x28 (@0xf729), 0x64 (@0xf72d)
+ *   0xf73e  movq  %rax,(%rbx)                       ; vtable  (leaq @0xf737)
+ *   0xf748  movq  %rax,0x28(%rbx)                   ; vtable  (leaq @0xf741)
+ *   0xf74c  movq  %rbx,(%r15)                       ; PUBLISH
+ *
+ * So it is real work with its own callees — two allocations and three constructors — rather than
+ * something to fold in here. (An earlier revision of this paragraph named 0xf6d7/0xf6de/0xf6e7/
+ * 0xf6f3/0xf706, which are interior bytes or the instruction BEFORE the one described; caught in
+ * review on #639 and re-derived here rather than re-copied.)
  */
 function std_call_once_OZChannelUint16Impl(): void {
   if (OZChannelUint16._OZChannelUint16Impl_once === -1n) return; // libc++ fast path (mirrors 0xf53d/0xf541)
@@ -596,10 +633,13 @@ function std_call_once_OZChannelUint16Impl(): void {
     "OZChannelUint16::createOZChannelUint16Impl()'s once-init lambda is a separate ledger unit " +
       "and is not transcribed yet: __ZZN15OZChannelUint1625createOZChannelUint16ImplEvENKUlvE_clEv " +
       "@ProChannel 0xf6d2, reached through the libc++ proxy @ProChannel 0xf6c1 from " +
-      "std::__1::__call_once @ProChannel 0xf563 (stub 0xacdc8). It allocates 0x30 bytes @0xf6e7 and " +
-      "0xb0 bytes @0xf6f3 via operator new, constructs the sub-object @0xf706, and stores the " +
-      "OZChannelUint16Impl singleton into __ZN15OZChannelUint1620_OZChannelUint16ImplE (BSS " +
-      "0xec260), which this accessor then loads @0xf56f.",
+      "std::__1::__call_once @ProChannel 0xf563 (stub 0xacdc8). It allocates 0x30 bytes @0xf6e9 " +
+      "(operator new @0xf6ee) for the OZChannelUint16Impl and 0xb0 bytes @0xf6f6 (operator new " +
+      "@0xf6fb) for its OZCurveInt, constructs them with OZCurveInt::OZCurveInt(0.0) @0xf709, " +
+      "OZChannelImpl::OZChannelImpl(curve, 0.0, 1, 1) @0xf721 and PCSingleton::PCSingleton(0x64) " +
+      "on this+0x28 @0xf732, installs both vtables @0xf73e/@0xf748, and publishes the singleton " +
+      "@0xf74c into __ZN15OZChannelUint1620_OZChannelUint16ImplE (BSS 0xec260), which this " +
+      "accessor then loads @0xf56f.",
   );
 }
 
