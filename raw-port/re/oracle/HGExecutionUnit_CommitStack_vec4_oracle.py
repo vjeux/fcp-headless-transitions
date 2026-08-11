@@ -1,3 +1,4 @@
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 #!/usr/bin/env python3
 """Differential oracle for
 HGExecutionUnit::CommitStack(float vector[4]*, unsigned long) @Helium 0x1445b0.
@@ -186,7 +187,7 @@ def main():
 
     # the SHIPPED port, over the same inputs
     proc = subprocess.run(["node", "--experimental-strip-types", TS_DRIVER],
-                          input=json.dumps(fed), capture_output=True, text=True)
+                          input=json.dumps(fed), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if proc.returncode != 0:
         print("TS driver failed:\n" + proc.stdout + proc.stderr)
         return 3

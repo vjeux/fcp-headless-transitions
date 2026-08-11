@@ -181,10 +181,21 @@ def check_queue_coverage():
     Change a filter and this check follows it, instead of silently disagreeing with it.
     """
     prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 "
-                       "--json number,reviewDecision,mergeStateStatus,statusCheckRollup")
+                       "--json number,reviewDecision,mergeStateStatus,statusCheckRollup,baseRefName")
     if prs is None:
         return record("queue-coverage", UNKNOWN, f"could not list PRs: {err}", "#33/#41")
-    open_nums = {pr["number"] for pr in prs}
+    # A PR whose base is NOT main is deliberately outside every queue (the three selectors filter on
+    # `.baseRefName=="main"`), because no worker or reviewer ACTION can make it reach main: merging
+    # it writes onto a peer's branch, and pr_gate/pr_land now refuse it outright (#46). It is not an
+    # orphan of the coverage kind this check is about — its remedy is an unstacking DECISION no
+    # queue can perform — so it is excluded here and owned by `check_pr_base` above, which names it
+    # with the right reason and the right remedy (`gh pr edit <n> --base main`). Counting it here
+    # too would report the same PR twice under a description that is true and useless, and would
+    # bury the real orphans this check exists to surface. The pairing is load-bearing in the other
+    # direction as well: skipping such a PR in the queues is only safe BECAUSE check_pr_base still
+    # names it every run — a queue that silently drops work is #33.
+    off_main = {pr["number"] for pr in prs if (pr.get("baseRefName") or "main") != "main"}
+    open_nums = {pr["number"] for pr in prs} - off_main
 
     def numbers_from(tool, var):
         """Run the tool's OWN selector; return (numbers, row-fields by number, error).
@@ -401,6 +412,70 @@ def check_guards_wired():
                       f"[read at origin/main {MAIN_SHA}]", "#44")
     record("guards-wired", OK,
            f"all {len(guards)} guards are invoked by a caller [origin/main {MAIN_SHA}]", "#44")
+
+
+def check_orphan_drivers():
+    """#47: a mutant that never terminates burns a core until someone notices by hand.
+
+    Two `tsx` driver processes were found at ~98% CPU, one 2h31m old (66 CPU-minutes), both mutants
+    of the same unit. The mutation disabled a pointer advance, so the walk compared the same node
+    forever — correct behaviour for a mutant, and nothing scored it. 69 of 69 driver-spawning calls
+    in the repo passed no timeout, so the parent blocked forever, the agent finished its shift, and
+    the orphan outlived everything.
+
+    THIS CHECK IS THE HALF THAT COVERS AD-HOC HARNESSES, and that is the point: both processes came
+    from `/tmp/w5_mut_*/driver.ts`, written by an agent during a shift and never in the repo. No
+    amount of fixing checked-in oracles could have caught them. A process is evidence about itself.
+
+    Threshold: a driver older than DRIVER_MAX_MIN (default 10). The slowest healthy driver measured
+    here is ~1s; the AVX corpora run in seconds. Ten minutes is three orders of magnitude of margin,
+    and still catches a hang ~2h20m earlier than a human noticing the fans.
+    """
+    max_min = int(os.environ.get("FCT_DRIVER_MAX_MIN", "10"))
+    # `etime`, not `etimes`. BSD ps has no `etimes` (that is a Linux/procps extension) and rejects
+    # the whole command — so the first version of this check returned UNKNOWN on every run, on the
+    # only platform the swarm runs on. It read as "could not measure" rather than as "wrong flag",
+    # which is the polite kind of broken: no crash, no accusation, and no coverage.
+    r = sh("ps -Ao pid,etime,pcpu,args")
+    if r.returncode != 0 or not r.stdout.strip():
+        return record("orphan-drivers", UNKNOWN,
+                      f"could not read the process table: {(r.stderr or '').strip()[:80]}", "#47")
+
+    def _secs(et):
+        """[[DD-]HH:]MM:SS -> seconds. BSD ps drops leading zero fields, so all three shapes occur."""
+        days = 0
+        if "-" in et:
+            d, et = et.split("-", 1)
+            days = int(d)
+        bits = [int(x) for x in et.split(":")]
+        while len(bits) < 3:
+            bits.insert(0, 0)
+        return days * 86400 + bits[0] * 3600 + bits[1] * 60 + bits[2]
+
+    old = []
+    for line in r.stdout.splitlines()[1:]:
+        parts = line.split(None, 3)
+        if len(parts) < 4:
+            continue
+        pid, etime, pcpu, args = parts
+        try:
+            etimes = _secs(etime)
+        except ValueError:
+            continue
+        # A DRIVER, not any node: the harnesses run `node ... driver.ts` / `.mts`, and tsx drivers
+        # carry the preflight shim. Matching bare `node` would accuse the editor and the dev server.
+        if not re.search(r'driver\.m?ts|tsx/dist/preflight|reach_worker', args):
+            continue
+        if etimes > max_min * 60:
+            old.append(f"pid {pid} ({etimes//60}m, {pcpu}% cpu)")
+    if old:
+        return record("orphan-drivers", FAIL,
+                      f"{len(old)} oracle driver(s) running longer than {max_min}m — a mutant that "
+                      f"does not terminate is a kill, not a pending result, and it holds a core "
+                      f"until someone kills it by hand: {', '.join(old[:4])}. Kill them "
+                      f"(`kill -9 <pid>`) and give the harness a timeout (oracle_driver.run_driver)",
+                      "#47")
+    record("orphan-drivers", OK, f"no oracle driver has been running longer than {max_min}m")
 
 
 # ── 3. The canonical checkout must be current ───────────────────────────────────────────────────
@@ -637,15 +712,35 @@ def check_dead_counters():
                      if f.isdigit() and not f.endswith(".sha")]
     if not counters:
         return record("dead-counters", OK, "no attempt counters outlive their PR")
-    # ONE list call, not one per counter. The PR body reported 64 counters sitting in the state dir
-    # at one point; that would have been 64 serial API calls in a tool AGENT_ENTRY tells every agent
-    # to run, on a box where the network round-trip is the slowest thing here.
-    allprs, err = gh_json(f"pr list --repo {SLUG} --state all --limit 400 --json number,state")
-    if allprs is None:
-        return record("dead-counters", UNKNOWN, f"could not list PRs to age the counters: {err}", "#28")
-    state_of = {p["number"]: p.get("state") for p in allprs}
-    dead = [f"{kind}/{f}" for kind, f in counters
-            if state_of.get(int(f)) in ("MERGED", "CLOSED")]
+    # ONE call, not one per counter — 64 counters sat in the state dir at one point, and that would
+    # have been 64 serial round trips in a tool AGENT_ENTRY tells every agent to run.
+    #
+    # It used to be `pr list --state all --limit 400`, which has a WINDOW: with ~650 PRs, anything
+    # older than the 400 most recent came back absent, `state_of.get()` returned None, and the
+    # counter was silently treated as fine. The oldest counters are the likeliest to be dead, so the
+    # window hid exactly the population this check exists to find — measured: counter rebase/114
+    # (MERGED) was invisible here while rebase/554 (MERGED) was reported, purely because of where
+    # they fell in the list. Ask about the counters that actually exist instead: an aliased query
+    # over those numbers has no window at all and costs one round trip.
+    q = " ".join(f"p{f}: pullRequest(number: {f}) {{ state }}" for _k, f in counters)
+    owner, name = SLUG.split("/", 1)
+    r = sh(f'gh api graphql -f query=\'query {{ repository(owner: "{owner}", name: "{name}") '
+           f'{{ {q} }} }}\' --jq \'.data.repository | to_entries[] | "\\(.key) \\(.value.state)"\'')
+    if r.returncode != 0 or not r.stdout.strip():
+        return record("dead-counters", UNKNOWN,
+                      f"could not read the counters' PR states: {(r.stderr or 'empty answer').strip()[:120]}",
+                      "#28")
+    state_of = {}
+    for line in r.stdout.split("\n"):
+        parts = line.split()
+        if len(parts) == 2 and parts[0].startswith("p"):
+            state_of[parts[0][1:]] = parts[1]
+    dead = [f"{kind}/{f}" for kind, f in counters if state_of.get(f) in ("MERGED", "CLOSED")]
+    # A counter the query did not answer for is not a counter that is fine.
+    unanswered = [f"{kind}/{f}" for kind, f in counters if f not in state_of]
+    if unanswered and not dead:
+        return record("dead-counters", UNKNOWN,
+                      f"{len(unanswered)} counter(s) got no state back: {', '.join(unanswered[:6])}", "#28")
     if dead:
         return record("dead-counters", FAIL,
                       f"{len(dead)} attempt counter(s) for PRs that are already merged/closed — "
@@ -894,37 +989,66 @@ def check_ops_contention():
            f"convention landed")
 
 
+def prove_all_layer_labels(src):
+    """The sub-layer labels `prove_all.py` declares, for EITHER shape of that file.
+
+    Kept as a module-level function so a suite can drive it directly with source text, which is the
+    only way to exercise the duplicate branch without planting a duplicate on main.
+
+    THIS EXISTS BECAUSE THE CHECK WENT BLIND ON A LANDED REFACTOR, SILENTLY. The original pattern
+    was `print("LAYER 2<letter>` — correct for the thirteen hand-numbered blocks it was written
+    against, and matching NOTHING once prove_all became a `LAYER2 = [(label, desc, cmd, token), …]`
+    table (the fix three ops entries had asked for). The check then reported UNKNOWN on every run,
+    which is honest — `found no LAYER labels … it is not evidence of anything` — and permanent: an
+    UNKNOWN that no correct state can clear is a check that has stopped checking while still
+    occupying a line in the report. Measured on 2026-08-11 by reviewer 2, against a main whose
+    fifteen labels were all perfectly distinct.
+
+    So: read the CURRENT shape first, fall back to the legacy one, and return [] only when neither
+    is recognisable — that last case is the caller's UNKNOWN, and it stays UNKNOWN rather than
+    becoming OK, because "selects nothing" must never read as "all distinct".
+    """
+    # CURRENT SHAPE — the row table. Sliced to the LAYER2 literal so an unrelated `("2x", …)` tuple
+    # elsewhere in the file cannot be counted as a layer.
+    table = re.search(r'^LAYER2 = \[(.*?)^\]', src, re.S | re.M)
+    if table:
+        rows = re.findall(r'^\s*\(\s*"([^"]+)"\s*,\s*$', table.group(1), re.M)
+        if rows:
+            return rows
+    # LEGACY SHAPE — hand-numbered print() calls. Bare labels are excluded here on purpose: `LAYER 3`
+    # is legitimately printed twice in that shape (a heading and a verdict), so counting it would
+    # FAIL against a healthy tree. The table has no such duplicate-by-design, which is why its rows
+    # are read whole.
+    return re.findall(r'print\(\s*"LAYER (\d+[a-z])\b', src)
+
+
 def check_layer_letters():
-    """No two prove_all layers may claim the same letter.
+    """No two prove_all layers may claim the same label.
 
-    Every suite is wired into `prove_all.layer2()` by appending a hand-numbered `rN`/`okN` pair, a
-    hand-CHOSEN `LAYER 2<letter>` label, and one more `and okN` to the single `return` line. There
-    is no allocator for the letter and no way for two open PRs to see each other's choice, so two
-    authors pick the same one routinely: main's list went 2h -> 2i -> 2j in ninety minutes today,
-    and PR #650 needed THREE letters in one hour (2i taken by queue-coverage while it waited, then
-    2j taken by #670 in the eight minutes between its re-approval and its merge).
+    HISTORY, because it explains both the check and its repair. Every suite used to be wired into
+    `prove_all.layer2()` by appending a hand-numbered `rN`/`okN` pair, a hand-CHOSEN `LAYER
+    2<letter>` label, and one more `and okN` to a single `return` line. There was no allocator, so
+    two authors picked the same letter routinely — main's list went 2h -> 2i -> 2j in ninety
+    minutes, and PR #650 needed THREE letters in one hour. The collision surfaced only at rebase
+    time, and the tempting resolution was the dangerous one: "take mine" on that hunk REVERTED the
+    peer's landed layer, the file still parsed, and the suite still passed with a layer missing.
 
-    The collision is only ever discovered at rebase time — the three-dot diff is clean on both
-    sides — and the tempting resolution is the dangerous one: "take mine" on that hunk REVERTS the
-    peer's landed layer, the file still parses, the suite still passes with a layer missing, and G6
-    add-only cannot see it because it only inspects the .ts file handed to gate.sh.
+    Main has since made the layers a `LAYER2` table of rows, which removed the `rN`/`okN` pair and
+    the shared `return` line — so the merge conflict is gone and prove_all now refuses a duplicate
+    itself before running anything. Two labels can still collide in the table (two rows, two PRs,
+    one string), and this check is the version of that question the BOARD can answer without
+    running the suite, from `origin/main` rather than from a possibly-stale checkout.
 
-    So: report a duplicate label as a FAIL naming the letter. This does not remove the append point
-    (see the ops entry filed with this check for the two ways to do that); it makes the next
-    collision a line in this report instead of two reviewer rounds.
+    It reads whichever shape the file is in (see `prove_all_layer_labels`), because the first thing
+    the refactor did to this check was blind it: the old pattern matched nothing and the check
+    reported UNKNOWN, permanently, on a perfectly healthy main.
     """
     src = from_main("raw-port/army/verifier/prove_all.py")
     if not src:
         return record("layer-letters", UNKNOWN,
                       "could not read prove_all.py from origin/main — cannot say whether two "
                       "layers claim one letter")
-    # ONLY the lettered sub-layers (2b, 2c, ... 2z). The bare top-level labels are excluded on
-    # purpose: `LAYER 3` is legitimately printed TWICE on main — once as a heading before the
-    # per-fixture rows and once as its verdict — so counting it would make this check FAIL against
-    # a healthy main, which is the "a red that correct behaviour cannot clear" defect this file's
-    # own ops-contention check was rejected for. Measured: with a bare-label pattern, main reports
-    # `3 (x2)`. The lettered labels are the ones with no allocator and the real collisions.
-    labels = re.findall(r'print\(\s*"LAYER (\d+[a-z])\b', src)
+    labels = prove_all_layer_labels(src)
     if not labels:
         # The pattern found nothing, which is either a rewrite or a broken regex — and "selects
         # nothing" must never read as "all distinct" (test_guards case E's lesson, one file over).
@@ -941,11 +1065,98 @@ def check_layer_letters():
     record("layer-letters", OK, f"{len(labels)} layer label(s), all distinct")
 
 
+def check_verifier_contention():
+    """Only ONE whole-repo verifier should be running on this box at a time.
+
+    `prove_all.py` verifies the ENTIRE repo, and AGENT_ENTRY §1 tells every reviewer to run it once
+    at start — so with N reviewer slots (and a harness that restarts dead ones, which clusters
+    restarts) N copies run at once by construction. Measured 2026-08-11 by worker 5: EIGHT
+    concurrent runs, all started within 5m22s of each other, **every one of them at 0.0% CPU**, box
+    at load average 168, none finishing. It is not merely the duplicated work of OPS_LOG #23's
+    concurrent `mark_ported` runs: the copies starve each other behind the MDM security stack, so
+    unrelated work stops too — a `gate.sh` on one file ran 51 minutes without returning, and an
+    8-second oracle ran 60.
+
+    AGENT_ENTRY §4 already carries the right rule ("before a global maintenance tool, check for a
+    peer already running it") and names `mark_ported.py`, `build_ledger.py` and `depgraph.py`. It
+    did not name `prove_all.py`, the one tool every agent is told to run at startup; this change
+    adds it there and makes the pile-up visible from the tool §7b already tells agents to run when
+    the swarm looks wrong. The cure — a single-flight lock keyed on the verified SHA that WAITS and
+    reuses the verdict rather than exiting — belongs in prove_all.py itself and is not in this
+    change; see raw-port/army/ops/2026-08-11-twenty-concurrent-prove-all-runs-peg-the-box-at-load-168-and.md.
+
+    Counted per RUN, not per matching process: one invocation typically shows up as a `/bin/sh -c`
+    wrapper, an optional `timeout`, and the python process itself, so a naive `pgrep | wc -l`
+    reports 20 for 8 runs. Only the interpreter processes are counted. A `ps` that cannot run
+    reports UNKNOWN — never OK.
+    """
+    r = sh("ps -Ao pid,etime,%cpu,command", timeout=30)
+    if r.returncode != 0:
+        return record("verifier-contention", UNKNOWN, "could not list processes")
+    record_runs = _prove_all_runs(r.stdout)
+    if len(record_runs) > 1:
+        stalled = sum(1 for _, _, cpu in record_runs if _cpu(cpu) < 1.0)
+        oldest = max((e for _, e, _ in record_runs), key=_etime_secs)
+        return record("verifier-contention", FAIL,
+                      f"{len(record_runs)} concurrent prove_all.py runs on this box "
+                      f"({stalled} of them at <1% CPU — they are starving each other, not working). "
+                      f"oldest {oldest}. One run verifies the tree for everyone: "
+                      f"`pgrep -f prove_all.py` in a command of its OWN before starting another, and "
+                      f"expect your own gate and oracle timings to be meaningless until this clears",
+                      "#verifier-contention")
+    record("verifier-contention", OK,
+           f"{len(record_runs)} whole-repo verifier run(s) live — no pile-up")
+
+
+def _cpu(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _etime_secs(etime):
+    """ps ELAPSED -> seconds. The format is [[dd-]hh:]mm:ss, so a plain string max would rank
+    '07:18' above '1-02:03:04' and report the wrong run as the oldest."""
+    days, _, rest = etime.rpartition("-")
+    try:
+        parts = [int(x) for x in rest.split(":")]
+    except ValueError:
+        return 0
+    while len(parts) < 3:
+        parts.insert(0, 0)
+    return int(days or 0) * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2]
+
+
+def _prove_all_runs(ps_out):
+    """(pid, etime, %cpu) for each prove_all.py INVOCATION in `ps -Ao pid,etime,%cpu,command`.
+
+    Split out of the check so it can be tested against captured `ps` text offline
+    (test_verifier_contention.py) — the counting is the part that was wrong in the first draft, and
+    a number nobody can reproduce is not evidence. Skips the `/bin/sh -c` and `timeout` wrappers
+    that surround a run, and this tool's own command line (a doctor that counts itself reports a
+    pile-up of one)."""
+    runs = []
+    for line in ps_out.splitlines()[1:]:
+        parts = line.split(None, 3)
+        if len(parts) < 4:
+            continue
+        pid, etime, cpu, cmd = parts
+        if "prove_all.py" not in cmd or "swarm_doctor" in cmd:
+            continue
+        head = cmd.split()[0]
+        if head.endswith("sh") or head.endswith("timeout") or head.endswith("bash"):
+            continue
+        runs.append((pid, etime, cpu))
+    return runs
+
+
 CHECKS = [check_pr_base, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_no_double_lease, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
           check_brief_flags_exist, check_rebase_actionable, check_rebase_branch_naming,
-          check_ops_contention, check_layer_letters]
+          check_ops_contention, check_layer_letters,
+          check_orphan_drivers, check_verifier_contention]
 
 
 def main():

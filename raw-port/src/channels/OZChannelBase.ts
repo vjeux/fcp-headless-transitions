@@ -2003,3 +2003,62 @@ export class OZChannelBase {
     // @0x4a54b..0x4a54c  popq %rbp ; retq — return %al.
   }
 }
+
+/**
+ * `OZChannelBase::allowsDrag(OZChannelBase const*)` — @ProChannel 0x49f44
+ *   — `__ZN13OZChannelBase10allowsDragEPKS_` (exported `T`,
+ *     `raw-port/army/inventory/ProChannel.syms.txt:3025`)
+ *
+ * FULL transcription. The whole function is five instructions and one of them is the body:
+ *
+ *   0x49f44  55        pushq %rbp        ; frame setup (no TS counterpart)
+ *   0x49f45  48 89 e5  movq  %rsp, %rbp  ; frame setup (no TS counterpart)
+ *   0x49f48  b0 01     movb  $0x1, %al   ; the return value: 1
+ *   0x49f4a  5d        popq  %rbp        ; frame teardown (no TS counterpart)
+ *   0x49f4b  c3        retq              ; return %al
+ *
+ * IT IGNORES BOTH OPERANDS, and that is the finding rather than an omission: `%rdi` (`this`) and
+ * `%rsi` (the candidate channel) are never read — there is no load, no test, no branch, and no
+ * callee. The base class answers "yes, a drag is allowed" for every pair, and a subclass override
+ * is where any real policy lives. A port that consulted a flag here would be inventing a decision
+ * the binary does not make, so both parameters are named with a leading underscore and left unread.
+ *
+ * The `movb $0x1, %al` writes only the low BYTE of the return register, which is the C++ `bool`
+ * ABI: the caller reads `%al` alone, and the upper bits of `%eax` are left undefined by this
+ * function. The oracle reads the result as a `c_ubyte` for exactly that reason — declaring it an
+ * `int` would compare bits this function never set.
+ *
+ * ZERO callees: no in-scope call, no extern, no indirect and no virtual dispatch
+ * (`depgraph.py deps __ZN13OZChannelBase10allowsDragEPKS_` lists nothing).
+ *
+ * WHY AN `export function` IN A CLASS-SHAPED FILE. The rest of this file models the class with
+ * methods, which is the older style here; G5 only inspects `export function`, so a method is
+ * invisible to the one gate that classifies a body against its disassembly (reviewer 4 filed that
+ * hole today, and reviewer 1 noted on #647 that writing an export function is what makes G5 look at
+ * all). A one-instruction constant-returning body is precisely the shape that should be judged
+ * rather than taken on trust, so this unit is exported as a function. It reads no instance state,
+ * so nothing is lost by not being a method.
+ *
+ * ORACLE — EXECUTED, not read (`raw-port/re/oracle/OZChannelBase_allowsDrag_oracle.py`, under
+ * `arch -x86_64 /usr/bin/python3`; the symbol is `T`, so it is reached by dlsym after the recursive
+ * @rpath preload, and the 8 opcode bytes at the symbol are checked against the transcription first).
+ * Measured 2026-08-11: 49 (this, other) pairs — NULL, poison, 0x4141…, and real 0x100-byte
+ * 0xCD-filled arenas in every combination, including this == other — returned 1 every time; 0 of
+ * 512 arena bytes changed; and the two negative controls a constant cannot be told apart from by
+ * value alone are checked structurally instead, in the TS driver: `false` dies on all 49, "return
+ * whether other is non-null" dies on the 21 pairs with a NULL argument. The M0 control survives.
+ *
+ * Source disassembly:
+ *   raw-port/re/disasm/ProChannel.__ZN13OZChannelBase10allowsDragEPKS_.s (6 lines)
+ *
+ * @param _self  %rdi — the channel being asked. NEVER READ by this body.
+ * @param _other %rsi — the candidate channel. NEVER READ by this body.
+ * @returns `true`, unconditionally, as `movb $0x1, %al` does.
+ */
+export function OZChannelBase_allowsDrag(
+  _self: OZChannelBase,
+  _other: OZChannelBase | null,
+): boolean {
+  // @0x49f48  movb $0x1, %al — the entire body.
+  return true;
+}

@@ -5883,6 +5883,153 @@ live and every number is measured on this box today.
 
 ---
 
+## Open — reported 2026-08-11 by reviewer 2 (a fetch that refuses the update while the `| tail` idiom swallows git's failure; a merge trigger a PREVIOUS reviewer armed; and what `merge=union` does not reach)
+
+Eight verdicts this run — #554, #648, #571, #646 landed; #639, #649, #600, #629 rejected. Two of the
+three below cost me real time or nearly cost a verdict, and both are mechanisms rather than mistakes:
+each one produced output that read like success.
+
+- **`git fetch origin pull/<N>/head:pr<N>` REFUSES THE UPDATE WHEN THE LOCAL REF EXISTS AND THE PR
+  WAS FORCE-PUSHED, AND THE `| tail` IN THE USUAL IDIOM SWALLOWS GIT'S NON-ZERO EXIT — SO YOU REVIEW
+  A HEAD THAT IS SEVERAL REJECTIONS OLD.** I read
+  `pr600` for several minutes and built two findings out of it before noticing. Measured:
+
+      $ git rev-parse --short pr600     a2c937b7      # what I was reading
+      $ gh pr view 600 --json headRefOid            647655d5      # what the PR actually is
+      $ git fetch origin pull/600/head:pr600
+       ! [rejected]          refs/pull/600/head -> pr600  (non-fast-forward)
+
+  **CORRECTED BEFORE MERGE — git DOES report the failure; what hid it is the pipe, which is this
+  log's own gate rule arriving in a new place.** My draft said the command exits 0 and that
+  therefore `set -e`, `&&` and `if git fetch …` are all blind to it. Reviewer 5 blocked on that and
+  was right: leaving it in would have told the next agent their exit-status guard is worthless
+  here, which REMOVES a defence. Re-measured on this box (`git 2.50.1 (Apple Git-155)`), local ref
+  parked on an unrelated commit so the update is a genuine non-fast-forward:
+
+      git fetch origin pull/647/head:probe                  -> EXIT 1   ! [rejected] (non-fast-forward)
+      git fetch origin pull/647/head:probe 2>/dev/null      -> EXIT 1   (silencing stderr changes nothing)
+      if git fetch origin pull/647/head:probe …; then …     -> takes the FALSE branch
+      git fetch origin pull/647/head:probe 2>&1 | tail -1   -> EXIT 0   <- the whole bug
+      git fetch -f origin pull/647/head:probe               -> EXIT 0   + …(forced update)
+
+  So the mechanism is not "git lies about a rejected fetch"; it is **the swarm's fetch idiom
+  laundering git's failure through a pipe** — precisely what the standing gate rule already says
+  (*"never pipe a gate into `tail`, because a pipeline returns `tail`'s status and a REJECT then
+  looks like success"*), one command over. That rule is usually quoted about `gate.sh`; it applies
+  to every command whose exit code carries an instruction, and a `| tail -1` on a fetch is the most
+  natural thing in the world to write when you only want the last line. Reviewer 5 reproduced the
+  `0` the same way while measuring the claim, which is how the cause was pinned.
+  Everything else in this bullet is unchanged and stands: the ref really is NOT updated, so you
+  read the wrong text either way. And `prN` is routinely already present in a
+  shared checkout: every agent that has ever reviewed that PR created it, so the ref is a peer's
+  snapshot from hours ago, and a reworked PR is force-pushed by definition. The staler the PR, the
+  likelier you read the wrong text.
+  Both findings I had were **already fixed** at the real head, so the failure direction is a REJECT
+  posted against work the author has already done — which burns a rework cycle and teaches the
+  author to distrust reviews. The near-miss is worse than the miss: `--expect-head` would not have
+  saved me, because the head I passed would have been the stale one and the tool would have refused
+  for the *right* reason with the *wrong* SHA in the message.
+  FIX, and it is one character: **`git fetch -f origin pull/<N>/head:pr<N>`**, or fetch to
+  `FETCH_HEAD` and never name a local ref at all. Then ASSERT: the SHA you review must equal the SHA
+  `review_claim` leased you. Better still — and this is what actually saved every other PR I looked
+  at today — **do the reading inside the worktree you leased with `wt_pool.sh acquire-at <SHA>` and
+  print `git rev-parse HEAD` once**. Everything I verified in a worktree was at the right head;
+  the one thing I read through a `prN` ref in the canonical checkout was not.
+
+- **A PENDING AUTO-MERGE ARMED BY AN EARLIER REVIEWER FIRES THE INSTANT A LATER REVIEWER MAKES THE
+  PR GREEN — BEFORE THAT REVIEWER HAS READ ANYTHING.** `pr_land` enables `--auto` when it cannot
+  merge yet, and the arming SURVIVES on the PR indefinitely. On #554 it had been armed for 2h18m by
+  a slot that is long gone:
+
+      17:46:02Z  auto-merge (SQUASH) enabled by app/vjeux-reviewer   <- a previous reviewer's pr_land
+      20:03:xx   I push a merge of current main; the PR becomes MERGEABLE
+      20:03:55Z  my pr_gate posts faithfulness-gate = success
+      20:04:10Z  my APPROVE is recorded on the head
+      20:04:13Z  MERGED
+
+  Three seconds. My signature happened to land first only because the brief has you approve *before*
+  `pr_land`; had I gated first and then sat down to read the diff — which is the natural order, since
+  the gate is the cheap mechanical pass — the PR would have merged with no reviewer having read that
+  head. Branch protection cannot stop it: `required_pull_request_reviews` is null, so the ONLY
+  required check is the status, and the status is exactly the thing a reviewer posts before reading.
+  This is the mirror of the "GitHub rebinds a review 39 seconds later" finding — there, a signature
+  moves onto code nobody read; here, a MERGE moves onto code nobody read, and nothing rebinds or
+  refuses because everything involved is behaving as designed.
+  IMMEDIATE RULE, no tooling needed: **before you make any PR green, check
+  `gh pr view <N> --json autoMergeRequest`.** If it is armed, you are not gating, you are merging —
+  so finish the review first. Of the 16 open PRs when I started, 2 were armed (#554, #571) and
+  neither had a live reviewer.
+  FIXES WORTH MAKING: (1) have `pr_gate` refuse to post `success` on a PR with a pending
+  auto-merge unless it can see an approval on the CURRENT head — the same shape as
+  `post_success_unless_rejected`, which already refuses to post green over an un-dismissed
+  rejection; (2) have `pr_land` disable auto-merge on its way out when it returns REBASE-RACE,
+  rather than leaving a loaded trigger behind for whoever touches the PR next.
+
+- **`.gitattributes merge=union` ONLY HELPS A BRANCH THAT CARRIES IT, AND THE `DIRTY` BACKLOG IT WAS
+  WRITTEN FOR MOSTLY DOES NOT.** #626 landed the union driver for `OPS_LOG.md` at `be3a4eb0`. Two
+  PRs I unstuck eight minutes apart, same file, same command:
+
+      #554, head 1ae503f2 — HAS .gitattributes   ->  git merge origin/main: 0 conflicts
+      #571, head a029f21c — forked before it     ->  git merge origin/main: CONFLICT, hand-resolved
+
+  `git merge` reads the attribute from the tree being merged INTO, so the discriminator is the
+  branch, not main. Every branch that forked before `be3a4eb0` — precisely the stuck backlog — still
+  conflicts. First step when unsticking an old branch: `git cat-file -e <head>:.gitattributes` tells
+  you which of the two jobs you are about to do.
+  AND WHEN YOU DO HAND-RESOLVE, "KEEP BOTH SIDES" IS NECESSARY BUT NOT SUFFICIENT — **the ORDER has
+  to keep each bullet under its own heading.** #571's collision was between two different structural
+  levels: ours was a bullet continuing a worker-3 list whose `##` heading sat above the conflict,
+  theirs opened a new `---` / `## Fixed 2026-08-11` section. Either order preserves every line and
+  passes a zero-deletions check; theirs-first silently reparents worker 3's addendum under main's new
+  heading, attributing one agent's finding to another's report. Nothing is deleted, so no guard in
+  this file can see it. Read the two headings before you pick the order.
+
+- **Two smaller ones from the same run.** (a) The read-back this log now mandates works through
+  REST (`gh api …/pulls/<N>/reviews --jq '.[-1].commit_id'`) and returns `null` through
+  `gh pr view --json reviews`, where the key is `.commit.oid` — reviewer 1 has the full account in
+  #629; I hit it in my first hour and confirmed the GraphQL object's nine keys contain no
+  `commit_id` at all. (b) `pr_land`'s approval-carry works and is worth trusting: on #648 and #646
+  it detected the rebind, walked the first-parent chain back to the head I signed, and proved
+  tree-identity (`merge-tree(origin/main, <signed>) == tree(<rebound>)`) before merging. That is the
+  one place today where a tool noticed a thing moving under it and said so.
+
+- **A THIRD DOOR INTO "THIS PR BELONGS TO NO QUEUE", AND IT IS THE REVIEWER QUEUE LOSING ITS OWN WORK
+  ITEM — FIXED ON MAIN BY #650; the diagnosis below is kept because #650's tests lock it.** Found by
+  `swarm_doctor.py` at the end of this run, on a live PR:
+
+      FAIL queue-coverage   1 open PR(s) NO queue can claim: #676 (review=none gate=FAILURE merge=BEHIND)
+      $ gh api …/commits/eba57eaf/statuses --jq '…'
+        failure   2 G5 flag(s): reviewer must re-derive disasm, then rerun --reviewed
+
+  The status **names the reviewer as the owner in its own text** — and `review_claim.sh` is the one
+  queue that cannot see it, because its jq treats a FAILURE that is latest-for-head as a *fresh
+  verdict* and skips it. `rebase_claim` does not match the wording (`regression|rebase|add-only|G6|
+  gate reject`), and `rework_claim` selects on `reviewDecision`, of which there is none. So a PR
+  whose gate says "a reviewer must finish this" is invisible to reviewers, workers and the rebase
+  queue at once.
+  This is the same class as #33 and as the stale-file wording #600 is fixing, but a DISTINCT door,
+  and the most self-defeating of the three: the G5-flag failure is not a rejection at all, it is the
+  gate deferring to human judgement, and deferring is what removes it from the humans' queue. Note
+  it is also the NORMAL end state for any flagged PR whose reviewer stops between gating and
+  signing — which is every context cut, every slot restart.
+  FIX — **SHIPPED as #650 (`1ad3d5b69`), while this entry was in review; it is no longer an open
+  finding.** What landed is the first of the two options this bullet proposed: `review_claim`'s
+  eligibility jq now admits a `FAILURE` (`review_claim.sh:59`), and the FAILURE arm keeps it when the
+  description names the reviewer (`review_claim.sh:93`:
+  `*"G5 flag"*|*"re-derive disasm"*) : ;;   # the gate is asking for a reviewer -> ours`), since
+  `--reviewed` is by construction a reviewer action on that exact head. The one-line alternative —
+  keep posting `pending` rather than `failure` for the flag case, so the existing `.s=="PENDING"` arm
+  picks it up — was not taken and is recorded here only as the road not travelled. Reviewer 1 reports
+  being handed two PRs this hour through the landed selector, so it is working in production; do not
+  build it again. Either way the property to assert in `swarm_doctor` is
+  the one it already checks — I only found this because the doctor was run, which is the argument
+  for running it at the END of a shift and not just when something looks wrong.
+  (I did not take #676: a peer reviewer already held its lease when the doctor flagged it. The
+  coverage failure is about the SELECTOR, not about the PR being unattended — and those two look
+  identical from outside, which is worth knowing before someone "rescues" a PR a peer is working.)
+
+---
+
 ## Open — reported 2026-08-11 by worker 3 (the node TS↔binary differential is blocked for MOST ports, and the way around it is 20 lines; plus an instrument that normalised away its own control)
 
 - **THE HOUSE `node --experimental-strip-types` RECIPE — this log's own answer to "most oracles
