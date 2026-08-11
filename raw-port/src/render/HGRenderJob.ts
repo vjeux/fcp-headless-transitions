@@ -15,6 +15,8 @@
 //                                                                       (SetGPUGraphicsAPI)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob19UsesOnlyGPUResourceEv.s (UsesOnlyGPUResource)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob7GetTypeEv.s              (GetType)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob23SpecifiesComputeDevicesEv.s
+//                                                                       (SpecifiesComputeDevices)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob17GetGPUGraphicsAPIEv.s   (GetGPUGraphicsAPI —
 //                                                                       read only to pin the
 //                                                                       +0x64 offset/width; the
@@ -114,6 +116,8 @@
 //       — HGRenderJob::IsRequestedVirtualScreen(int) @Helium 0x54ad0
 //   * __ZN11HGRenderJob8SetStateENS_5StateE
 //       — HGRenderJob::SetState(HGRenderJob::State) @Helium 0x54640
+//   * __ZN11HGRenderJob23SpecifiesComputeDevicesEv
+//       — HGRenderJob::SpecifiesComputeDevices() @Helium 0x54bf0
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — IsRequestedVirtualScreen @0x54ad0
@@ -715,6 +719,87 @@ export class HGRenderJob {
       if ((refs[i].tag08 >>> 0) === 0) return false; // @0x54b78 setne al=0 ; @0x54b7b je
     }
     return true; // @0x54b86 jmp 0x54b4d with al = 1 from the last setne
+  }
+
+  /**
+   * `HGRenderJob::SpecifiesComputeDevices()` @Helium 0x54bf0
+   *   (__ZN11HGRenderJob23SpecifiesComputeDevicesEv)
+   *
+   * Full transcription of the 19-line body (raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob23SpecifiesComputeDevicesEv.s). Returns `bool` in %al.
+   *
+   *   0x54bf0  pushq %rbp                    ; frame prologue
+   *   0x54bf1  movq  %rsp, %rbp
+   *   0x54bf4  cmpl  $0x6, 0x10(%rdi)        ; compare this->_resource (u32 @+0x10) with 6
+   *                                          ;   -- FLAGS DEAD, see the note below
+   *   0x54bf8  movq  0x18(%rdi), %rcx        ; rcx = this->taggedRef18
+   *   0x54bfc  movb  $0x1, %al               ; default answer = true
+   *   0x54bfe  testq %rcx, %rcx              ; (this is what actually sets the flags)
+   *   0x54c01  je    0x54c05                 ; taggedRef18 == null -> keep testing
+   *   0x54c03  popq  %rbp ; retq             ;   else return true
+   *   0x54c05  cmpq  $0x0, 0x50(%rdi)
+   *   0x54c0a  jne   0x54c03                 ; slot50 != null -> return true
+   *   0x54c0c  movq  0x28(%rdi), %rcx        ; rcx = vector begin
+   *   0x54c10  cmpq  0x30(%rdi), %rcx        ; AT&T: computes rcx - this->[+0x30] (begin - end)
+   *   0x54c14  jne   0x54c03                 ; begin != end (NON-EMPTY vector) -> return true
+   *   0x54c16  xorl  %eax, %eax              ; all three empty -> false
+   *   0x54c18  popq  %rbp
+   *   0x54c19  retq
+   *   0x54c1a  nopw  (%rax,%rax)             ; padding — not executed
+   *
+   * So the predicate is a plain three-way "is anything set?": TRUE when the +0x18
+   * pointer is non-null, OR the +0x50 slot is non-null, OR the +0x28..+0x30 vector is
+   * non-empty; FALSE only when all three are empty. It is the same field trio that
+   * `UsesOnlyGPUResource` @0x54b20 (above) reads, which is what pins the offsets — but
+   * this method reads ONLY the pointers/emptiness. It never dereferences `taggedRef18`
+   * and never walks the vector, so no `tag08` and no vector element participates.
+   *
+   * THE DEAD COMPARE @0x54bf4 IS REAL AND IS TRANSCRIBED AS A NO-OP. `cmpl $0x6,
+   * 0x10(%rdi)` sets the flags from `_resource - 6`, but nothing consumes them: the two
+   * instructions that follow (`movq`, `movb`) do not touch flags, and `testq %rcx, %rcx`
+   * @0x54bfe overwrites them before the only conditional branch (`je` @0x54c01) reads
+   * them. The `$0x6` is the same resource tag `UsesOnlyGPUResource` branches on
+   * (`cmpl $0x6, %ecx` @0x54b2e), so this is the residue of an inlined predicate whose
+   * result the optimiser folded away. It is kept here as a documented load-and-discard
+   * rather than deleted, because the instruction IS in the body; it has no effect on the
+   * return value, and the differential below proves that empirically (the answer is
+   * invariant across every resource value 0..8, including 6).
+   *
+   * DIFFERENTIAL against the live binary (exported `T` @0x54bf0, so dlsym reaches it; run
+   * under `arch -x86_64` because every address here is an x86_64 offset):
+   * raw-port/re/oracle/HGRenderJob_SpecifiesComputeDevices_oracle.py builds synthetic jobs
+   * over resource 0..8 x {ref18 null, tag 0, 1, 2} x {slot50 null, non-null} x vectors of
+   * length 0..3 with every tag combination — 2,880 cases, 2,871 TRUE / 9 FALSE,
+   * **0 divergences**. The 9 FALSE cases are exactly the all-three-empty jobs, one per
+   * resource value, which is also the empirical proof that the @0x54bf4 compare is dead:
+   * resource 6 answers FALSE there like every other resource.
+   * NEGATIVE CONTROLS (measured on the same corpus, each a plausible mis-read of the
+   * body): gating the whole thing on `_resource == 6` (i.e. treating the dead compare as
+   * live) diverges on 2,552 cases; requiring ALL three fields rather than any diverges on
+   * 1,818; inverting the empty-vector branch (`jne` @0x54c14) diverges on 360; and copying
+   * the sibling's `taggedRef18->tag08 == 1` dereference instead of testing the pointer
+   * diverges on 18 (only the 18 jobs where a non-null ref18 carries a tag other than 1 and
+   * nothing else is set can tell those two models apart — few, but the corpus does contain
+   * them, and the live binary sides with the pointer test).
+   *
+   * @returns true when the job specifies compute devices.
+   */
+  SpecifiesComputeDevices(): boolean {
+    // @0x54bf4 — cmpl $0x6, 0x10(%rdi): the u32 at +0x10 is read and compared with 6,
+    //   but the flags are dead (clobbered by `testq` @0x54bfe before the `je` @0x54c01).
+    //   Transcribed as an explicit load-and-discard so the instruction is not silently
+    //   dropped; `void` documents that the machine's own result is unused too.
+    void (this._resource >>> 0);
+    // @0x54bf8/@0x54bfc/@0x54bfe/@0x54c01 — rcx = taggedRef18; al = 1; branch if null.
+    if (this.taggedRef18 !== null) return true; // @0x54c03 popq %rbp ; retq with al = 1
+    // @0x54c05/@0x54c0a — cmpq $0x0, 0x50(%rdi) ; jne: a non-null slot50 returns true.
+    if (this.slot50 !== null && this.slot50 !== undefined) return true; // @0x54c03 (al = 1)
+    // @0x54c0c/@0x54c10/@0x54c14 — begin(+0x28) != end(+0x30), i.e. a NON-EMPTY vector,
+    //   returns true. `.length !== 0` is exactly that pointer inequality: the array models
+    //   the [begin, end) range, so begin == end is length 0.
+    if (this.taggedRefs.length !== 0) return true; // @0x54c14 jne -> @0x54c03 (al = 1)
+    // @0x54c16..0x54c19 — xorl %eax,%eax ; epilogue ; retq.
+    return false;
   }
 
   /**
