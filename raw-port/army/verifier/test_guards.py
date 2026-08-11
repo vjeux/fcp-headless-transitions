@@ -13,6 +13,7 @@ scratch copy and the case must go red, because a guard you have never watched fa
   F  review_claim's self-review skip must actually SKIP                    (a guard that cannot fire)
   G  pr_gate must not post success over a reviewer's PARKED failure        (a verdict erased by a peer)
   H  pr_gate's verdict guards must WITHHOLD when gh does not answer       (a hiccup erases the verdict)
+  J  pr_land --keep-status must REFUSE a head that is not green            (the one path that merges unre-gated)
 
 C and F run entirely offline against copies in a tempdir with a stubbed `gh_as.sh`. That is not
 squeamishness: C used to drive the REAL `pr_review.sh` at the first open PR it could find, so its
@@ -21,7 +22,7 @@ writes to the permanent record when it breaks is a bad trade for a suite that ru
 startup. Offline also means C and F cannot silently skip when GitHub is unreachable, which is the
 other half of the same problem: a run where two cases never executed printed exactly like a full pass.
 """
-import os, re, subprocess, sys, tempfile
+import os, re, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))          # raw-port/
@@ -56,6 +57,25 @@ def gh_did_not_answer(r):
 # gh_as.sh in a tempdir). A reviewer running prove_all at the start of a shift should be able to
 # get a verdict that does not depend on GitHub being up at that second.
 OFFLINE = "--offline" in sys.argv or os.environ.get("FCT_TEST_GUARDS_OFFLINE") == "1"
+
+
+def _gh_retry(cmd, tries=3):
+    """A gh probe, retried — a TRANSIENT blip must not silently disarm a case.
+
+    Cases that need a live PR to probe against used to SKIP on a failed lookup, so one TLS blip to
+    api.github.com turned a real assertion into a printed note. Retry, and if it still fails, the
+    caller records it in `skipped` (printed on the result line) — NEVER in `fails`. Accusing the
+    code because gh did not answer is the mistake `gh_did_not_answer` exists to prevent, and a case
+    added in this same file's history made exactly that mistake and went red on 2 of 8 clean runs.
+    """
+    for i in range(tries):
+        r = sh(cmd)
+        out = r.stdout.strip()
+        if out and not gh_did_not_answer(r):
+            return out
+        time.sleep(1 + i)
+    return ""
+
 
 
 # ── A + B: reset_clean, exercised for real on a scratch git tree ────────────────────────────────
@@ -374,6 +394,64 @@ sl_code = "\n".join(l for l in open(os.path.join(TOOLS, "slot_lock.sh")).read().
                      if not l.strip().startswith("#"))
 if "export FCT_AGENT_ID" not in sl_code:
     fails.append("F. slot_lock.sh acquire does not print the export line that gives an agent its id")
+
+# ── J: --keep-status preserves a verdict; it must never BYPASS one (END-TO-END) ─────────────────
+# The property claimed by the flag is "it still refuses if that status is not success". A version of
+# this case that tested for the STRING `--keep-status` and the missing-reason error survived a
+# mutant with the refusal itself deleted — and that mutant lands ANY PR on ANY status through the
+# one path in the swarm that merges WITHOUT re-gating. So drive the script and assert the refusal.
+# Safe by construction: the refusal happens on round 1 before anything is touched, and the probe
+# picks a head that is NOT success (and not BEHIND), so the merge path is unreachable.
+pl_sh = os.path.join(TOOLS, "pr_land.sh")
+if "--keep-status" not in open(pl_sh).read():
+    fails.append("J. pr_land cannot preserve a reviewer-verified status (it re-gates every round)")
+else:
+    r = sh(f"bash {pl_sh} 999999 --keep-status")
+    if "requires a reason" not in (r.stdout + r.stderr):
+        fails.append("J. --keep-status does not demand a stated reason")
+    # THE FLAG MUST BE FOUND WHEREVER IT APPEARS: reading `$2` alone made
+    # `pr_land.sh <PR> --reviewed --keep-status "why"` ignore --keep-status and re-gate anyway.
+    # Deterministic and network-free — ${2:?} fires during argument parsing, before any API call.
+    r = sh(f"bash {pl_sh} 999999 --reviewed --keep-status")
+    if "requires a reason" not in (r.stdout + r.stderr):
+        fails.append("J. --keep-status is ignored unless it comes first — pr_land is reading $2 "
+                     "again instead of parsing its options, so the flag silently does nothing")
+    if OFFLINE:
+        skipped.append("J (--keep-status refuses a non-green head) — --offline: the live half needs "
+                       "an open PR to probe against")
+    else:
+        victim = _gh_retry(
+            "gh pr list --repo vjeux/fcp-headless-transitions --state open --limit 100 "
+            "--json number,statusCheckRollup,mergeStateStatus "
+            "--jq '[.[]|select(.mergeStateStatus!=\"BEHIND\")"
+            "|select(([.statusCheckRollup[]?|select(.context==\"faithfulness-gate\")]|last|.state // \"\")"
+            "!=\"SUCCESS\")]|.[0].number // \"\"'")
+        if not victim.isdigit():
+            skipped.append("J (--keep-status refuses a non-green head) — no open PR currently has a "
+                           "non-success gate on a non-BEHIND head to probe against, or gh did not answer")
+        else:
+            r = sh(f'bash {pl_sh} {victim} --keep-status '
+                   f'"test_guards probe: asserting --keep-status REFUSES a head it did not verify"')
+            out_j = r.stdout + r.stderr
+            if r.returncode == 0 or "not success" not in out_j:
+                # THE VICTIM RACES THE LIVE SWARM: a reviewer can post `success` on that very head
+                # between the selection above and this run, and then a REFUSAL is the wrong answer
+                # and pr_land is right to proceed. Re-read the head's status before accusing the
+                # code — reviewer 1 measured this exact 19-second race on #606. Any doubt (including
+                # gh not answering) becomes a SKIP, never a FAIL.
+                still = _gh_retry(
+                    f"gh pr view {victim} --repo vjeux/fcp-headless-transitions "
+                    "--json statusCheckRollup --jq "
+                    "'[.statusCheckRollup[]?|select(.context==\"faithfulness-gate\")]|last|.state // \"none\"'")
+                if still != "SUCCESS" and still != "":
+                    last = out_j.strip().splitlines()[-1] if out_j.strip() else "<no output>"
+                    fails.append(f"J. --keep-status did NOT refuse PR #{victim}, whose head is not "
+                                 f"green (exit {r.returncode}) — the flag bypasses the gate instead "
+                                 f"of preserving a verdict: {last}")
+                else:
+                    skipped.append(f"J (--keep-status refuses a non-green head) — PR #{victim} went "
+                                   f"green (status now {still or 'unreadable'}) while the probe ran, "
+                                   "so a refusal was no longer the expected answer")
 
 # A run in which cases never executed must not read like a full pass — prove_all prints a child's
 # output only on failure, so a silent skip is invisible exactly when it matters.
