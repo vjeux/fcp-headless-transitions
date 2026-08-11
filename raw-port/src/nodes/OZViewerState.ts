@@ -213,8 +213,15 @@ export class OZViewerState {
    * `movzbl 0x3d(%rsi),%eax ; movb %al,0x3d(%rdi)`, directly adjacent to
    * +0x3c. A second settings byte kept in the same clone set. Modelled as
    * a `number` in [0, 255].
+   *
+   * NAMED by its writer: `setCompensateAspectRatio(bool)` @0x36e404 stores the
+   * incoming `bool` into exactly this slot (`movb %sil, 0x3d(%rdi)`), so the
+   * byte is the viewer's "compensate aspect ratio" flag. The field keeps its
+   * offset-based name because `cloneSettings` — the method that introduced it —
+   * treats it as an opaque settings byte, and renaming a landed field would
+   * churn its callers; the role is recorded here instead.
    */
-  settingsByteAt3d: number = 0; // u8 @+0x3d
+  settingsByteAt3d: number = 0; // u8 @+0x3d  (a.k.a. compensateAspectRatio)
 
   /**
    * @Ozone +0x38 (u32, packed display-flags word) — the 32-bit word read by
@@ -694,5 +701,42 @@ export class OZViewerState {
           ? 1
           : 0
         : renderFullView & 0xff;
+  }
+
+  /**
+   * `OZViewerState::setCompensateAspectRatio(bool)` — @Ozone 0x36e400
+   * (__ZN13OZViewerState24setCompensateAspectRatioEb).
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZN13OZViewerState24setCompensateAspectRatioEb.s):
+   *
+   *   0x36e400  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x36e401  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x36e404  movb  %sil, 0x3d(%rdi)     ; this->settingsByteAt3d = arg
+   *   0x36e408  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x36e409  retq                       ; void return
+   *   0x36e40a  nopw  (%rax,%rax)          ; alignment padding, not executed
+   *
+   * The same shape as the sibling `setRenderFullView(bool)` @0x36e554 — one
+   * unsynchronized `movb` of `%sil` (the SysV `bool` argument byte) and
+   * nothing else: no lock, no callees, no externs, no indirect/virtual
+   * dispatch, no validation, no return value.
+   *
+   * It writes an EXISTING modelled slot rather than a new one: +0x3d is the
+   * byte `cloneSettings` @0x36dfd3 copies (`movzbl 0x3d(%rsi),%eax ; movb
+   * %al,0x3d(%rdi)`), so this setter is what NAMES that clone-set byte as the
+   * compensate-aspect-ratio flag. Adjacent +0x3c is a different slot and stays
+   * untouched, exactly as the single-byte store implies.
+   *
+   * @param compensateAspectRatio the new flag (`%sil`).
+   */
+  setCompensateAspectRatio(compensateAspectRatio: boolean | number): void {
+    // @0x36e404  movb %sil, 0x3d(%rdi) — one byte, verbatim.
+    this.settingsByteAt3d =
+      typeof compensateAspectRatio === "boolean"
+        ? compensateAspectRatio
+          ? 1
+          : 0
+        : compensateAspectRatio & 0xff;
   }
 }
