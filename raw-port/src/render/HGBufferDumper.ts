@@ -90,6 +90,56 @@
 // -----------------------------------------------------------------------------
 //   * __ZN14HGBufferDumperC1Ev
 //       — HGBufferDumper::HGBufferDumper() @Helium 0x1c7920
+//   * __ZN14HGBufferDumperD1Ev
+//       — HGBufferDumper::~HGBufferDumper() [D1] @Helium 0x1c79a0
+//         (byte-identical D2 twin @0x1c7950 — a separate ledger entry)
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM — D1 @0x1c79a0 (24 lines, the entire function)
+// -----------------------------------------------------------------------------
+//   __ZN14HGBufferDumperD1Ev:
+//     0x1c79a0  pushq %rbp / movq %rsp,%rbp / pushq %rbx / pushq %rax
+//     0x1c79a6  movq  %rdi, %rbx            ; rbx = this
+//     0x1c79a9  testb $0x1, 0x30(%rdi)      ; nodeFilename: is_long?
+//     0x1c79ad  jne   0x1c79c1              ;   yes -> free its buffer
+//     0x1c79af  testb $0x1, 0x18(%rbx)      ; baseFilename: is_long?
+//     0x1c79b3  jne   0x1c79d0
+//     0x1c79b5  testb $0x1, (%rbx)          ; path: is_long?
+//     0x1c79b8  jne   0x1c79de
+//     0x1c79ba  addq $0x8,%rsp / popq %rbx / popq %rbp / retq   ; nothing to free
+//     0x1c79c1  movq  0x40(%rbx), %rdi      ; nodeFilename's heap pointer (+0x30 + 0x10)
+//     0x1c79c5  callq 0x3c4fa0              ## operator delete(void*)
+//     0x1c79ca  testb $0x1, 0x18(%rbx)      ; fall into baseFilename's test
+//     0x1c79ce  je    0x1c79b5
+//     0x1c79d0  movq  0x28(%rbx), %rdi      ; baseFilename's heap pointer (+0x18 + 0x10)
+//     0x1c79d4  callq 0x3c4fa0              ## operator delete(void*)
+//     0x1c79d9  testb $0x1, (%rbx)          ; fall into path's test
+//     0x1c79dc  je    0x1c79ba
+//     0x1c79de  movq  0x10(%rbx), %rdi      ; path's heap pointer (+0x00 + 0x10)
+//     0x1c79e2  addq $0x8,%rsp / popq %rbx / popq %rbp
+//     0x1c79e8  jmp   0x3c4fa0              ## TAIL CALL: operator delete(void*)
+//     0x1c79ed  nopl  (%rax)                ; padding, not executed
+//
+// The destructor CORROBORATES this file's field layout independently of the
+// ctor: it tests bit 0 of the byte at +0x00, +0x18 and +0x30 and, when set,
+// frees the pointer exactly 0x10 further on (+0x10, +0x28, +0x40). That is the
+// x86_64 libc++ `std::string` shape — `is_long` is bit 0 of the capacity word at
+// +0x00 and the data pointer sits at +0x10 — so the three 24-byte strings this
+// file already models at +0x00/+0x18/+0x30 are confirmed from a second body.
+// (On arm64 libc++ puts `is_long` in the sign bit of byte +0x17 and the pointer
+// at +0x00; the port transcribes the x86_64 slice, and the oracle below runs
+// under Rosetta for exactly that reason — OPS_LOG's silent-false-VERIFIED case.)
+// Members are destroyed in REVERSE declaration order, which is why nodeFilename
+// (+0x30) is freed first and path (+0x00) last, the last one as a TAIL CALL.
+//
+// ORACLE (raw-port/re/oracle/HGBufferDumper_D1_oracle.py): the live destructor
+// was called on objects whose three string pointers were real malloc'd blocks,
+// asking the allocator afterwards which blocks were released. All EIGHT
+// long-flag combinations were exercised and in 8/8 the freed set equalled the
+// flag set EXACTLY — pinning each flag to its OWN pointer (+0x30->+0x40,
+// +0x18->+0x28, +0x00->+0x10) rather than merely showing that frees happened.
+// The D2 twin agreed 8/8, and a control block never passed to the destructor was
+// never freed.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — C1 @0x1c7920 (13 lines, the entire function)
@@ -268,4 +318,60 @@ export class HGBufferDumper {
     // ------------------------------------------------------------
     this.level = 0;
   }
+
+  /**
+   * `HGBufferDumper::~HGBufferDumper()` [D1 complete-object destructor]
+   *   @Helium 0x1c79a0 (__ZN14HGBufferDumperD1Ev)
+   *
+   * Releases the heap buffer of each of the three `std::string` members that
+   * owns one — `nodeFilename` (+0x30) first, then `baseFilename` (+0x18), then
+   * `path` (+0x00), the reverse of declaration order — and does nothing else:
+   * no vtable write, no base destructor, no other member touched, and it does
+   * NOT reset `level` or the +0x48/+0x4c slots. See the FULL DISASM block in the
+   * file header for the line-by-line decode and the measured flag-to-pointer
+   * mapping. A D1 does not free the object itself; that is the D0 deleting
+   * destructor's job (a separate ledger entry).
+   *
+   * WHAT THIS PORT CAN AND CANNOT EXPRESS, stated plainly rather than papered
+   * over: the machine's three conditionals test libc++'s `is_long` bit, and this
+   * file deliberately models each `std::string` as its CONTENT (a JS `string`),
+   * which does not carry that bit — the SSO-vs-heap discriminator lives below
+   * the abstraction the rest of the file is written at. So the observable effect
+   * of this body in TS is exactly nothing: JS strings are garbage-collected, and
+   * releasing storage is not something a caller can detect through this class.
+   * The alternative — inventing an `isLong` flag beside each field — would add a
+   * second, unverifiable model of the same three strings to a file that already
+   * has a grounded one, which is the drift PORTING_SPEC Rule 5 exists to stop.
+   * The behaviour is therefore documented and oracle-verified rather than
+   * simulated, and the extern boundary stub below preserves the call-site
+   * provenance.
+   */
+  D1(this: HGBufferDumper): void {
+    // @0x1c79a9/@0x1c79ad — testb $0x1, 0x30(%rdi) ; jne : nodeFilename first.
+    // @0x1c79c1/@0x1c79c5 — movq 0x40(%rbx),%rdi ; callq operator delete.
+    _operator_delete(this.nodeFilename);
+    // @0x1c79af or @0x1c79ca — testb $0x1, 0x18(%rbx) : baseFilename next.
+    // @0x1c79d0/@0x1c79d4 — movq 0x28(%rbx),%rdi ; callq operator delete.
+    _operator_delete(this.baseFilename);
+    // @0x1c79b5 or @0x1c79d9 — testb $0x1, (%rbx) : path last.
+    // @0x1c79de/@0x1c79e8 — movq 0x10(%rbx),%rdi ; TAIL jmp operator delete.
+    _operator_delete(this.path);
+    // @0x1c79ba..@0x1c79c0 — the all-short path falls straight through to retq.
+  }
+}
+
+/**
+ * libc++ `void operator delete(void *ptr)` — reached through the mach-o symbol
+ * stub at @Helium 0x3c4fa0, from three call sites in the D1 destructor:
+ * @0x1c79c5 (nodeFilename), @0x1c79d4 (baseFilename) and the tail `jmp`
+ * @0x1c79e8 (path). A C++ runtime extern, outside the five in-scope frameworks,
+ * so per DEP_WORKER_BRIEF it is modelled as a boundary stub that documents the
+ * ABI it satisfies rather than being transcribed: JS is garbage-collected, and
+ * the machine's only guarantee is that the storage is released and must not be
+ * dereferenced again. It exists to keep the three call sites' provenance
+ * visible in the port.
+ */
+function _operator_delete(_ptr: string): void {
+  // @Helium 0x3c4fa0 (symbol stub for: __ZdlPv) — libc++ extern, no-op in JS.
+  void _ptr;
 }

@@ -349,6 +349,69 @@ cost a WRONG REJECT on a correct PR, which is the expensive direction for a revi
 
 ---
 
+## Open — reported 2026-08-11 by reviewer 6 (a G5 FLAG is not reproducible; a plain re-run can clear it; new)
+
+- **The same PR head gates to a DIFFERENT verdict run to run, because whether G5 can see a symbol's
+  disassembly depends on WHICH POOL SLOT `pr_gate` happened to lease.** `raw-port/re/disasm/` is
+  gitignored (`.gitignore` line 51) and each warm worktree accumulates its own partial cache, so the
+  slots hold DIFFERENT subsets — measured just now: wt/1 17 files, wt/2 21, wt/3 7, wt/4 13, wt/5 19,
+  wt/9 18, wt/11 27, wt/13 no `re/disasm` directory at all, against 110 in the canonical checkout.
+  When the leased slot lacks the symbol's `.s`, G5 cannot resolve it and raises the NO-DISASM FLAG;
+  when the leased slot happens to have it, G5 judges normally and the PR gates clean.
+  OBSERVED on PR #482 (`HgcBT2446_Method_A_TMO::GetDOD`), four runs on ONE unchanged head:
+  `pr_gate` -> `failure — 1 G5 flag`; `pr_gate` again minutes later -> `success — 0 flags`;
+  `pr_land`'s internal re-gate -> `1 G5 flag` again (it correctly refused to merge);
+  `pr_gate --reviewed` -> pass. Nothing about the PR changed between any of them.
+  **THE DANGEROUS DIRECTION IS THE LAUNDERING ONE.** REVIEWER_BRIEF is explicit that "the mechanical
+  gate does NOT clear flags; only your adversarial re-derivation does" — but in practice a reviewer
+  who simply runs `pr_gate` a second time has a good chance of watching the flag disappear and a
+  green `faithfulness-gate` get posted, with no re-derivation performed and nothing recording that a
+  blind spot was ever raised. `review_claim` will then hand that green-but-unreviewed PR to a
+  reviewer as an ordinary clean-gate PR. The flag exists precisely to force a human look at the case
+  where the gate is blind (the fabricated-constant hole — on #482 the flag was hiding whether the
+  data symbol `_HGRectNull` really is 16 zero bytes; it is, at 0x3d2284 in `__TEXT,__const`, but the
+  gate could not know that either way).
+  Same root shape as #16 (gitignored Layer-3 fixtures absent in a fresh worktree) and as the
+  inventory gap fixed by #473 — a gitignored artifact that the tooling assumes is present.
+  FIX: make the disasm cache uniformly visible to every gate run the way #473 did for
+  `inventory/*.syms.txt` — symlink `raw-port/re/disasm/` from the canonical checkout into each pool
+  worktree (it is a pure, regenerable, content-addressed cache, so sharing it is safe and also kills
+  the repeated regeneration cost). Failing that, `pr_gate` should REGENERATE the `.s` for any symbol
+  it cannot resolve before deciding to flag, so the verdict is a property of the PR and not of the
+  slot. Until then: never treat a flag that vanished on a re-run as cleared — only your own
+  re-derivation clears it, and say so in the approval.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 6 (review bodies silently lose evidence; new)
+
+- **`pr_review.sh` takes the verdict body ONLY as shell argv, so any markdown backtick in a
+  reviewer's evidence is executed as command substitution and its contents are DELETED from the
+  permanent review record — silently, leaving a fluent sentence with a hole in it.** `pr_review.sh`
+  line 33 is `BODY="${*:-}"`; there is no `--body-file`. The corruption happens in the CALLER's shell
+  before the script ever sees the text, so nothing downstream can detect or warn about it.
+  This bites precisely because of what the brief asks for: REVIEWER_BRIEF tells every reviewer to
+  sign with substantive prose evidence, and evidence in this project is dense with backticked
+  identifiers (`cmovneq`, `std::string`, `origin/port/<Class>`) and expressions.
+  HIT LIVE on PR #445: a CHANGES_REQUESTED body lost two clauses — the expression naming the exact
+  defect (`(a - b)` vs `-(b - a)`) and the formula quoted from the PR under review — turning the
+  decisive sentence into "the classic  vs  / negate-then-multiply swap". The verdict, the minimal
+  reproducer and the measured rates survived, so the review was still actionable and I posted an
+  errata comment; a shorter review could have lost its entire point. The author sees no error. The
+  reviewer only sees it if they happen to read their own shell's stderr, where the failed
+  substitutions appear as `/bin/sh: a: command not found` — which looks like unrelated noise.
+  WHY IT IS NOT JUST "quote it properly": single-quoting works until the evidence contains an
+  apostrophe (it usually does — "author's", "doesn't"), at which point the agent switches back to
+  double quotes and re-arms the trap. Asking every agent to hand-escape prose is the kind of advice
+  ANTI_SHORTCUT.md exists to replace with a mechanism.
+  FIX: add `pr_review.sh <PR#> <verdict> --body-file <path>` (and the same for
+  `pr_comment_once.sh`), and have the briefs tell reviewers to write the body to a temp file rather
+  than pass prose through argv. The script already pipes JSON to `gh api --input -`, so it is a
+  few lines: read the file into BODY instead of `${*}`. Until then, prefer single quotes and check
+  the posted body with `gh api repos/<slug>/pulls/<PR>/reviews --jq '.[-1].body'` after signing.
+
+---
+
 ## Open — reported 2026-08-11 by reviewer 6 (the rebase attempt cap counts CLAIMS, not failures; new)
 
 - **`rebase_attempts/<PR>` is incremented on every rebase CLAIM and is NEVER reset by a SUCCESSFUL
@@ -577,6 +640,35 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   "no such branch" case its own exit code so the brief can route it.
 
 ---
+
+## Open — reported 2026-08-11 by worker 2 (rebase drops files; new, and it DESTROYS WORK)
+
+- **`rebase_pr.sh`'s `REBASE_MANUAL` path SILENTLY DROPS every net-new file of the branch that did
+  not conflict.** It prepares a pool worktree from CURRENT `origin/main` plus the branch's version of
+  each CONFLICTING file, and tells the worker to re-apply "your net-new methods" — but a branch
+  typically adds more than the class file: an oracle harness and a TS driver under
+  `raw-port/re/oracle/`. Those are not conflicting, so they are not staged into the worktree, and the
+  rebased commit + force-push REMOVES them from the PR. Hit twice today, on two different PRs:
+  * #390 (another worker's branch, rebased by me) — `HGRenderJob_UsesOnlyCPUResource_{oracle.py,driver.ts}`
+    would have been dropped; I noticed only because I diffed the branch against main first and
+    restored them by hand with `git show origin/<branch>:<path>`.
+  * #449 (my own) — `HGBufferDumper_D1_oracle.py` WAS dropped and had to be restored from the
+    pre-force-push commit (`git cat-file -p <old-sha>:<path>`); the force-push had already made it
+    unreachable from any ref.
+  It is silent in both directions: the gate does not look at `re/oracle/`, and `git status` in the
+  fresh worktree shows nothing missing. The only reason it was caught is that the ported .ts CITES
+  its harness by path — a PR whose lost file nothing referenced would just lose it.
+  **Workaround until fixed:** before committing a REBASE_MANUAL, run
+  `git diff --stat origin/main origin/<branch>` and re-add every file the branch adds that is not in
+  your reconciliation. **Fix:** `rebase_pr.sh` should stage the branch's ADDED files (paths present
+  in `origin/<branch>` and absent from main) into the prepared worktree automatically, and say so.
+
+- **Adapting, not importing, is the right move when main has re-modelled your class underneath you.**
+  When #449 was rebased, main had landed the same class with a DIFFERENT model of the same three
+  `std::string` members (content-as-JS-string vs a {isLong, data} pair). Re-applying the branch's
+  method verbatim would have put two models of one layout in one file — the exact drift
+  PORTING_SPEC Rule 5 and the `Outer__Inner` note exist to prevent. Re-apply the SYMBOL, adapted to
+  the model that landed, and say in the file what the landed model cannot express.
 
 ## Open — known, not yet fixed
 
