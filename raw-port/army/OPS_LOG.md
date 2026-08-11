@@ -1455,3 +1455,87 @@ cheap to defuse once named.
   checking that a `movsd` constant was not a `movss` misread is vacuous for 200.0, which is exactly
   representable in f32 — say so in the report instead of counting it as a control that fired
   (PR #459).
+
+---
+
+## Open — reported 2026-08-11 by reviewer 8 (a reviewer can record an APPROVE over a standing rejection, and cannot take it back; NEW)
+
+- **NOTHING IN THE REVIEWER LOOP LOOKS AT EXISTING REVIEWS BEFORE YOU SIGN, AND `pr_review.sh` WILL
+  NOT LET YOU CORRECT THE VERDICT ONCE IT IS WRONG.** Hit live on PR #400. Three separate pieces
+  line up, and each one alone would be harmless:
+
+  1. **The documented loop never mentions the review history.** `REVIEWER_BRIEF` STEP 1 is
+     `review_claim.sh claim`, then gate, then the semantic verdict, then `pr_review.sh … approve`,
+     then `pr_land.sh`. The `faithfulness-gate` status is the only prior state a reviewer is told to
+     consult, and it says nothing about a peer's blocking review. So a reviewer who follows the
+     brief exactly can reach `approve` on a PR another reviewer has already rejected — I did.
+  2. **The guard that catches it lives one step too late.** `pr_land` refuses correctly
+     ("REFUSING to merge PR #400 — an un-dismissed CHANGES_REQUESTED stands"), which is why nothing
+     actually merged. But by then the APPROVE is already a permanent review on the head, sitting
+     under the rejection it contradicts. The merge is protected; the RECORD is not.
+  3. **`pr_review.sh` then refuses to let you fix it.** Its idempotence key is
+     (PR, head SHA, this identity) with a state filter of APPROVED/CHANGES_REQUESTED, and there is
+     no `--force`: `pr_review: PR #400 @ 9603e2d2 already has APPROVED from vjeux-reviewer[bot] —
+     not re-reviewing`. The guard is right for its intended case (a reviewer loop re-verifying the
+     same head should not spam duplicates) and exactly wrong for this one — a reviewer who realises
+     they were wrong is the one caller who MUST be able to speak again on the same head. Since all
+     slots share one bot identity, that stray APPROVE is also indistinguishable from any other
+     reviewer's, so the next agent sees "one APPROVED, one older CHANGES_REQUESTED" and the
+     tempting read is that the rejection was superseded.
+
+  **What made it reachable at all is the fourth piece, and it is the nastiest: `pr_land` MOVES THE
+  HEAD, which re-qualifies the PR for the review queue.** #400's rejection was recorded at
+  `97d867a9`. `review_claim` leases a PR whose CURRENT head has no fresh verdict, so when an earlier
+  `pr_land` ran `update-branch` and the head became `9603e2d2`, the PR became "unreviewed" again and
+  the queue handed it to me with the rejection two heads back and invisible from anything the brief
+  told me to look at. The rejection had never been addressed — the exact sentence reviewer 6 asked
+  to be corrected was still in the diff.
+
+  WORKAROUND, and it is clean: **dismiss your own review deliberately, then re-post.**
+  `gh_as.sh reviewer api -X PUT repos/<slug>/pulls/<PR>/reviews/<id>/dismissals -f message='…'`
+  moves it to state DISMISSED, which the idempotence filter does not match, so `pr_review.sh` will
+  then accept the correct verdict on that same head. Dismissing your OWN approval only ever removes
+  an approval — it unblocks nothing and cannot override a peer — so it is safe in a way that
+  dismissing someone else's is not. Do NOT dismiss the peer's rejection to get moving.
+
+  FIXES, in order of value: (a) `review_claim.sh claim` should skip, or loudly annotate, a PR with an
+  un-dismissed CHANGES_REQUESTED — a rejection outranks a later approval per the standing rules, so
+  such a PR is waiting on its AUTHOR, not on a fresh reviewer, and leasing it to one burns a full
+  reviewer run (mine: gate, three tool re-derivations and a full claim verification); (b) move
+  `pr_land`'s CHANGES_REQUESTED check to the top of the reviewer's flow, or into `pr_review.sh`
+  itself, so an approve over a standing rejection is REFUSED rather than recorded and caught later;
+  (c) give `pr_review.sh` a `--supersede` that dismisses this identity's own prior review on the
+  same head and posts the new one, so correcting yourself does not need a raw API call; (d) when
+  `pr_land` triggers `update-branch`, carry the prior verdicts forward or note the head move, so a
+  mechanical rebase cannot launder a rejection into "unreviewed".
+
+- **TWO SHIPPED GUARDS IN ONE MORNING COULD NOT FIRE FOR THE CASE THEY WERE WRITTEN FOR.** Filing
+  the pattern rather than the instances, because both were found the same way — by trying to make
+  the guard fail, which took under five minutes each and neither author had done:
+  - a regression test whose third case referenced none of the code under test: it recomputed a set
+    difference from two literals and asserted it equalled itself, so deleting the entire fix left it
+    green, while `prove_all` printed a layer name claiming the property was pinned;
+  - a pre-force-push guard written as `git diff --name-only --diff-filter=D origin/main...HEAD`.
+    **THREE dots is the wrong relationship for "am I about to publish a stale head".** A three-dot
+    diff compares HEAD against the MERGE BASE, so files that landed on main after that base appear
+    on neither side and can never show as deletions. Measured on a scratch repo: with HEAD rebased
+    onto a main missing three landed files, the two-dot form lists all three and the three-dot form
+    returns EMPTY — and the incident that motivated the guard had itself been measured with the
+    two-dot form (`git diff origin/main --stat`, 16 files removed). Use `origin/main HEAD` when the
+    question is "how does my head differ from main RIGHT NOW"; three dots answers "what did my
+    branch change", which is a different question and the one you do not want here.
+  RULE (companion to "a dead negative control means your harness is blind", and to the mutation rule
+  added the same day): **a guard is not evidence until you have watched it fail.** Before you ship
+  one, break the thing it guards and confirm it goes red. A guard that cannot fire is worse than no
+  guard, because the next person reads the code, sees a check, and stops looking — which is the same
+  gate-clean-output failure class the rest of this file is about, moved into the safety net itself.
+
+- **A reviewer clearing a G5 NO-DISASM flag leaves the evidence behind for the next PR to reuse.**
+  A corollary of the pool-scratch entry above, from the other side. `disasm.sh --sym` writes into the
+  LEASED worktree's `raw-port/re/disasm/`, which `wt_pool` does not clear on acquire, so the `.s` a
+  reviewer generates to clear a flag stays in that slot. The next PR gated there can be waved through
+  on the previous reviewer's scratch, and the reviewer who benefits sees a clean `0 flags` with no
+  indication that the guard was answered from residue. I re-derived into three pool slots today, so
+  three slots now carry my leftovers. Until `wt_pool` clears the directory on acquire, treat `0 flags`
+  as no evidence that anything was re-derived, and keep every harness you write OUTSIDE the worktree
+  (`/tmp`) so the only thing you leave in a pool slot is the pristine checkout.
