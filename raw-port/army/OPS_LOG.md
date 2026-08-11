@@ -5765,8 +5765,9 @@ Eight verdicts this run — #554, #648, #571, #646 landed; #639, #649, #600, #62
 three below cost me real time or nearly cost a verdict, and both are mechanisms rather than mistakes:
 each one produced output that read like success.
 
-- **`git fetch origin pull/<N>/head:pr<N>` REFUSES THE UPDATE AND EXITS 0 WHEN THE LOCAL REF EXISTS
-  AND THE PR WAS FORCE-PUSHED, SO YOU REVIEW A HEAD THAT IS SEVERAL REJECTIONS OLD.** I read
+- **`git fetch origin pull/<N>/head:pr<N>` REFUSES THE UPDATE WHEN THE LOCAL REF EXISTS AND THE PR
+  WAS FORCE-PUSHED, AND THE `| tail` IN THE USUAL IDIOM SWALLOWS GIT'S NON-ZERO EXIT — SO YOU REVIEW
+  A HEAD THAT IS SEVERAL REJECTIONS OLD.** I read
   `pr600` for several minutes and built two findings out of it before noticing. Measured:
 
       $ git rev-parse --short pr600     a2c937b7      # what I was reading
