@@ -5,17 +5,17 @@
 //   raw-port/re/disasm/Helium.__ZN5GLPBO25forcePostReadPixelsFinishEi.s
 //                                                            (forcePostReadPixelsFinish — PORTED)
 //   raw-port/re/disasm/Helium.__ZN5GLPBO24forcePostReadPixelsFenceEi.s
-//                                                            (forcePostReadPixelsFence — read ONLY
-//                                                             as the structural twin that shows
-//                                                             this is a family of static toggles;
-//                                                             a separate ledger entry, NOT ported)
+//                                                            (forcePostReadPixelsFence — PORTED,
+//                                                             added by its own later ledger unit;
+//                                                             the structural twin of the above)
 //
 // This file ports ONLY the symbol listed under "Symbols ported here" below.
 // The ctors @0x115e10 / @0x115eb0, dtors @0x115ec0 / @0x116010, _delete
 // @0x115f30, _setup @0x116080, ReleaseDataPtr @0x116180, _map @0x1161b0,
 // _unmap @0x116370, Resize @0x116460, ReadPixels @0x1164d0, GetDataPtr
-// @0x116680 and forcePostReadPixelsFence @0x1166c0 are each a separate ledger
-// entry and will be ADDED to THIS file (additive extension only) when claimed.
+// @0x116680 are each a separate ledger entry and will be ADDED to THIS file
+// (additive extension only) when claimed. `forcePostReadPixelsFence` @0x1166c0
+// HAS now been claimed and is ported below, in this same file, per that rule.
 //
 // -----------------------------------------------------------------------------
 // THIS IS A STATIC MEMBER FUNCTION — no `this`
@@ -54,6 +54,8 @@
 // -----------------------------------------------------------------------------
 //   * __ZN5GLPBO25forcePostReadPixelsFinishEi
 //       — GLPBO::forcePostReadPixelsFinish(int) @Helium 0x1166b0
+//   * __ZN5GLPBO24forcePostReadPixelsFenceEi
+//       — GLPBO::forcePostReadPixelsFence(int)  @Helium 0x1166c0
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — forcePostReadPixelsFinish @0x1166b0 (6 lines, the entire function)
@@ -93,9 +95,24 @@
 let m_ForcePostReadPixelsFinish = 0; // @Helium 0xade4ec
 
 /**
+ * `GLPBO::m_ForcePostReadPixelsFence` — the class-level static int32 at @Helium 0xade4f0, the
+ * 4-byte neighbour of the FINISH toggle above.
+ *
+ * Written only by `GLPBO.forcePostReadPixelsFence` @0x1166c4. Modelled as a module-scope binding
+ * for the same reason as its neighbour: TS has no linker. `0` is the value the symbol actually
+ * holds in a freshly loaded image, read out of the live framework rather than assumed from
+ * "statics are zero" (see the setter's ORACLE note).
+ *
+ * Typed as a SIGNED 32-bit value: the parameter is `int` (`i` in the mangling) and the live global
+ * reads back negative for negative arguments.
+ */
+let m_ForcePostReadPixelsFence = 0; // @Helium 0xade4f0 (int32)
+
+/**
  * `GLPBO` — Helium's OpenGL Pixel Buffer Object wrapper. This file currently
- * holds only the static toggle setter; see the header for the rest of the
- * class's symbols, each of which is its own ledger entry.
+ * holds the two static toggle setters (FINISH @0x1166b0 and FENCE @0x1166c0);
+ * see the header for the rest of the class's symbols, each of which is its own
+ * ledger entry.
  */
 export class GLPBO {
   /**
@@ -146,5 +163,42 @@ export class GLPBO {
     // @0x1166ba..0x1166bb — epilogue + retq.
     // ------------------------------------------------------------
     m_ForcePostReadPixelsFinish = value | 0;
+  }
+
+  /**
+   * `GLPBO::forcePostReadPixelsFence(int)` — @Helium 0x1166c0
+   *   `__ZN5GLPBO24forcePostReadPixelsFenceEi`  (static member function)
+   *
+   * FULL transcription — the body is 3 executed instructions and nothing else:
+   *
+   *   0x1166c0  pushq %rbp                                   ; frame setup (no TS counterpart)
+   *   0x1166c1  movq  %rsp, %rbp                             ; frame setup (no TS counterpart)
+   *   0x1166c4  movl  %edi, m_ForcePostReadPixelsFence(%rip) ; the static int32 = arg0
+   *   0x1166ca  popq  %rbp                                   ; frame teardown (no TS counterpart)
+   *   0x1166cb  retq                                         ; void
+   *   0x1166cc  nopl  (%rax)                                 ; alignment padding, never executed
+   *
+   * One store and nothing else: no callee, no read, no allocation, no indirect or virtual
+   * dispatch (`depgraph.py deps` lists no dependency). The store is `movl`, i.e. exactly 32 bits —
+   * hence the `| 0`, which also keeps a JS caller from parking a float or an out-of-range value in
+   * a slot the machine can only hold as an int32.
+   *
+   * STATIC, NOT AN INSTANCE METHOD, for the same reason as its neighbour: the parameter arrives in
+   * %edi — the FIRST argument register — so there is no `this` in this frame, and the destination
+   * is a RIP-relative process global rather than an offset from a receiver.
+   *
+   * ORACLE (executed, not read): the symbol is exported (nm `T`), so it was dlsym'd in a Rosetta
+   * x86_64 process (Helium loaded by walking its @rpath chain) and called with 0, 1, -1, 7,
+   * 0x7fffffff, -0x80000000 and 0 again, reading the global back each time at
+   * `_dyld_get_image_vmaddr_slide(Helium) + 0xade4f0`. Live FCP stored every value exactly,
+   * including both int32 extremes, and left the 4-byte neighbour at 0xade4ec
+   * (`m_ForcePostReadPixelsFinish`) untouched on every call — confirming both the target address
+   * and the 32-bit width of the store. The global read 0 before the first call.
+   *
+   * @param v the int32 written to the static (%edi).
+   */
+  static forcePostReadPixelsFence(v: number): void {
+    // @0x1166c4  movl %edi, m_ForcePostReadPixelsFence(%rip)
+    m_ForcePostReadPixelsFence = v | 0;
   }
 }
