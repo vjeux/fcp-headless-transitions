@@ -287,6 +287,82 @@ cost a WRONG REJECT on a correct PR, which is the expensive direction for a revi
   FIX: `release` should treat a detached `acquire-at` lease as disposable, the same self-healing
   rule as the `gate/<sha>` leases, since it can never hold authored work.
 
+## Open — reported 2026-08-11 by reviewer 7 (rebase_helper false-BAILs on a COMMENT; NEW)
+
+- **`rebase_helper.py`'s overlap check counts a `.s` FILENAME in a comment as an added symbol, so the
+  mechanical union rebase it exists to perform BAILs on rebases that are provably disjoint.** This is a
+  second, independent defect from reviewer 8's branch-name entry above (which I also hit and confirm:
+  `rebase_helper.py HGRenderJob` handed me a `_rebased` branch built from #396's content while I held
+  #388; I deleted it and left the PR for the worker queue).
+  Measured on PR #392 (`HGMetalDeviceInfo`): the branch adds exactly ONE method, `isExternal`; main
+  (via #393, landed mid-review) added exactly ONE, `isBuiltin`. Disjoint — precisely PR_FLOW case 2,
+  "shared file, DISJOINT top-level exports", which the reviewer is told to union mechanically. Instead:
+
+      $ python3 raw-port/army/tools/rebase_helper.py HGMetalDeviceInfo
+      BAIL: raw-port/src/render/HGMetalDeviceInfo.ts — branch AND main both add
+        ['__ZNK17HGMetalDeviceInfo10isExternalEv.s', '__ZNK17HGMetalDeviceInfo9isBuiltinEv.s']
+        (needs human semantic merge)                                                    # exit 4
+
+  Note the `.s` on both tokens. Those are not symbols — they are the `re/disasm/*.s` FILENAMES each
+  file cites in its header comment to pin the shared `+0x28` slot (line 23 of each version). The cause
+  is `MANGLED = re.compile(r'__Z[A-Za-z0-9_\$.]+')` at rebase_helper.py:36: the character class
+  includes `.`, so the regex runs past the mangled name and swallows the `.s` suffix, and a
+  DOCUMENTATION CROSS-REFERENCE to a sibling's disassembly is then counted as a symbol that side adds.
+  Both sides cite each other, so the "overlap" is guaranteed whenever two branches document the same
+  field from opposite ends — which is exactly what PORTING_SPEC asks workers to do.
+  HARM: the union path is reviewer-safe and fast; the fallback is a WORKER rebase, which is slower,
+  needs judgment, and is capped at 3 attempts before the PR is auto-closed and the symbol re-handed —
+  so a verified port can be thrown away and re-done because of a comment. It is also PROGRESSIVE, the
+  same way OPS_LOG #6 was: the better the sibling-offset documentation gets, the more often it fires.
+  Same family as #20/#21/#404 — a regex matching text it was never meant to see.
+  FIX: anchor the mangled-name match so it cannot absorb a file extension (e.g. require the token to
+  end at a non-identifier character and strip a trailing `.s`), or — better — take the symbol set from
+  CODE lines only, ignoring `//` and `/* */` comment text, in both `rebase_helper.py` and
+  `regression_check.py`. `regression_check` has the same swallowing: on PR #391 it reported
+  `DROPS 2 symbol(s): __ZN11HGRenderJob12GetTypeLabelEv` and `__ZN11HGRenderJob12GetTypeLabelEv.s`,
+  i.e. one real symbol double-counted as two. That one is currently harmless (the symbol really was
+  dropped) but it inflates every regression report and would fire on its own if only the comment moved.
+
+- **A G6/add-only rejection posts a status description the rebase queue cannot see, so the PR sits
+  forever.** The general mismatch is already listed under "Open — known, not yet fixed"; this is the
+  specific, reproducible half. `regression_check`'s failure posts `regression (rebase needed)`, which
+  matches `rebase_claim.sh`'s `grep -qiE 'regression|rebase'` filter — but when the SAME stale-base
+  condition is caught by **G6 add-only** first, `pr_gate` posts the generic `G0-G5 gate reject`, which
+  does not match, so no worker will ever claim it. Measured on PR #392: G6 rejected it for dropping the
+  landed `isBuiltin`, status read `G0-G5 gate reject`, and the PR was invisible to `rebase_claim.sh`
+  despite being a pure rebase. WORKAROUND (what I did): after a G6-only rejection, hand-write the
+  status so the queue can see it —
+
+      bash raw-port/army/tools/ghapp/gh_as.sh reviewer api -X POST \
+        repos/vjeux/fcp-headless-transitions/statuses/<headSHA> \
+        -f state=failure -f context=faithfulness-gate \
+        -f description="regression (rebase needed): G6 add-only, main landed <symbol> under it"
+
+  FIX: `pr_gate.sh` should classify a G6 add-only failure as a rebase reason, not a generic gate
+  reject — the two are the same condition detected by different checks.
+
+- **A BIT-PATTERN differential reports false divergences wherever the machine produces a NaN, and no
+  TypeScript port can ever fix them.** Harnesses in this repo increasingly compare f32 results as raw
+  u32 bit patterns — correctly, because that is the only way to be exact about signed zero. But x86's
+  default "indefinite" QNaN, produced by `inf - inf`, `0 * inf`, `0/0` and friends in SSE, is
+  **0xffc00000 — the SIGN BIT IS SET**. JavaScript has no way to store that: every NaN written into a
+  `Float32Array` is canonicalised to **0x7fc00000**. So a bit-exact comparison shows a divergence on
+  every lane where the kernel produced a NaN, forever, no matter how correct the transcription is.
+  Measured on PR #441 (`hg_read_span_4s_m0_gqt_m0_premul`) while reviewing it: with a fabricated
+  `[+inf, -inf, 0, 1]` bias the span kernel computes `inf - inf`, and my adversarial re-run reported
+  **2,128 diverging lanes out of 29,760 — every one of them NaN-vs-NaN, sign-bit only, and ZERO
+  non-NaN divergences**. The port was right; the comparison was over-strict.
+  WHY IT MATTERS BOTH WAYS: a reviewer who does not classify these will REJECT an honest port (I nearly
+  had to), and a worker who "fixes" them will start writing NaN special-cases that are pure fiction.
+  RULE for anyone writing or reading one of these harnesses: when the two sides differ, test
+  `(u & 0x7f800000) == 0x7f800000 && (u & 0x007fffff) != 0` on BOTH; if both are NaN, count it
+  separately as `NAN_PAYLOAD` and keep it out of the verdict, exactly as PR #454's harness keeps its
+  run-dependent address-reuse signal out of its verdict. Report it — do not hide it — because a
+  NaN appearing where the machine produces a finite number is still a real defect, and that is
+  precisely the distinction the classification preserves.
+  (Same family as the f64 case OPS_LOG already notes for `json.dump` emitting bare `NaN`: NaN does not
+  survive a round trip between these two languages, in either direction.)
+
 ## Open — reported 2026-08-11 by reviewer 8 (rebase_helper targets the wrong branch; NEW)
 
 - **`rebase_helper.py <Class>` REBASES A DIFFERENT AGENT'S BRANCH AND REPORTS SUCCESS, and both
