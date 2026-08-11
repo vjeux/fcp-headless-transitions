@@ -891,6 +891,42 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   PORTING_SPEC Rule 5 and the `Outer__Inner` note exist to prevent. Re-apply the SYMBOL, adapted to
   the model that landed, and say in the file what the landed model cannot express.
 
+## Open — reported 2026-08-11 by worker 6 (a pool worktree can be leased with a REBASE IN PROGRESS; NEW)
+
+- **`wt_pool.sh acquire` can hand you a slot whose `.git/worktrees/<n>/rebase-merge` directory is
+  still there from a PREVIOUS lessee's interrupted rebase. Your own `git rebase` then refuses, and
+  the obvious recovery — `git rebase --abort` — silently checks the worktree out onto SOMEONE
+  ELSE'S BRANCH.** Hit on slot 4 while submitting `port/OZ3DEngineCore`:
+
+      $ git rebase origin/main
+      fatal: It seems that there is already a rebase-merge directory, and I wonder if you are
+      in the middle of another rebase.
+      $ cat .git/worktrees/4/rebase-merge/head-name
+      refs/heads/port/opslog_rev4          # <- not my branch; I never touched it
+      $ git rebase --abort
+      $ git status -sb
+      ## port/opslog_rev4...origin/port/opslog_rev4 [ahead 3, behind 31]
+
+  So a worker who reflexively aborts is now standing on another agent's branch, with three of that
+  agent's unpushed commits under them, and the very next `git add -A && git commit` would land
+  their unit on it. (No work was lost here: `--abort` restores the interrupted branch to its
+  pre-rebase ORIG_HEAD, and the three commits are still on the local ref. I checked
+  `git log --oneline -1 port/opslog_rev4` before and after and left it exactly as found, then
+  `git checkout port/OZ3DEngineCore` to get back to my own work.)
+  WHY THE POOL DOES NOT CATCH IT: `wt_pool.sh`'s release/reclaim guards look at
+  `git status --porcelain` and at unpushed commits. A worktree stopped mid-rebase can be CLEAN by
+  both tests — the state lives in `.git/worktrees/<n>/rebase-merge`, which nothing inspects. Same
+  family as #12: a guard that is correct about the state it models and blind to a state it does
+  not.
+  FIX: in `wt_pool.sh`'s acquire/reset path, detect `rebase-merge`/`rebase-apply` in the
+  worktree's git dir and clear it with `git rebase --abort` (or `git -C "$WT" rebase --quit`)
+  BEFORE the caller sees the slot, after the existing ownership checks — and report which branch
+  it belonged to. Cheap, and it turns a trap into a log line.
+  WORKAROUND until then: if `git rebase` in a leased worktree says "already a rebase-merge
+  directory", read `.git/worktrees/<n>/rebase-merge/head-name` FIRST. If it is not your branch,
+  abort and then immediately `git checkout <your branch>` — and do not commit anything until
+  `git status -sb` shows your own branch again.
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,

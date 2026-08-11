@@ -45,6 +45,9 @@ Usage as a CLI (report only, read-only):
 """
 import os, re, sys, subprocess
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import srcsource as _srcsource  # corpus source (origin/main, not the stale working tree) + per-file cache
+
 STUB_PHRASE = re.compile(
     # Incompleteness markers a throw-stub uses to say "the real body is not here yet". Aligned with
     # verifier/reach_worker.ts's INCOMPLETE vocab + the variants actually observed in src (census
@@ -82,7 +85,7 @@ def norm(a):
     return re.sub(r'^0x', '', str(a).lower()).lstrip('0') or '0'
 
 
-def scan_src(root):
+def scan_src(root=None, ref=None):
     """Scan every raw-port/src/*.ts under `root`. Return (real_cited, stub_cited) addr-key sets.
 
     `root` is the raw-port dir (the one containing src/ and army/).
@@ -97,58 +100,75 @@ def scan_src(root):
         the SAME file -> that file does not "cleanly" port it, so it stays 'stub'. A naive global
         `stub -= real` wrongly promoted these ~360 placeholders to ported.
     """
-    src = os.path.join(root, "src")
     # per-file real / stub citation sets, keyed by file
     real_in = {}   # file -> set(addr)
     stub_in = {}   # file -> set(addr)
-    files = subprocess.run(
-        ["find", src, "-name", "*.ts"], capture_output=True, text=True
-    ).stdout.split()
-    for f in files:
-        try:
-            lines = open(f, encoding="utf-8", errors="ignore").read().splitlines()
-        except Exception:
+    # SOURCE + CACHE (srcsource.py): read the corpus from `origin/main` rather than the canonical
+    # working tree — which the swarm never advances, so every reconcile silently ignored the ports
+    # that had landed — and skip re-parsing a file whose CONTENT we have already scanned. The
+    # citation rule below is FILE-SCOPED, so a per-file cache is exactly the right granularity: the
+    # aggregate is a pure function of the per-file (real, stub) pairs.
+    cache = _srcsource.FileCache("stubscan_cites", version=1)
+    seen_keys = set()
+    for f, blob_key, text in _srcsource.iter_src(ref):
+        seen_keys.add(blob_key)
+        rs = cache.get_or_compute(blob_key, f, text, _scan_one_file)
+        if rs[0]:
+            real_in[f] = set(rs[0])
+        if rs[1]:
+            stub_in[f] = set(rs[1])
+    cache.save(keep_keys=seen_keys)
+    return _combine(real_in, stub_in)
+
+
+def _scan_one_file(path, text):
+    """(sorted real-cited keys, sorted stub-cited keys) for ONE file. Content-addressed and cached.
+
+    Lists rather than sets so the value round-trips through JSON unchanged.
+    """
+    lines = text.splitlines()
+    r, s = set(), set()
+    n = len(lines)
+    # Precompute stub-window: a line is "stub context" if it is part of a `throw new ...`
+    # statement whose message carries a stub phrase — even across line breaks (a multi-line
+    # throw where "not yet transcribed" is on a continuation line). We scan each `throw new`
+    # and, if a stub phrase appears within the next STUB_WINDOW lines before the statement's
+    # terminating `);`, mark that whole span as stub context. Fixes the cc_rgb::hsl @0x9667e
+    # miss (throw opened on one line, stub phrase + addr on the next).
+    STUB_WINDOW = 6
+    stub_ctx = [False] * n
+    for i, ln in enumerate(lines):
+        if not THROW.search(ln):
             continue
-        r, s = set(), set()
-        n = len(lines)
-        # Precompute stub-window: a line is "stub context" if it is part of a `throw new ...`
-        # statement whose message carries a stub phrase — even across line breaks (a multi-line
-        # throw where "not yet transcribed" is on a continuation line). We scan each `throw new`
-        # and, if a stub phrase appears within the next STUB_WINDOW lines before the statement's
-        # terminating `);`, mark that whole span as stub context. Fixes the cc_rgb::hsl @0x9667e
-        # miss (throw opened on one line, stub phrase + addr on the next).
-        STUB_WINDOW = 6
-        stub_ctx = [False] * n
-        for i, ln in enumerate(lines):
-            if not THROW.search(ln):
+        span = "\n".join(lines[i:i + STUB_WINDOW])
+        # cut the span at the statement terminator to avoid bleeding into the next statement
+        term = span.find(");")
+        if term != -1:
+            span = span[:term + 2]
+        if STUB_PHRASE.search(span):
+            # mark the lines actually covered by this throw statement
+            covered = span.count("\n") + 1
+            for j in range(i, min(i + covered, n)):
+                stub_ctx[j] = True
+    for i, ln in enumerate(lines):
+        pairs = FW_PAIR.findall(ln)
+        if pairs:
+            keys = {f"{fw}|{norm(a)}" for fw, a in pairs}
+        else:
+            found = ADDR.findall(ln)
+            if not found:
                 continue
-            span = "\n".join(lines[i:i + STUB_WINDOW])
-            # cut the span at the statement terminator to avoid bleeding into the next statement
-            term = span.find(");")
-            if term != -1:
-                span = span[:term + 2]
-            if STUB_PHRASE.search(span):
-                # mark the lines actually covered by this throw statement
-                covered = span.count("\n") + 1
-                for j in range(i, min(i + covered, n)):
-                    stub_ctx[j] = True
-        for i, ln in enumerate(lines):
-            pairs = FW_PAIR.findall(ln)
-            if pairs:
-                keys = {f"{fw}|{norm(a)}" for fw, a in pairs}
-            else:
-                found = ADDR.findall(ln)
-                if not found:
-                    continue
-                keys = {f"*|{norm(a)}" for a in found}   # no framework on the line -> wildcard
-            if stub_ctx[i]:
-                s |= keys
-            else:
-                r |= keys
-        if r:
-            real_in[f] = r
-        if s:
-            stub_in[f] = s
+            keys = {f"*|{norm(a)}" for a in found}   # no framework on the line -> wildcard
+        if stub_ctx[i]:
+            s |= keys
+        else:
+            r |= keys
+    return sorted(r), sorted(s)
+
+
+def _combine(real_in, stub_in):
+    """Aggregate the per-file citation sets into (real, stub). Unchanged logic, lifted out of
+    scan_src so the per-file half can be cached independently of it."""
     # 'ported' = real-cited in at least one file that does NOT also stub it (clean real cite).
     # WITHIN A FILE, a stub of an address invalidates a real cite of the SAME bare address even when
     # the framework tags differ (the throw line often uses a bare `@0x..` while the JSDoc header uses
