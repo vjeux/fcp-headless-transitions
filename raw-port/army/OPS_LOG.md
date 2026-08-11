@@ -2888,3 +2888,121 @@ Two things worth keeping in mind even with the fix in:
     gated `0 flag(s)` in slot 4 and `1 flag(s)` in slot 5 twenty minutes later. The flag also named
     the wrong export — `SetNotifyFunc: NO-DISASM for @Helium 0xdc9ea`, an address cited by a
     different member — which is worker 4's and worker 6's misattribution report, third instance.
+---
+
+## Open — reported 2026-08-11 by worker 4 (three ways the GATE's verdict is a function of PROSE, and two more; NEW)
+
+Found working the rework queue through PRs #256, #377, #492, #538, #154, #523 and #557, then three
+fresh ports. The first two are one family and I would not have believed the second without measuring
+it: **G5's verdict on a file can be changed by editing a COMMENT** — not the code, not the
+disassembly, not the cache.
+
+- **G5's CLASS-METHOD sweep reads a fixed 4,000-character window FORWARD from a method's start
+  instead of the method's body, and `INCOMPLETE_RE` contains the literal phrase `frontier callee` —
+  which is this repo's standard doc heading. So a method is flagged for incompleteness because of a
+  heading in the NEXT member's doc comment.** Measured on PR #256 (`channels/OZChannelBase.ts`):
+  `setParameterCtlrClassName` was flagged `disasm classifies REAL (24 instrs, 1 stores) but the
+  method body throws incompleteness` while its body contains no throw at all. The trigger is
+  `FRONTIER CALLEES:` in the doc comment of `setLabelCtlrClassName`, which FOLLOWS it. The tell that
+  it is positional rather than semantic: `setLabelCtlrClassName` is not flagged, because its own
+  heading sits before its start offset and the window only looks forward.
+
+      g5_impl_gate.py:308   body = text[mstart:mstart + 4000]
+      g5_impl_gate.py:201   INCOMPLETE_RE = ...|not transcribed|frontier callee
+
+  **Exposure: 500 of the 1,688 `.ts` files on main contain that phrase** (`git grep -l -i
+  'frontier callee' origin/main -- raw-port/src`), so every class file where one of them follows a
+  method is a candidate, and a flag holds `faithfulness-gate` at FAILURE until a reviewer signs.
+  FIX: scan the method's real body (brace-match, or stop at the next member), or drop
+  `frontier callee` from a regex whose other alternatives — `not yet transcribed`, `TODO`,
+  `unimplemented` — really are incompleteness markers while this one is a section title the briefs
+  ask workers to write. WORKER-SIDE, today: do NOT rename house headings to please a regex; hand the
+  reviewer the measurement.
+
+- **The same 4,000-character window decides which SYMBOL an export is judged against, so ADDING
+  DOCUMENTATION ABOVE AN EXPORT SILENTLY CHANGES ITS VERDICT — in the case I hit, from a fabricated
+  pass to an honest flag.** Measured on PR #492 (`render/HGRenderNode.ts`), one pool slot, one
+  cache, changing only the file:
+
+      pre-fix head              the window still reaches line 45, which cites __ZN12HGRenderNodeC2Ev
+                                -> the export HGRenderNodeSetNotifyFunc is judged against the
+                                   CONSTRUCTOR's .s, and G5 reports 0 flags
+      + ~30 lines of doc        that citation falls OUT of the window, nothing resolves
+        (the fix the reviewer   -> 1 flag, NO-DISASM — the honest answer
+         asked for)
+      + the export's OWN .s     -> resolves to its own body -> 0 flags, genuinely
+
+  So the pre-fix `0 flags` was the #404 family still live — a fabricated verdict off a sibling's
+  body through the one-export escape hatch — and what dislodged it was writing a LONGER COMMENT.
+  Two consequences. (1) `0 flags` is not evidence that anything was judged against the right
+  function; it can mean the window happened to contain a resolvable citation of some other symbol.
+  (2) The flag's ADDRESS comes from the same window, so it names the first `@FW 0xADDR` it finds
+  rather than the export's own — on #492 it said `@Helium 0xdc9ea` for an export at `@0xdcde0`, and
+  on #538 `@Flexo 0x1c76a00`, a data table, for `installCoreFoundationBridge`. That confirms worker
+  4's earlier flag-address entry with two fresh instances and adds the cause: it is the window, not
+  the ranking.
+
+- **Adopting the landed CoreFoundation-bridge convention necessarily buys a G5 NO-DISASM flag on the
+  injector, because an injector has no FCP symbol to be judged against.** Reviewer 8 asked PR #538
+  to follow `SetPixelBufferAttributes.ts`; doing so produced
+  `FLAG: installCoreFoundationBridge: NO-DISASM`. Both landed precedents carry the identical flag,
+  measured in one worktree with one cache:
+
+      main SetPixelBufferAttributes.ts -> FLAG installCoreFoundationBridge: NO-DISASM @Flexo 0xe41770
+      main FFAudioUnitParameterInfo.ts -> FLAG setCFStringBridge: no disasm found to classify
+
+  The convention and the gate therefore disagree by construction, and every future file that follows
+  the convention pays a flag. FIX: G5 should skip an export that cites no mangled symbol of its own
+  and matches the injector shape. Until then, a reviewer clearing one should know it is structural,
+  not a property of the PR.
+
+- **A `test_guards`-style case that DRIVES a live tool is only safe while the guard it tests exists
+  — which is exactly what its own mutation test removes.** Writing case G3 for #557 (drive
+  `pr_land.sh --keep-status` and assert it refuses a non-success status), the honest path exits on
+  round 1 in about two seconds. The mutant that deletes the refusal falls through into pr_land's
+  six-round loop of `update-branch`, `gh pr merge --auto` and sleeps: **the first mutation run went
+  past FIFTEEN MINUTES before I killed it**, and had the probe PR carried an approval on its head it
+  would have enabled auto-merge on a PR whose gate is not green. (It did not; I checked
+  `autoMergeRequest` across every open PR afterwards, all null.) `prove_all` greps `test_guards` at
+  the start of every reviewer's shift, so an unbounded case can wedge the swarm's startup, and a
+  case that costs a quarter of an hour to falsify is a case somebody eventually comments out. TWO
+  RULES for any case of this shape: pick a probe target that no code path can mutate (a PR that is
+  not `BEHIND`, so nothing can move its head), and BOUND the run — "refuses promptly, before
+  reaching the merge path" is part of the property, so a timeout is a legitimate FAIL. Both are in
+  `test_guards` as of the increment on #557.
+
+- **A held pool lease was taken from under me again, and the datum worth adding is that THE LOSS
+  SCALES WITH HOW LONG YOU HOLD IT.** Slot 7, leased via `acquire-at`, came back at an unrelated
+  merge commit with `raw-port/army/verifier/test_guards.py` — a file that exists only on the PR
+  branch — simply absent, `git status` clean, no tool having printed an error. Worker 2 already
+  filed the mechanism; what I can add is the distribution. My five short units this session each
+  held a lease for one to three minutes and none was disturbed; this one held it for roughly twenty
+  minutes, because mutation-testing a live-driving case is slow, and it was robbed. So the standing
+  advice — **write to `/tmp` first, copy in, and acquire → copy → gate → commit in ONE shell
+  invocation** — is not a nicety for long units, it is the only thing that makes a long unit
+  survivable. I lost only reconstruction time because `pr_land.sh` happened to be saved in `/tmp` as
+  a mutation-test backup; `test_guards.py` was not, and had to be rebuilt from scratch.
+
+- **The G7 flag text hard-codes ARM64 numbers, and it is baked into every future run.**
+  `undef_index_gate.py` prints `(the #154 RGBtoRGBA class: returned 24 where live FCP returns 232)`.
+  On the x86_64 slice — the one every port in this repo is transcribed from — it is the reverse:
+  `RGBtoRGBA(232)` returns 24, and 81..84 and 616 return themselves. Measured while reworking #154
+  (dlsym to `slide + 0xa1cf0`, prologue bytes `55 48 89 e5 89 f8` checked first, each call in a
+  forked child because the faulting inputs kill the process). Reviewer 2 found the same reversal in
+  that file's own comment and corrected it there; the gate's copy is still wrong. It wants its own
+  small PR — a worker should not edit gate tooling inside a port PR.
+
+- **Two one-line deltas on entries that already exist.** (a) Row 43's `pr_review.sh` fix is right
+  and its diagnosis is complete; the instance I hit adds only that `--expect-head` is accepted and
+  SILENTLY IGNORED by the older copy, so a reviewer following OPS_LOG's own recommendation believes
+  they pinned the head and did not — and that the lost verdict was RECOVERABLE, because the argv
+  posted as the body names the `--body-file` path and the file was still in `/tmp`. Read the body
+  back on any rejection that looks like a flag string before concluding the evidence is gone.
+  (b) `#562` fixed the rework queue's re-handing of already-answered PRs and merged at 17:14Z, and
+  **it is not running**: every agent invokes `rework_claim.sh` from the canonical checkout, which
+  was 26 commits behind at 17:38Z, and `grep` confirms the on-disk copy carries none of the fix
+  while `origin/main`'s does. That is the "a fix that cannot be deployed" entry, live again, and it
+  is why I hit the already-reworked case on #335, #256 and #114 after the fix had landed. A worker
+  can route around it in one command — before working a claim, compare the PR's head against the
+  commit the newest CHANGES_REQUESTED sits on, and release if they differ — but the queue will keep
+  handing out answered PRs to everyone else until the canonical tree advances.
