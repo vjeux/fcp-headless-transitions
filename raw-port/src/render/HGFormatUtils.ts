@@ -1049,15 +1049,53 @@ export function HGFormatUtils_RGBtoRGBA(fmt: number): number {
   const inMask = (threeChannelMask >> BigInt(s & 0x3f)) & 1n;
   if (inMask !== 1n) {
     // @Helium 0xa1d3a-0xa1d3b: popq %rbp ; retq with %eax == fmt.
-    return s;
+    //   %eax is returned as the SIGNED HGFormat enum, so the int32 view is the
+    //   faithful result: fmt = -8 answers -8, not 4294967288. (`s` above is the
+    //   zero-extended index `movl %edi,%eax` produces for the bit test and the
+    //   table scale; the RETURN is the same 32 bits read as signed.)
+    return fmt | 0;
   }
 
-  // @Helium 0xa1d06-0xa1d13: sel = *(u32*)(&formatInfos[fmt] + 0x0c).
-  //   Every fmt reaching here is in [17, 41], inside the 44-entry table.
+  // @Helium 0xa1d06-0xa1d13: movl %eax,%ecx ; shlq $0x5,%rcx ; leaq
+  //   formatInfosE(%rip),%rdx ; movl 0xc(%rcx,%rdx),%ecx
+  //   sel = *(u32*)(&formatInfos[fmt] + 0x0c).
+  //
+  //   NOTE THE TWO DIFFERENT INDEX WIDTHS, which is what this unit was
+  //   rejected for: `btq` above tested bit (fmt & 63), but `shlq $0x5` scales
+  //   the FULL, UNMASKED fmt. So any fmt >= 64 whose low 6 bits are in
+  //   {17..21, 40, 41} — 81, 104, 145, 168, 209, 232, 233, 296, 913, … —
+  //   passes the bitmap gate and then indexes PAST the 44 transcribed
+  //   entries. There is no bounds check at 0xa1d13: the machine reads
+  //   whatever follows the table (C++ undefined behaviour; the bytes are not
+  //   part of the transcribed program), so raise and never approximate it —
+  //   Rule 3, and the identical treatment `toGLFormat` @0xa1c61 and
+  //   `bytesPerPixel` already apply to the same unchecked-index shape in this
+  //   file.
+  //
+  //   Measured against live Helium, both plausible "cheap fixes" are WRONG:
+  //   returning fmt unchanged matches 232/233 but not 81/104/145/…, which
+  //   really do return 24; returning 24 matches those but not 232/233. The
+  //   machine's answer there is a function of bytes past the table, so no
+  //   in-table rule reproduces it.
+  if (s > 0x2b) {
+    throw new Error(
+      "HGFormatUtils::RGBtoRGBA(fmt=" +
+        String(fmt) +
+        ") — fmt out of range [0, 0x2b] on the widening path; `btq %rax,%rcx` " +
+        "@Helium 0xa1d00 masks the bit index to (fmt & 63) but `shlq $0x5,%rcx` " +
+        "@0xa1d08 scales the FULL fmt, so the load at @Helium 0xa1d13 " +
+        "(&formatInfos + fmt*32 + 0x0c) has NO bounds check and would read past " +
+        "the 44-entry formatInfos table, yielding C++ undefined behaviour. " +
+        "Callers must clamp fmt to a valid HGFormat. @Helium 0xa1cf0",
+    );
+  }
   const sel = FORMAT_INFOS_COMPONENT_SEL[s]!;
 
-  // @Helium 0xa1d17: decl %ecx — the table index and the shift count.
-  const idx = (sel - 1) & 0xffffffff;
+  // @Helium 0xa1d17: decl %ecx — the table index and the shift count. `sel` is
+  //   a transcribed table value by construction (the raise above closes the
+  //   undefined -> NaN -> 0 collapse that used to turn the out-of-range load
+  //   into a fabricated answer), so no masking fallback is needed here.
+  const idx = sel - 1;
   // @Helium 0xa1d19-0xa1d1c: cmpl $0x8,%ecx ; setb %dl  (UNSIGNED).
   const below8 = (idx >>> 0) < 8 ? 1 : 0;
   // @Helium 0xa1d1f-0xa1d25: movb $-0x75,%sil ; shrb %cl,%sil ; andb %dl,%sil.
@@ -1067,9 +1105,10 @@ export function HGFormatUtils_RGBtoRGBA(fmt: number): number {
   const gate = maskBit & below8;
   // @Helium 0xa1d28-0xa1d2c: cmpb $0x1,%sil ; jne 0xa1d3a.
   if (gate !== 1) {
-    return s;
+    // same bail as above — %eax still holds fmt, returned as signed int32.
+    return fmt | 0;
   }
 
   // @Helium 0xa1d2e-0xa1d37: eax = RGB_TO_RGBA_BY_SEL[sel - 1].
-  return RGB_TO_RGBA_BY_SEL[idx >>> 0]! >>> 0;
+  return RGB_TO_RGBA_BY_SEL[idx]! | 0;
 }
