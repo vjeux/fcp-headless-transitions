@@ -510,11 +510,66 @@ export class OZSpline {
   }
 
   /**
-   * OZSpline::getExtrapolation(unsigned int) @ProChannel 0x2d856. Not yet transcribed. Small
-   * accessor that reads from the same extrapolation state block set by setExtrapolation.
+   * `OZSpline::getExtrapolation(unsigned int which)` — @ProChannel 0x2d856
+   *   (`__ZN8OZSpline16getExtrapolationEj`). WAS a throw-stub for @0x2d856; transcribed now.
+   *
+   * FULL transcription of the 9-line body. The bytes are quoted because the interesting
+   * instruction is a SIB-addressed load and otool prints the same text for two different SIB
+   * encodings — the encoding below was read from the mapped image AND from the thin x86_64
+   * slice, and they agree:
+   *
+   *   @0x2d856  55                    pushq  %rbp                     ; prologue (no TS counterpart)
+   *   @0x2d857  48 89 e5              movq   %rsp, %rbp
+   *   @0x2d85a  31 c0                 xorl   %eax, %eax               ; eax = 0
+   *   @0x2d85c  85 f6                 testl  %esi, %esi               ; which == 0 ?
+   *   @0x2d85e  0f 95 c0              setne  %al                      ; al = (which != 0) ? 1 : 0
+   *   @0x2d861  48 8b 8f a8 00 00 00  movq   0xa8(%rdi), %rcx         ; rcx = this->_sp  (NO null check)
+   *   @0x2d868  8b 44 81 24           movl   0x24(%rcx,%rax,4), %eax  ; eax = *(u32*)(sp + 0x24 + al*4)
+   *                                                                   ; SIB 0x81 = base rcx, index rax,
+   *                                                                   ; scale 4 — so +0x24 or +0x28
+   *   @0x2d86c  5d                    popq   %rbp                     ; epilogue
+   *   @0x2d86d  c3                    retq                            ; return eax
+   *
+   * `which` IS NOT AN INDEX. It is collapsed to a single bit by `setne` before it ever reaches the
+   * address computation, so 2, 3 and 0xffffffff all select the SAME slot as 1. A port that wrote
+   * `sp[0x24 + which*4]` would agree on 0 and 1 and diverge everywhere else — see the oracle below,
+   * where that is the control.
+   *
+   * THE TWO SLOTS, pinned from the WRITING side as well: `setExtrapolation(unsigned int mode,
+   * unsigned int which)` @ProChannel 0x2d7e6 computes the same `al = (which != 0)` @0x2d819-0x2d81c
+   * and stores `movl %r14d, 0x24(%rcx,%rax,4)` @0x2d826 into the very same pair. So +0x24 is the
+   * which==0 extrapolation mode and +0x28 is the which!=0 one — `OZSplineState.u6` and
+   * `OZSplineState.u5` as that file already names them (OZSplineState.ts, +0x24 / +0x28).
+   *
+   * NOT SYMMETRIC WITH THE SETTER IN ONE RESPECT: the setter takes the spin lock around its store
+   * (`PCSpinLock::lock` @0x2d812, unlock after), and this getter takes NO lock — it is a bare
+   * load. That asymmetry is in the shipped code; it is not an omission here.
+   *
+   * ORACLE (executed, not read — raw-port/re/oracle/OZSpline_getExtrapolation_probe.py): local
+   * (`t`) symbol, so called BY ADDRESS at `_dyld_get_image_vmaddr_slide(ProChannel) + 0x2d856`
+   * under `arch -x86_64`, after asserting the 24 opcode bytes above match BOTH the mapped image
+   * and /tmp/ProChannel.x86_64. A `this` poisoned with 0xCD carrying only +0xa8 -> a state buffer
+   * with 0x11111111 at +0x24, 0x22222222 at +0x28, 0x33333333 at +0x2c and 0x44444444 at +0x20:
+   *   which = 0          -> 0x11111111   (+0x24)
+   *   which = 1, 2, 3, 0x80000000, 0xffffffff -> 0x22222222   (+0x28) in every case
+   * and both buffers byte-identical afterwards. The 0x33333333 at +0x2c is the negative control:
+   * an index-arithmetic model returns it for which=2, and the machine never does.
    */
-  getExtrapolation(_which: number): number {
-    throw new Error("OZSpline::getExtrapolation @ProChannel 0x2d856 not yet transcribed");
+  getExtrapolation(which: number): number {
+    // @0x2d85a-0x2d85e — xorl/testl/setne: the argument survives only as one bit.
+    const idx: 0 | 1 = (which >>> 0) !== 0 ? 1 : 0;
+    // @0x2d861 — movq 0xa8(%rdi), %rcx. The disasm dereferences this UNCONDITIONALLY: there is no
+    // null test, so a null state faults in the machine. Raising here keeps that a loud gap rather
+    // than a silent undefined (the same choice OZSpline.m2's getSmallDeltaU @0x2fe5b makes).
+    const sp = this._sp;
+    if (sp === null) {
+      throw new Error(
+        "OZSpline::getExtrapolation @ProChannel 0x2d856 — state (+0xa8) is null; the load " +
+          "@0x2d861 is unconditional, so the machine would fault here.",
+      );
+    }
+    // @0x2d868 — movl 0x24(%rcx,%rax,4), %eax: +0x24 when idx==0, +0x28 when idx==1.
+    return idx === 0 ? sp.u6 : sp.u5;
   }
 
   /**
