@@ -21,6 +21,9 @@ def status_sets():
     """Return (real_cited, stub_cited) normalized-addr sets from src/ (via stubscan).
     real_cited => a real body/JSDoc/comment names the addr (ported).
     stub_cited => addr appears ONLY on a throwing-stub line (placeholder; status=stub)."""
+    # Inherits srcsource.DEFAULT_REF (`origin/main`): the ledger records what has LANDED, and the
+    # canonical working tree is not that — see the note in mark_ported.py. `FCT_SRC_REF=WORKTREE`
+    # overrides for local analysis.
     return scan_src(ROOT)
 
 def class_method(dem):
