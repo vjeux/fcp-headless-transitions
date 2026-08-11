@@ -13,6 +13,7 @@
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE.s
 //                                                                       (SetGPUGraphicsAPI)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob19UsesOnlyGPUResourceEv.s (UsesOnlyGPUResource)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob7GetTypeEv.s              (GetType)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob17GetGPUGraphicsAPIEv.s   (GetGPUGraphicsAPI —
 //                                                                       read only to pin the
 //                                                                       +0x64 offset/width; the
@@ -78,6 +79,7 @@
 //   SetRenderThreadPriority — none.
 //   SetGPUGraphicsAPI       — none.
 //   UsesOnlyGPUResource     — none.
+//   GetType                 — none (5-instruction leaf load of this+0x0c).
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -98,6 +100,8 @@
 //       — HGRenderJob::SetGPUGraphicsAPI(HGRenderJob::GPUGraphicsAPI) @Helium 0x54490
 //   * __ZN11HGRenderJob19UsesOnlyGPUResourceEv
 //       — HGRenderJob::UsesOnlyGPUResource() @Helium 0x54b20
+//   * __ZN11HGRenderJob7GetTypeEv
+//       — HGRenderJob::GetType() @Helium 0x54730
 //   * __ZN11HGRenderJob24IsRequestedVirtualScreenEi
 //       — HGRenderJob::IsRequestedVirtualScreen(int) @Helium 0x54ad0
 //
@@ -785,6 +789,63 @@ export class HGRenderJob {
     // @0x54ae4..0x54ae5 — epilogue + retq.
     // ------------------------------------------------------------
     return (((this.virtualScreenMask >>> 0) >>> screen) & 1) !== 0;
+  }
+
+  /**
+   * `HGRenderJob::GetType()` -> `HGRenderJob::Type`
+   *   @Helium 0x54730
+   *   (__ZN11HGRenderJob7GetTypeEv)
+   *
+   * The plain reader for the `Type` tag at `this+0x0c` — the exact slot
+   * `SetType` @0x54514 writes with `movl %esi, 0xc(%rdi)`. A 5-instruction
+   * leaf: no callees, no branches, no validation, no side effects, and the
+   * enum value is returned verbatim (nothing is masked or range-checked, so an
+   * out-of-enum value set by SetType comes straight back out).
+   *
+   * Full body from raw-port/re/disasm/Helium.__ZN11HGRenderJob7GetTypeEv.s:
+   *
+   *   0x54730  pushq %rbp                    ; frame prologue
+   *   0x54731  movq  %rsp, %rbp
+   *   0x54734  movl  0xc(%rdi), %eax         ; eax = this->_type (u32 @+0x0c)
+   *   0x54737  popq  %rbp                    ; epilogue
+   *   0x54738  retq
+   *   0x54739  nopl  (%rax)                  ; padding — not executed
+   *
+   * The load is `movl` (32-bit) into `%eax`, and the SysV return convention
+   * for a 32-bit enum is `%eax`, so the caller sees an UNSIGNED 32-bit value.
+   * `>>> 0` models that; `| 0` would be wrong and the oracle below measures
+   * exactly that difference.
+   *
+   * ORACLE — verified against the live Helium binary. Both this getter
+   * (`0000000000054730 T`) and the real `SetType` (`0000000000054510 T`) are
+   * exported, so the harness dlopens Helium under `arch -x86_64
+   * /usr/bin/python3` (the port is transcribed from the x86_64 slice — see
+   * OPS_LOG on the arm64 mismatch) and runs three checks over 3,070 cases
+   * (exhaustive 0..63, plus 0x7fffffff / 0x80000000 / 0xffffffff / 0xfffffffe
+   * / 0x0000ffff / 0xffff0000, plus 3,000 random u32s):
+   *   (a) write the dword at +0x0c directly, call the real getter — 3070/3070
+   *       equal to this port;
+   *   (b) round-trip through the REAL SetType, then the real getter —
+   *       3070/3070, which also confirms getter and setter share one slot;
+   *   (c) repeat (a) with the rest of the 0x200-byte object poisoned 0x5A
+   *       instead of 0xEE — 3070/3070 unchanged, so no other field is read.
+   * NEGATIVE CONTROLS (measured): reading 16 bits instead of 32 -> 3005/3070
+   * wrong; reading the neighbouring +0x10 slot -> 3070/3070 wrong; and for
+   * signedness, FCP returns 2147483648 for the stored 0x80000000, so `| 0`
+   * (which yields -2147483648) is measurably the wrong model.
+   *
+   * @returns the HGRenderJob::Type enum tag as an unsigned 32-bit value.
+   */
+  GetType(): HGRenderJobType {
+    // ------------------------------------------------------------
+    // @0x54730..0x54731 — prologue (no TS-visible effect).
+    // @0x54734 — movl 0xc(%rdi), %eax : 32-bit load of the Type slot.
+    //   `>>> 0` reproduces the unsigned 32-bit width of the %eax return, so
+    //   a field holding 0x80000000 reads back as 2147483648 (what the binary
+    //   returns), not -2147483648.
+    // @0x54737..0x54738 — epilogue + retq.
+    // ------------------------------------------------------------
+    return this._type >>> 0;
   }
 }
 
