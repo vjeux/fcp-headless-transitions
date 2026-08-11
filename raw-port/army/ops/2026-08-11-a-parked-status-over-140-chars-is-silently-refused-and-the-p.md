@@ -1,6 +1,8 @@
-# A parked status over 140 characters is silently refused, and the PR stays invisible
+# A parked status over 140 characters is silently refused, and the reviewer's verdict is lost
 
-**Reported 2026-08-11 by reviewer 6.** Hit live while parking PR #600.
+**Reported 2026-08-11 by reviewer 6.** Hit live while parking PR #600. (The filename still says
+"the PR stays invisible", which is the draft's overstated version of the stakes — see *What the park
+is NOT* below; renaming the file would break the link every other entry cites it by.)
 
 `AGENT_ENTRY.md` §6b tells a reviewer to park a green-but-conflicted PR by hand-posting a status
 whose description starts with `JUDGED:` and still matches `rebase_claim`'s grep, and every worked
@@ -14,17 +16,33 @@ POST fails:
     {"message":"Validation Failed",
      "errors":"Validation failed: Description is too long (maximum is 140 characters)","status":"422"}
 
-That description is 155 characters — the natural length for one that names the files, the verdict
-and the remedy, which is exactly what §6b asks for.
+That description is 150 characters (152 UTF-8 bytes — it carries an em dash, so the two counts
+differ and only one of them is what GitHub measures; over the cap either way). It is the natural
+length for one that names the files, the verdict and the remedy, which is exactly what §6b asks for.
+The draft of this entry said 155, corrected by reviewer 2, who counted it; the lesson is this log's
+own — a number you quote as measured has to have been measured, and `${#S}` in a byte locale is not
+the same instrument as `len(s)` on codepoints.
 
-**Why this is worse than an ordinary error.** The park is the ONLY thing that makes a conflicted
-non-src PR visible to any queue (`pr_gate` posts `no raw-port/src ports to gate` SUCCESS on it, so
-`rebase_claim` cannot see it and `review_claim` sees a fresh verdict). When the POST is refused, the
-green status STAYS, and the PR is exactly as stranded as it was before the reviewer acted — while
-the reviewer, having just posted a signed APPROVE in the same breath, believes they routed it. The
-failure is loud only if you are reading stderr at that moment; I saw it because I had chained a
-read-back into the same command, and the read-back is what showed the description still said
+**Why this is worse than an ordinary error.** What the park carries is the reviewer's JUDGEMENT:
+§6b's `JUDGED:` marker is the only rejection available on a green-but-conflicted non-src PR (there
+is nothing semantic to reject), and `pr_gate` refuses to post `success` over it. When the POST is
+refused, the green status STAYS and the judgement is simply gone — while the reviewer, having just
+posted a signed APPROVE in the same breath, believes they recorded it. The failure is loud only if
+you are reading stderr at that moment; I saw it because I had chained a read-back into the same
+command, and the read-back is what showed the description still said
 `no raw-port/src ports to gate (infra/tooling PR)`.
+
+**What the park is NOT, as of today: the routing.** My draft claimed the park is the only thing that
+makes a conflicted non-src PR visible to any queue, and that a refused POST leaves the PR exactly as
+stranded as before. That was true until `995d24018` — *"fix(rebase_claim): select conflicted PRs —
+main's filter sees ZERO of the four that need a rebase (#643)"*, landed 13:25 PDT, i.e. 47 minutes
+before this branch's head, which already contains it. `rebase_claim` now asks GitHub whether the
+branch conflicts instead of inferring it from a status nobody posted:
+`select(… or .mergeStateStatus=="DIRTY")` (`rebase_claim.sh:117`), and a DIRTY branch is taken
+whatever the gate says (`:123`). Reviewer 2 ran that selector verbatim and found #600 — the very PR
+this entry was parking — sitting in the rebase queue, green, with no park. So a refused park now
+costs a LOST VERDICT, not a lost PR. Do not hand-post a park for routing: that is the practice #643
+exists to end. The silent-refusal defect below is unchanged by any of this.
 
 It is also a trap for the *careful* reviewer specifically: the more precisely you describe the
 reason — which every entry in this log asks for — the more likely you cross 140.
