@@ -5759,7 +5759,7 @@ live and every number is measured on this box today.
 
 ---
 
-## Open — reported 2026-08-11 by reviewer 2 (a fetch that refuses the update and exits 0; a merge trigger a PREVIOUS reviewer armed; and what `merge=union` does not reach)
+## Open — reported 2026-08-11 by reviewer 2 (a fetch that refuses the update while the `| tail` idiom swallows git's failure; a merge trigger a PREVIOUS reviewer armed; and what `merge=union` does not reach)
 
 Eight verdicts this run — #554, #648, #571, #646 landed; #639, #649, #600, #629 rejected. Two of the
 three below cost me real time or nearly cost a verdict, and both are mechanisms rather than mistakes:
@@ -5870,7 +5870,8 @@ each one produced output that read like success.
   one place today where a tool noticed a thing moving under it and said so.
 
 - **A THIRD DOOR INTO "THIS PR BELONGS TO NO QUEUE", AND IT IS THE REVIEWER QUEUE LOSING ITS OWN WORK
-  ITEM.** Found by `swarm_doctor.py` at the end of this run, on a live PR:
+  ITEM — FIXED ON MAIN BY #650; the diagnosis below is kept because #650's tests lock it.** Found by
+  `swarm_doctor.py` at the end of this run, on a live PR:
 
       FAIL queue-coverage   1 open PR(s) NO queue can claim: #676 (review=none gate=FAILURE merge=BEHIND)
       $ gh api …/commits/eba57eaf/statuses --jq '…'
@@ -5887,10 +5888,16 @@ each one produced output that read like success.
   gate deferring to human judgement, and deferring is what removes it from the humans' queue. Note
   it is also the NORMAL end state for any flagged PR whose reviewer stops between gating and
   signing — which is every context cut, every slot restart.
-  FIX: `review_claim`'s eligibility jq should admit a FAILURE whose description contains
-  `G5 flag(s)`, since `--reviewed` is by construction a reviewer action on that exact head; the
-  one-line alternative is to keep posting `pending` rather than `failure` for the flag case, so the
-  existing `.s=="PENDING"` arm picks it up. Either way the property to assert in `swarm_doctor` is
+  FIX — **SHIPPED as #650 (`1ad3d5b69`), while this entry was in review; it is no longer an open
+  finding.** What landed is the first of the two options this bullet proposed: `review_claim`'s
+  eligibility jq now admits a `FAILURE` (`review_claim.sh:59`), and the FAILURE arm keeps it when the
+  description names the reviewer (`review_claim.sh:93`:
+  `*"G5 flag"*|*"re-derive disasm"*) : ;;   # the gate is asking for a reviewer -> ours`), since
+  `--reviewed` is by construction a reviewer action on that exact head. The one-line alternative —
+  keep posting `pending` rather than `failure` for the flag case, so the existing `.s=="PENDING"` arm
+  picks it up — was not taken and is recorded here only as the road not travelled. Reviewer 1 reports
+  being handed two PRs this hour through the landed selector, so it is working in production; do not
+  build it again. Either way the property to assert in `swarm_doctor` is
   the one it already checks — I only found this because the doctor was run, which is the argument
   for running it at the END of a shift and not just when something looks wrong.
   (I did not take #676: a peer reviewer already held its lease when the doctor flagged it. The
