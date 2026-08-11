@@ -2,6 +2,9 @@
 # pr_review.sh <PR#> <approve|request-changes|comment> "<body>" — submit a REAL GitHub review verdict
 # as the REVIEWER app.
 #
+#   pr_review.sh <PR#> approve --body-file /tmp/my_evidence.md    <- PREFERRED for anything long or
+#   containing backticks/quotes: the body never passes through a shell, so nothing can be eaten.
+#
 # WHY THIS REPLACES THE COMMENT WORKAROUND
 # ----------------------------------------
 # When the swarm ran as a single identity, reviewers physically could not use GitHub's review system:
@@ -30,7 +33,29 @@ SLUG="${FCT_REPO:-vjeux/fcp-headless-transitions}"
 PR="${1:?usage: pr_review.sh <PR#> <approve|request-changes|comment> \"<body>\"}"
 VERDICT="${2:?usage: pr_review.sh <PR#> <approve|request-changes|comment> \"<body>\"}"
 shift 2
-BODY="${*:-}"
+# --body-file <path> — read the verdict body from a FILE.
+#
+# WHY THIS EXISTS: the body is evidence, and evidence was being silently deleted. Agents invoke this
+# through `bash -c "... pr_review.sh 445 approve \"...\""`, and a review body naturally contains
+# backticked instruction names (`vcmpltps`, `movl 0x48(%rdi),%eax`). The CALLER's shell runs those as
+# command substitutions before this script is reached, so the clause naming the defect vanishes from
+# the permanent record — and the reviewer cannot see it happen, because the posted review still looks
+# plausible. Hit at least three times today (#445, #481, and a depclaim drop reason).
+# A file has no shell in its path: write the body with the file tool, pass the path.
+if [ "${1:-}" = "--body-file" ] && [ -n "${2:-}" ]; then
+  [ -r "$2" ] || { echo "pr_review: cannot read body file $2" >&2; exit 2; }
+  BODY="$(cat "$2")"
+else
+  BODY="${*:-}"
+  # Best-effort tripwire for the case above. A backtick pair that survived to here is harmless (we
+  # pass BODY as argv to python, never through a shell); the danger is the one that did NOT survive.
+  # We cannot see what was already eaten, so warn on the shape and point at the safe path.
+  case "$BODY" in
+    *'`'*) echo "pr_review: WARNING — body contains a backtick. If you invoked this from a" >&2
+           echo "  double-quoted shell command, any OTHER backticked span was already expanded away" >&2
+           echo "  by your shell and is missing from the evidence. Prefer --body-file <path>." >&2 ;;
+  esac
+fi
 
 case "$VERDICT" in
   approve)          EVENT="APPROVE" ;;

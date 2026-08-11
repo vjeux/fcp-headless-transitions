@@ -87,12 +87,18 @@ union it — re-applying methods into a class body is AUTHOR work). Do EXACTLY t
    `/tmp/rebase_pr_<PR>_theirs/<file>` (the branch's version). With the edit tool, ADD ONLY the
    branch's net-new methods into main's class body. NEVER delete main's methods. Keep every @0xADDR.
 3. `bash raw-port/army/gate/gate.sh <file>` in $WT — must print GATE: PASS.
-3b. **`git -C "$WT" diff origin/main --stat` — the ONLY paths listed must be the ones you edited.**
-   rebase_pr.sh prepared $WT from origin/main as it was AT THAT MOMENT; on a busy swarm main moves
-   while you are merging, and then your force-push DELETES every file that landed in between. Seen
-   for real on PR #478: three ports, their oracles and an OPS_LOG section were queued for deletion
-   by a merge that gated clean — `gate.sh` only inspects the file you hand it, so G6 add-only says
-   nothing about the others. If anything unexpected appears:
+3b. **`git -C "$WT" diff --name-only origin/main...HEAD` (THREE dots) — the only paths listed must
+   be the ones you edited.** Three dots is what a merge applies; a two-dot `diff origin/main` in a
+   worktree whose main has moved lists later-landed files as `D` and looks like mass deletion when
+   nothing of the sort will happen (measured; see the CORRECTION at the top of OPS_LOG). The real
+   hazard is per-FILE: your copy of a file you DID touch may predate main's, which reverts methods
+   inside it. So also confirm you started from main's CURRENT version of each listed file.
+   rebase_pr.sh prepared $WT from origin/main as it was AT THAT MOMENT, and on a busy swarm main
+   moves while you are merging. What that costs you is NOT the deletion of unrelated files (a merge
+   applies the three-dot delta, so those survive — I measured this after claiming otherwise); it is
+   that your copy of the file you are editing may be older than main's, so your push reverts
+   whatever landed in it. `gate.sh` cannot see that either — G6 only inspects the file you hand it,
+   against the version in YOUR tree. If anything unexpected appears:
        `git -C "$WT" fetch origin main && git -C "$WT" reset --hard origin/main`
    then re-apply your merge on top (copy your edited files aside first), re-gate, and re-check.
 4. `git -C "$WT" add -A && git -C "$WT" commit -q -m "rebase <branch> onto origin/main (re-apply net-new methods)"`
