@@ -30,11 +30,61 @@ PR="${1:?usage: rebase_pr.sh <PR#>}"
 SLUG="vjeux/fcp-headless-transitions"; CANON="$HOME/random/final-cut-pro-transitions"; cd "$CANON"
 git fetch -q origin main 2>/dev/null || true
 
-BR=$(gh pr view "$PR" --repo "$SLUG" --json headRefName --jq .headRefName 2>/dev/null)
-[ -z "$BR" ] && { echo "rebase_pr: PR #$PR not found"; exit 1; }
+# A TRANSPORT FAILURE IS NOT A VERDICT, and this lookup used to report one as the other. The corp
+# TLS proxy fails intermittently on this box — `Post "https://api.github.com/graphql": tls: failed
+# to verify certificate: x509: certificate signed by unknown authority`, measured 3 times in 25
+# minutes by one reviewer and twice in one minute here — and with stderr swallowed by 2>/dev/null
+# an empty answer printed `rebase_pr: PR #656 not found` about a PR that was open, conflicted and
+# had just been handed to me by rebase_claim. Two costs, both real: the worker is told the wrong
+# thing (I went looking for a deleted PR), and the rebase LEASE is already charged, so the queue
+# has spent one of the PR's three attempts on a blip. Retry, and when the query still cannot be
+# answered say THAT instead of inventing a fact about the PR.
+BR=""; LOOKUP_ERR=""
+for _try in 1 2 3; do
+  BR=$(gh pr view "$PR" --repo "$SLUG" --json headRefName --jq .headRefName 2>/tmp/rebase_pr_${PR}_lookup.err)
+  [ -n "$BR" ] && break
+  LOOKUP_ERR=$(tr -d '\r' < /tmp/rebase_pr_${PR}_lookup.err | tail -1)
+  sleep $((_try * 2))
+done
+if [ -z "$BR" ]; then
+  # GitHub ANSWERING "there is no such PR" is a verdict; anything else is the transport. Told apart
+  # by the error text, because both arrive as an empty stdout and a non-zero exit:
+  #   verdict    GraphQL: Could not resolve to a PullRequest with the number of 999999.
+  #   transport  Post "https://api.github.com/graphql": tls: failed to verify certificate: ...
+  if printf '%s' "$LOOKUP_ERR" | grep -qiE 'could not resolve to a (pullrequest|repository)|no pull requests found'; then
+    echo "rebase_pr: PR #$PR not found (GitHub answered: $LOOKUP_ERR)"; exit 1
+  fi
+  if [ -n "$LOOKUP_ERR" ]; then
+    echo "rebase_pr: could not READ PR #$PR after 3 tries — this is a transport failure, not a"
+    echo "           verdict about the PR. Last error: $LOOKUP_ERR"
+    echo "           Re-run; if it persists, check \`gh auth status\`. The PR has NOT been examined."
+    exit 7
+  fi
+  echo "rebase_pr: PR #$PR not found (gh answered, and it has no head branch)"; exit 1
+fi
 CLS="${BR#port/}"; CLS="${CLS%_rebased}"
-echo "rebase_pr: PR #$PR  branch=$BR  class=$CLS"
+# THE PR'S BASE IS NOT ALWAYS main, AND MERGEABILITY IS COMPUTED AGAINST THE BASE. This tool used to
+# merge/rebase `origin/main` unconditionally, so for a STACKED PR (base = another open branch) the
+# remedy could not clear the conflict no matter how many times it ran: the queue re-offers the PR,
+# each attempt merges main again, the PR stays CONFLICTING, and at 3/3 the cap fires. Measured
+# 2026-08-11 on #656 (`tools/slot-liveness`, base `tools/reap-dead-counters`), which took TWO
+# main-merges from two different agents — mine and a peer's, minutes apart — and stayed DIRTY;
+# merging the actual base resolved one conflicted file and GitHub reported CLEAN within seconds.
+# `git merge-tree origin/main <head>` says "clean" the whole time, so the local preview and GitHub
+# disagree for a reason that has nothing to do with `.gitattributes merge=union` — the two commands
+# are answering questions about DIFFERENT base commits.
+BASE=$(gh pr view "$PR" --repo "$SLUG" --json baseRefName --jq .baseRefName 2>/dev/null)
+[ -z "$BASE" ] && BASE=main            # gh silent -> assume the common case, and say so below
+git fetch -q origin "$BASE" 2>/dev/null || true
+if [ "$BASE" != "main" ]; then
+  echo "rebase_pr: PR #$PR is STACKED — its base is '$BASE', not main; the merge below targets that branch"
+fi
+echo "rebase_pr: PR #$PR  branch=$BR  base=$BASE  class=$CLS"
 
+# NOTE for the paths below: rebase_helper and the .ts rebase still work against origin/main. Every
+# `port/<Class>` branch in this swarm is cut from main, so that is right today — but if a STACKED
+# .ts PR ever appears, rebasing it onto main would publish its base branch's commits as its own. The
+# warning printed above is the signal; swarm_doctor's `pr-base` check counts them.
 # ---- Attempt 1: rebase_helper (handles up-to-date + disjoint-top-level-export union) ----
 # --pr, not "$CLS": a class can have several open PRs on `port/<Class>__slot<N>` branches, and the
 # class-keyed form resolved to whichever one held the bare name — handing back a DIFFERENT agent's
@@ -101,25 +151,33 @@ if [ "$rc" = 3 ]; then
   if [ -z "$MRG" ] || [ "$MRG" = "UNKNOWN" ]; then
     echo "rebase_pr: PR #$PR changes no .ts files and GitHub will not say whether it merges (${MRG:-no answer}) — NOT claiming it is clean"; exit 3
   fi
-  echo "rebase_pr: PR #$PR changes no .ts files and is $MRG — rebase_helper cannot see it; merging origin/main in place"
+  echo "rebase_pr: PR #$PR changes no .ts files and is $MRG — rebase_helper cannot see it; merging origin/$BASE in place"
   WT="$(bash raw-port/army/tools/wt_pool.sh acquire "${CLS//\//_}")"
   [ -z "$WT" ] && { echo "rebase_pr: pool busy, retry"; exit 3; }
-  git -C "$WT" fetch -q origin "$BR" 2>/dev/null; git -C "$WT" fetch -q origin main 2>/dev/null
+  git -C "$WT" fetch -q origin "$BR" 2>/dev/null; git -C "$WT" fetch -q origin "$BASE" 2>/dev/null
   git -C "$WT" checkout -q -B "$BR" "origin/$BR" 2>/dev/null || {
     echo "rebase_pr: cannot check out $BR"; bash raw-port/army/tools/wt_pool.sh release "$WT" >/dev/null 2>&1; exit 1; }
   # A MERGE, and pushed WITHOUT -f. The result is a descendant of the PR head, so the branch can
   # only GAIN commits: this path cannot drop a file, which is the property the .ts paths need a
   # name-list guard to recover (#25/#449) and the reason not to reuse `rebase` here.
-  if git -C "$WT" merge --no-edit origin/main >/tmp/rebase_pr_${PR}_merge.log 2>&1; then
+  if git -C "$WT" merge --no-edit "origin/$BASE" >/tmp/rebase_pr_${PR}_merge.log 2>&1; then
     if git -C "$WT" push origin "HEAD:$BR" >/dev/null 2>&1; then
-      echo "REBASE_CLEAN: merged current origin/main into $BR and pushed (PR #$PR updates in place)"
+      echo "REBASE_CLEAN: merged current origin/$BASE into $BR and pushed (PR #$PR updates in place)"
+      # A stacked PR that now merges cleanly still cannot MOVE: since #670, pr_gate refuses to judge
+      # a non-main base (its verdict would cover the whole stack) and pr_land refuses to merge one
+      # (it would bypass main's protection). Say the same remedy pr_gate says, or the next reader
+      # sees a green in-place merge and assumes the PR is unblocked.
+      if [ "$BASE" != "main" ]; then
+        echo "  NOTE: this PR's base is '$BASE', so pr_gate will refuse to judge it and pr_land will"
+        echo "        refuse to merge it. Remedy (no code change): gh pr edit $PR --repo $SLUG --base main"
+      fi
       bash raw-port/army/tools/wt_pool.sh release "$WT" >/dev/null 2>&1; exit 0
     fi
     echo "rebase_pr: merge was clean but the push failed — worktree left at $WT"; exit 1
   fi
   CONF=$(git -C "$WT" diff --name-only --diff-filter=U | tr '\n' ' ')
   cat <<NONSRC
-REBASE_MANUAL: PR #$PR ($BR) changes no .ts files and CONFLICTS with main — WORKER AGENT finishes it.
+REBASE_MANUAL: PR #$PR ($BR) changes no .ts files and CONFLICTS with its base ($BASE) — WORKER AGENT finishes it.
   Pool worktree, on $BR at the PR head, with the merge IN PROGRESS:  $WT
   Conflicted:  $CONF
   STEPS:
@@ -127,9 +185,9 @@ REBASE_MANUAL: PR #$PR ($BR) changes no .ts files and CONFLICTS with main — WO
        APPENDED AT THE TAIL by two PRs: keep BOTH, in either order — never choose between them, and
        never take one side wholesale. A hunk with a NON-EMPTY base is a real edit collision and
        needs reading.
-    2. git -C "$WT" diff --unified=0 origin/main -- <file> | grep '^-[^-]'    # must print NOTHING:
-       publishing this branch must not delete a line that is on main.
-    3. git -C "$WT" add <files> && git -C "$WT" commit -q -m "merge origin/main into $BR"
+    2. git -C "$WT" diff --unified=0 origin/$BASE -- <file> | grep '^-[^-]'    # must print NOTHING:
+       publishing this branch must not delete a line that is on its base.
+    3. git -C "$WT" add <files> && git -C "$WT" commit -q -m "merge origin/$BASE into $BR"
     4. git -C "$WT" push origin "HEAD:$BR"      # NO -f: this is a descendant of the PR head
     5. bash raw-port/army/tools/wt_pool.sh release "$WT"
   To abandon instead: git -C "$WT" merge --abort, then release the worktree.

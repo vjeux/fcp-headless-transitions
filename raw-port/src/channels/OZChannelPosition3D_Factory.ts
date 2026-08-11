@@ -5,7 +5,11 @@
 // VAs from `otool -tV`). Disassembly source:
 //   raw-port/re/disasm/ProChannel.__ZN27OZChannelPosition3D_Factory11getInstanceEv.s
 //
-// Only `getInstance()` @ProChannel 0x76e70 is ported here. This is a
+// `getInstance()` @ProChannel 0x76e70 and `revision()` @ProChannel 0x935c are ported here; every
+// other symbol of the class is unclaimed and deliberately ABSENT rather than stubbed. This file
+// grows method by method, ADD-only.
+//
+// The getInstance() body below is a
 // codegen VARIANT of the standard sibling-factory getInstance() shape
 // (see OZChannelHistogram_Factory@0x6fa24 for the same variant).
 //
@@ -46,6 +50,12 @@
 // -----------------------------------------------------------------------------
 //   * __ZN27OZChannelPosition3D_Factory11getInstanceEv
 //       — OZChannelPosition3D_Factory::getInstance() @ProChannel 0x76e70
+//   * __ZN27OZChannelPosition3D_Factory8revisionEv
+//       — OZChannelPosition3D_Factory::revision() @ProChannel 0x935c
+//         Source disasm: raw-port/re/disasm/
+//           ProChannel.__ZN27OZChannelPosition3D_Factory8revisionEv.s, re-derived with
+//           `raw-port/tools/disasm.sh --sym … ProChannel` after deleting any cached copy, so the
+//           body is read from the binary and not from a peer's leftover scratch in the pool slot.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM
@@ -159,5 +169,48 @@ export class OZChannelPosition3D_Factory {
     // @0x76eaf — rax = _instance (DIRECT movq).
     // @0x76eb6 — retq.
     return _instance;
+  }
+
+  /**
+   * `OZChannelPosition3D_Factory::revision()` -> unsigned
+   * @ProChannel __ZN27OZChannelPosition3D_Factory8revisionEv @0x935c..0x9363
+   *
+   * FULL DISASM — the whole function, five instructions, and the symbol is exactly eight bytes
+   * wide (the next symbol in the cached inventory, `getCategoryName`, starts at 0x9364):
+   *   0x935c  pushq %rbp                 ; frame
+   *   0x935d  movq  %rsp, %rbp
+   *   0x9360  xorl  %eax, %eax           ; return 0
+   *   0x9362  popq  %rbp
+   *   0x9363  retq
+   *
+   * The factory reports revision 0. `this` is never dereferenced — %rdi is dead on entry — so the
+   * value belongs to the class rather than to an instance, and it is safe to read off a factory
+   * that `getInstance()` has never constructed. `xorl` on a 32-bit register zeroes the whole
+   * 64-bit %rax, so a caller reading an `unsigned` sees no garbage in the upper half.
+   *
+   * NOT A FAMILY DEFAULT, and this class settles it in eight bytes: `version()` @0x9350, the
+   * symbol immediately before this one, is the same five-instruction shape with `movl $0x1, %eax`
+   * instead. Same shape again in the landed `OZStyle_Factory::revision` @Ozone 0x196f0 and
+   * `OZChannelDecibel_Factory::revision` @ProChannel 0x1027c.
+   *
+   * NOTE ON THIS FILE'S ADDRESSES. This class's symbols live in two widely separated runs —
+   * `getInstance` at 0x76e70 and the ctor/dtor/create family at 0x7e394.., but the small
+   * accessors (`manufacturer` 0x9330, `version` 0x9350, this 0x935c, `getCategoryName` 0x9364,
+   * `getBundleID` 0x9394) in a 0x93xx cluster. Both runs are this class, per the cached inventory
+   * (`grep OZChannelPosition3D_Factory raw-port/army/inventory/ProChannel.syms.txt`); the low
+   * address is not a different class and not a thunk.
+   *
+   * ORACLED against the live symbol (a local `t` symbol is still callable by address):
+   * `raw-port/re/oracle/OZChannelPosition3D_Factory_revision_probe.py`, ProChannel loaded under
+   * `arch -x86_64` through the recursive `@rpath` preloader, the eight prologue bytes at
+   * slide+0x935c checked against `554889e531c05dc3` before the address is trusted, four receivers
+   * (NULL, an unmapped 1, 0xdeadbeef, and a live arena) all returning 0, the full %rax 0x0, and a
+   * 0x200-byte `this` arena poisoned with 0xCD byte-identical afterwards. Three live mutation
+   * controls on neighbouring methods of this same class are all KILLED — `version` @0x9350 (1),
+   * `getCategoryName` @0x9364 and `manufacturer` @0x9330, which each write 8 bytes into their own
+   * poisoned arena and so prove the arena comparison can detect a store.
+   */
+  revision(): number {
+    return 0; // @0x9360 xorl %eax, %eax
   }
 }
