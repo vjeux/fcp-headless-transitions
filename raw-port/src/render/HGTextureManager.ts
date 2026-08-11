@@ -491,3 +491,96 @@ export class PostTextureDeleteEventList {
     return rax;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HGTextureManager (the OUTER class) — added @Helium 0x4b320
+// ─────────────────────────────────────────────────────────────────────────────
+// Everything above this line models the NESTED value types (`TextureUsage`,
+// `TextureInfo`, `PostTextureDeleteEventList`). The outer class itself had no
+// members ported yet; `storageRecyclingPolicy` is the first, so the class is
+// introduced here rather than in a new file — the file is already named after it
+// (PORTING_SPEC: one FCP class, one file named after the class).
+//
+// Symbol added:
+//   @Helium 0x4b320  HGTextureManager::storageRecyclingPolicy(
+//                        HGTextureManager::TextureStorageRecyclingPolicy)
+//     __ZN16HGTextureManager22storageRecyclingPolicyENS_29TextureStorageRecyclingPolicyE
+//
+// Source disassembly (re-derived with
+// `raw-port/tools/disasm.sh --sym __ZN16HGTextureManager22storageRecyclingPolicyENS_29TextureStorageRecyclingPolicyE Helium`):
+//   raw-port/re/disasm/Helium.__ZN16HGTextureManager22storageRecyclingPolicyENS_29TextureStorageRecyclingPolicyE.s
+//
+// FULL DISASM — the whole function
+//   0x4b320  pushq %rbp                 ; frame setup (no TS counterpart)
+//   0x4b321  movq  %rsp, %rbp
+//   0x4b324  movl  %esi, 0xa8(%rdi)     ; this->storageRecyclingPolicy = arg (u32)
+//   0x4b32a  popq  %rbp
+//   0x4b32b  retq
+//   0x4b32c  nopl  (%rax)               ; padding, not executed
+//
+// A pure setter: one 32-bit store, no validation, no branch, no callee
+// (`depgraph.py deps` lists nothing). `movl` fixes the width at 32 bits, which
+// is mirrored with `>>> 0`.
+
+/**
+ * `HGTextureManager::TextureStorageRecyclingPolicy` — the enum tag stored at
+ * +0xa8. No decoded instruction pins a single enumerator: the setter
+ * @0x4b324 passes `%esi` straight into the slot with no mask, no range check and
+ * no branch, and the export table has no matching getter to compare against
+ * (the only neighbour is `recycleClientStorageTextures(bool)` @0x4b330, a
+ * different field). Modelled as an opaque u32 until a ctor or a comparison site
+ * reveals the values — the same treatment the landed HGRenderJob.ts gives its
+ * own enum tags.
+ */
+export type TextureStorageRecyclingPolicy = number;
+
+/**
+ * `HGTextureManager` — Helium's texture manager. Only the ONE field this unit
+ * writes is modelled; the rest of the (large) layout is undecoded and
+ * deliberately absent (PORTING_SPEC Rule 5).
+ *
+ * @Helium 0x4b320
+ */
+export class HGTextureManager {
+  /**
+   * @Helium HGTextureManager@0xa8 — the u32 `TextureStorageRecyclingPolicy`
+   * enum tag, written by `storageRecyclingPolicy` @0x4b324 via a single
+   * `movl %esi, 0xa8(%rdi)`. Measured on the live setter: the 4 bytes at +0xa8
+   * take the full 32-bit argument and NO other byte of a 0x200-byte object
+   * changes. Zero-initialised until a ctor is transcribed to reveal the true
+   * default.
+   */
+  storageRecyclingPolicy_at_0xa8: TextureStorageRecyclingPolicy = 0; // @Helium HGTextureManager@0xa8
+
+  /**
+   * `HGTextureManager::storageRecyclingPolicy(HGTextureManager::TextureStorageRecyclingPolicy)`
+   *   — @Helium 0x4b320
+   *     __ZN16HGTextureManager22storageRecyclingPolicyENS_29TextureStorageRecyclingPolicyE
+   *
+   * Stores the policy enum into the u32 slot at `this+0xa8`. The whole body is
+   * one `movl` between a frame prologue and a `retq` — no validation, no
+   * branching, no callee. Note this is a SETTER despite the getter-style name
+   * (C++ overloading by argument list); the export table has no zero-argument
+   * counterpart.
+   *
+   * ORACLE: verified against the live Helium binary
+   * (raw-port/re/oracle/HGTextureManager_storageRecyclingPolicy_oracle.py). The
+   * symbol is EXPORTED (`nm -arch x86_64` type `T` @0x4b320) and is called under
+   * `arch -x86_64 /usr/bin/python3` — the port is transcribed from the x86_64
+   * slice — on a 0x200-byte object pre-filled with 0xEE. 208 cases (0..3,
+   * INT_MAX, 0x80000000, 0xffffffff, 0xdeadbeef and 200 random u32s): the dword
+   * at +0xa8 held the exact argument in 208/208, and 0 cases changed any other
+   * byte of the object.
+   * NEGATIVE CONTROLS (measured, same 208 cases): a 16-bit store -> 208 wrong
+   * (the upper half would have kept the poison); writing +0xac instead -> 208
+   * wrong; writing +0xa4 instead -> 208 wrong.
+   *
+   * @param policy — the enum value (SysV %esi, u32).
+   */
+  storageRecyclingPolicy(policy: TextureStorageRecyclingPolicy): void {
+    // @0x4b324 — movl %esi, 0xa8(%rdi) : a 32-bit store. `>>> 0` models the
+    //   truncation, so a negative or oversized JS number stores the same bit
+    //   pattern the machine would.
+    this.storageRecyclingPolicy_at_0xa8 = policy >>> 0;
+  }
+}
