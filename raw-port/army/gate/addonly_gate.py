@@ -40,7 +40,14 @@ Wired into gate.sh as G6 so it runs on every worker commit and every reviewer pr
 """
 import re, subprocess, sys, os
 
-ADDR = re.compile(r'@0x([0-9a-fA-F]{4,})')
+# Match BOTH citation forms and normalize to the bare address:
+#     @0x4d380            (bare)
+#     @Ozone 0x4d380      (framework-qualified)
+# G6 compared literal `@0x...` text, so converting a throw-stub that cited `@0x4d380` into a real
+# body documented as `@Ozone 0x4d380` looked like the DELETION of a landed symbol and was rejected —
+# blocking exactly the stub->real upgrades the project wants most (worker-01 hit this on
+# OZScene::resetFlag). Same address, different spelling, is not a deletion.
+ADDR = re.compile(r'@(?:[A-Za-z][A-Za-z0-9_]*\s+)?0x([0-9a-fA-F]{4,})')
 # a class-member or exported function declaration (deliberately loose; false members are harmless
 # because we only ever compare base-vs-now on the SAME extractor)
 MEMBER = re.compile(r'^\s{2,4}(?:public\s+|private\s+|protected\s+|static\s+|readonly\s+|async\s+)*'
@@ -51,7 +58,8 @@ SKIP_NAMES = {"if", "for", "while", "switch", "catch", "return", "constructor", 
 
 
 def symbols(text):
-    addrs = {a.lower() for a in ADDR.findall(text)}
+    # normalize: lowercase + strip leading zeros, so @0x04d380 == @0x4d380 == @Ozone 0x4D380
+    addrs = {a.lower().lstrip("0") or "0" for a in ADDR.findall(text)}
     names = {m for m in MEMBER.findall(text) if m not in SKIP_NAMES}
     names |= set(EXPORTFN.findall(text))
     return addrs, names

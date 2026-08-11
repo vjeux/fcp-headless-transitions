@@ -23,6 +23,8 @@
 // Provenance: /Applications/Final Cut Pro.app/.../Ozone
 //
 // SYMBOLS PORTED IN THIS FILE:
+//   OZExportSettings::OZExportSettings()                        @Ozone 0x33def0  [C1 default ctor]
+//     disasm: raw-port/re/disasm/__ZN16OZExportSettingsC1Ev.s
 //   OZExportSettings::OZExportSettings(OZExportSettings const&) @Ozone 0x33dfe0
 //   OZExportSettings::getRenderQuality() const                  @Ozone 0x33e160
 //     disasm: raw-port/re/disasm/__ZNK16OZExportSettings16getRenderQualityEv.s
@@ -343,4 +345,114 @@ export function OZExportSettings_setRenderQuality(
   self.field0x2e = qGE6;
 
   // @0x33e1c1/@0x33e1c2 — epilogue, void return.
+}
+
+/**
+ * OZExportSettings::OZExportSettings()  — DEFAULT constructor
+ * @0x000000000033def0  Ozone   (mangled: __ZN16OZExportSettingsC1Ev)  [C1 — complete object]
+ *
+ * FULL DISASM (17 lines — raw-port/re/disasm/__ZN16OZExportSettingsC1Ev.s):
+ *
+ *   0x33def0  pushq    %rbp                        ; prologue
+ *   0x33def1  movq     %rsp, %rbp
+ *   0x33def4  leaq     0x5128d5(%rip), %rax        ; 0x33defb + 0x5128d5 = 0x8507d0
+ *   0x33defb  movq     %rax, (%rdi)                ; this[+0x00] = vtable+0x10
+ *   0x33defe  movaps   0x3cdaab(%rip), %xmm0       ; 0x33df05 + 0x3cdaab = 0x70b9b0
+ *   0x33df05  movups   %xmm0, 0x8(%rdi)            ; 16 B -> this[+0x08 .. +0x17]
+ *   0x33df09  movabsq  $0x300000003, %rax
+ *   0x33df13  movq     %rax, 0x18(%rdi)            ;  8 B -> this[+0x18 .. +0x1f]
+ *   0x33df17  movb     $0x1, 0x20(%rdi)            ; this[+0x20] = 1
+ *   0x33df1b  movabsq  $0x60000000a, %rax
+ *   0x33df25  movq     %rax, 0x24(%rdi)            ;  8 B -> this[+0x24 .. +0x2b]
+ *   0x33df29  movw     $0x101, 0x2c(%rdi)          ;  2 B -> this[+0x2c], this[+0x2d]
+ *   0x33df2f  movb     $0x1, 0x2e(%rdi)            ; this[+0x2e] = 1
+ *   0x33df33  movaps   0x3cda86(%rip), %xmm0       ; 0x33df3a + 0x3cda86 = 0x70b9c0
+ *   0x33df3a  movups   %xmm0, 0x30(%rdi)           ; 16 B -> this[+0x30 .. +0x3f]
+ *   0x33df3e  movaps   0x3c96db(%rip), %xmm0       ; 0x33df45 + 0x3c96db = 0x707620
+ *   0x33df45  movups   %xmm0, 0x40(%rdi)           ; 16 B -> this[+0x40 .. +0x4f]
+ *   0x33df49  popq     %rbp
+ *   0x33df4a  retq
+ *
+ * The vptr target 0x8507d0 is the SAME address the copy ctor loads
+ * (`lea 0x5127e5(%rip)` @0x33dfe4), i.e. the existing
+ * `OZExportSettings_VTABLE_ADDR` constant — not a second vtable.
+ *
+ * CONSTANT-POOL READS. Three of the stores are 16-byte SIMD copies out of the
+ * read-only constant pool in __TEXT. Their contents are read straight from the
+ * Mach-O at the resolved addresses (little-endian 4x int32 — every lane is a
+ * small integer, and the neighbouring accessors treat these slots as 32-bit
+ * ints, never floats):
+ *
+ *   @Ozone 0x70b9b0 : 00000000 00000000 03000000 02000000  -> [0, 0, 3, 2]
+ *   @Ozone 0x70b9c0 : 02000000 02000000 02000000 00000000  -> [2, 2, 2, 0]
+ *   @Ozone 0x707620 : 02000000 02000000 02000000 02000000  -> [2, 2, 2, 2]
+ *
+ * FIELD MAPPING onto the interface this file already defines (no field is
+ * added, renamed or re-grouped — the SIMD stores simply straddle the existing
+ * slot boundaries, because the compiler is writing the widest store it can):
+ *
+ *   this[+0x08]        = 0            <- lane 0 of the @0x70b9b0 constant  -> base0x08
+ *   this[+0x0c/10/14]  = 0, 3, 2      <- lanes 1..3 of the same constant   -> block0x0c[0..2]
+ *   this[+0x18]        = 3            <- LOW half of movabsq $0x300000003  -> block0x0c[3]
+ *   this[+0x1c]        = 3            <- HIGH half of the same movabsq     -> field0x1c
+ *   this[+0x20]        = 1                                                 -> field0x20
+ *   this[+0x24/+0x28]  = 0xa, 0x6     <- movabsq $0x60000000a (lo, hi)     -> field0x24 (u64)
+ *   this[+0x2c/+0x2d]  = 1, 1         <- movw $0x101 (little-endian byte pair)
+ *   this[+0x2e]        = 1
+ *   this[+0x30..0x3f]  = [2, 2, 2, 0]                                      -> block0x30
+ *   this[+0x40..0x4f]  = [2, 2, 2, 2]                                      -> block0x40
+ *
+ * Two details worth stating because a paraphrase would smooth them over:
+ *
+ *  1. **The 16-byte store at +0x08 covers the slot the COPY ctor skips.** The
+ *     copy ctor starts its block copy at +0x0c and never touches +0x08 (see its
+ *     doc-comment above); the default ctor DOES initialize +0x08, to 0. Both
+ *     facts are literal: one function's first 16-byte store begins at +0x08, the
+ *     other's at +0x0c.
+ *  2. **+0x24 and +0x28 are seeded to DIFFERENT values** (10 and 6) by the single
+ *     `movabsq $0x60000000a`, even though `OZExportSettings_setRenderQuality`
+ *     @0x33e1a0 writes the same code into both halves. Nothing here reconciles
+ *     them — the default state is transcribed exactly as the constant encodes it.
+ *
+ * FRONTIER CALLEES: none — leaf function (no calls, no externs, no indirect or
+ * virtual dispatch, no allocation).
+ *
+ * @param self the `OZExportSettings` — `this` (%rdi) in the native method. The
+ *   storage is caller-allocated exactly as in C++; this function only fills it.
+ */
+export function OZExportSettings_ctor(self: OZExportSettings_Fields): void {
+  // @0x33def4/@0x33defb — movq %rax, (%rdi): vptr = OZExportSettings vtable+0x10
+  // (0x8507d0 === OZExportSettings_VTABLE_ADDR).
+  self.vtable = "OZExportSettings@vtable+0x10";
+
+  // @0x33defe/@0x33df05 — movups %xmm0, 0x8(%rdi): the 16 B constant at
+  // @Ozone 0x70b9b0 = [0, 0, 3, 2] lands across +0x08 .. +0x17.
+  self.base0x08 = 0; // lane 0 -> +0x08
+  // lanes 1..3 -> +0x0c, +0x10, +0x14; lane at +0x18 comes from the movabsq below.
+  // @0x33df09/@0x33df13 — movabsq $0x300000003 ; movq %rax, 0x18(%rdi):
+  // little-endian, so +0x18 = 3 (low) and +0x1c = 3 (high).
+  self.block0x0c = [0, 3, 2, 3];
+  self.field0x1c = 3;
+
+  // @0x33df17 — movb $0x1, 0x20(%rdi).
+  self.field0x20 = 1;
+
+  // @0x33df1b/@0x33df25 — movabsq $0x60000000a ; movq %rax, 0x24(%rdi):
+  // one 8-byte store whose low half (+0x24) is 0xa and high half (+0x28) is 0x6.
+  self.field0x24 = 0x0000000600000000an;
+
+  // @0x33df29 — movw $0x101, 0x2c(%rdi): a 2-byte store, low byte to +0x2c and
+  // high byte to +0x2d, both 1.
+  self.field0x2c = 1;
+  self.field0x2d = 1;
+  // @0x33df2f — movb $0x1, 0x2e(%rdi).
+  self.field0x2e = 1;
+
+  // @0x33df33/@0x33df3a — movups %xmm0, 0x30(%rdi): constant @Ozone 0x70b9c0.
+  self.block0x30 = [2, 2, 2, 0];
+
+  // @0x33df3e/@0x33df45 — movups %xmm0, 0x40(%rdi): constant @Ozone 0x707620.
+  self.block0x40 = [2, 2, 2, 2];
+
+  // @0x33df49/@0x33df4a — epilogue, void return.
 }

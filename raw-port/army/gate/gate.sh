@@ -49,6 +49,16 @@ if [ -n "$CHANGED" ] && [ -f "$ROOT/army/gate/oracle_map.json" ]; then
     grep -qiE "DIVERGED|FAILED|ERROR|NO_SIGNAL" /tmp/gate_oracle.txt && { echo "  ORACLE DIVERGENCE"; FAIL=1; }
   else echo "  (no oracle-mapped node for changed files)"; fi
 else echo "  (skipped: no changed files given or no oracle_map)"; fi
+# CoreMedia differential oracle. The registry/driver path above only covers hand-registered FCP
+# parity nodes, and `oracle_map.json` literally had `"CMTime": []` — the key present with NO nodes —
+# so the CoreMedia family was gated by nothing. Those functions are the EASIEST possible oracle
+# target (public system framework, dlsym-able, pure value->value) and a wrong model landed anyway:
+# CMTimeMultiplyByFloat64 is on main failing 175/341 against live CoreMedia (issue #286), and #114
+# was rejected at 622/910 for the same reason. reviewer-02's summary of why no other gate can catch
+# this: "three of the four rejects were throw-free bodies that pass G0-G7 cleanly — the mechanical
+# gate is structurally blind to a wrong model, and only the executable differential caught them."
+python3 "$ROOT/army/gate/coremedia_oracle.py" "$@"
+[ $? = 2 ] && { echo "  G4 CoreMedia REJECT"; FAIL=1; }
 
 echo "== G5 semantic completeness (un-gameable: classify disasm + reach fuzz + oracle) =="
 # G5 rejects class-C/D cheats: a REAL-disasm function whose TS body throws incompleteness on a
@@ -66,6 +76,15 @@ echo "== G6 add-only (no landed symbol may be deleted) =="
 # signature as stacking on a stale PR-less port/<Class> branch whose file predates landed methods.
 python3 "$ROOT/army/gate/addonly_gate.py" "$@"
 [ $? = 2 ] && { echo "  G6 REJECT"; FAIL=1; }
+
+echo "== G7 undefined-index (silent-wrong-answer class) =="
+# G7 flags NEW non-null-asserted computed table reads. This is the ONE class that passed every other
+# gate and was still wrong: #154 RGBtoRGBA returned 24 where live FCP returns 232, because an
+# out-of-range read gave `undefined`, `undefined - 1` gave NaN, and `NaN & 0xffffffff` collapsed to 0
+# — a plausible wrong number with no throw for G5 to find. Flags (not rejects): ~68 such sites are
+# already landed and most are probably bounded, but pr_gate holds the status red while a flag stands,
+# so a reviewer must prove the index is in range or match the machine's out-of-range behavior.
+python3 "$ROOT/army/gate/undef_index_gate.py" "$@"
 
 echo ""
 [ "$FAIL" = 0 ] && echo "GATE: PASS ✅" || echo "GATE: REJECT ❌ (fix the above; shortcuts do not land)"

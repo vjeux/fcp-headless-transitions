@@ -111,10 +111,37 @@ def _is_stl(sym):
         return True
     return ("NSt3__1" in sym) or ("St3__1" in sym)
 
-def cmd_next(maxscc=8, allow_stl=False):
+def _blocked_set():
+    """Symbols a worker dropped as not-yet-portable, with a recorded reason.
+
+    #280 gave workers `drop` so an honest refusal stops DELETING the unit. That fix immediately
+    created the next outage (OPS_LOG standing rule 6): `drop` writes a `reopen`, which un-claims the
+    symbol, and `next` walks ready_scc in DETERMINISTIC order — so it handed the very same unit
+    straight back, and a worker that correctly refused a unit could spin on it forever. worker-01:
+    "This is today's #280 fix creating the next outage."
+
+    So a dropped unit is parked: still in the queue (not deleted — that was the original bug), but
+    not re-handed to the next poller until someone clears the blocker with `unblock`. The recorded
+    reason is what makes that decidable instead of a guess.
+    """
+    p = os.path.join(os.path.dirname(CLAIMS), "blocked.jsonl")
+    out = {}
+    if not os.path.exists(p): return out
+    for line in open(p, errors="replace"):
+        line = line.strip()
+        if not line: continue
+        try: r = json.loads(line)
+        except Exception: continue
+        if r.get("op") == "unblock": out.pop(r.get("sym"), None)
+        elif r.get("sym"):          out[r["sym"]] = r.get("reason", "")
+    return out
+
+
+def cmd_next(maxscc=8, allow_stl=False, retry_dropped=False):
     def go():
         claimed = _claimed_set()
         inflight = _inflight_set()      # symbols with a pushed branch / on main — never re-hand
+        blocked = {} if retry_dropped else _blocked_set()
         rows = depgraph.ready_scc(N=6000, quiet=True)   # dependency-ready SCC units (deps ported, 0 indirect); quiet: no backlog dump before CLAIMED_UNIT
         for sz, ne, i, comp in rows:
             if sz > maxscc: continue               # don't hand a solo worker a giant cycle
@@ -124,6 +151,8 @@ def cmd_next(maxscc=8, allow_stl=False):
             # skip if ANY member already has a pushed origin/port/* branch (needs merge/rebase, not
             # re-port) — the durable guard against claims.jsonl reopen-drift.
             if any(m in inflight for m in comp): continue
+            # skip units a worker dropped as un-portable (see _blocked_set) unless --retry-dropped
+            if any(m in blocked for m in comp): continue
             # skip libc++ template boilerplate unless explicitly asked (they'd clog forever)
             if not allow_stl and any(_is_stl(m) for m in comp): continue
             rec = {"op":"claim","head":head,"members":comp,"ts":time.time()}
@@ -218,11 +247,80 @@ def cmd_seed():
               f"inflight cache <- {wrote} symbols")
     return _locked(go)
 
+def cmd_drop(sym, reason):
+    """Return a claimed-but-unportable unit to the queue, recording WHY.
+
+    THE PROBLEM THIS SOLVES. A worker that correctly refuses to fake a port — unported callee,
+    unresolved virtual dispatch, an out-of-scope body — was told to "drop the unit and claim the
+    next one". But `next` skips anything present in claims.jsonl, and nothing ever removed a claim:
+    across 5,799 claim records this repo had exactly ZERO reopens. So every honest refusal silently
+    and permanently DELETED a symbol from the work queue. Five separate workers reported dropping
+    units this way; those symbols are still gone, and the ledger's own coverage numbers are wrong by
+    that amount.
+
+    `reopen` existed but was documented as "rare; requires a human/coord" and appeared in no brief,
+    so no agent ever used it. Refusing to fake a port is the CORRECT behavior and must not cost the
+    project the unit — it should cost the unit a note about why it is blocked, and put it back.
+
+    The reason string is the valuable part: it accumulates the real blocked-taxonomy (call_once init
+    chains, plain-C in-scope callees invisible to depgraph, vtable dispatch, Lithium/ProShapes/CF
+    boundaries) instead of that knowledge dying in one agent's exit report.
+    """
+    def go():
+        _append({"op": "reopen", "head": sym, "members": [sym], "ts": time.time(),
+                 "dropped_reason": reason})
+        try:
+            with open(os.path.join(os.path.dirname(CLAIMS), "blocked.jsonl"), "a") as f:
+                f.write(json.dumps({"sym": sym, "reason": reason, "ts": time.time()}) + "\n")
+        except OSError:
+            pass
+        print(f"dropped + requeued {sym}")
+        print(f"  reason: {reason}")
+        print("  (the unit is claimable again; the reason is recorded in army/depgraph/blocked.jsonl)")
+    return _locked(go)
+
+
+def cmd_unblock(sym):
+    """Clear a dropped unit's blocker so `next` can hand it out again (after the dep landed, a
+    policy decision was made, etc.)."""
+    def go():
+        with open(os.path.join(os.path.dirname(CLAIMS), "blocked.jsonl"), "a") as f:
+            f.write(json.dumps({"op": "unblock", "sym": sym, "ts": time.time()}) + "\n")
+        print(f"unblocked {sym} — claimable again")
+    return _locked(go)
+
+
+def cmd_blocked():
+    """Show the accumulated blocked-reason taxonomy — what is actually stopping the port."""
+    p = os.path.join(os.path.dirname(CLAIMS), "blocked.jsonl")
+    if not os.path.exists(p):
+        print("no dropped units recorded yet"); return
+    rows = []
+    for line in open(p, errors="replace"):
+        line = line.strip()
+        if line:
+            try: rows.append(json.loads(line))
+            except Exception: pass
+    print(f"{len(rows)} dropped/requeued unit(s):")
+    for r in rows[-25:]:
+        print(f"  {r.get('sym','?')[:70]}\n      {r.get('reason','')[:150]}")
+
+
 if __name__ == "__main__":
     a = sys.argv[1:] or ["claims"]
-    if   a[0] == "next":    cmd_next(int(a[1]) if len(a) > 1 else 8, allow_stl=("--stl" in a))
+    if   a[0] == "next":    cmd_next(int(a[1]) if len(a) > 1 and a[1].isdigit() else 8,
+                                     allow_stl=("--stl" in a), retry_dropped=("--retry-dropped" in a))
     elif a[0] == "claimed": sys.exit(cmd_claimed(a[1]))
     elif a[0] == "reopen":  cmd_reopen(a[1])
+    elif a[0] == "drop":
+        if len(a) < 3:
+            print('usage: depclaim.py drop <mangled> "<why it is not portable yet>"', file=sys.stderr)
+            sys.exit(2)
+        cmd_drop(a[1], " ".join(a[2:]))
+    elif a[0] == "blocked": cmd_blocked()
+    elif a[0] == "unblock":
+        if len(a) < 2: print("usage: depclaim.py unblock <mangled>", file=sys.stderr); sys.exit(2)
+        cmd_unblock(a[1])
     elif a[0] == "seed":    cmd_seed()
     # legacy no-ops kept so old briefs/scripts don't crash mid-transition:
     elif a[0] in ("done","fail","reap","refresh_inflight"):

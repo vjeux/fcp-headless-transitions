@@ -24,26 +24,30 @@ detail to reproduce. That is how this list grows.
 | 8 | A merged PR carried an APPROVE nobody performed | `pr_land` minted its own approval on any green head (#197 was approved while being a duplicate) | #234 — `pr_land` now *requires* an approval on the current head and refuses to mint one |
 | 9 | Landed method deleted by another worker's commit | Class files regenerated instead of extended; nothing enforced ADD-only | #232 — **G6 add-only** gate rejects any change that drops a landed `@0xADDR` or declaration |
 | 10 | Disasm lookups took 42s and pinned the box | Every lookup linear-scanned a 220MB `otool` dump, several times per unit | #148 — `symidx.py` byte-offset index (0.17s), verified byte-identical across all 45,785 symbol bodies |
+| 12 | Every `pr_gate` leaked its worktree lease → all 16 slots held → `POOL_FULL` → **gating and merging stopped dead** (reviewer-03 quit over it; #114 lost a verdict) | #240's dirty-tree release guard vs `pr_gate` deliberately dirtying its checkout with trusted tools. A regression introduced by a fix | #258 — `pr_gate` releases `--force`; stale-reclaim takes disposable `gate/<sha>` leases even when dirty (self-healing) |
+| 13 | A port passed every gate and still returned 24 where FCP returns 232 | out-of-range index → `undefined` → `undefined-1` = NaN → `NaN & mask` = **0**, a plausible wrong number with no throw | #255 — **G7** flags new non-null-asserted computed table reads |
+| 14 | Real ports condemned as duplicates (#108/#110/#197, one click from being closed) | `dup_check` matched `__Z*` text tokens; address-only files yielded zero units, which v2 read as "duplicate" | #252 — v3: externs excluded, no-units is INCONCLUSIVE not DUP |
 | 11 | Reviewers could not use GitHub's review system | One identity authored and reviewed every PR; GitHub forbids self-review, so verdicts degraded to status+comment | #204/#206/#210 — worker and reviewer **GitHub Apps** |
+| 15 | The gate told reviewers to "rerun --reviewed" — an instruction that could never work | `REVIEW_NEEDED` was filed as a hard error but `--reviewed` only cleared *flags*; silently blocked correct PRs (#228, #231, much of the reject backlog) | #265 — REVIEW_NEEDED is a flag (real cheats stay hard errors) |
+| 16 | `prove_all` could not pass inside a pool worktree, yet every reviewer is told to run it at startup and sign nothing without it | `raw-port/re/disasm/` is gitignored, so Layer-3 fixtures are absent in a fresh worktree → `UNKNOWN` | #265 — layer3 regenerates its fixtures (cheap since #148) |
+| 17 | A concurrent gate run erased another agent's verdict (reviewer-03's REJECT on #82 vanished) | GitHub keeps only the latest status per context; an opening `pending` overwrote a settled `failure` | #270 — pending is posted only when no verdict exists |
+| 18 | **Every honest refusal to fake a port permanently deleted that symbol from the queue** — 5,799 claims, 0 reopens | `depclaim next` skips claimed symbols and nothing removed claims; `reopen` was documented as human-only and named in no brief | #280 — `depclaim.py drop <sym> "<reason>"` requeues + records; documented in both worker briefs |
+| 19 | Units handed out as READY whose real callee was unported | `depgraph`'s DIRECT regex only matched `__Z*`, so a `jmp _PCPrint` (defined in ProCore 0x64e7, unported) produced no edge at all | #280 — plain-C callees defined in the 5 frameworks now count as in-scope deps (READY 15,958 → 15,701) |
+| 20 | G5 judged a port against **another class's** disassembly — a false REJECT on an honest port (#253), and a false ACCEPT wherever the wrong body was EMPTY | `find_disasm`'s last-resort key is the bare CLASS name, globbed as an unanchored substring: `*HGRenderNode*.s` matched `__ZN18OZHGRenderNodeBase8finishedEv.s` (DISPATCH_ONLY). 84 of 916 class-key lookups resolved to a DIFFERENT class (62 REAL, 19 EMPTY, 3 DISPATCH_ONLY). It only fires when the exact symbol's `.s` is missing — the NORMAL state in a pool worktree (#16), i.e. where the gate actually runs. Same shape as the 2026-07-29 parseElement cheat, through a second door | #302 — a bare identifier must match a WHOLE name component (Itanium `<len><Class>`, or a whole dotted component), never a substring; ties resolve deterministically; `sorted(set(...))` in G5's symbol ranking (PYTHONHASHSEED-dependent, so the verdict changed run to run) fully sorted. Locked by `verifier/test_find_disasm.py`, wired into prove_all as LAYER 2b |
 
 ---
 
 ## Open — known, not yet fixed
 
-- **`dup_check` false positives can destroy real work.** It harvests mangled names from file text, so
-  a file citing its methods only by *address* yields only libc++ externs (`__Znwm`, `__ZdlPv`), which
-  trivially "already exist" ⇒ a bogus "already on main" verdict. **#108, #110 and #197 were each one
-  click from being wrongly closed** and are faithful. *Never close a dup on the status alone —
-  confirm the class genuinely exists on main.* Real fix: have those files cite their own mangled
-  names, and make `dup_check` require a symbol match, not a token match.
-- **`depgraph.py` does not trace `std::call_once` proxy/lambda initializers**, so units are handed out
-  READY while their real init chain has unported deps. Claims are append-only, so each occurrence
-  **permanently burns the symbol**. Reported by 3 workers.
-- **Silent-wrong-answer class.** #154 passed every mechanical check yet returned 24 where live FCP
-  returns 232: an out-of-bounds table read is `undefined` in TS, `undefined - 1` is `NaN`, and
-  `NaN & 0xffffffff` collapses to **0** — a plausible wrong number. Only the differential oracle
-  caught it. Proposed fix: auto-oracle every `nm`-exported (`T`) symbol; they are cheap to call even
-  without an autoreg descriptor, and that is where this class hides.
+- **`depgraph.py` does not trace `std::call_once` proxy/lambda initializers**, nor function pointers
+  handed to `pthread_create`/`dispatch_group_async_f`, so units are still handed out READY while their
+  real call chain has unported deps. No longer *destructive* — #280 makes the unit requeueable with
+  `depclaim.py drop` — but still wasted worker time. Reported by 5 workers.
+- **Silent-wrong-answer class — partly closed.** #255 added G7, which FLAGS new non-null-asserted
+  computed table reads so a reviewer must clear them. The stronger fix is still open: `autoreg.py` /
+  `autosig.py` already implement "auto-oracle every exported `T` symbol", but **the gate never
+  invokes them**, and `autosig` rejects enum args (`HGFormat`) — the two reasons #154 escaped.
+  Wiring them in needs care: wrong ctypes marshalling would produce confident garbage verdicts.
 - **`pr_gate` status descriptions don't match `rebase_claim.sh`'s `regression|rebase` filter**, so
   PRs needing a rebase can sit forever unless a reviewer hand-writes the status text.
 - **One class, two files** — `OZScene` exists in both `channels/` and `nodes/`; `OZRenderParams`
@@ -61,3 +65,7 @@ detail to reproduce. That is how this list grows.
    reason, deliberately.
 4. **Approve with your own evidence, before landing.** No tool will mint an approval for you.
 5. **Never close a dup, or trust a "already on main" status, without confirming on main.**
+6. **A fix can be the next outage.** #240's release guard was correct and still deadlocked the swarm
+   two hours later, because `pr_gate` was a caller I had not considered. When you tighten a shared
+   primitive, enumerate every caller — and prefer a self-healing fallback (#258's disposable-lease
+   reclaim) over trusting that you found them all.

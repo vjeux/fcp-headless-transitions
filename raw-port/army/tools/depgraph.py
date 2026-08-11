@@ -29,7 +29,7 @@ Commands:
   depgraph.py stats                 tier histogram (ready / dep-blocked / virtual-blocked / ported)
   depgraph.py why <mangled>         explain why a function is NOT ready (lists unported deps / indirect count)
 """
-import sys, os, re, json, glob
+import sys, os, re, json, glob, subprocess
 from collections import defaultdict, deque
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # raw-port/
@@ -40,6 +40,16 @@ TV   = "/tmp/{fw}_tV.txt"
 
 LABEL  = re.compile(r'^(__Z[A-Za-z0-9_$.]+):$')
 DIRECT = re.compile(r'\t(?:callq|jmp)\t(__Z[A-Za-z0-9_$.]+)\b')
+# PLAIN-C DIRECT CALLS. DIRECT only matches Itanium-mangled `__Z*`, so a `jmp _PCPrint` — a C
+# function DEFINED IN ProCore at 0x64e7 and not ported — produced NO edge at all, and the caller was
+# handed out as READY with "no deps". worker-01 hit exactly that on _pcCheckGetTransformation
+# (ProCore 0x133b5): "depgraph treats plain C symbols (no __ZN mangling) as true externs, so in-scope
+# C deps don't block a unit."
+# Scoped deliberately: only `_name` symbols that are DEFINED as text in one of the five frameworks
+# count as in-scope. ObjC (`-[...]`/`+[...]`), Swift (`_$s...`), and libc/CF imports are excluded, so
+# this adds real blocking edges without the false blocking that gating on all 16k non-__Z defined
+# symbols would cause.
+DIRECT_C = re.compile(r'\t(?:callq|jmp)\t(_[A-Za-z][A-Za-z0-9_$.]*)\b')
 STUBT  = re.compile(r'symbol stub for:\s*(__Z[A-Za-z0-9_$.]+|_[A-Za-z0-9_$.]+)\b')
 INDIR  = re.compile(r'\t(?:callq|jmp)\t\*')
 
@@ -61,8 +71,37 @@ def _ledger_symbols():
                     known[v["mangled"]] = (fw, cls, v.get("status", "todo"), v.get("demangled", ""))
     return known
 
+def _defined_c_symbols():
+    """Plain-C (`_name`) functions DEFINED as text in our five frameworks — i.e. in-scope code that a
+    caller genuinely depends on, as opposed to a libc/CF/ObjC import. Cached; nm over 5 binaries."""
+    cache = os.path.join(OUT, "defined_c.json")
+    if os.path.exists(cache):
+        try: return set(json.load(open(cache)))
+        except Exception: pass
+    out = set()
+    for fw in FWS:
+        binp = (f"/Applications/Final Cut Pro.app/Contents/Frameworks/{fw}.framework/Versions/A/{fw}")
+        if not os.path.exists(binp): continue
+        try:
+            p = subprocess.run(["nm", "-arch", "x86_64", binp], capture_output=True, text=True, timeout=300)
+        except Exception:
+            continue
+        for line in p.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 3 and parts[1] in ("T", "t"):
+                s = parts[2]
+                # plain C only: skip C++ (__Z), ObjC (-[ / +[ / ___), Swift (_$s)
+                if s.startswith("_") and not s.startswith("__Z") and not s.startswith("_$s") \
+                   and not s.startswith("___") and "[" not in s:
+                    out.add(s)
+    os.makedirs(OUT, exist_ok=True)
+    try: json.dump(sorted(out), open(cache, "w"))
+    except OSError: pass
+    return out
+
 def build():
     os.makedirs(OUT, exist_ok=True)
+    defined_c = _defined_c_symbols()
     g = {}
     for fw in FWS:
         path = TV.format(fw=fw)
@@ -86,11 +125,23 @@ def build():
                 if dm:
                     t = _canon(dm.group(1))
                     if t != cur: g[cur]["deps"].add(t)
+                    continue
+                # plain-C callee that is DEFINED in one of our frameworks = a real in-scope dep
+                cm = DIRECT_C.search(line)
+                if cm:
+                    t = _canon(cm.group(1))
+                    if t != cur and t in defined_c:
+                        g[cur]["deps"].add(t)
+                        g[cur]["c_deps"] = g[cur].get("c_deps", set()); g[cur]["c_deps"].add(t)
     known = _ledger_symbols()
     out = {}
     for sym, v in g.items():
-        # split deps into IN-SCOPE (a known port target we must port) vs true extern (out of scope)
-        inscope = sorted(d for d in v["deps"] if d in known)
+        # Split deps into IN-SCOPE (code we must port) vs true extern (out of scope).
+        # A plain-C callee DEFINED in one of our frameworks is in scope even though it is absent from
+        # the ledger — the ledger indexes C++/ObjC members, so a C helper like _PCPrint appears
+        # nowhere in it and would otherwise be silently reclassified as an out-of-scope extern, which
+        # is exactly the hole that handed out _pcCheckGetTransformation as READY.
+        inscope = sorted(d for d in v["deps"] if d in known or d in defined_c)
         out[sym] = {"fw": v["fw"], "deps": inscope, "n_extern_oos": len(v["deps"]) - len(inscope),
                     "indirect": v["indirect"]}
     json.dump(out, open(os.path.join(OUT, "graph.json"), "w"))
