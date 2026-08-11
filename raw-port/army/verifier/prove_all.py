@@ -14,6 +14,10 @@ Runs three layers and asserts every fixture verdict:
      class-C (REAL + throw)    -> REJECT_CHEAT
      real-work port            -> LIKELY_REAL
 
+  LAYER 2j — the argv contracts of pr_review.sh / pr_comment_once.sh: an unknown
+     flag must be a usage error, never the review or comment BODY.
+     (2i is main's queue-coverage layer; this one is renumbered around it.)
+
 Exit 0 iff ALL layers pass. This is the gate that MUST pass before any swarm restart.
 """
 import os, sys, subprocess, json
@@ -251,6 +255,29 @@ LAYER2 = [
      "publish guard — a push cannot empty a PR or drop its files",
      ["bash", os.path.join(TOOLS, "test_publish_guard.sh")],
      "TEST_PUBLISH_GUARD: PASS"),
+    # THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed the
+    # thing they exist to preserve, in the same way, at exit 0, behind a plausible success line: an
+    # unrecognised flag falls through to `BODY="$*"` and is posted AS the record. `pr_review.sh` lost
+    # 11KB of a differential that way (row 43, fixed in #596); `pr_comment_once.sh` was left with the
+    # identical hole and replaced 1,204 bytes of evidence on PR #600 with the 33 characters
+    # "--body-file /tmp/...". `test_pr_review_argv.sh` already existed and NOTHING RAN IT — row 44's
+    # shape sitting on top of this very hazard — so both are wired here, in the change that closes
+    # the second hole. Offline: each drives the real script against a fake `gh`/`gh_as.sh` in a
+    # scratch sandbox, so nothing reaches a live PR and a GitHub 5xx cannot flake the startup gate.
+    # COST measured in a pool worktree under swarm load, not on an idle box: 40.9s + 4.5s.
+    #
+    # TOKEN: "N passed, 0 failed" — the count is in the middle, so the token is the tail. My first
+    # attempt guessed "test_pr_review_argv: 0 failed" and the verification step caught it; a guessed
+    # token that happens not to match makes a real suite look red, and one that matches too loosely
+    # makes a red suite look green.
+    ("2x",
+     "pr_review argv — an unknown flag must not become the review body",
+     ["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")],
+     "passed, 0 failed"),
+    ("2y",
+     "pr_comment_once argv — an unknown flag must not become the comment",
+     ["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")],
+     "passed, 0 failed"),
 ]
 
 def check_layer_labels():
