@@ -191,14 +191,31 @@ LAYER2 = [
      "driver timeout — a hang is a kill, not a pending result",
      ["bash", os.path.join(TOOLS, "test_driver_timeout.sh")],
      "test_driver_timeout: PASS"),
-    # 2v — the doctor's own duplicate-label check, which THIS table's arrival silently retired: its
+    # 2v — the doctor's verifier-contention counting. The check reports a NUMBER and the number is
+    # the whole message: "8 concurrent prove_all.py runs" is actionable, the naive `pgrep | wc -l`
+    # of the same pile-up says 20 (it counts each run's sh wrapper and its timeout), and "1" while a
+    # run is live is a false all-clear. Offline, driven over the captured `ps` output of the real
+    # incident, with three mutants that must break the cases they cover. ~0.2s.
+    #
+    # LETTER: 2v is the next free one (main holds 2p and 2u; #656 holds 2m-2o, #714 2q, #655 2r,
+    # #651 2s, #696 2t). As a ROW there is no r<N>/ok<N> left to collide — what the table refactor
+    # bought — and check_layer_labels() refuses a duplicate label before any layer runs.
+    ("2v",
+     "verifier contention — the doctor counts RUNS, not the wrappers around them",
+     [sys.executable, os.path.join(TOOLS, "test_verifier_contention.py")],
+     "test_verifier_contention: PASS"),
+    # LETTER: this went out as 2v and is renumbered to 2w because #735 took 2v first —
+    # a collision between two PRs neither of which could see the other's choice, which is
+    # the thing THIS row's check reports. Keeping both rows is the only safe resolution;
+    # taking a side would delete a layer and the suite would still print PASS.
+    # 2w — the doctor's own duplicate-label check, which THIS table's arrival silently retired: its
     # pattern was `print("LAYER 2<letter>` and it matched nothing here, so `swarm_doctor` reported
     # `?? layer-letters … not evidence of anything` on every run, permanently, against a main whose
     # fifteen labels were all distinct. An UNKNOWN that no correct state can clear is a check that
     # has stopped checking while still occupying a line in the report. The suite feeds the extractor
     # BOTH shapes plus an unrecognisable one, so the next refactor of this file fails a suite instead
     # of quietly retiring a guard. Offline — no gh, no network, no pool. ~2s.
-    ("2v",
+    ("2w",
      "the doctor can still read this table — a refactor must not silently retire its check",
      [sys.executable, os.path.join(TOOLS, "test_doctor_layer_labels.py")],
      "test_doctor_layer_labels: PASS"),
