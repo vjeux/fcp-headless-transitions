@@ -401,8 +401,133 @@ export class OZChannelUint16 {
       "blocks construction."
     );
   }
+
+  /**
+   * @ProChannel BSS 0xeb7d8
+   * `__ZZN15OZChannelUint1625createOZChannelUint16ImplEvE25_OZChannelUint16Impl_once` — the libc++
+   * `std::once_flag` word read @0xf536 and address-taken @0xf555 (both displacements resolve to
+   * 0xeb7d8). 0n = not started, -1n (~0UL) = completed, which is the only value the fast path
+   * @0xf53d tests for. BSS is zero-filled at load; measured 0 before the first live call and
+   * 0xffffffffffffffff after it.
+   */
+  static _OZChannelUint16Impl_once: bigint = 0n; // @ProChannel 0xf536 read-site
+
+  /**
+   * @ProChannel BSS 0xec260 `__ZN15OZChannelUint1620_OZChannelUint16ImplE` — the singleton pointer,
+   * address-taken @0xf568 and dereferenced @0xf56f as the accessor's return value, and written by
+   * the once-init lambda. Zero-filled at load, i.e. nullptr.
+   */
+  static _OZChannelUint16Impl: OZChannelImplPtr = null; // @ProChannel 0xf568
+
+  /**
+   * `OZChannelUint16::createOZChannelUint16Impl()` — @ProChannel 0xf52e
+   * (`__ZN15OZChannelUint1625createOZChannelUint16ImplEv`).
+   *
+   * The standard libc++ `std::call_once`-guarded singleton accessor, transcribed line-for-line from
+   * the disassembly quoted above: take the fast path when the once-flag reads ~0UL, otherwise cross
+   * the `std::__call_once` boundary, then return the global the initializer published.
+   *
+   * Distinct from the two Ozone-side frontier stubs above (`ensureOZChannelUint16ImplOnce`,
+   * `loadOZChannelUint16Impl`), which describe the copy of this logic that Ozone INLINES into the
+   * ctor at 0x5ae6d3..0x5ae73b. Those are left untouched; when the Ozone ctor path is transcribed it
+   * can route here instead.
+   */
+  static createOZChannelUint16Impl(): OZChannelImplPtr {
+    // @0xf536-0xf541 — the libc++ fast path: once == ~0UL means init already completed.
+    if (OZChannelUint16._OZChannelUint16Impl_once !== -1n) {
+      // @0xf543-0xf563 — marshal the tuple and call std::__1::__call_once(&once, arg, proxy)
+      //   through ProChannel stub 0xacdc8 (libc++, a TRUE out-of-scope extern).
+      std_call_once_OZChannelUint16Impl();
+    }
+    // @0xf568-0xf56f — leaq &global then movq (%rax),%rax: return the pointer stored there, NULL
+    // included. The machine performs no null check, so neither does this.
+    return OZChannelUint16._OZChannelUint16Impl;
+  }
 }
 
 // Re-export the base type placeholder so consumers don't need to know it lives
 // in another file (matches the pattern used by other landed OZChannel* ports).
 export type { OZCompoundChannel };
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════
+// ADDITIVE EXTENSION — a LATER ledger unit; nothing above was changed.
+//
+//   __ZN15OZChannelUint1625createOZChannelUint16ImplEv
+//     — OZChannelUint16::createOZChannelUint16Impl()   @ProChannel 0xf52e
+//
+// WHICH BINARY, because everything above cites Ozone: the class is emitted into BOTH frameworks.
+// Ozone INLINES the once-guard into its ctor (@0x5ae6d3..0x5ae729, which is what the frontier
+// stubs `ensureOZChannelUint16ImplOnce` / `loadOZChannelUint16Impl` above describe and which stay
+// exactly as they were); ProChannel emits the accessor out of line @0xf52e, and that is the only
+// copy that can be transcribed. Both builds share the same C++ function-local statics.
+//
+// FULL DISASM (20 lines). Every RIP target below was re-derived from the raw bytes of the thin
+// x86_64 slice (instruction, length, disp32) rather than trusted from otool's symbolized column:
+//
+//   0xf52e  55                    pushq %rbp
+//   0xf52f  48 89 e5              movq  %rsp, %rbp
+//   0xf532  48 83 ec 20           subq  $0x20, %rsp          ; 32-byte frame: libc++ tuple<lambda&&>
+//   0xf536  48 8b 05 9b c2 0d 00  movq  0xdc29b(%rip), %rax  ; 0xf53d+0xdc29b = BSS 0xeb7d8 (once)
+//   0xf53d  48 83 f8 ff           cmpq  $-0x1, %rax          ; libc++ writes ~0UL on completion
+//   0xf541  74 25                 je    0xf568               ; fast path: skip __call_once
+//   0xf543  48 8d 45 ff           leaq  -0x1(%rbp), %rax     ; captureless-lambda slot (1 byte)
+//   0xf547  48 8d 4d e8           leaq  -0x18(%rbp), %rcx    ; tuple<T&&> slot
+//   0xf54b  48 89 01              movq  %rax, (%rcx)         ; tuple.head = &lambda-slot
+//   0xf54e  48 8d 75 f0           leaq  -0x10(%rbp), %rsi    ; __call_once's `void* arg`
+//   0xf552  48 89 0e              movq  %rcx, (%rsi)         ; *arg = &tuple
+//   0xf555  48 8d 3d 7c c2 0d 00  leaq  0xdc27c(%rip), %rdi  ; 0xf55c+0xdc27c = BSS 0xeb7d8 (&once)
+//   0xf55c  48 8d 15 5e 01 00 00  leaq  0x15e(%rip), %rdx    ; 0xf563+0x15e = 0xf6c1 (the proxy)
+//   0xf563  e8 60 d8 09 00        callq 0xacdc8              ; 0xf568+0x9d860 = std::__call_once stub
+//   0xf568  48 8d 05 f1 cc 0d 00  leaq  0xdccf1(%rip), %rax  ; 0xf56f+0xdccf1 = BSS 0xec260 (&global)
+//   0xf56f  48 8b 00              movq  (%rax), %rax         ; the return value: the singleton ptr
+//   0xf572  48 83 c4 20           addq  $0x20, %rsp
+//   0xf576  5d                    popq  %rbp
+//   0xf577  c3                    retq
+//
+// The stack tuple at 0xf543..0xf552 is an ABI artefact of libc++'s `__call_once` instantiation —
+// two levels of indirection so the proxy can find a captureless lambda that has no state to find.
+// It has no observable effect; the model below calls the proxy boundary directly, as the landed
+// OZChannelAspectRatioFootage / OZChannelAspectRatio accessors do.
+//
+// MEASURED AGAINST THE LIVE BINARY
+// (raw-port/re/oracle/OZChannelUint16_createImpl_probe.py, `arch -x86_64 /usr/bin/python3`,
+// ProChannel slide 0x10a781000, 8/8 checks PASS). The symbol is a LOCAL (`t`), so it was called by
+// address at slide+0xf52e, and the probe first asserts the 19 opcode bytes above are the ones
+// mapped:
+//   before   once @0xeb7d8 = 0             singleton @0xec260 = NULL
+//   call #1  returns 0x6000015a0000       once -> 0xffffffffffffffff, singleton == the return value
+//   call #2  returns 0x6000015a0000       once unchanged (the fast path at 0xf541 is taken)
+// What the trace REFUTES is the `=== 1` sentinel of the 2026-07-29 call_once cheat; what it cannot
+// separate is `!== -1n` from `!== 0n`, so the `-1` in the port comes from the `cmpq $-0x1` encoding
+// at 0xf53d (bytes `48 83 f8 ff`), not from the trace.
+// ═════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * `std::__1::__call_once(flag&, void*, void(*)(void*))` — libc++, reached through ProChannel stub
+ * 0xacdc8 @0xf563. A TRUE out-of-scope extern; there is no libc++ runtime here, so the contract the
+ * accessor depends on is modelled: run the initializer once, and write ~0UL into the flag ONLY on
+ * success. If the initializer raises, the flag stays 0 and a later call retries — which is what the
+ * real runtime does, and why the fast-path test @0xf53d is against -1 rather than "non-zero".
+ *
+ * The initializer is NOT transcribed here and that is not a shortcut: unlike the sibling
+ * `createOZChannelUint16Info`, whose lambda the compiler inlined into an STL template
+ * instantiation, this one is its own out-of-line symbol —
+ * `__ZZN15OZChannelUint1625createOZChannelUint16ImplEvENKUlvE_clEv` @ProChannel 0xf6d2, reached
+ * through the proxy @0xf6c1 — i.e. a SEPARATE ledger unit. Its first instructions
+ * (`leaq` the global @0xf6d7, `cmpq $0x0,(%r15)` @0xf6de, `movl $0x30,%edi` + `__Znwm` @0xf6e7,
+ * then `movl $0xb0,%edi` + `__Znwm` @0xf6f3 and a ctor call @0xf706) show it allocates a 0x30-byte
+ * OZChannelUint16Impl plus a 0xb0-byte sub-object, so it is real work with its own callees rather
+ * than something to fold in here.
+ */
+function std_call_once_OZChannelUint16Impl(): void {
+  if (OZChannelUint16._OZChannelUint16Impl_once === -1n) return; // libc++ fast path (mirrors 0xf53d/0xf541)
+  throw new Error(
+    "OZChannelUint16::createOZChannelUint16Impl()'s once-init lambda is a separate ledger unit " +
+      "and is not transcribed yet: __ZZN15OZChannelUint1625createOZChannelUint16ImplEvENKUlvE_clEv " +
+      "@ProChannel 0xf6d2, reached through the libc++ proxy @ProChannel 0xf6c1 from " +
+      "std::__1::__call_once @ProChannel 0xf563 (stub 0xacdc8). It allocates 0x30 bytes @0xf6e7 and " +
+      "0xb0 bytes @0xf6f3 via operator new, constructs the sub-object @0xf706, and stores the " +
+      "OZChannelUint16Impl singleton into __ZN15OZChannelUint1620_OZChannelUint16ImplE (BSS " +
+      "0xec260), which this accessor then loads @0xf56f.",
+  );
+}
