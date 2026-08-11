@@ -75,6 +75,14 @@ claim_slot () {
       # ("Slot 2 was re-leased to a reviewer while I held it"). A long-running unit is not a dead
       # agent. If the tree is dirty or ahead of main, skip it and take a genuinely idle slot.
       if [ -n "$(find "$lk/holder" -mmin +$stale 2>/dev/null)" ]; then
+        # A `gate/<sha>` lease is DISPOSABLE — pr_gate detaches at a PR head and deliberately dirties
+        # the tree with trusted tools, so it has nothing to protect. Reclaim it even when dirty.
+        # Without this, one leaking caller can fill all 16 slots and deadlock the whole swarm (it did:
+        # every pr_gate run leaked until the pool was exhausted and gating/merging stopped dead).
+        # A `port/<Class>` lease still gets the full protection — that is a worker's real work.
+        case "$(cat "$lk/holder" 2>/dev/null)" in
+          gate/*) echo "$tag $(date +%s)" > "$lk/holder"; log "wt_pool: reclaimed stale disposable gate slot $i"; echo "$i"; return 0;;
+        esac
         if wt_has_work "$WTDIR/$i"; then
           log "wt_pool: slot $i lease is stale but the worktree has UNCOMMITTED/UNPUSHED work — not stealing it"
           continue
