@@ -171,6 +171,62 @@ export class HGGPURenderer {
   metalHandler_at_0x520: HGMetalHandler | null = null;
 
   /**
+   * @Helium offset +0x590 — int32, the renderer's MAXIMUM multi-sample count.
+   *
+   * Three decoded sites fix the width, the signedness and the meaning, and none of them is this
+   * getter alone (each is its own ledger unit; cited here as evidence):
+   *   * the ctor `HGGPURenderer(unsigned long long, bool)` @Helium 0x88a0 initialises it with
+   *     `movabsq $-0x100000000,%rax ; movq %rax,0x590(%rbx)` @0x89b9/@0x89c3 — one 8-byte store
+   *     whose LOW half is 0 and whose HIGH half (+0x594) is 0xFFFFFFFF, so this field starts at 0
+   *     and its neighbour starts at -1;
+   *   * `BindMultiSampleBuffer(int, bool, bool)` @0x116d0 consumes it as a CLAMP:
+   *     `movl 0x590(%rbx),%eax ; cmpl %r13d,%eax ; cmovll %eax,%r13d` @0x11770..@0x11779 — and
+   *     `cmovl` is the SIGNED conditional move, so the requested sample count is lowered to this
+   *     value when this value is smaller, comparing as int32 rather than uint32;
+   *   * this getter reads it with `movl`, a 32-bit load.
+   * Hence `number` holding a SIGNED int32, and hence the `| 0` in the getter rather than `>>> 0`.
+   */
+  maxMultiSamples_at_0x590 = 0;
+
+  /**
+   * `HGGPURenderer::GetMaxMultiSamples() const` — @Helium 0x197d0
+   *   `__ZNK13HGGPURenderer18GetMaxMultiSamplesEv`
+   *
+   * FULL transcription — every instruction, in order:
+   *
+   *   0x197d0  pushq %rbp                    ; frame setup (no TS counterpart)
+   *   0x197d1  movq  %rsp,%rbp               ; frame setup (no TS counterpart)
+   *   0x197d4  movl  0x590(%rdi),%eax        ; return *(int32*)(this + 0x590)
+   *   0x197da  popq  %rbp                    ; frame teardown (no TS counterpart)
+   *   0x197db  retq
+   *   0x197dc  nopl  (%rax)                  ; alignment padding, not executed
+   *
+   * A single 32-bit field read: no clamp, no branch, no callee, no indirect or virtual dispatch
+   * (`depgraph.py deps` lists nothing). The clamping happens in the CALLER
+   * (`BindMultiSampleBuffer` @0x11770) — this getter hands the raw stored value back, negative
+   * values included, and the port must not "helpfully" clamp what the machine does not.
+   *
+   * `movl` into a 32-bit register is width-exact, so the value is the int32 at that offset; `| 0`
+   * models that width, and SIGNED because the consumer compares it with `cmovl`.
+   *
+   * ORACLE (executed against live FCP, not read). The symbol is exported (`T`), so it was dlsym'd
+   * from Helium in a Rosetta x86_64 process — `arch -x86_64 /usr/bin/python3`. A 0x200-byte object
+   * poisoned with 0xCD, its int32 at +0x590 set to each of 0, 1, 4, INT32_MAX, 0xFFFFFFFF and
+   * 0x80000000: live Helium returned 0, 1, 4, 2147483647, **-1** and **-2147483648** — i.e. it
+   * really is a SIGNED int32, which is the one thing a reader could get wrong here. A byte-diff of
+   * the object afterwards showed it UNMODIFIED (it is a const getter, and that is checked, not
+   * assumed). NEGATIVE CONTROL: with a different value planted at the +0x594 neighbour — the half
+   * the ctor sets to -1 — the return was still the +0x590 value, so the offset is pinned by
+   * measurement and not just by reading the displacement.
+   *
+   * @returns the int32 stored at `this + 0x590`, verbatim.
+   */
+  GetMaxMultiSamples(): number {
+    // @0x197d4  movl 0x590(%rdi),%eax : one 32-bit field read, returned unchanged.
+    return this.maxMultiSamples_at_0x590 | 0;
+  }
+
+  /**
    * `HGGPURenderer::GetMetalContext()` — @Helium 0xa560
    * (__ZN13HGGPURenderer15GetMetalContextEv).
    *
