@@ -421,6 +421,52 @@ def check_leases():
     record("leases", OK, f"{n_leases}/{pool} pool leases held, {n_slots} slot(s) active")
 
 
+# ── 5b. No PR may be leased by two worker queues at once ────────────────────────────────────────
+def check_no_double_lease():
+    """Two workers handed the SAME PR, by two queues that cannot see each other's leases.
+
+    THE INCIDENT (2026-08-11, worker 8, on #656): `rebase_claim` leased it at 13:32:36 and a peer
+    was 43 files into merging main in `~/.fct-pool/wt/3`; `rework_claim` handed the same PR to
+    another worker 66 seconds later. Both queues select it legitimately — it is CHANGES_REQUESTED
+    (rework) and CONFLICTING (rebase) — and neither consults the other's lease directory. The
+    second worker only noticed because `git checkout` refused a branch another worktree held; with
+    a different branch name both would have reconciled the same conflicts and one would have lost
+    the race at push time, throwing away a reviewer's worth of work.
+
+    It became common the same hour it was found: #643 taught `rebase_claim` to select DIRTY PRs,
+    which un-stranded four PRs and, as a side effect, made every rejected+conflicted PR
+    double-claimable. That is standing rule 8 (a fix can be the next outage) with a one-hour fuse,
+    so the guard ships with a check rather than only a code change.
+
+    Read-only, and it reads the same two directories the queues write, with the same staleness
+    window — a stale pair is not a collision, it is a dead lease.
+    """
+    stale_min = int(os.environ.get("REWORK_LEASE_MIN", 90))
+    now, both = time.time(), []
+    for kind in ("rebase", "rework"):
+        d = os.path.join(STATE, f"{kind}_leases")
+        if not os.path.isdir(d):
+            return record("double-lease", OK, f"no {kind} lease directory yet — nothing to collide")
+    a, b = (os.path.join(STATE, "rebase_leases"), os.path.join(STATE, "rework_leases"))
+
+    def fresh(d, pr):
+        held = os.path.join(d, pr, "held")
+        try:
+            return (now - os.path.getmtime(held)) / 60.0 <= stale_min
+        except OSError:
+            return False
+
+    for pr in sorted(set(os.listdir(a)) & set(os.listdir(b))):
+        if fresh(a, pr) and fresh(b, pr):
+            both.append(f"#{pr}")
+    if both:
+        return record("double-lease", FAIL,
+                      f"{len(both)} PR(s) leased by BOTH worker queues at once — two workers are "
+                      f"reconciling the same PR and one will lose the race at push time: "
+                      + ", ".join(both[:8]), "#656 double-hand-out")
+    record("double-lease", OK, "no PR is leased by both worker queues")
+
+
 # ── 6. Slot locks must carry a heartbeat ────────────────────────────────────────────────────────
 def check_heartbeats():
     """#32: the lock recorded only `<epoch> pid-agent`, written once at acquire, so the 90-minute
@@ -732,7 +778,7 @@ def check_ops_contention():
 
 
 CHECKS = [check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
-          check_leases, check_heartbeats, check_tests_can_fail, check_inventory,
+          check_leases, check_no_double_lease, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
           check_brief_flags_exist, check_rebase_actionable,
           check_ops_contention]

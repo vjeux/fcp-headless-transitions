@@ -121,7 +121,17 @@ def layer2():
     print("LAYER 2i (queue coverage — the doctor follows the queues instead of disagreeing):",
           "PASS" if ok9 else "FAIL")
     if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
+    # 2j — the cross-queue lease guard. A PR that is CHANGES_REQUESTED *and* CONFLICTING sits in
+    # BOTH worker queues, and until #643 taught rebase_claim to see DIRTY branches that combination
+    # was rare. It is not rare now: measured the same hour, two workers held the two leases on #656
+    # 66 seconds apart and both began reconciling the same 936-line PR. Offline, ~0.2s, and each
+    # case is mutation-checked inside the suite.
+    r10 = run(["bash", os.path.join(TOOLS, "test_cross_queue_lease.sh")])
+    ok10 = "TEST_CROSS_QUEUE_LEASE: PASS" in r10.stdout
+    print("LAYER 2j (cross-queue lease — one PR is never handed to two workers):",
+          "PASS" if ok10 else "FAIL")
+    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
 
 def _reach(spec, expect):
     import tempfile
