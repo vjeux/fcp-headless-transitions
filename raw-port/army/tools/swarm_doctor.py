@@ -518,8 +518,15 @@ def check_tests_can_fail():
     if "test_guards: INCOMPLETE" in out:
         return record("tests-can-fail", UNKNOWN, "guard suite could not run every case: "
                       + " ".join(l.strip() for l in out.splitlines() if "COULD NOT RUN" in l)[:200])
+    # Match ANY "<Letter>. " case line rather than a literal A..H tuple. The tuple stopped where
+    # main's suite stopped, so the day test_guards gained a case J the FAIL message named nothing:
+    # replaying this expression against a real J-shaped failure produced "guard suite FAILED: "
+    # with an empty tail, for the case that guards the only path in the swarm that merges without
+    # re-gating. Same family as the layer-letter entry filed with this change — a literal that has
+    # to be maintained in lockstep with a list living somewhere else.
     return record("tests-can-fail", FAIL, "guard suite FAILED: "
-                  + " ".join(l.strip() for l in out.splitlines() if l.strip().startswith(("A.", "B.", "C.", "D.", "E.", "F.", "G.", "H.")))[:300])
+                  + " ".join(l.strip() for l in out.splitlines()
+                             if re.match(r"^[A-Z]\. ", l.strip()))[:300])
 
 
 # ── 8. The symbol inventory must exist where agents work ────────────────────────────────────────
@@ -761,11 +768,58 @@ def check_ops_contention():
            f"convention landed")
 
 
+def check_layer_letters():
+    """No two prove_all layers may claim the same letter.
+
+    Every suite is wired into `prove_all.layer2()` by appending a hand-numbered `rN`/`okN` pair, a
+    hand-CHOSEN `LAYER 2<letter>` label, and one more `and okN` to the single `return` line. There
+    is no allocator for the letter and no way for two open PRs to see each other's choice, so two
+    authors pick the same one routinely: main's list went 2h -> 2i -> 2j in ninety minutes today,
+    and PR #650 needed THREE letters in one hour (2i taken by queue-coverage while it waited, then
+    2j taken by #670 in the eight minutes between its re-approval and its merge).
+
+    The collision is only ever discovered at rebase time — the three-dot diff is clean on both
+    sides — and the tempting resolution is the dangerous one: "take mine" on that hunk REVERTS the
+    peer's landed layer, the file still parses, the suite still passes with a layer missing, and G6
+    add-only cannot see it because it only inspects the .ts file handed to gate.sh.
+
+    So: report a duplicate label as a FAIL naming the letter. This does not remove the append point
+    (see the ops entry filed with this check for the two ways to do that); it makes the next
+    collision a line in this report instead of two reviewer rounds.
+    """
+    src = from_main("raw-port/army/verifier/prove_all.py")
+    if not src:
+        return record("layer-letters", UNKNOWN,
+                      "could not read prove_all.py from origin/main — cannot say whether two "
+                      "layers claim one letter")
+    # ONLY the lettered sub-layers (2b, 2c, ... 2z). The bare top-level labels are excluded on
+    # purpose: `LAYER 3` is legitimately printed TWICE on main — once as a heading before the
+    # per-fixture rows and once as its verdict — so counting it would make this check FAIL against
+    # a healthy main, which is the "a red that correct behaviour cannot clear" defect this file's
+    # own ops-contention check was rejected for. Measured: with a bare-label pattern, main reports
+    # `3 (x2)`. The lettered labels are the ones with no allocator and the real collisions.
+    labels = re.findall(r'print\(\s*"LAYER (\d+[a-z])\b', src)
+    if not labels:
+        # The pattern found nothing, which is either a rewrite or a broken regex — and "selects
+        # nothing" must never read as "all distinct" (test_guards case E's lesson, one file over).
+        return record("layer-letters", UNKNOWN,
+                      "found no LAYER labels in prove_all.py on origin/main — the label format "
+                      "changed, or this check's pattern is stale; it is not evidence of anything")
+    dupes = sorted({l for l in labels if labels.count(l) > 1})
+    if dupes:
+        return record("layer-letters", FAIL,
+                      "duplicate prove_all LAYER label(s): "
+                      + ", ".join(f"{d} (x{labels.count(d)})" for d in dupes)
+                      + " — two suites are claiming one letter; the second to land silently "
+                        "replaces the first")
+    record("layer-letters", OK, f"{len(labels)} layer label(s), all distinct")
+
+
 CHECKS = [check_pr_base, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
           check_brief_flags_exist, check_rebase_actionable,
-          check_ops_contention]
+          check_ops_contention, check_layer_letters]
 
 
 def main():
