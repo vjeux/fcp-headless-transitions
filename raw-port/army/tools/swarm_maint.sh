@@ -25,9 +25,26 @@ bash "$T/wt_pool.sh" gc >/dev/null 2>&1 || true
 # proc is running, reset it. Ignore gitignored runtime state (ledger/, .gate.tsbuildinfo).
 git fetch -q origin main 2>/dev/null || true
 dirty=$(git status --porcelain 2>/dev/null | grep -vE 'raw-port/army/ledger/|raw-port/\.gate\.tsbuildinfo|raw-port/army/depgraph/' | head -1)
-if [ -n "$dirty" ] && ! pgrep -f 'pr_gate.sh|pr_submit.sh|pr_land.sh|rebase_pr.sh' >/dev/null 2>&1; then
+gatebusy=$(pgrep -f 'pr_gate.sh|pr_submit.sh|pr_land.sh|rebase_pr.sh' >/dev/null 2>&1 && echo 1 || echo "")
+if [ -n "$dirty" ] && [ -z "$gatebusy" ]; then
   git reset --hard origin/main >/dev/null 2>&1 || true
   git clean -fdq -- 'raw-port/re/disasm/*.s' 2>/dev/null || true
+fi
+# (2b) CLEAN BUT BEHIND — fast-forward. THE RESET ABOVE ONLY FIRES ON A DIRTY TREE, so a tree that
+# is merely stale was never advanced at all, and the canonical checkout is normally clean: measured
+# 2026-08-11 at **85 commits behind** origin/main with a single ignored untracked file. That is not
+# cosmetic. The ledger lives in this checkout (raw-port/army/ledger/), so `mark_ported.py` must run
+# HERE — which means agents execute the 85-commit-old copy of the tool. #506 fixed mark_ported to
+# read origin/main instead of the stale tree, and the fix could not take effect, because the fix is
+# delivered THROUGH the tree it is trying to stop trusting. `--ff-only` cannot lose work: it refuses
+# rather than rewriting, and it runs only when the tree is clean and no gate process is live.
+if [ -z "$dirty" ] && [ -z "$gatebusy" ]; then
+  behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+  if [ "${behind:-0}" -gt 0 ]; then
+    git merge --ff-only origin/main >/dev/null 2>&1 \
+      && echo "swarm_maint: fast-forwarded canonical tree $behind commit(s) to origin/main" \
+      || echo "swarm_maint: canonical tree is $behind behind and NOT fast-forwardable — needs a human"
+  fi
 fi
 
 # (3) SEED — catch up symbols merged/pushed outside depclaim so `next` never re-hands them. Cheap-ish

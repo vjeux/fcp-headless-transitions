@@ -86,9 +86,14 @@ def norm(a):
 
 
 def scan_src(root=None, ref=None):
-    """Scan every raw-port/src/*.ts under `root`. Return (real_cited, stub_cited) addr-key sets.
+    """Scan every raw-port/src/*.ts of `ref`. Return (real_cited, stub_cited) addr-key sets.
 
-    `root` is the raw-port dir (the one containing src/ and army/).
+    `root` IS IGNORED and is retained only for call-site compatibility: the corpus now comes from
+    `srcsource` (which derives its own ROOT and reads `ref`, by default `origin/main`), not from a
+    directory the caller names. It is not silently ignored — passing a root that is not
+    srcsource.ROOT warns — because "reported a confident answer about a tree you did not ask about"
+    is the exact defect class this module was changed to remove, and an A/B comparison against a
+    scratch checkout is the most likely way to hit it.
 
     FILE-SCOPED rule (correct for both failure modes):
       - An addr is 'ported' iff SOME file real-cites it WITHOUT also stubbing it in that same file.
@@ -108,6 +113,9 @@ def scan_src(root=None, ref=None):
     # that had landed — and skip re-parsing a file whose CONTENT we have already scanned. The
     # citation rule below is FILE-SCOPED, so a per-file cache is exactly the right granularity: the
     # aggregate is a pure function of the per-file (real, stub) pairs.
+    if root is not None and os.path.abspath(root) != os.path.abspath(_srcsource.ROOT):
+        print(f"stubscan: WARNING — scan_src(root={root!r}) ignores `root`; reading "
+              f"{_srcsource.effective_ref(ref)} under {_srcsource.ROOT} instead.", file=sys.stderr)
     cache = _srcsource.FileCache("stubscan_cites", version=1)
     seen_keys = set()
     for f, blob_key, text in _srcsource.iter_src(ref):

@@ -25,15 +25,30 @@ SAMPLE = 60
 
 # Hand-written cases for the shapes the batch scanner could plausibly get wrong: the object-literal
 # and Proxy-handler methods that sit at depth 1 but are NOT class members (deleting one structurally
-# is the HGPrefilterUtils bug), a method after a string containing braces, and one after a comment
-# containing an unbalanced brace.
+# is the HGPrefilterUtils bug), and defs preceded by strings/comments containing braces.
+#
+# A FIXTURE ONLY TESTS WHAT SITS *BEFORE* A DEF POSITION. `_scan_brace_context` answers each
+# position as it reaches it, so anything placed after the file's only def is never scanned and the
+# fixture silently proves nothing. The original "brace in string"/"template literal" cases put the
+# brace-bearing string INSIDE the only method body — i.e. after the only probe point — so neither
+# exercised the string skip at all: deleting the string-skip branch from `_scan_brace_context`
+# outright left this test PASSING (found by mutation-testing LAYER 2d; the sampled corpus missed it
+# too, though --full catches it on StereoPanner/XMLtoFactoryBase/OZGuide). The string cases below
+# therefore put the brace BEFORE a def, and the in-body variants are kept alongside them so both
+# positions stay covered.
 FIXTURES = [
     ("plain class", "class A {\n  m() { throw new Error('x'); }\n}\n"),
     ("object literal", "const o = {\n  m() { return 1; }\n};\n"),
     ("proxy handler", "const p = new Proxy({}, {\n  get() { throw new Error('x'); }\n});\n"),
-    ("brace in string", "class A {\n  m() { const s = '}{'; return s; }\n}\n"),
+    ("brace in string, in body", "class A {\n  m() { const s = '}{'; return s; }\n}\n"),
+    ("unbalanced { in string before def", "class A {\n  static T = '{';\n  m() { return 1; }\n}\n"),
+    ("unbalanced } in string before def", "class A {\n  static T = '}';\n  m() { return 1; }\n}\n"),
+    ("brace in double-quoted string before def", 'class A {\n  static T = "{{";\n  m() { return 1; }\n}\n'),
+    ("brace in template literal before def", "class A {\n  static T = `${'x'}{`;\n  m() { return 1; }\n}\n"),
+    ("escaped quote then brace before def", "class A {\n  static T = 'it\\\\'s {';\n  m() { return 1; }\n}\n"),
     ("brace in comment", "class A {\n  // }\n  m() { return 1; }\n}\n"),
     ("brace in block comment", "class A {\n  /* } { */\n  m() { return 1; }\n}\n"),
+    ("unbalanced { in block comment before def", "class A {\n  /* { { */\n  m() { return 1; }\n}\n"),
     ("nested class in fn", "function f() {\n  class B {\n    m() { return 1; }\n  }\n}\n"),
     ("extends header", "class A extends B {\n  m() { return 1; }\n}\n"),
     ("template literal", "class A {\n  m() { return `a}{b`; }\n}\n"),
