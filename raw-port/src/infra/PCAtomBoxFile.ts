@@ -320,8 +320,82 @@ export class PCAtomBoxFile {
     // @0x24d99 return void
   }
 
+  // ===========================================================================
+  // PCAtomBoxFile::cancelWrite()  @ProCore 0x25eca
+  //   __ZN13PCAtomBoxFile11cancelWriteEv
+  // ===========================================================================
+  /**
+   * PCAtomBoxFile::cancelWrite()
+   * @0x25eca ProCore  (__ZN13PCAtomBoxFile11cancelWriteEv)
+   *
+   * FULL DISASM (raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile11cancelWriteEv.s
+   * — 7 lines, the whole function):
+   *
+   *   0x25eca  pushq %rbp                ; frame prologue
+   *   0x25ecb  movq  %rsp, %rbp
+   *   0x25ece  movl  $0x1, %eax          ; eax = 1 — the value to publish
+   *   0x25ed3  xchgl %eax, 0x7c(%rdi)    ; ATOMIC exchange of that 1 into the
+   *                                      ;   dword at this+0x7c; the previous
+   *                                      ;   value lands in %eax and is DISCARDED
+   *   0x25ed6  popq  %rbp                ; frame epilogue
+   *   0x25ed7  retq                      ; returns void
+   *
+   * Sets the file's "write cancelled" flag. `xchg` with a MEMORY operand is
+   * implicitly LOCKed on x86 — no `lock` prefix is emitted or needed — which is
+   * the tell that +0x7c is an atomic word (`std::atomic<int>` / `atomic<bool>`
+   * widened to a dword) and that this is a sequentially-consistent STORE of 1:
+   * the exchange's old value is read into %eax and dropped, and %eax is not a
+   * return value for a void function. A single-threaded port reproduces that
+   * with a plain assignment.
+   *
+   * UNCONDITIONAL — unlike the same-shaped `OZScene::dirtyLockDependencies()`
+   * @Ozone 0x578c0, which gates its `xchgb` on a byte being exactly 1, this one
+   * has no guard, no branch and no other memory access at all.
+   *
+   * The operand size is `movl`/`xchgl`, so the slot is 32 bits wide, not a
+   * single byte. Zero callees: no in-scope call, no extern, no indirect or
+   * virtual dispatch (`depgraph.py deps __ZN13PCAtomBoxFile11cancelWriteEv`
+   * lists nothing).
+   *
+   * ORACLE: verified against the live ProCore binary. The symbol is EXPORTED
+   * (`nm` type `T`), so the harness dlopens ProCore under
+   * `arch -x86_64 /usr/bin/python3` (the port is transcribed from the x86_64
+   * slice), dlsym's it, and calls it on a 0x200-byte buffer filled with fresh
+   * random noise. 1,024 cases, including pre-existing +0x7c values of 0, 1,
+   * 0xffffffff and random dwords: in 1024/1024 the dword at +0x7c came back
+   * exactly 1 and EVERY other byte of the buffer was unchanged — confirming
+   * both the offset and that the write is 4 bytes wide and nothing else moves.
+   * Negative controls diverge (measured): storing 0 instead of 1 -> 1024 of
+   * 1024 wrong; OR-ing 1 into the old value instead of overwriting -> 523
+   * wrong; a 1-byte store that leaves the upper 3 bytes of the old dword ->
+   * 523 wrong. (Those two score the same because they differ from a clean
+   * store on exactly the cases whose prior +0x7c value had bits outside bit 0.)
+   */
+  cancelWrite(): void {
+    // @0x25ece movl $0x1,%eax ; @0x25ed3 xchgl %eax,0x7c(%rdi):
+    //   atomically publish 1 into the u32 at +0x7c, discarding the old value.
+    this.writeCancelled_at_0x7c = 1;
+    // @0x25ed7 retq — returns void.
+  }
+
   /** Output stdio stream handle at struct +0x50 (FILE*); null when not open. */
   outputFile: object | null = null;
   /** Output scratch buffer at struct +0x58 (operator new[]'d); null when unset. */
   outputBuffer: object | null = null;
+
+  /**
+   * +0x7c (u32, ATOMIC) — the "write cancelled" flag.
+   *
+   * Written by `cancelWrite()` @ProCore 0x25ed3 via `xchgl %eax, 0x7c(%rdi)`
+   * with %eax = 1. The `l` suffix pins the width at 32 bits, and `xchg` against
+   * memory is implicitly LOCKed, so the slot is an atomic word and the
+   * instruction is a sequentially-consistent store whose returned old value is
+   * discarded.
+   *
+   * The reader/clearer of this slot is FRONTIER (not decoded here), so the
+   * initial 0 below is this file's undecoded-slot default rather than a claim
+   * about the real constructor. This port is single-threaded, so the atomicity
+   * has no observable counterpart beyond the plain assignment.
+   */
+  writeCancelled_at_0x7c: number = 0;
 }
