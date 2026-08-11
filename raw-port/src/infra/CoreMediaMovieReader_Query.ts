@@ -178,10 +178,21 @@ export class CoreMediaMovieReader_Query {
    * the two `retq`s at @0xdee09d actually return. So the status is consumed entirely by the
    * `setne %cl` and never reaches the caller — the caller learns of a failure as a NULL.
    *
-   * THE GUARD IS INVERTED FROM WHAT THE NAME SUGGESTS. `new…()` returns NULL when the object
-   * ALREADY has a session at +0x58, and only creates one when it does not. Read with the sibling
-   * `hasValidDecompressionSession()` @0xdecb90 (the same `cmpq $0x0, 0x58(%rdi)`), the pair says:
-   * capability testing wants a throwaway session, and it declines to make a second one.
+   * THE EARLY EXIT BELONGS TO THE OBJECT WITH **NO** SESSION — the reverse of what the name
+   * suggests, and the one thing in this function that is easy to get backwards from the prose.
+   * `je` is taken when the compared value IS ZERO, so `cmpq $0x0, 0x58(%rdi) ; je 0xdee09e` sends
+   * an object whose +0x58 is NULL straight to `xorl %eax,%eax ; retq`, and lets an object that
+   * ALREADY HOLDS a session build the frame and ask VideoToolbox for another one:
+   *
+   *   +0x58 NULL      -> returns NULL immediately, frameless, nothing written
+   *   +0x58 non-NULL  -> VTDecompressionSessionCreate(kCFAllocatorDefault, this+0x8, …)
+   *
+   * The sibling `hasValidDecompressionSession()` @0xdecb90 is the same test read the same way
+   * (`cmpq $0x0, 0x58(%rdi) ; setne %al` — non-NULL means a session is present), which is what
+   * makes the sense of this branch checkable against a second function instead of an intuition.
+   * Revisions 1 and 2 of this port had the predicate the other way round (`!== null`), which is
+   * wrong on both of the only two inputs that exist; reviewers 3 and 4 caught it on #741 by
+   * re-deriving the branch, and the oracle below is now shaped so that it fails on it too.
    *
    * THE RELEASE IS CONDITIONAL ON BOTH FACTS, which is the one place a paraphrase would drift:
    * `andb %cl, %dl` releases only when the call FAILED *and* still handed back a non-NULL session.
@@ -190,33 +201,42 @@ export class CoreMediaMovieReader_Query {
    *
    * ORACLE — `raw-port/re/oracle/CoreMediaMovieReader_Query_newMutableDecompressionSession_oracle.py`
    * under `arch -x86_64 /usr/bin/python3`, calling the LOCAL (`nm` type `t`) symbol at
-   * `_dyld_get_image_vmaddr_slide(Flexo) + 0xdee040`. What can be measured against the live
-   * binary is measured; what cannot is said plainly rather than implied:
-   *   * the early-exit path is executed on a 0xCD-poisoned receiver whose +0x58 is NULL — it
-   *     returns NULL, and the receiver is byte-identical afterwards;
+   * `_dyld_get_image_vmaddr_slide(Flexo) + 0xdee040`. Since revision 3 it drives BOTH SIDES FROM
+   * ONE CASE LIST — the two inputs the branch admits, +0x58 NULL and +0x58 non-NULL — so
+   * `live(case) vs port(case)` for the same case is the only comparison it can express:
+   *   * case "no session" (+0x58 NULL) is MEASURED on both sides, value for value: the live
+   *     function returns NULL on a 0xCD-poisoned receiver that is byte-identical afterwards, and
+   *     the port returns null. This is the case that fails on an inverted guard;
+   *   * case "has session" (+0x58 non-NULL) is executed LIVE in a FORKED CHILD (it calls into
+   *     VideoToolbox and a harness must not risk the parent): with the format description NULL,
+   *     VideoToolbox refuses, the out-parameter stays NULL and the function returns NULL — the
+   *     `andb` fall-through, run rather than reasoned about. The port CANNOT be compared to that
+   *     value, because it raises at the out-of-scope boundary by policy, so the harness reports
+   *     the comparison as DECLARED NOT COMPARABLE (never as agreement) and requires instead that
+   *     the port throws citing @0xdee073;
    *   * FIELD-OFFSET CONTROL: the sibling `hasValidDecompressionSession()` @0xdecb90 is called on
    *     the SAME arenas through an identical CFUNCTYPE and answers 0 / 1 in step with +0x58, so
    *     the offset this port cites is confirmed by a second function rather than by reading;
-   *   * the create path IS entered live, in a FORKED CHILD (it calls into VideoToolbox, and a
-   *     harness must not risk the parent), with the format description NULL: VideoToolbox fails,
-   *     leaves the out-parameter NULL, and the function returns NULL — the `andb` fall-through
-   *     branch, executed;
+   *   * MUTANT CONTROL: a copy of this file with the guard flipped back to `!== null` is run
+   *     through the identical case list, and the oracle FAILS unless that mutant disagrees with
+   *     the live function. Revision 2's harness reported nine green checks over exactly that
+   *     defect, because its two sides were built from separately constructed inputs; this control
+   *     is what makes the new shape's claim checkable instead of asserted;
    *   * the branch that releases a leaked session cannot be reached without a real decoder, and
    *     is NOT claimed as verified. It is transcribed from the instructions and left to a
    *     reviewer's re-derivation. Since revision 2 that branch RETURNS NULL, as the machine does,
    *     rather than raising: `CFRelease_stub` is a no-op per the lifetime/ownership ruling, so the
    *     only thing standing between a caller and that path is the create stub above it.
-   * The TypeScript side raises at the VideoToolbox boundary by policy, so a value-for-value
-   * differential exists only for the early-exit path; the oracle asserts exactly that, and that
-   * the port throws (rather than inventing a session) on the other one.
    *
    * @returns the newly created `VTDecompressionSessionRef`, or `null` — either because the object
-   *          already had a session, or because the create failed.
+   *          had NO session at +0x58 (the frameless early exit @0xdee09e), or because the create
+   *          failed, in which case a session it nevertheless produced is released first.
    */
   newMutableDecompressionSessionForCapabilityTesting(): VTDecompressionSessionRef | null {
-    // @0xdee040..0xdee045  cmpq $0x0, 0x58(%rdi) ; je 0xdee09e
-    if (this.sessionAt0x58 !== null) {
-      // @0xdee09e  xorl %eax, %eax ; @0xdee09f retq — no frame is built on this path.
+    // @0xdee040..0xdee045  cmpq $0x0, 0x58(%rdi) ; je 0xdee09e — `je` is taken when +0x58 IS
+    // zero, so the early exit belongs to the object with NO session (see the note above).
+    if (this.sessionAt0x58 === null) {
+      // @0xdee09e  xorl %eax, %eax ; @0xdee0a0 retq — no frame is built on this path.
       return null;
     }
     // @0xdee04f  movq $0x0, -0x8(%rbp) — the out-parameter, zeroed before the call.
