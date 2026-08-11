@@ -16,6 +16,31 @@ SLUG="vjeux/fcp-headless-transitions"; CANON="$HOME/random/final-cut-pro-transit
 # from the worker app that authored the PR, which is what makes a real review verdict possible.
 GHAPP="$CANON/raw-port/army/tools/ghapp"
 ghr () { bash "$GHAPP/gh_as.sh" reviewer "$@"; }
+# carry_tree_identity <approved-sha> <head-sha>
+# Prints the two tree hashes and exits 0 only when the head's tree is EXACTLY what merging the
+# approved content into current origin/main produces. A missing object, an unreadable commit or a
+# failed merge-tree all exit non-zero — this must never fail open, because failing open means
+# merging on an approval nobody's evidence describes. Locked by
+# raw-port/army/tools/test_pr_land_carry.sh, which drives THIS function.
+carry_tree_identity () {
+  local approved="$1" head="$2" t1 t2
+  git cat-file -e "${approved}^{commit}" 2>/dev/null || {
+    echo "  carry: the approved commit ${approved:0:8} is not readable here — NOT carrying"; return 1; }
+  git cat-file -e "${head}^{commit}" 2>/dev/null || {
+    echo "  carry: the head commit ${head:0:8} is not readable here — NOT carrying"; return 1; }
+  # TREE IDENTITY, not a diff hash. `git diff origin/main...<sha>` computes each side against its
+  # OWN merge base, so when main advances INSIDE THE SAME FILE the context differs and two identical
+  # contributions hash differently — the normal case for OPS_LOG.md, which every agent appends to.
+  # And a `git diff` that FAILS prints nothing, whose shasum is the stable da39a3ee… of empty input,
+  # so two failures compare EQUAL and the carry fires on content nobody read. merge-tree prints
+  # nothing and exits non-zero instead. (Both measured by reviewer 2 on #603.)
+  t1=$(git merge-tree --write-tree origin/main "$approved" 2>/dev/null || true)
+  t2=$(git rev-parse "${head}^{tree}" 2>/dev/null || true)
+  echo "    merge-tree(origin/main, ${approved:0:8}) = ${t1:0:12}"
+  echo "    tree(${head:0:8})                        = ${t2:0:12}"
+  [ -n "$t1" ] && [ -n "$t2" ] && [ "$t1" = "$t2" ]
+}
+
 for round in 1 2 3 4 5 6; do
   st=$(ghr pr view "$PR" --repo "$SLUG" --json state --jq .state 2>/dev/null)
   [ "$st" = "MERGED" ] && { echo "pr_land: PR #$PR already MERGED"; exit 0; }
@@ -23,14 +48,23 @@ for round in 1 2 3 4 5 6; do
   ms=$(ghr pr view "$PR" --repo "$SLUG" --json mergeStateStatus --jq .mergeStateStatus 2>/dev/null)
   echo "pr_land round $round: state=$st mergeState=$ms"
   if [ "$ms" = "BEHIND" ]; then
-    # REMEMBER WHAT WAS APPROVED BEFORE WE MOVE THE HEAD.
-    # This loop's own update-branch invalidates the approval it is about to require: the head moves,
-    # the reviewer's APPROVE stays pinned to the old SHA, and the check below then refuses with "no
-    # APPROVED review on the current head". The tool creates the condition it rejects, so an APPROVED
-    # PR that happens to be BEHIND can NEVER land without a human re-approving a merge commit they
-    # did not write. Four approved PRs (#594, #568, #554, #523) were deadlocked exactly this way.
-    # We record the approved SHA here; after the update, the check below carries the approval forward
-    # ONLY IF the PR's own contribution is byte-identical (see CARRY note there).
+    # REMEMBER WHAT WAS APPROVED BEFORE WE MOVE THE HEAD — as INSURANCE, not as the mechanism.
+    #
+    # THE PREMISE THIS BLOCK WAS FIRST WRITTEN ON IS FALSE, and it is worth writing down because it
+    # is the obvious thing to assume: GitHub does NOT leave the approval pinned to the old SHA when
+    # WE call update-branch. It re-points the review record onto the merge commit it creates.
+    # Measured on two PRs that landed with the UNPATCHED tool (reviewer 2, corroborated on #609 by
+    # its author): review id 4909626168, submitted 18:42:54Z against c72d57ed, now reports
+    # commit_id 4a6c06ef — the "Merge branch 'main' into port/…" commit update-branch made at
+    # 18:43:05Z, eleven seconds later. The approval check below therefore PASSED and the PR merged.
+    #
+    # What GitHub does NOT carry is an approval across a push the AUTHOR made — a rebase force-push
+    # re-points nothing, which is correct and is the guard doing its job on a head nobody reviewed.
+    # (#594's deadlock was that case, not this one.)
+    #
+    # So this block is a belt for an undocumented server-side behaviour that could change, and it is
+    # deliberately narrower than GitHub's own rule: it carries only when the resulting TREE is
+    # exactly what merging the approved content into current main produces.
     APPROVED_BEFORE=$(ghr api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null \
       | python3 -c "
 import json,sys
@@ -114,14 +148,18 @@ print('yes' if any(r.get('state')=='APPROVED' and r.get('commit_id')=='$HEAD_SHA
     # real re-review, and we refuse as before. This is deliberately narrow: it carries an approval
     # over a merge WE performed, and never over a push the author made.
     if [ -n "${APPROVED_BEFORE:-}" ] && [ "$APPROVED_BEFORE" != "$HEAD_SHA" ]; then
-      git fetch -q origin main "+refs/pull/$PR/head:refs/prland/$PR" >/dev/null 2>&1 || true
-      git fetch -q origin "$APPROVED_BEFORE" >/dev/null 2>&1 || true
-      A=$(git diff "origin/main...$APPROVED_BEFORE" 2>/dev/null | shasum | cut -d" " -f1)
-      B=$(git diff "origin/main...$HEAD_SHA" 2>/dev/null | shasum | cut -d" " -f1)
-      if [ -n "$A" ] && [ "$A" = "$B" ]; then
+      # The fetches are REPORTED, not swallowed: if the objects are not here the carry must not run.
+      git fetch -q origin main "+refs/pull/$PR/head:refs/prland/$PR" >/dev/null 2>&1 \
+        || echo "pr_land: could not fetch the PR head — the carry will refuse"
+      git fetch -q origin "$APPROVED_BEFORE" >/dev/null 2>&1 \
+        || echo "pr_land: could not fetch the approved commit — the carry will refuse"
+      if carry_tree_identity "$APPROVED_BEFORE" "$HEAD_SHA"; then
         echo "pr_land: carrying the approval on ${APPROVED_BEFORE:0:8} forward to ${HEAD_SHA:0:8}"
-        echo "  (our own update-branch moved the head; the PR's contribution vs main is byte-identical)"
+        echo "  our own update-branch moved the head, and the head's tree is exactly what merging"
+        echo "  the approved content into current main produces (hashes above)."
         APPROVED=1
+      else
+        echo "pr_land: NOT carrying the approval — see above."
       fi
     fi
     if [ "${APPROVED:-0}" = "1" ]; then :; else
