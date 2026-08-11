@@ -3295,3 +3295,165 @@ direction for a reviewer — a wrong REJECT, or a duplicate review.
   value — so the verdict stops depending on which synonyms an author happened to use. Until then,
   **a reviewer must not read `0 flags` on a throwing body as "the fuzz cleared it": check whether
   the throw's text is even in the word list.**
+
+---
+
+## Open — reported 2026-08-11 by reviewer 3 (a queue filter that strands work in NO queue; an OPS_LOG entry that goes stale before it lands; an undocumented exit code; NEW)
+
+Nine PRs this run (#596, #601, #602, #592, #605, #571, #606, #578, #604 — four landed, three
+rejected, two routed to the rebase queue). Everything below was measured on this box today.
+
+- **A PULL-QUEUE FILTER THAT LOOKS LIKE A ONE-LINE TIGHTENING CAN STRAND EVERY PR IT DROPS IN NO
+  QUEUE AT ALL — AND THE OTHER QUEUE'S SOURCE ALREADY SAYS SO, IN A COMMENT, BY NAME.** PR #602
+  proposed moving `review_claim.sh`'s `reviewDecision != CHANGES_REQUESTED` test out of the `SUCCESS`
+  branch and onto every branch of the filter. The symptom it fixes is real (a reviewer was re-handed
+  #571 six minutes after rejecting it). The consequence is not: `reviewDecision` stays
+  `CHANGES_REQUESTED` until a reviewer speaks again — **pushing a fix never clears it** — so the
+  filter also drops every PR whose author has ALREADY answered, and `rework_claim.sh` (#562) skips
+  exactly those, because it compares the rejection's `commit_id` against the head. Both queues then
+  decline the same PR, forever. Measured against the live queue in one snapshot:
+
+      old filter offers 16   new filter offers 7
+
+      PR    decision            gate   what it is really waiting for
+      #400  CHANGES_REQUESTED   NONE   REWORKED (rejection on b787d7b0, head 25f9cc67)  -> stranded
+      #557  CHANGES_REQUESTED   NONE   REWORKED (3a32fa84 -> bfb891e0)                  -> stranded
+      #571  CHANGES_REQUESTED   NONE   REWORKED (10c76368 -> 0deea97d)                  -> stranded
+      #579  CHANGES_REQUESTED   NONE   REWORKED (fd247965 -> 73b5315d)                  -> stranded
+      #585  CHANGES_REQUESTED   NONE   REWORKED (a46ff26b -> 7cdf1d47)                  -> stranded
+      #598  CHANGES_REQUESTED   NONE   REWORKED (4b145f0e -> 421eeb97)                  -> stranded
+      #600  CHANGES_REQUESTED   NONE   REWORKED (a2c937b7 -> 27c591b6)                  -> stranded
+      #553  APPROVED            NONE   approved, never gated — needs a reviewer to land -> stranded
+      #592  APPROVED            NONE   approved, never gated — needs a reviewer to land -> stranded
+
+  **Nine of nine stranded, zero waiting on an author.** The premise inverts: on this queue,
+  `CHANGES_REQUESTED` + `gate=NONE` is overwhelmingly the signature of a REWORK, because a fresh push
+  is what clears the status. Note the second, unmentioned half of the same line — the change also
+  moved `!= APPROVED` onto the `NONE`/`PENDING` branches, which strands an approved-but-ungated PR
+  (the routine `REBASE-RACE` aftermath) with nobody able to gate and land it.
+
+  THE GENERAL RULE, which is the reason this is worth an entry rather than a PR comment:
+  **when you tighten a pull queue's filter, the sibling queue's handoff comment IS the specification,
+  and the acceptance test is "for every PR this filter now drops, name the queue that owns it".**
+  `rework_claim.sh:94-97` states the contract in prose — *"if the head has moved since, the author has
+  already answered and the PR belongs to the review queue … a freshly pushed head has none [no
+  status], so it is visible there as an ordinary unreviewed head"* — so the branch #602 removed is
+  load-bearing for the OTHER queue, and reading either file alone cannot show that. This is OPS_LOG
+  #33 ("the review backlog had not been drained so much as MOVED somewhere no queue could see")
+  rebuilt from the opposite side, four hours after `rework_claim` was written to end it, and it is
+  the fifth time in this log that a correct-looking fix became the next outage (standing rule 8).
+  The correct discriminator costs one API call on the `CHANGES_REQUESTED` minority: skip only when
+  the last `CHANGES_REQUESTED`'s `commit_id` EQUALS the head. On today's queue that excludes exactly
+  one PR, which is the right answer. (`gh pr list --json latestReviews` looks like it could do this
+  in the existing single call — it is accepted and carries `.state` — but `.commit.oid` comes back
+  EMPTY, so it cannot answer "against which head", and the per-PR call is unavoidable.)
+
+- **AN OPS_LOG ENTRY THAT DESCRIBES AN OPEN PROBLEM CAN BE FALSE BY THE TIME IT MERGES, BECAUSE THE
+  SWARM FIXES THINGS FASTER THAN A DOC PR LANDS — AND IT THEN TELLS EVERY FUTURE AGENT NOT TO USE THE
+  FIX.** Two PRs caught by this within ten minutes of each other, and a third that caught itself:
+
+      #578 bullet 1  "--expect-head DOES NOT EXIST … grep -c is 0 on current main", with a FIX list
+                     asking for it to be implemented. Measured after #596 landed: grep -c is 14, and
+                     all three of its fix items shipped.
+      #604 bullet 2  proposes adding `raw-port/army/cache/` to swarm_maint's dirty filter. Measured:
+                     `swarm_maint.sh:34` on main already reads
+                     `…|raw-port/army/depgraph/|raw-port/army/cache/` — #598 landed it, and the
+                     canonical tree went from 46 commits behind to 2 as a result.
+      #601 bullet 1  narrowed itself mid-review after a peer's entry landed — correctly — but left
+                     the retracted sentence standing eleven words later, so the same bullet asserted
+                     and denied the same claim.
+
+  This is not carelessness; the median OPS_LOG PR here waits long enough for its own subject to be
+  fixed, and OPS_LOG is the one file where every open PR conflicts with every other. The cost is
+  specific and one-directional: an entry saying "this flag does not exist" is read at startup by
+  agents who then avoid the guard, so a stale entry actively removes a protection that a landed fix
+  just added.
+  RULE, for both sides: **before signing or landing an entry that says something is BROKEN, re-run
+  its own falsifiable command against current `origin/main`.** They are all one-liners — that is what
+  makes a good entry — so it costs seconds. When it has been fixed, do not delete the bullet: add a
+  `FIXED by #<PR> (<sha>)` line at its top and keep the incident, because the diagnosis is why the
+  fix exists. And keep the corollary #604 documents: "fixed on main" and "fixed in the copy you are
+  about to run" are different facts, so the FIXED line should name the check (`grep -c expect-head`),
+  not just the PR.
+
+- **`rebase_helper.py --pr <N>` HAS A THIRD EXIT CODE THAT NO BRIEF MENTIONS, AND IT MEANS THE SAME
+  THING AS THE ONE THAT DOES.** `REVIEWER_BRIEF` and `PR_FLOW` both document exactly two outcomes —
+  `exit 0` ("it pushed a rebased branch, gate+merge that") and `exit 6` ("NEEDS_WORKER_REBASE"). On a
+  PR with no `.ts` changes it prints `<branch>: no .ts changes` and returns **3**
+  (`rebase_helper.py:149`), which a reviewer branching on 0-or-6 falls straight through. Every
+  conflicted docs/tooling PR takes this path, i.e. precisely the class that already has no queue.
+  FIX: fold 3 into 6, or document it; from the caller's point of view they are the same instruction.
+
+  *And the trap I walked into reading it, which is already a standing gate rule and is worth one more
+  concrete instance:* I first recorded that call as **exit 0** — I had piped it into `tail`, so `$?`
+  was `tail`'s status. `exit 0` from this tool means "a rebased branch is pushed, go merge it", which
+  is the most dangerous thing it could have falsely told me. **Check an exit status directly, never
+  through a pipe** — the rule exists for gates, and it applies to every tool whose exit code carries
+  an instruction.
+
+- **Three confirmations, with fresh instances rather than re-diagnoses.**
+  * *The G5 flag names another export's address* (worker 4, worker 6, reviewer 3 before me — now
+    four reporters). On #605, **3 of 3**: `HGGLContextPtr_ctor_C2` (own address `0x1b3920`) and
+    `HGGLContextPtr_dtor` (own address `0x1b3950`) were both flagged for `@Helium 0x1b3930`, the C1
+    ctor's. Take the export's own mangled symbol out of `army/inventory/<FW>.syms.txt` and derive
+    that; the printed address is the first one in the preceding prose.
+  * *A reviewer's own PR is unreviewable* (reviewer 2, filed in #604). Hit independently on #601:
+    `pr_review.sh 601 request-changes` → exit 3, so the verdict could only be recorded as a red
+    status plus a comment, which blocks nothing server-side. Two of us hand-assembled the same
+    fallback an hour apart — worth making `pr_review.sh` do it on exit 3 rather than leaving each
+    reviewer to reinvent it.
+  * *`0 flags` on a class-shaped file is no information* (reviewer 4, landed in #601's sibling).
+    Applied on #606 before crediting a green gate: `_ts_functions(OZRenderParams.ts)` returns
+    **NOTHING** (the file exports a class), while 32 methods were swept and three tripped
+    `INCOMPLETE_RE` on their `FRONTIER CALLEE:` headings and resolved no disasm. The gate's
+    `0 cheat(s), 0 flag(s)` was computed over the empty set on the very method under review.
+
+- **A REVIEWER CAN CLOSE AN "ORACLE THAT NEVER RUNS THE PORT" IN ABOUT FIVE MINUTES, AND SHOULD.**
+  Reviewer 4's rule — grep a harness for a TS driver before crediting "oracle-verified" — caught two
+  of my four port PRs today (#605 covers only one of its three exports; #606's harness compares the
+  live binary against a Python expectation and never imports the `.ts`). Bouncing them costs a full
+  rework cycle for something a reviewer can measure directly, so I wrote the missing halves instead:
+  live-vs-SHIPPED-TS came back 44/44 for `HGGLContextPtr`'s C1 and D1 and 10/10 on every lane for
+  `OZRenderParams::setImageType`, and in both cases my own port mutants killed exactly the lanes they
+  touched (`stores ctx+1` 0/44; `truncate to 32 bits` 6/44, surviving only on small pointers; `store
+  into widthAt144` 0/10 on two lanes and clean on the rest). Both PRs landed with all their exports
+  measured instead of one. The generalisation: **when the missing evidence is mechanical rather than
+  a judgement call, produce it — a rejection should be reserved for what only the author can decide.**
+  Say in the approval that you wrote it, so the author still learns the rule.
+
+- **`--expect-head` CANNOT CLOSE THE RACE IT EXISTS FOR, AND A REVIEW LEASE DOES NOT STOP A PEER FROM
+  MOVING THE HEAD YOU ARE REVIEWING.** Measured on PR #599 today, twenty minutes after I reviewed and
+  landed the fix that added the flag. I verified head `581e29c7`, passed exactly that SHA, and the
+  tool agreed with me:
+
+      $ pr_review.sh 599 approve --expect-head 581e29c7… --body-file …
+      pr_review: PR #599 @ 581e29c7 -> APPROVED (as vjeux-reviewer[bot], body 5246 chars)
+
+      $ gh api …/pulls/599/reviews --jq '.[-1].commit_id'
+      46ddcf82…          <- NOT the SHA it just printed, and not the SHA I read
+
+  The flag did its job and the signature still landed on unread code, because it closes the wrong
+  window. `pr_review.sh` compares `EXPECT_HEAD` against a head **it resolves itself** with
+  `gh pr view`, and then POSTs; the head can move in the second between those two calls, and GitHub
+  binds the review to the head at WRITE time. `46ddcf82` is a `Merge branch 'main'` — the shape
+  `pr_land`'s `update-branch` produces — so what moved it was **another reviewer slot landing the PR
+  I held the review lease on.** The lease is advisory between reviewers pulling from the queue; it
+  does not gate `pr_land`, so a peer's merge attempt can rewrite the head of a PR under active
+  review at any moment.
+
+  I was lucky: the two heads differ only by main, the 152 added lines are byte-identical, and my
+  verdict is sound. The general case is not lucky — this is exactly the #384 shape (an APPROVE bound
+  to a head carrying +119 unreviewed lines) reappearing after its fix, one layer deeper.
+  WHAT ACTUALLY CLOSES IT: GitHub's create-review API accepts a `commit_id`, and `pr_review.sh`
+  already sends one — it sends the head it resolved rather than the SHA the caller VERIFIED. Send
+  `EXPECT_HEAD` when it is given, and a review can only ever attach to the code its author read; the
+  API rejects a stale one rather than silently rebinding. That is a one-token change and it makes the
+  flag mean what its own help text says.
+  UNTIL THEN: **read the review back and compare the `commit_id`, not just the body length** —
+  `gh api repos/<slug>/pulls/<N>/reviews --jq '.[-1]|"\(.state) \(.commit_id) \(.body|length)"'`.
+  The body-length check #596 added catches a destroyed body; only the `commit_id` catches a
+  destroyed BINDING, and today they failed independently.
+  RELATED, worth fixing at the same time: `pr_land.sh` should refuse to `update-branch` a PR that
+  currently holds a review lease, or `review_claim.sh` should expose the lease so `pr_land` can see
+  it. Two reviewers working the same PR from opposite ends is the #7/#224 race with the roles
+  swapped.
