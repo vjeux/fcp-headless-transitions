@@ -31,12 +31,23 @@ Usage: rebase_helper.py <Class>
            (rebase_pr.sh <PR#>, pulled from the rebase queue via rebase_claim.sh). NOT a failure — an escalation.
   exit 1 = usage / setup error
 """
-import sys, os, re, subprocess, tempfile, shutil
+import sys, os, re, json, subprocess, tempfile, shutil
 
-MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]*[A-Za-z0-9_$]')   # may contain '.' (.cold/.eh/.1)
-                                                          # but may NOT END on one: a token
-                                                          # like `...D0Ev.` is a mangled name
-                                                          # followed by a full stop in prose.
+SLUG = os.environ.get("FCT_REPO", "vjeux/fcp-headless-transitions")
+
+# NO `.` in the class. It was there so a `Fw.__ZN…` disasm key would match, but the match starts at
+# `__Z`, so the prefix never needed it — while the TRAILING `.` swallowed the extension of a cited
+# FILENAME. A header comment naming `re/disasm/Helium.__ZN….s` therefore produced a phantom symbol
+# `__ZN….s` that no other side had, and rebase_helper BAILed exit 4 on a provably disjoint union
+# (#392: branch added isExternal, main added isBuiltin). A false BAIL downgrades a reviewer-safe
+# union into a worker rebase that the attempt cap can discard.
+# MERGE NOTE (rebase of #514 onto main): main and this branch fixed the SAME trailing-dot bug two
+# different ways. Main allowed internal dots but forbade ENDING on one — which still matches
+# `__ZN…Ev.s`, because `.s` ends in a letter, so it did not actually stop the phantom. This
+# branch's form stops at the first dot, which does stop it (and is what test_rebase_tools locks),
+# but also drops the genuine `.cold`/`.eh` suffixes main was protecting. Keeping BOTH intents: the
+# base symbol, plus ONLY the known compiler suffixes, and never a file extension.
+MANGLED = re.compile(r'__Z[A-Za-z0-9_$]+(?:\.(?:cold|eh|stub|part|constprop)(?:\.\d+)?)*')
 EXPORT  = re.compile(r'^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var|interface|type|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)', re.M)
 # libc++ / STL boundary externs (std::__1::…) are SHARED references, not port symbols. Two branches
 # that both use call_once BOTH cite __ZNSt3__1…__call_once[_proxy] — that is NOT an overlapping edit,
@@ -59,13 +70,72 @@ def syms(text):
     if text is None: return set()
     return set(MANGLED.findall(text)) | set(EXPORT.findall(text))
 
+def _open_pr_branches(cls, repo):
+    """Open-PR head branches that belong to <Class>: `port/<Class>`, `port/<Class>__slotN`, …"""
+    r = run(["gh","pr","list","--repo",SLUG,"--state","open","--limit","200",
+             "--json","number,headRefName"], cwd=repo)
+    try:
+        prs = json.loads(r.stdout or "[]")
+    except Exception:
+        return []
+    pat = re.compile(rf'^port/{re.escape(cls)}(?:__slot\d+|_[A-Za-z0-9]+)?$')
+    return [(p["number"], p["headRefName"]) for p in prs if pat.match(p.get("headRefName",""))]
+
+
+def resolve_branch(cls, repo, pr=None):
+    """(branch, error) — WHICH branch this rebase is about.
+
+    A class no longer has one branch. OPS_LOG #1's fix (#240) made `wt_pool acquire` fall back to
+    `port/<Class>__slot<N>` under contention, so HGRenderJob had SIX open PRs at once. This function
+    used to be the line `BR = f"origin/port/{cls}"`, which meant a reviewer holding #390
+    (`__slot9`) ran the helper and got exit 0 plus "ready for reviewer" for **#396's content** —
+    +61 lines of GetType instead of their +284. Two harms, both silent: the reviewer merges another
+    agent's unverified port under their own APPROVE (the gate cannot catch it, because the wrong
+    content is itself gate-clean), and the PR they actually hold is never rebased. Reported
+    independently by three agents in one morning (#400, #403, and reviewer 8's exit report).
+
+    So: prefer an explicit PR number, and when given only a class name REFUSE rather than guess if
+    more than one open PR could be meant.
+    """
+    if pr:
+        r = run(["gh","pr","view",str(pr),"--repo",SLUG,"--json","headRefName","--jq",".headRefName"], cwd=repo)
+        br = r.stdout.strip()
+        if not br:
+            return None, f"cannot resolve head branch for PR #{pr}"
+        return f"origin/{br}", None
+    cands = _open_pr_branches(cls, repo)
+    if len(cands) > 1:
+        listing = ", ".join(f"#{n} {b}" for n, b in sorted(cands))
+        return None, ("AMBIGUOUS: %d open PRs match class %s (%s). Re-run as "
+                      "`rebase_helper.py --pr <PR#>` — guessing here has merged one agent's work "
+                      "under another's review." % (len(cands), cls, listing))
+    if len(cands) == 1:
+        return f"origin/{cands[0][1]}", None
+    return f"origin/port/{cls}", None   # no open PR matched: fall back to the historic name
+
+
 def main(argv):
-    if not argv:
-        print("usage: rebase_helper.py <Class>", file=sys.stderr); return 1
-    cls = argv[0]
+    pr = None
+    args = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--pr" and i+1 < len(argv):
+            pr = argv[i+1]; i += 2; continue
+        args.append(argv[i]); i += 1
+    if not args and not pr:
+        print("usage: rebase_helper.py <Class> | rebase_helper.py --pr <PR#>", file=sys.stderr); return 1
     REPO = repo_root()
-    BR = f"origin/port/{cls}"
     run(["git","fetch","-q","origin"], cwd=REPO)
+    cls = args[0] if args else None
+    if pr and not cls:
+        r = run(["gh","pr","view",str(pr),"--repo",SLUG,"--json","headRefName","--jq",".headRefName"], cwd=REPO)
+        head = r.stdout.strip()
+        cls = re.sub(r'^port/', '', head)
+        cls = re.sub(r'(__slot\d+|_rebased)$', '', cls)
+    BR, err = resolve_branch(cls, REPO, pr)
+    if err:
+        print(f"BAIL: {err}", file=sys.stderr); return 4
+    print(f"rebase_helper: class={cls} branch={BR}" + (f" (from PR #{pr})" if pr else ""), file=sys.stderr)
     if run(["git","rev-parse","--verify","-q",BR], cwd=REPO).returncode != 0:
         print(f"no branch {BR}", file=sys.stderr); return 1
     # already merged?
@@ -165,9 +235,36 @@ def main(argv):
     if add.returncode != 0:
         print(f"BAIL: worktree add failed: {add.stderr[:200]}", file=sys.stderr); return 1
     try:
+        # CARRY EVERY OTHER FILE THE BRANCH TOUCHED. The rebased branch starts from origin/main and
+        # then writes only the union-merged `raw-port/src/**.ts` — so ANY other file the branch added
+        # was silently dropped, and the force-push back onto the PR head made the loss permanent. On
+        # #449 that destroyed an oracle harness which had to be recovered from a commit the
+        # force-push had already orphaned. Nothing catches it: the gate only inspects the .ts files
+        # handed to it, and the deleted file is not part of the port.
+        # These files are outside the union by construction (the union is src .ts only), so taking
+        # the branch's version is exactly "rebase onto main" for them. A file the branch DELETED is
+        # left alone deliberately: this tool re-applies work, it does not replay removals.
+        carried = []
+        ns = run(["git","diff","--name-status",f"{mb}..{BR}"], cwd=REPO)
+        for line in ns.stdout.splitlines():
+            parts = line.split("\t")
+            if len(parts) < 2:
+                continue
+            st, path = parts[0], parts[-1]
+            if path in merged or st.startswith("D"):
+                continue
+            co = run(["git","checkout",BR,"--",path], cwd=WT)
+            if co.returncode == 0:
+                carried.append(path)
+            else:
+                print(f"BAIL: could not carry {path} from {BR}: {co.stderr[:160]}", file=sys.stderr)
+                return 5
         for f, text in merged.items():
             fp = os.path.join(WT, f); os.makedirs(os.path.dirname(fp), exist_ok=True)
             open(fp,"w").write(text)
+        if carried:
+            print(f"rebase_helper: carried {len(carried)} non-union file(s) from the branch: "
+                  f"{', '.join(carried[:6])}{' …' if len(carried) > 6 else ''}", file=sys.stderr)
         # symlink heavy deps so the gate can run
         for lnk in ["engine/node_modules","raw-port/node_modules","venv"]:
             src=os.path.join(REPO,lnk); dst=os.path.join(WT,lnk)
@@ -176,8 +273,25 @@ def main(argv):
                     os.makedirs(os.path.dirname(dst), exist_ok=True); os.symlink(src,dst)
             except Exception: pass
         # regression_check + dup_check on the RESULT (staged as a branch)
-        run(["git","add"]+list(merged.keys()), cwd=WT)
+        run(["git","add","-A"], cwd=WT)
         run(["git","commit","-q","--no-verify","-m",f"rebase(port/{cls}): union-merge onto origin/main (net-new methods only)"], cwd=WT)
+        # POST-CONDITION: every path the branch added or modified must still be present, with the
+        # branch's content for the carried ones. Asserted rather than trusted — a silent file drop
+        # is the failure this whole block exists to prevent, so it must not be able to return 0.
+        lost = []
+        for line in ns.stdout.splitlines():
+            parts = line.split("\t")
+            if len(parts) < 2:
+                continue
+            st, path = parts[0], parts[-1]
+            if st.startswith("D"):
+                continue
+            if not os.path.exists(os.path.join(WT, path)):
+                lost.append(path)
+        if lost:
+            print(f"BAIL: rebase result is MISSING {len(lost)} file(s) the branch has: {lost[:6]}",
+                  file=sys.stderr)
+            return 5
         # gate
         gp = run(["bash","raw-port/army/gate/gate.sh"]+list(merged.keys()), cwd=WT, timeout=300)
         if "GATE: PASS" not in (gp.stdout+gp.stderr):

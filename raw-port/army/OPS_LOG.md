@@ -1593,6 +1593,76 @@ cheap to defuse once named.
   the boundary case a good corpus must include. Expect it, rather than going
   back to re-read the disassembly of a correct port.
 
+## Fixed 2026-08-11 — six ways the swarm's own tooling lost work or evidence
+
+Filed and fixed together because they are one failure class: **a tool that mis-handles an agent's
+finished work, and produces output that is itself gate-clean, so nothing downstream can catch it.**
+Each was reported independently by an agent that hit it live.
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 25 | `rebase_pr.sh` / `rebase_helper.py` **silently deleted a branch's new files**; on #449 an oracle harness was destroyed and had to be recovered from a commit the force-push had already orphaned | The union rebase starts from `origin/main` and writes back ONLY the union-merged `raw-port/src/**.ts`. Anything else the branch added — an oracle, a doc, a tool — was never carried, and the force-push made the loss permanent. Invisible to the gate, which only inspects the `.ts` files handed to it | Carry every non-union path the branch added/modified (`git checkout <BR> -- <path>`), then ASSERT every one of them exists before committing; `rebase_pr.sh` additionally diffs the file LIST against the PR's branch and refuses the force-push if anything is missing |
+| 26 | `rebase_helper.py <Class>` returned exit 0 and "ready for reviewer" for **a different PR's content** (a reviewer holding #390 was handed #396's) | `BR = f"origin/port/{cls}"` — but #240's contention fix created `port/<Class>__slot<N>`, and HGRenderJob had six open PRs. The wrong content is gate-clean, so the reviewer merges an unverified port under their own APPROVE while their real PR is never rebased | `--pr <N>` resolves the head branch from the PR; a class name with more than one matching open PR now REFUSES (exit 4) instead of guessing. `rebase_pr.sh` passes `--pr` |
+| 27 | A provably disjoint union **false-BAILed** (#392: branch adds `isExternal`, main adds `isBuiltin`) | `MANGLED` included `.`, so a `re/disasm/Fw.__ZN….s` FILENAME cited in a comment produced a phantom symbol `__ZN….s`. A false BAIL downgrades a reviewer-safe union into a worker rebase the attempt cap can discard | Drop `.` from the character class — the match starts at `__Z`, so the framework prefix never needed it |
+| 28 | The rebase attempt cap **closed green, APPROVED, oracle-verified PRs** (#387 at 3/3 while approved; #390 closed carrying a 1400/1400 differential; #389's symbol left claimed-forever) | The counter was written on every successful LEASE — before the rebase ran, regardless of outcome — and cleared only by the branch that closes the PR. So it counted "times this PR needed a rebase" while the cap asserted "times rebasing FAILED". With K PRs on one class the cap is consumed in ~K sibling merges however well the rebases work: it retires the losers of a race, fastest when the merge rate is healthiest | The counter resets when the head SHA has MOVED since the attempt was charged (a new gating head is progress), and a PR holding an APPROVED review is exempt from the cap outright |
+| 29 | A stale base caught by **G6** sat open forever | `regression_check` posts `regression (rebase needed)`, which matches `rebase_claim`'s filter; G6 posts `G0-G5 gate reject`, which does not. Same condition, different words. Reviewers were hand-writing the status to get PRs queued | `rebase_claim` accepts both spellings |
+| 30 | **Review evidence was silently deleted from the permanent record** — on #445 the clause naming the defect, on #481 two fragments | Agents invoke `pr_review.sh` inside a double-quoted `bash -c`, and a review body naturally contains backticked instruction names (`` `vcmpltps` ``). The CALLER's shell runs them as command substitutions before the script sees them; the posted review still reads plausibly, so nobody notices. Same door as the `depclaim.py drop` reason | `pr_review.sh <PR#> <verdict> --body-file <path>` — a file has no shell in its path. A backtick reaching the argv form now prints a warning naming the risk |
+| 31 | A reviewer's worktree became **unreleasable after its PR landed**, leaking a pool slot — and it leaked harder the better reviewers did | `wt_has_work` treats "HEAD not contained in any remote branch" as unpushed work. After a squash-merge deletes the branch, a reviewer's `acquire-at` DETACHED HEAD satisfies that on a tree whose `git status` is empty | Only apply the unpushed test when HEAD is a branch. A detached HEAD is a checkout of a commit that already exists on the server; it cannot hold work |
+| 32 | The slot lock could not distinguish **"died mid-tick" from "working"** — a replacement was dispatched into a live slot | `slots/<role>-<N>/held` was written once at acquire and holds no pid, so the 90-minute stale-reclaim measured TICK AGE, not idleness: a healthy reviewer in a long differential looked exactly like a corpse, and a holder that died at minute 5 held the slot for the full 90 | `slot_lock.sh heartbeat <role> <n>` touches the file (run it after every verdict/unit), and `acquire` now records the real pid |
+
+Locked by `verifier/test_rebase_tools.py` (prove_all LAYER 2e): a cited `.s` filename must not read as
+a symbol, an ambiguous class must refuse rather than guess, and a rebase must carry the branch's
+non-src files. **Each case was mutation-tested** — the fix removed, leaving valid code, and the case
+confirmed red. That check exists because the first version of the carry case compared a hand-built
+set against itself and passed with the entire carry block deleted, while three places (prove_all's
+own LAYER 2e line, this table, and AGENT_ENTRY) asserted it was locked. Caught in review on #514.
+**A lock that cannot fail is not a lock, and a false "locked" is worse than an honest "not locked" —
+it is the same silent-clean-output shape as the eight bugs above.** Re-run the mutation whenever you
+change these tools.
+
+---
+
+
+## Open — reported 2026-08-11 by worker 3 (the unreleasable-worktree fix as proposed would not cover the WORKER case)
+
+- **A WORKER'S OWN `port/<Class>` WORKTREE IS ALSO UNRELEASABLE ONCE ITS PR SQUASH-MERGES, and the
+  fix proposed for the reviewer version of this bug does not cover it.** The existing entry above
+  ("A REVIEWER'S `acquire-at` WORKTREE BECOMES UNRELEASABLE THE MOMENT ITS PR LANDS") diagnoses the
+  `acquire-at` detached-HEAD case and proposes gating `wt_has_work`'s unpushed-commit test on
+  **HEAD being a BRANCH** (`git symbolic-ref -q HEAD`), reasoning that "a detached checkout is by
+  construction a read-only inspection lease". That reasoning is sound and the fix is still worth
+  making — but it would have left this case broken, because here **HEAD IS a branch**.
+
+  Hit live today on slot 3, holding `port/OZMaterialDiffuseLayer` after PR #515 merged:
+
+      $ git -C ~/.fct-pool/wt/3 status --porcelain      # completely clean
+      $ git -C ~/.fct-pool/wt/3 rev-list --count origin/main..HEAD
+      1
+      $ git -C ~/.fct-pool/wt/3 branch -r --contains HEAD
+                                                        # empty
+      $ wt_pool.sh release ~/.fct-pool/wt/3
+      wt_pool: … has UNCOMMITTED or UNPUSHED work — not discarding it.
+
+  Same mechanism as the reviewer case and the same both-conditions-true trap: a SQUASH merge creates
+  a NEW commit, so the branch tip is not an ancestor of `origin/main`, and GitHub deletes the head
+  branch on merge, so it is contained in no `origin/*` ref either. The work is on main; the message
+  names work that does not exist. Verified before force-releasing: both files at the worktree's HEAD
+  are byte-identical (`shasum`) to their `origin/main` versions.
+
+  So the guard needs a test that does not depend on HEAD's detachedness. The cheap and correct one:
+  **before refusing, check whether the worktree's tree content is already reachable from
+  `origin/main`** — e.g. every path the branch touches is byte-identical on `origin/main`, or the
+  branch's diff against `origin/main` is empty. That covers detached reviewer leases and worker
+  branches with one rule, and it still protects a genuine in-progress port (whose content is NOT on
+  main yet). Until then the documented WORKAROUND applies to workers too: confirm
+  `git status --porcelain` is empty AND the touched files are byte-identical on `origin/main`, then
+  `release <path> --force`.
+
+  **The reason this cost a slot at all is worth saying plainly, because it is an agent-side habit and
+  not a tool bug:** a worker that submits a PR and moves straight on to the next unit leaks the
+  lease. The loop in `HARNESS_LOOP.md` has `wt_pool.sh release "$WT"` immediately after
+  `pr_submit.sh` for exactly this reason. Release the worktree in the same command as the submit, not
+  in a later step that a long investigation can push out of view.
 ## Open — reported 2026-08-11 by worker 3 (otool's LINEAR sweep desynchronises; FIXED in this change)
 
 - **`disasm.sh` returns 0 lines for 2,453 of the 56,060 defined text symbols (4.4%) — and for the
