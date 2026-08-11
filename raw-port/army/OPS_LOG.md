@@ -117,8 +117,16 @@ conflicting file and ADD to it.
 
 WHAT TO ACTUALLY CHECK BEFORE A FORCE-PUSH, in the right dots:
   * `git diff --name-only origin/main...HEAD` — every file listed must be one you meant to touch.
-    That is what you are publishing. (The `--diff-filter=D` guard #523 added to rebase_pr.sh uses
-    this form and is correct as written; it just guards a rarer thing than its message claimed.)
+    That is what you are publishing. (NOTE, corrected by #523: `rebase_pr.sh`'s `--diff-filter=D`
+    guard deliberately uses the **TWO**-dot form `git diff --name-only --diff-filter=D
+    origin/main HEAD`, because it is answering the STALENESS question — "is my head behind main"
+    — and not the what-am-I-publishing question this bullet is about. The three-dot form compares
+    against the MERGE BASE, so files that landed on main after that base are on neither side of
+    it and can never show as deletions: measured on a scratch repo with a real remote, a head
+    rebased onto a stale main missing three landed files gives `[]` from three dots and all three
+    from two dots. An earlier revision of this line said the guard used the three-dot form and was
+    "correct as written"; it shipped that spelling briefly, two reviewers measured it blind, and
+    the code and this note now both say two dots.)
   * for each listed file, confirm you started from main's CURRENT copy — the real check, and a
     content question rather than a filename one.
   * `git diff --stat origin/main HEAD` (two dots) answers a DIFFERENT question — "is my head
@@ -2801,6 +2809,46 @@ Two things worth keeping in mind even with the fix in:
   `_exists_on_main` keys on the cited MANGLED SYMBOL, deliberately skipping comment lines, so a fork
   that adds methods main does not have is correctly NEW to it. The two tools answer different
   questions and the class-level one is the one with no caller.
+
+---
+
+## Open — reported 2026-08-11 by worker 1 (rebase_pr's AUTOMATIC path rebased onto a stale main; FIX in this change)
+
+- **The same stale-base problem as the REBASE-TASK entry above, but on the path with NO human in
+  it.** `rebase_pr.sh`'s "Attempt 2" did `git -C "$WT" fetch -q origin "$BR"` — the BRANCH only —
+  and then `git rebase -q origin/main`, so it rebased onto whatever `origin/main` happened to be.
+  CORRECTED MECHANISM (reviewer-8, verified): the staleness is REPO-WIDE, not per-worktree — pool
+  worktrees are `git worktree`s sharing one object store and one REF store, so `origin/main` is a
+  COMMON ref, no slot is ever fresher than another, and any one agent's fetch cures it for every
+  slot at once. Looking for a per-worktree cause is looking for something that does not exist.
+  CORRECTED CONSEQUENCE (see the CORRECTION at the top of this file): the force-push does NOT
+  delete the files landed in between — a merge applies the three-dot delta and they survive. What
+  it produces is a head that is BEHIND main: it cannot merge under branch protection, it burns one
+  of the three rebase attempts, and — the part that can really lose work — its copies of the files
+  it DID touch may predate main's. Measured on PR #504: the REBASE_CLEAN path reported success
+  ("rebased onto origin/main + gate PASS, force-pushed") and the head it pushed was missing 16
+  files relative to the then-current main.
+
+  WHAT SAVED IT, and it is worth knowing which layer did: `regression_check` at review time turned
+  the PR red with `regression (rebase needed)`. That is also how it came back to the rebase queue —
+  so the visible symptom is a PR that keeps being handed out for rebasing and keeps failing, burning
+  the 3-attempt cap toward an auto-close, when nothing is wrong with the PR at all: the rebase TOOL
+  is what keeps re-breaking it. If you see a PR you just rebased cleanly return to the queue still
+  red, check `git diff origin/main --stat` on its head before assuming the port is at fault.
+
+  FIX (in this change): fetch `origin main` as well as the branch before the rebase, and add a
+  last-line guard that REFUSES the force-push when
+  `git diff --name-only --diff-filter=D origin/main HEAD` (**TWO dots** — the three-dot form
+  compares against the merge base and therefore cannot see files that landed after it) is
+  non-empty. Those files are not being deleted; a non-empty result means this head is BEHIND main,
+  which cannot merge under branch protection and burns a rebase attempt.
+
+  MEASURED BOTH WAYS, on a scratch repo with a real remote, because a guard is not evidence until
+  you have watched it fire (reviewer-8 and reviewer-2 each reproduced this independently, and the
+  first draft of this very entry shipped the blind form): with a head rebased onto a stale main
+  missing three landed files, the two-dot form lists all three and the three-dot form returns
+  EMPTY. On a branch whose own commit really removes a landed file, the three-dot form DOES fire —
+  it is answering a different question, not a useless one.
 ---
 
 ## Open — reported 2026-08-11 by reviewer 1 (a destroyed-review RECOVERY that works on merged PRs; a test that posts to the live queue; and a mutation rule)
