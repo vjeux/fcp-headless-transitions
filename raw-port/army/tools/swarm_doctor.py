@@ -117,18 +117,38 @@ def check_pr_base():
     offers is stranded, which this log already records three times — the right place to stop is the
     two tools that would act wrongly (both now refuse), and the right thing here is to make the
     condition visible. `pr_submit.sh` passes `--base main`, so only a hand-rolled `gh pr create`
-    produces one, which is how every ops/tooling PR is opened."""
+    produces one, which is how every ops/tooling PR is opened.
+    SECOND HALF (#656, worker 9): the same condition also breaks the REBASE queue, and there the
+    remedy is a guard rather than a refusal. `rebase_pr.sh` merged `origin/main` unconditionally, so
+    for a stacked PR the remedy could not clear the conflict it was charged an attempt for — #656
+    took two such merges from two agents minutes apart and stayed DIRTY, each pass printing
+    `REBASE_CLEAN … pushed`. `git merge-tree --write-tree origin/main <head>` agrees with the tool
+    the whole time, because it is answering about a different base commit, so nothing anywhere reads
+    as an error. This check therefore also asserts that `rebase_pr.sh` ON ORIGIN/MAIN resolves
+    `baseRefName` before merging (read from main, not from the canonical tree, which runs tens of
+    commits behind and would certify a fix that has not landed).
+    """
+    guard_src = from_main("raw-port/army/tools/rebase_pr.sh")
+    guarded = None if not guard_src else (
+        "baseRefName" in guard_src and 'merge --no-edit "origin/$BASE"' in guard_src)
     prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 --json number,baseRefName,headRefName")
     if prs is None:
         return record("pr-base", UNKNOWN, f"could not list open PRs to check their base: {err}", "#46")
     off = [f"#{p['number']} -> {p.get('baseRefName')}" for p in prs
            if p.get("baseRefName") != "main"]
-    if off:
+    if guarded is None:
+        guardnote = "; could not read rebase_pr.sh from origin/main to check its base handling"
+    elif guarded:
+        guardnote = "; rebase_pr.sh resolves the PR's base before merging"
+    else:
+        guardnote = ("; AND rebase_pr.sh merges origin/main without asking for baseRefName, so the "
+                     "rebase queue burns this PR's attempts on a merge that cannot clear it (#656)")
+    if off or guarded is False:
         return record("pr-base", FAIL,
                       f"{len(off)} open PR(s) do not target main, so pr_gate's verdict and pr_land's "
-                      f"merge target disagree: {', '.join(off[:8])} — retarget with "
-                      f"`gh pr edit <n> --base main`", "#46")
-    record("pr-base", OK, f"all {len(prs)} open PR(s) target main")
+                      f"merge target disagree: {', '.join(off[:8]) or '(none right now)'} — retarget "
+                      f"with `gh pr edit <n> --base main`" + guardnote, "#46")
+    record("pr-base", OK, f"all {len(prs)} open PR(s) target main" + guardnote)
 
 
 def check_queue_coverage():
@@ -451,6 +471,52 @@ def check_leases():
     record("leases", OK, f"{n_leases}/{pool} pool leases held, {n_slots} slot(s) active")
 
 
+# ── 5b. No PR may be leased by two worker queues at once ────────────────────────────────────────
+def check_no_double_lease():
+    """Two workers handed the SAME PR, by two queues that cannot see each other's leases.
+
+    THE INCIDENT (2026-08-11, worker 8, on #656): `rebase_claim` leased it at 13:32:36 and a peer
+    was 43 files into merging main in `~/.fct-pool/wt/3`; `rework_claim` handed the same PR to
+    another worker 66 seconds later. Both queues select it legitimately — it is CHANGES_REQUESTED
+    (rework) and CONFLICTING (rebase) — and neither consults the other's lease directory. The
+    second worker only noticed because `git checkout` refused a branch another worktree held; with
+    a different branch name both would have reconciled the same conflicts and one would have lost
+    the race at push time, throwing away a reviewer's worth of work.
+
+    It became common the same hour it was found: #643 taught `rebase_claim` to select DIRTY PRs,
+    which un-stranded four PRs and, as a side effect, made every rejected+conflicted PR
+    double-claimable. That is standing rule 8 (a fix can be the next outage) with a one-hour fuse,
+    so the guard ships with a check rather than only a code change.
+
+    Read-only, and it reads the same two directories the queues write, with the same staleness
+    window — a stale pair is not a collision, it is a dead lease.
+    """
+    stale_min = int(os.environ.get("REWORK_LEASE_MIN", 90))
+    now, both = time.time(), []
+    for kind in ("rebase", "rework"):
+        d = os.path.join(STATE, f"{kind}_leases")
+        if not os.path.isdir(d):
+            return record("double-lease", OK, f"no {kind} lease directory yet — nothing to collide")
+    a, b = (os.path.join(STATE, "rebase_leases"), os.path.join(STATE, "rework_leases"))
+
+    def fresh(d, pr):
+        held = os.path.join(d, pr, "held")
+        try:
+            return (now - os.path.getmtime(held)) / 60.0 <= stale_min
+        except OSError:
+            return False
+
+    for pr in sorted(set(os.listdir(a)) & set(os.listdir(b))):
+        if fresh(a, pr) and fresh(b, pr):
+            both.append(f"#{pr}")
+    if both:
+        return record("double-lease", FAIL,
+                      f"{len(both)} PR(s) leased by BOTH worker queues at once — two workers are "
+                      f"reconciling the same PR and one will lose the race at push time: "
+                      + ", ".join(both[:8]), "#656 double-hand-out")
+    record("double-lease", OK, "no PR is leased by both worker queues")
+
+
 # ── 6. Slot locks must carry a heartbeat ────────────────────────────────────────────────────────
 def check_heartbeats():
     """#32: the lock recorded only `<epoch> pid-agent`, written once at acquire, so the 90-minute
@@ -518,8 +584,15 @@ def check_tests_can_fail():
     if "test_guards: INCOMPLETE" in out:
         return record("tests-can-fail", UNKNOWN, "guard suite could not run every case: "
                       + " ".join(l.strip() for l in out.splitlines() if "COULD NOT RUN" in l)[:200])
+    # Match ANY "<Letter>. " case line rather than a literal A..H tuple. The tuple stopped where
+    # main's suite stopped, so the day test_guards gained a case J the FAIL message named nothing:
+    # replaying this expression against a real J-shaped failure produced "guard suite FAILED: "
+    # with an empty tail, for the case that guards the only path in the swarm that merges without
+    # re-gating. Same family as the layer-letter entry filed with this change — a literal that has
+    # to be maintained in lockstep with a list living somewhere else.
     return record("tests-can-fail", FAIL, "guard suite FAILED: "
-                  + " ".join(l.strip() for l in out.splitlines() if l.strip().startswith(("A.", "B.", "C.", "D.", "E.", "F.", "G.", "H.")))[:300])
+                  + " ".join(l.strip() for l in out.splitlines()
+                             if re.match(r"^[A-Z]\. ", l.strip()))[:300])
 
 
 # ── 8. The symbol inventory must exist where agents work ────────────────────────────────────────
@@ -564,15 +637,35 @@ def check_dead_counters():
                      if f.isdigit() and not f.endswith(".sha")]
     if not counters:
         return record("dead-counters", OK, "no attempt counters outlive their PR")
-    # ONE list call, not one per counter. The PR body reported 64 counters sitting in the state dir
-    # at one point; that would have been 64 serial API calls in a tool AGENT_ENTRY tells every agent
-    # to run, on a box where the network round-trip is the slowest thing here.
-    allprs, err = gh_json(f"pr list --repo {SLUG} --state all --limit 400 --json number,state")
-    if allprs is None:
-        return record("dead-counters", UNKNOWN, f"could not list PRs to age the counters: {err}", "#28")
-    state_of = {p["number"]: p.get("state") for p in allprs}
-    dead = [f"{kind}/{f}" for kind, f in counters
-            if state_of.get(int(f)) in ("MERGED", "CLOSED")]
+    # ONE call, not one per counter — 64 counters sat in the state dir at one point, and that would
+    # have been 64 serial round trips in a tool AGENT_ENTRY tells every agent to run.
+    #
+    # It used to be `pr list --state all --limit 400`, which has a WINDOW: with ~650 PRs, anything
+    # older than the 400 most recent came back absent, `state_of.get()` returned None, and the
+    # counter was silently treated as fine. The oldest counters are the likeliest to be dead, so the
+    # window hid exactly the population this check exists to find — measured: counter rebase/114
+    # (MERGED) was invisible here while rebase/554 (MERGED) was reported, purely because of where
+    # they fell in the list. Ask about the counters that actually exist instead: an aliased query
+    # over those numbers has no window at all and costs one round trip.
+    q = " ".join(f"p{f}: pullRequest(number: {f}) {{ state }}" for _k, f in counters)
+    owner, name = SLUG.split("/", 1)
+    r = sh(f'gh api graphql -f query=\'query {{ repository(owner: "{owner}", name: "{name}") '
+           f'{{ {q} }} }}\' --jq \'.data.repository | to_entries[] | "\\(.key) \\(.value.state)"\'')
+    if r.returncode != 0 or not r.stdout.strip():
+        return record("dead-counters", UNKNOWN,
+                      f"could not read the counters' PR states: {(r.stderr or 'empty answer').strip()[:120]}",
+                      "#28")
+    state_of = {}
+    for line in r.stdout.split("\n"):
+        parts = line.split()
+        if len(parts) == 2 and parts[0].startswith("p"):
+            state_of[parts[0][1:]] = parts[1]
+    dead = [f"{kind}/{f}" for kind, f in counters if state_of.get(f) in ("MERGED", "CLOSED")]
+    # A counter the query did not answer for is not a counter that is fine.
+    unanswered = [f"{kind}/{f}" for kind, f in counters if f not in state_of]
+    if unanswered and not dead:
+        return record("dead-counters", UNKNOWN,
+                      f"{len(unanswered)} counter(s) got no state back: {', '.join(unanswered[:6])}", "#28")
     if dead:
         return record("dead-counters", FAIL,
                       f"{len(dead)} attempt counter(s) for PRs that are already merged/closed — "
@@ -821,11 +914,58 @@ def check_ops_contention():
            f"convention landed")
 
 
+def check_layer_letters():
+    """No two prove_all layers may claim the same letter.
+
+    Every suite is wired into `prove_all.layer2()` by appending a hand-numbered `rN`/`okN` pair, a
+    hand-CHOSEN `LAYER 2<letter>` label, and one more `and okN` to the single `return` line. There
+    is no allocator for the letter and no way for two open PRs to see each other's choice, so two
+    authors pick the same one routinely: main's list went 2h -> 2i -> 2j in ninety minutes today,
+    and PR #650 needed THREE letters in one hour (2i taken by queue-coverage while it waited, then
+    2j taken by #670 in the eight minutes between its re-approval and its merge).
+
+    The collision is only ever discovered at rebase time — the three-dot diff is clean on both
+    sides — and the tempting resolution is the dangerous one: "take mine" on that hunk REVERTS the
+    peer's landed layer, the file still parses, the suite still passes with a layer missing, and G6
+    add-only cannot see it because it only inspects the .ts file handed to gate.sh.
+
+    So: report a duplicate label as a FAIL naming the letter. This does not remove the append point
+    (see the ops entry filed with this check for the two ways to do that); it makes the next
+    collision a line in this report instead of two reviewer rounds.
+    """
+    src = from_main("raw-port/army/verifier/prove_all.py")
+    if not src:
+        return record("layer-letters", UNKNOWN,
+                      "could not read prove_all.py from origin/main — cannot say whether two "
+                      "layers claim one letter")
+    # ONLY the lettered sub-layers (2b, 2c, ... 2z). The bare top-level labels are excluded on
+    # purpose: `LAYER 3` is legitimately printed TWICE on main — once as a heading before the
+    # per-fixture rows and once as its verdict — so counting it would make this check FAIL against
+    # a healthy main, which is the "a red that correct behaviour cannot clear" defect this file's
+    # own ops-contention check was rejected for. Measured: with a bare-label pattern, main reports
+    # `3 (x2)`. The lettered labels are the ones with no allocator and the real collisions.
+    labels = re.findall(r'print\(\s*"LAYER (\d+[a-z])\b', src)
+    if not labels:
+        # The pattern found nothing, which is either a rewrite or a broken regex — and "selects
+        # nothing" must never read as "all distinct" (test_guards case E's lesson, one file over).
+        return record("layer-letters", UNKNOWN,
+                      "found no LAYER labels in prove_all.py on origin/main — the label format "
+                      "changed, or this check's pattern is stale; it is not evidence of anything")
+    dupes = sorted({l for l in labels if labels.count(l) > 1})
+    if dupes:
+        return record("layer-letters", FAIL,
+                      "duplicate prove_all LAYER label(s): "
+                      + ", ".join(f"{d} (x{labels.count(d)})" for d in dupes)
+                      + " — two suites are claiming one letter; the second to land silently "
+                        "replaces the first")
+    record("layer-letters", OK, f"{len(labels)} layer label(s), all distinct")
+
+
 CHECKS = [check_pr_base, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
-          check_leases, check_heartbeats, check_tests_can_fail, check_inventory,
+          check_leases, check_no_double_lease, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
           check_brief_flags_exist, check_rebase_actionable, check_rebase_branch_naming,
-          check_ops_contention]
+          check_ops_contention, check_layer_letters]
 
 
 def main():
