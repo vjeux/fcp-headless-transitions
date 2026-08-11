@@ -12,23 +12,29 @@ const portHref =
   process.env.OZRENDERSTATE_TRANSFORMSET_TS !== undefined
     ? new URL(`file://${process.env.OZRENDERSTATE_TRANSFORMSET_TS}`).href
     : new URL("../../src/channels/OZRenderState__TransformSet.ts", import.meta.url).href;
-const { TransformSet_rotation } = (await import(portHref)) as {
-  TransformSet_rotation: (self: { bits: bigint }, enable: number) => void;
+const port = (await import(portHref)) as Record<
+  string,
+  (self: { bits: bigint }, enable: number) => void
+>;
+
+// mask/bits per method, from the file's own constants — the OFF mask is 0x3FFF with that method's
+// group removed, and the ON immediate is the group.
+const MASKS: Record<string, { mask: bigint; bits: bigint; fn: string }> = {
+  rotation: { mask: 0x3fc7n, bits: 0x38n, fn: "TransformSet_rotation" },
+  translation: { mask: 0x7ffn, bits: 0x3800n, fn: "TransformSet_translation" },
 };
 
-type Case = { bits: string; arg: string; live: string };
+type Case = { method: string; bits: string; arg: string; live: string };
 const hex = (v: bigint) => BigInt.asUintN(64, v).toString(16).padStart(16, "0");
-const MASK = 0x3fc7n;
-const BITS = 0x38n;
-
 function run(c: Case): Record<string, string> {
+  const { mask: MASK, bits: BITS, fn } = MASKS[c.method]!;
   const bits = BigInt("0x" + c.bits);
   const arg = BigInt("0x" + c.arg);
   const lo32 = Number(BigInt.asUintN(32, arg)) >>> 0; // what %esi holds
   const on = lo32 !== 0;
 
   const self = { bits };
-  TransformSet_rotation(self, lo32);
+  port[fn]!(self, lo32);
 
   return {
     port: hex(self.bits),
