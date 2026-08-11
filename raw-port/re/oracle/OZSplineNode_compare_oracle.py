@@ -36,6 +36,10 @@ import json
 import os
 import struct
 import subprocess
+
+# A driver that does not terminate is a mutant that was KILLED, not a pending result: two of them
+# held a core for 2h31m before anyone noticed. See re/oracle/oracle_driver.py for the full account.
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -157,7 +161,7 @@ def run_ts(mutant=""):
     if mutant:
         env["FCT_PORT_PATH"] = mutate_port(mutant)
     p = subprocess.run([tsx, TS_DRIVER], input=json.dumps(wire), capture_output=True, text=True,
-                       cwd=os.path.join(REPO, "raw-port"), env=env)
+                       cwd=os.path.join(REPO, "raw-port"), env=env, timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         if mutant:
             # A MUTANT THAT CRASHES IS A DIVERGENCE, NOT A BROKEN HARNESS. `drop-cast` deletes the

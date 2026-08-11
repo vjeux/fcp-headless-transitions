@@ -15,6 +15,7 @@ Run under `arch -x86_64 /usr/bin/python3` (every address is from the x86_64 slic
 loaded image would be arm64).
 """
 import ctypes, json, os, platform, subprocess, sys
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 FCP = "/Applications/Final Cut Pro.app/Contents"
 FLEXO = FCP + "/Frameworks/Flexo.framework/Versions/A/Flexo"
@@ -116,7 +117,7 @@ for n in CASES:
 
 proc = subprocess.run(["node", "--experimental-strip-types", DRIVER],
                       input=json.dumps({"cases": [str(c) for c in CASES]}),
-                      capture_output=True, text=True)
+                      capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
 if proc.returncode != 0:
     print(proc.stdout[-800:], proc.stderr[-800:])
     sys.exit("FAIL: the TypeScript driver did not run")

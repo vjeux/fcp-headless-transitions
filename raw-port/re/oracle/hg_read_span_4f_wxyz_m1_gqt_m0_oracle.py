@@ -36,6 +36,7 @@ A mutant that kills 0 lanes is reported as either an equivalent mutant or a
 blind harness, with the more violent variant run to tell them apart (OPS_LOG).
 """
 import ctypes, json, os, struct, subprocess, sys, tempfile, shutil
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ozone_loader as L  # noqa: E402
@@ -169,7 +170,7 @@ def run_ts(driver, cases, cwd=REPO):
     payload = json.dumps([{k: v for k, v in c.items() if not k.startswith("_")}
                           for c in cases])
     p = subprocess.run([TSX, driver], input=payload, capture_output=True,
-                       text=True, cwd=cwd)
+                       text=True, cwd=cwd, timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         raise SystemExit(f"TS driver failed ({driver}):\n{p.stdout}\n{p.stderr}")
     return json.loads(p.stdout)
