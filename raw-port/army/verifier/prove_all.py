@@ -46,7 +46,17 @@ def layer2():
     print("LAYER 2b (disasm resolution — right function, not just right verdict):",
           "PASS" if ok2 else "FAIL")
     if not ok2: print(r2.stdout[-1200:], r2.stderr[-400:])
-    return ok and ok2
+    # 2c — the same question one level FINER, and for G5 itself: within the right class, is it the
+    # right METHOD? #322 made a bare-key hit prove it names the CLASS, but not the method, so
+    # find_disasm(<class>) handed whichever of the class's methods was cached to EVERY export in the
+    # file — 11 fabricated cheat verdicts on one landed file, triggered by deriving the disasm the
+    # worker brief REQUIRES. Locked by fixtures in test_g5_bare_key.py.
+    r3 = run([sys.executable, os.path.join(HERE, "test_g5_bare_key.py")])
+    ok3 = "test_g5_bare_key: PASS" in r3.stdout
+    print("LAYER 2c (G5 bare-key guard — right method, not just right class):",
+          "PASS" if ok3 else "FAIL")
+    if not ok3: print(r3.stdout[-1200:], r3.stderr[-400:])
+    return ok and ok2 and ok3
 
 def _reach(spec, expect):
     import tempfile
