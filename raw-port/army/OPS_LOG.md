@@ -1947,6 +1947,19 @@ change these tools.
 
 ---
 
+## Fixed 2026-08-11 — two more, both "the tool worked and nobody ran it"
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 43 | **An unrecognised flag was posted AS THE REVIEW BODY**, destroying 11 KB of differential at exit 0 behind a correct-looking success line. The reviewer found it only by reading the body back | `pr_review.sh` ended with `BODY="$*"`, so any flag it did not know became the body. Adding `--expect-head` therefore OPENED this on every host still running the older copy: **following the current advice is what destroys the record** | Unknown `--*` exits 2, naming the risk and the likely cause. After posting, the stored body length is read back and a mismatch warns — every way a body has been lost here (caller-shell backtick expansion, a flag captured as the body) exits 0 with a plausible success line. Locked as `test_guards` case H, which compares the review COUNT before and after, since the property is "refused BEFORE posting", not "printed a refusal" |
+| 44 | **`check_duplicate_classes.py` works perfectly and has never once been invoked.** 7 duplicates on main; 5 classes filed twice across LAYER directories (`ozone/` vs `channels/`, `nodes/` vs `channels/`) — OPS_LOG had recorded only one | Its docstring and PORTING_SPEC both call it a CI guard, but no gate, no `pr_gate`, no `prove_all` ran it, so it reported into the void. `dup_check` cannot see these (it compares ledger SYMBOLS, not filenames) and neither can G6 (each file is add-only in isolation). Two files modelling one C++ class = two struct layouts that silently drift | Wired into `pr_gate` — but on the DELTA (`--new-only origin/main`), because gating absolutely would red-gate every PR in the repo for a mess none of them created, which is presumably why nobody ever wired it. A PR adding no new duplicate passes while main is dirty; plain mode still reports the existing 7 for someone to merge deliberately (**never blindly — each copy may hold addresses the other lacks**) |
+
+**The pattern across both, and worth naming**: a guard that exists, works, and is never called is
+indistinguishable from no guard at all — and reads as *reassurance*, which is worse. When you add a
+check, add the caller in the same change, and watch it fail once.
+
+---
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
