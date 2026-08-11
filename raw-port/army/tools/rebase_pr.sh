@@ -151,7 +151,19 @@ cleanup_release () { bash raw-port/army/tools/wt_pool.sh release "$WT" >/dev/nul
 # Rebasing onto a stale ref is never right; fetch first.
 git -C "$WT" fetch -q origin main 2>/dev/null
 git -C "$WT" fetch -q origin "$BR" 2>/dev/null
-git -C "$WT" checkout -q -B "$BR" "origin/$BR" 2>/dev/null
+# THE CHECKOUT MUST NOT FAIL SILENTLY. `2>/dev/null` here cost PR #690 its whole content on
+# 2026-08-11: a peer worker held that branch in another pool worktree, git refused the second
+# checkout, the error went nowhere, and this worktree stayed on the branch `wt_pool acquire "$CLS"`
+# had cut for it — `port/<CLS>` off CURRENT MAIN, since a non-`port/` branch name survives
+# `${BR#port/}` unchanged. The tool rebased that (nothing to replay), gated it (trivially green: no
+# ports changed) and force-pushed it over the PR's branch under a `REBASE_CLEAN … gate PASS` line.
+if ! co_err=$(git -C "$WT" checkout -q -B "$BR" "origin/$BR" 2>&1); then
+  echo "rebase_pr: cannot check out $BR in $WT — ${co_err:-unknown}"
+  echo "  Almost always: another pool worktree holds that branch (a peer is working this PR)."
+  echo "  Refusing rather than rebasing whatever this worktree is on; try again when they finish."
+  git -C "$WT" worktree list 2>/dev/null | grep "\[$BR\]" | sed 's/^/  held by: /'
+  cleanup_release; exit 3
+fi
 if git -C "$WT" rebase -q origin/main >/tmp/rebase_pr_${PR}_reb.log 2>&1; then
   CHANGED=$(git -C "$WT" diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
   if [ -n "$CHANGED" ] && ! (cd "$WT" && bash raw-port/army/gate/gate.sh $CHANGED >/tmp/rebase_pr_${PR}_gate.log 2>&1); then
@@ -179,6 +191,13 @@ if git -C "$WT" rebase -q origin/main >/tmp/rebase_pr_${PR}_reb.log 2>&1; then
     echo "   head cannot merge under branch protection, and the copies of the files you DID touch"
     echo "   may be stale as well, which is the case that loses work.)"
     cleanup_release; exit 6
+  fi
+  # LAST GUARD, and the one that would have caught #690 even if the checkout check above did not:
+  # a push must not empty the PR or drop a file the branch carries. A non-zero exit from the guard
+  # (including exit 2, "could not run") is a refusal — being unable to answer is not saying yes.
+  if ! bash raw-port/army/tools/publish_guard.sh both "$WT" "$BR" origin/main; then
+    echo "rebase_pr: REFUSING the force-push (publish_guard). Worktree left at $WT for inspection."
+    exit 6
   fi
   git -C "$WT" push -f origin "HEAD:$BR" 2>/dev/null && { echo "REBASE_CLEAN: rebased $BR onto origin/main + gate PASS, force-pushed (PR #$PR in place)"; cleanup_release; exit 0; }
   echo "rebase_pr: push failed"; cleanup_release; exit 1

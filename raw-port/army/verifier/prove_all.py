@@ -146,7 +146,19 @@ def layer2():
     print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
           "PASS" if ok11 else "FAIL")
     if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11
+    # 2n — the two refusals that stand between a rebase tool and a PR's content. Wired in the same
+    # change that adds them (row 44: a guard nothing runs is indistinguishable from no guard). It
+    # exists because on 2026-08-11 rebase_pr.sh force-pushed a branch it had accidentally cut from
+    # main over PR #690, emptying it behind a `REBASE_CLEAN … gate PASS` line. Offline: scratch
+    # repos with a real bare origin, no gh, ~2s. Its suite carries an M0 control, so a mutant that
+    # dies of a broken harness cannot read as a catch.
+    r14 = run(["bash", os.path.join(TOOLS, "test_publish_guard.sh")])
+    ok14 = "TEST_PUBLISH_GUARD: PASS" in r14.stdout
+    print("LAYER 2n (publish guard — a force-push cannot empty a PR or drop its files):",
+          "PASS" if ok14 else "FAIL")
+    if not ok14: print(r14.stdout[-1200:], r14.stderr[-400:])
+
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11 and ok14
 
 def _reach(spec, expect):
     import tempfile
