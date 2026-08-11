@@ -486,6 +486,40 @@ export class OZScene {
   }
 
   /**
+   * OZScene::getViewGamut() const  @Ozone 0x81e50
+   *   __ZNK7OZScene12getViewGamutEv
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZNK7OZScene12getViewGamutEv.s):
+   *
+   *   0x81e50  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x81e51  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x81e54  movl  0xcc(%rdi), %eax     ; return this->viewGamut_at_0xcc
+   *   0x81e5a  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x81e5b  retq                       ; return %eax (u32)
+   *   0x81e5c  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * The exact inverse of `setViewGamut` @0x81e84 (`movl %esi, 0xcc(%rdi)`) on
+   * the same slot, and like it: NO LOCK (contrast `getRawWorkingGamut`
+   * @0x81da0, which reads the neighbouring +0xc8 cache under `lock_shared`
+   * @0x81db1), NO forwarding to the `OZSceneSettings` sub-object at +0x90, no
+   * mask and no validation — the raw 32-bit word, verbatim.
+   *
+   * `movl` into a 32-bit register zero-extends into `%rax`, so the ABI result
+   * is the unsigned 32-bit word; the port preserves that with `>>> 0`, exactly
+   * as `getRawWorkingGamut` does for +0xc8.
+   *
+   * ZERO callees, ZERO externs, no indirect/virtual dispatch — a pure field
+   * read.
+   *
+   * @returns the scene's view gamut (u32).
+   */
+  getViewGamut(): PCColorGamutValue {
+    // @0x81e54: movl 0xcc(%rdi), %eax — 32-bit load, zero-extended.
+    return this.viewGamut_at_0xcc >>> 0;
+  }
+
+  /**
    * OZScene::dynamicRangeTrackingEnabled() const  @0x62db0
    *   __ZNK7OZScene27dynamicRangeTrackingEnabledEv
    *
