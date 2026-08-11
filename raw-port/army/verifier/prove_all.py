@@ -109,7 +109,20 @@ def layer2():
     print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
           "PASS" if ok8 else "FAIL")
     if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8
+    # 2i — WHICH QUEUE OWNS A G5-FLAGGED PR. The gate cannot clear a NO-DISASM blind spot itself; it
+    # fails with "reviewer must re-derive disasm" and hands the PR back to a reviewer. No queue
+    # offered it: review_claim excluded every FAILURE, rebase_claim takes regression/rebase only,
+    # rework_claim takes CHANGES_REQUESTED only. #645 sat claimable-by-nobody until queue-coverage
+    # noticed. Offline, jq-backed fixtures with the real status descriptions. ~1s.
+    # (Numbered 2i, not 2j: this layer was written on top of #649's unlanded 2i. Whichever of the
+    # two lands second renumbers — the letter is a label, and two layers claiming one letter is
+    # the kind of silent collision this suite exists to refuse.)
+    r9 = run(["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")])
+    ok9 = "test_review_claim_g5: PASS" in r9.stdout
+    print("LAYER 2i (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
+          "PASS" if ok9 else "FAIL")
+    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
 
 def _reach(spec, expect):
     import tempfile
