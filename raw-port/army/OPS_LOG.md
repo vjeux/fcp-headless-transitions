@@ -2801,3 +2801,90 @@ Two things worth keeping in mind even with the fix in:
   `_exists_on_main` keys on the cited MANGLED SYMBOL, deliberately skipping comment lines, so a fork
   that adds methods main does not have is correctly NEW to it. The two tools answer different
   questions and the class-level one is the one with no caller.
+---
+
+## Open — reported 2026-08-11 by reviewer 1 (a destroyed-review RECOVERY that works on merged PRs; a test that posts to the live queue; and a mutation rule)
+
+- **THE `--expect-head` BODY-EATING BUG DESTROYED SEVEN OF SEVEN REVIEWS IN ONE RUN — AND THE
+  RECOVERY RECORDED FOR IT DOES NOT WORK ON THE PRs THAT MATTER MOST.** Reviewer 2 diagnosed the
+  mechanism on PR #558 (an unrecognised `--flag` is folded into `BODY="${*}"`, so the verdict file is
+  never read); this entry is the scale of it and the repair, because #558 is itself blocked by a
+  conflict and its recovery advice is incomplete.
+
+  My dispatch prompt instructed me, in bold, to sign every verdict with
+  `pr_review.sh <PR#> approve --expect-head <sha> --body-file <path>`. `--expect-head` does not exist
+  in main's `pr_review.sh` (it is added by the unlanded #553). Result, read back afterwards:
+
+      PR #557 7178 -> 91    PR #112 4939 -> 91    PR #395 4449 -> 91    PR #377 4901 -> 91
+      PR #492 5118 -> 91    PR #523 4832 -> 91    PR #562 5248 -> 91
+
+  Every one posted the same 91-byte string `--expect-head <sha> --body-file /tmp/<file>`, at exit 0,
+  behind a success line naming the right verdict and the right SHA. **Four of those PRs merged** on
+  differentials that were not in the record. Note the second, quieter half: `--expect-head` also
+  performed **no head check at all**, so the advice that exists to stop a signature landing on
+  unreviewed code was providing exactly zero protection while reading like protection. On #492 the
+  head then moved under the review (`pr_land`'s `update-branch` created the merge commit `35718cef`
+  at 17:09:51, four seconds AFTER my approve was submitted at 17:09:47) and GitHub recorded my
+  approval against that later commit — harmless there, because the ported file was byte-identical at
+  both SHAs and I checked, but nothing in the loop would have told me otherwise.
+
+  **THE RECOVERY, and it is better than the dismiss-and-re-post one in #558:**
+
+      gh_as.sh reviewer api -X PUT repos/<slug>/pulls/<n>/reviews/<review_id> -F body=@<file>
+
+  `PUT .../reviews/{review_id}` updates a SUBMITTED review's body in place. It preserves the
+  `APPROVED`/`CHANGES_REQUESTED` state and the thread position, needs no dismissal, and — the part
+  that matters — **it works on a MERGED pull request**, where dismiss-and-re-review cannot go. I
+  restored all five merged verdicts with it (4,425-5,214 bytes each, read back and confirmed) and
+  used dismissal only where I also wanted the verdict re-dated. Use `-F body=@<file>`, never `-f`:
+  the `@` form reads the file, so the repair does not go back through a shell and re-acquire the
+  problem it is fixing.
+
+  **THE ONE-LINE CHECK THAT CATCHES IT, which nothing in the reviewer loop currently performs:**
+
+      gh api repos/<slug>/pulls/<PR>/reviews --jq '.[-1].body|length'   # next to `wc -c` on your file
+
+  Read your body back after every signature. I only did it because I happened to review #558.
+
+- **A TEST THAT PROBES `pr_review.sh` AGAINST "THE FIRST OPEN PR" WRITES GARBAGE INTO A REAL PR'S
+  PERMANENT RECORD — precisely when the guard it is testing is absent.** `test_guards.py` case H (on
+  PR #557's head `3a32fa84`) runs
+  `pr_review.sh <first open PR> comment --definitely-not-a-real-flag <file>` and asserts a refusal.
+  When there is no refusal — the failing case, and the only interesting one — the flag becomes the
+  body and the probe POSTS it. Running the suite three times while reviewing #557 left COMMENTED
+  reviews reading `--definitely-not-a-real-flag /var/.../t_guards_body.md` on **PR #565**, which was
+  merely first in `gh pr list`. PR #558's own review thread carries another one, `--bogus-flag
+  /tmp/b.md`, from a different agent's probe. Both are now rewritten to explain themselves, but the
+  general rule belongs here: **a case whose subject is the evidence record must not aim its probe at
+  the live queue** — open a scratch PR for it, or assert against a dry run. Same door as cases C and
+  E, which also target the first open PR; they are safe today only because the refusals they test
+  do fire.
+
+- **A MUTATION RESULT WITHOUT ITS BASELINE IS NOT A RESULT, and it fails toward "the bug is fixed".**
+  Re-measuring my two findings against #557's new head, both mutants went red and I nearly recorded
+  that the gaps had been closed. They had not: the suite was **already red on that head**, because
+  case H fails there (it was pushed ahead of the `pr_review.sh` fix it tests), so every mutant
+  inherited a failure that had nothing to do with the mutation. The companion to the standing rule
+  "a guard is not evidence until you have watched it fail" is: **watch it PASS first, on the exact
+  tree you are about to mutate.** Print the baseline next to each mutant, always — it is one extra
+  run and it is the difference between a measurement and a coincidence. (Corollary for authors:
+  landing a case ahead of its fix turns `prove_all` red repo-wide, and reviewers are told to sign
+  nothing without `PROVE_ALL: PASS`.)
+
+- **Three existing open items, confirmed live with fresh instances rather than re-diagnosed:**
+  - *The rejection-vs-rework blindness runs BOTH ways.* `review_claim` handed me **#553**, whose
+    `CHANGES_REQUESTED` is recorded against its **current** head (`50ed06eb`, 16:48:45) — a PR
+    waiting on its author, leased to a reviewer, which is reviewer 8's fix (a). The discriminator
+    that #562 just landed for `rework_claim` is the same one, with the comparison inverted: skip when
+    the last `CHANGES_REQUESTED`'s `commit_id` **equals** the head. Worth doing next; it is a few
+    lines and both queues then stop handing out each other's work. (The other four PRs the queue gave
+    me were the healthy case — rejection on an older head, already reworked — and all four landed.)
+  - *The conflicted non-src PR belongs to no queue* (#557's item 41) hit **twice in one run**: #523
+    and #558 are both `DIRTY`, both green from `pr_gate`'s "no raw-port/src ports to gate"
+    short-circuit, and neither was visible to `rebase_claim`. I hand-posted the regression status for
+    #558 — the workaround this log already says nobody should have to invent twice, now invented a
+    fourth time.
+  - *G5 flag nondeterminism across pool slots*, on one PR, two runs, no content change: **#492**
+    gated `0 flag(s)` in slot 4 and `1 flag(s)` in slot 5 twenty minutes later. The flag also named
+    the wrong export — `SetNotifyFunc: NO-DISASM for @Helium 0xdc9ea`, an address cited by a
+    different member — which is worker 4's and worker 6's misattribution report, third instance.
