@@ -84,6 +84,15 @@ import type { PCString } from "../infra/PCString";
 import { PCSerializerReadStream } from "../infra/PCSerializerReadStream";
 import { PCStreamElement } from "../infra/PCStreamElement";
 import { OZCurve } from "./OZCurve";
+// The LANDED impl model. `getFadeOutCurve` reads `impl->savedState->+0x34`, and both of those
+// slots are already decoded, WITH their addresses, on the landed `OZChannelImpl` class
+// (`+0x10 SavedState* savedState`, and `SavedState { +0x00 CMTime timeA, +0x18 CMTime timeB,
+// +0x30 u32 x, +0x34 u32 y }`). Importing that model rather than growing this file's local
+// structural stand-in keeps ONE model of the SavedState struct in the port.
+import type {
+  OZChannelImpl as OZChannelImplLanded,
+  OZChannelImplSavedState,
+} from "./OZChannelImpl";
 
 // Forward-declared: OZChannelImpl port is not yet landed. What we use is
 // its `flag@0x20` (skip-clone bit) and its copy-ctor. Represent it as a
@@ -501,4 +510,99 @@ export function OZChannel_getCurveInterface(
   const impl = self.implPrimary as OZChannelImpl;
   // @0x184fa-0x184ff  movq 0x8(%rax),%rax ; retq — returned raw.
   return impl.curveAt8 as OZCurve | null;
+}
+
+/**
+ * `OZChannel::getFadeOutCurve()`
+ *   — @ProChannel 0x15f34
+ *   — `__ZN9OZChannel15getFadeOutCurveEv` (an exported `T` symbol —
+ *     `raw-port/army/inventory/ProChannel.syms.txt:1750`, which is what makes the live
+ *     differential below possible without the slide-plus-local-offset apparatus).
+ *
+ * FULL transcription — every instruction, in order. The 26 opcode bytes were verified against BOTH
+ * the mapped image and the on-disk x86_64 slice before the function was called (see ORACLE):
+ *
+ *   0x15f34  55              pushq %rbp               ; frame setup (no TS counterpart)
+ *   0x15f35  48 89 e5        movq  %rsp, %rbp         ; frame setup (no TS counterpart)
+ *   0x15f38  48 8b 47 70     movq  0x70(%rdi), %rax   ; rax = this->implPrimary   (+0x70)
+ *   0x15f3c  48 8b 40 10     movq  0x10(%rax), %rax   ; rax = impl->savedState    (+0x10)
+ *   0x15f40  48 85 c0        testq %rax, %rax         ; savedState == NULL ?
+ *   0x15f43  74 05           je    0x15f4a            ;   -> yes: the 0 below
+ *   0x15f45  8b 40 34        movl  0x34(%rax), %eax   ; eax = savedState->y       (+0x34, u32)
+ *   0x15f48  eb 02           jmp   0x15f4c
+ *   0x15f4a  31 c0           xorl  %eax, %eax         ; the "no snapshot" answer is the id 0
+ *   0x15f4c  5d              popq  %rbp               ; frame teardown (no TS counterpart)
+ *   0x15f4d  c3              retq                     ; returns %eax — a 4-byte value
+ *
+ * ASYMMETRIC NULL HANDLING, which the port reproduces exactly: `this+0x70` is dereferenced
+ * UNGUARDED (a channel with no impl faults here, as it does in `OZChannel_getCurveInterface`
+ * @0x184f6 above), while `impl+0x10` IS tested. The binary states which of the two slots it treats
+ * as nullable; the port neither adds a check to the first nor drops it from the second.
+ *
+ * WHAT +0x34 IS. The landed `OZChannelImpl.ts` recovered the 0x38-byte SavedState block
+ * anonymously, from `operator=`'s copy and `operator==`'s reads (`+0x00 CMTime timeA`,
+ * `+0x18 CMTime timeB`, `+0x30 u32 x`, `+0x34 u32 y`) — it could see the WIDTHS but not the
+ * MEANINGS. This method is what names the second u32: `+0x34` is the fade-OUT curve id. Its
+ * neighbour is named by the adjacent body `OZChannel::getFadeInCurve()` @0x15f1a, which is the same
+ * eleven instructions reading `+0x30` (open in PR #647 at the time of writing; the two units are
+ * twins and neither invents a field the other contradicts).
+ *
+ * WHY THIS READS THE LANDED MODEL. `impl.savedState` is typed by the landed `OZChannelImpl` class
+ * rather than by this file's local `OZChannelImpl` interface, which is documented above as "the
+ * file's minimal structural stand-in". A second declaration of the same struct inside this file
+ * would put two models of one C++ object in the port, which is the drift the one-class-one-file
+ * rule exists to prevent. Nothing is re-derived here: the two offsets this method walks are the
+ * ones that file already grounds, with their own addresses.
+ *
+ * THE RETURN IS A 4-BYTE ZERO-EXTENDED LOAD: `movl` writes %eax and clears the upper half, so
+ * 0xffffffff comes back as 4294967295, not -1 (measured live — see the M3 mutant). The landed
+ * model already types `y` as the u32 at that offset, so the port returns it unmodified rather than
+ * re-truncating a value that is u32 by construction.
+ *
+ * ZERO callees of any kind: no in-scope call, no extern, no indirect and no virtual dispatch
+ * (`depgraph.py deps __ZN9OZChannel15getFadeOutCurveEv` lists nothing) — two loads, a test and a
+ * return.
+ *
+ * ORACLE — EXECUTED, not read (`raw-port/re/oracle/OZChannel_getFadeOutCurve_oracle.py`, run as
+ * `arch -x86_64 /usr/bin/python3 …`; the x86_64 slice is mandatory because every address here is an
+ * x86_64 offset and an address-based differential on the arm64 slice fails silently toward
+ * VERIFIED). It calls the LIVE ProChannel body at `slide + 0x15f34` — after checking that the 26
+ * bytes there match both the mapped image and the on-disk thin slice — and compares it against
+ * THIS file, imported by `OZChannel_getFadeOutCurve_driver.mts` through the repo's own `tsx`, so
+ * the compared side is the shipped port rather than a restatement that could share a misreading
+ * with it. Measured 2026-08-11:
+ *
+ *   9 of 9 cases bit-identical (0, 1, 7, 0xffff, 0x7fffffff, 0x80000000, 0xffffffff, 0xdeadbeef,
+ *   and a NULL savedState -> 0), every arena byte-identical after the call (the method writes
+ *   nothing), the 0xBBBB… planted at impl+0x08 and the 0xCCCC… at this+0x78 never returned, and
+ *   the +0x30 decoy never returned on any case.
+ *
+ *   Mutation controls, evaluated in the same node process as the port so they are comparable:
+ *     M0 unmutated copy through the pipeline ................  0 killed / 9  (expected 0)
+ *     M1 `movl 0x34` misread as `0x30` (the fade-IN id) ......  8 killed / 9
+ *     M2 the `testq/je` NULL path dropped ...................  1 killed / 9
+ *     M3 the 4-byte load read as SIGNED (`movslq`) ..........  3 killed / 9
+ *     M4 the NULL answer written as -1 instead of `xorl`'s 0 .  1 killed / 9
+ *     M5 the chain started at `this+0x78` instead of `+0x70` .  9 killed / 9
+ *
+ *   M2 and M4 kill on the one NULL case in the corpus, which is the only case that can distinguish
+ *   them; M3 kills on exactly the three values above 0x7fffffff. M0's zero is what says the other
+ *   five numbers are the mutants and not the harness.
+ *
+ * Source disassembly:
+ *   raw-port/re/disasm/ProChannel.__ZN9OZChannel15getFadeOutCurveEv.s (12 lines)
+ */
+export function OZChannel_getFadeOutCurve(self: OZChannelLayout): number {
+  // @0x15f38  movq 0x70(%rdi),%rax — the primary impl, dereferenced WITHOUT a null check, exactly
+  //   as the machine does (see the asymmetry note above).
+  const impl = self.implPrimary as unknown as OZChannelImplLanded;
+  // @0x15f3c  movq 0x10(%rax),%rax — the SavedState snapshot, which MAY be null.
+  const saved: OZChannelImplSavedState | null = impl.savedState;
+  // @0x15f40-0x15f43  testq %rax,%rax ; je 0x15f4a — the null path.
+  if (saved === null || saved === undefined) {
+    // @0x15f4a  xorl %eax,%eax — "no snapshot" answers the id 0, not "absent".
+    return 0;
+  }
+  // @0x15f45  movl 0x34(%rax),%eax — the 4-byte zero-extending load of the fade-out curve id.
+  return saved.y;
 }
