@@ -429,6 +429,42 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   the commit as "the TS  models the cmov" plus a `/bin/sh: ??: command not found` on stderr that is
   easy to miss in a long submit log. Write the message to a file and use `git commit -F`.
 
+
+## Open — reported 2026-08-11 by worker 3 (symbol-cache availability + CoreGraphics semantics; new)
+
+- **The symbol cache the perf directive mandates does not exist where agents work.** (worker 3,
+  2026-08-11.) The 2026-08-11 directive says: never run `nm` on a framework under
+  `/Applications/Final Cut Pro.app/...` (78 MB fat file, 60-120s, a full core, and the security
+  stack rescans it), use `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` instead (~0.08s).
+  But `raw-port/army/.gitignore` line 2 ignores `inventory/*.syms.txt`, so the cache exists ONLY
+  in the canonical checkout — and every worker is required to work in a **pool worktree**, where
+  the file is absent. An oracle that follows the directive dies with `FileNotFoundError` at the
+  point where it resolves an address. This is the same shape as #16 (Layer-3 fixtures gitignored,
+  so `prove_all` could not pass in a pool worktree), one directory over. Workaround in the
+  meantime, used by `raw-port/re/oracle/box_t_dist_oracle.py`: look in this tree, then
+  `~/random/final-cut-pro-transitions`, then fall back to `nm -n /tmp/<FW>.x86_64` — the THIN
+  slice disasm.sh already extracted, never the fat original. Real fix: have `ensure_ledger.sh`
+  (which already restores 6 gitignored ledgers into a fresh checkout) restore or symlink the 5
+  `inventory/*.syms.txt` files too, so the fast path is available where the work happens.
+
+- **CoreGraphics' `CGRect` accessors are not the obvious formulas, and the difference is 1 ulp.**
+  (worker 3, 2026-08-11, found on `videoanalysis::collation::box_t::dist`.) Any port that reaches
+  `CGRectGetMaxX/MaxY` needs these two, both measured against the live framework:
+  (a) for a NEGATIVE extent, standardization is two steps and the second one rounds again —
+  `MaxX = (x + width) - width`, which is a DIFFERENT double from both `x` and `max(x, x+width)`
+  (50 of 8,198 corpus rects differ, always by exactly 1 ulp, and the error then propagates
+  through a multiply and a sqrt into the result);
+  (b) `CGRectIntersectsRect` does NOT implement the documented "an empty rect never intersects"
+  rule. Each axis behaves as the half-open interval `[min, max)`, except that a ZERO-extent axis
+  behaves as the single point `{min}`: two proper rects sharing an edge do not intersect, a
+  zero-width rect on the other's MIN edge does, on its MAX edge does not, and two zero-width
+  rects intersect iff their coordinate is equal. Verified 0 mismatches on 16,000 pairs; the
+  documented rule was wrong on 10 of one port's 4,096 pairs, plain strict overlap on 244 of an
+  8,000-case grid, closed-interval overlap on 1,115. NaN components are NOT modellable by any
+  simple rule (the live function answered 104 true / 296 false over 400 random single-NaN pairs)
+  — state that envelope rather than guessing. A reusable TS copy of all of this lives in
+  `raw-port/src/infra/videoanalysis__collation__box_t.ts`; copy it rather than re-deriving it.
+
 ---
 
 ## Standing rules that came out of the above
