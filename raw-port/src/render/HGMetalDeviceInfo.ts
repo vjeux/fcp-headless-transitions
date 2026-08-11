@@ -12,11 +12,19 @@
 //     __ZNK17HGMetalDeviceInfo7isIntelEv
 //   * HGMetalDeviceInfo::isAMD() const             @Helium 0x1c54f0
 //     __ZNK17HGMetalDeviceInfo5isAMDEv
+//   * HGMetalDeviceInfo::isBuiltin() const         @Helium 0x1c55a0
+//     __ZNK17HGMetalDeviceInfo9isBuiltinEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo7isAppleEv.s
 //   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo7isIntelEv.s
 //   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo5isAMDEv.s
+//   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo9isBuiltinEv.s
+//   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo10isExternalEv.s  (isExternal — read ONLY
+//                                                                       to pin the +0x28 field's
+//                                                                       offset/width; that method
+//                                                                       is a separate ledger entry
+//                                                                       and is NOT ported here)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (6 lines, @0x1c5510..@0x1c551f)
@@ -80,6 +88,22 @@ export class HGMetalDeviceInfo {
    * field is only observed as a read.
    */
   deviceFamily_at_0x20: number = 0;
+
+  /**
+   * @Helium offset +0x28 — a `uint32_t` device-LOCATION discriminator, a
+   * different slot from the +0x20 vendor id above. Read @0x1c55a4 via
+   * `cmpl $0x0, 0x28(%rdi)` inside `isBuiltin()`, and — this is what pins it
+   * as an enumerated location rather than a bool — read again at the same
+   * offset and width by the sibling `isExternal()` @0x1c55c4 via
+   * `cmpl $0x2, 0x28(%rdi)`, which tests it against 2. Two decoded compares
+   * against two different immediates (0 and 2) on one 32-bit slot is the
+   * evidence for "small enum", and it is all the evidence there is: no
+   * enumerator NAMES are decoded here, and the writer lives in the
+   * not-yet-ported device-probing path, so the field is only observed as a
+   * read. `isExternal()` itself is a separate ledger entry and is NOT ported
+   * in this commit.
+   */
+  deviceLocation_at_0x28: number = 0;
 
   /**
    * `HGMetalDeviceInfo::isApple() const` — @Helium 0x1c5510
@@ -170,5 +194,63 @@ export class HGMetalDeviceInfo {
     // @0x1c54f4-0x1c54fb: cmpl $0x1002, 0x20(%rdi) ; sete %al
     //   ZF (sete) is set iff the u32 field equals 0x1002 — strict equality.
     return (this.deviceFamily_at_0x20 >>> 0) === 0x1002;
+  }
+
+  /**
+   * `HGMetalDeviceInfo::isBuiltin() const` — @Helium 0x1c55a0
+   * (__ZNK17HGMetalDeviceInfo9isBuiltinEv).
+   *
+   * Faithful transcription of the whole 8-line disassembly
+   * (raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo9isBuiltinEv.s):
+   *
+   *   0x1c55a0  pushq %rbp
+   *   0x1c55a1  movq  %rsp, %rbp
+   *   0x1c55a4  cmpl  $0x0, 0x28(%rdi)   ; *(u32*)(this+0x28) - 0
+   *   0x1c55a8  sete  %al                ; al = ZF = (field == 0)
+   *   0x1c55ab  popq  %rbp
+   *   0x1c55ac  retq
+   *   0x1c55ad  nopl  (%rax)             ; padding — not executed
+   *
+   * Same one-compare shape as `isApple`/`isIntel`/`isAMD` above, but over a
+   * DIFFERENT field: those three read the vendor id at +0x20, this one reads
+   * the location discriminator at +0x28 (see the field doc). Getting that
+   * wrong is the obvious failure mode for a body this small, so the oracle
+   * below scores it explicitly.
+   *
+   * Strict equality against ZERO (`cmpl $0x0` + `sete`) — NOT a "non-zero
+   * means true" bool test, which would be `testl`/`setne` and is the opposite
+   * answer on every non-zero input. The compare is `cmpl`, so it is 32 bits
+   * wide: a value whose low 16 bits are zero but whose high half is not (e.g.
+   * 0x10000) is NOT builtin.
+   *
+   * No in-scope callees, no externs, no indirect calls — `depgraph.py deps
+   * __ZNK17HGMetalDeviceInfo9isBuiltinEv` reports nothing at all. The `const`
+   * qualifier matches the `__ZNK...` mangling; the body only reads.
+   *
+   * DIFFERENTIAL against the live binary (exported `T` @0x1c55a0, so dlsym
+   * reaches it; run under `arch -x86_64` because every address here is an
+   * x86_64 offset — a native arm64 process would be checking this port against
+   * code it did not transcribe):
+   * raw-port/re/oracle/HGMetalDeviceInfo_isBuiltin_oracle.py calls the real
+   * symbol on a synthetic 0x40-byte record (every undecoded byte poisoned with
+   * 0xEE) over 1,024 values of the +0x28 slot — 0..8, 0xffff, 0x10000,
+   * 0xffff0000, 0x7fffffff, 0x80000000, 0xffffffff crossed with vendor ids
+   * {0, 0x106b, 0x8086, 0x1002}, then seeded random u32s — with the +0x20
+   * vendor slot varied independently to prove it is not consulted: 1,024
+   * cases, 4 TRUE / 1,020 FALSE, **0 divergences**. (The 4 TRUEs are exactly
+   * the four `loc == 0` records, one per vendor id — the answer does not move
+   * when the vendor slot does.)
+   * NEGATIVE CONTROLS (measured on that same corpus): reading the +0x20 vendor
+   * slot instead of +0x28 diverges on 474 cases; `!= 0` instead of `== 0` (the
+   * `testl`/`setne` misread) diverges on all 1,024; comparing against 2 — the
+   * sibling `isExternal` immediate @0x1c55c4 — diverges on 8; and a 16-bit-wide
+   * compare (`(field & 0xffff) === 0`) diverges on 12, the low-half-zero cases
+   * the corpus carries precisely to pin the width.
+   */
+  isBuiltin(): boolean {
+    // @0x1c55a4-0x1c55a8: cmpl $0x0, 0x28(%rdi) ; sete %al
+    //   ZF (sete) is set iff the u32 location field equals 0 — strict
+    //   equality on the full 32 bits, not a truthiness test.
+    return (this.deviceLocation_at_0x28 >>> 0) === 0;
   }
 }
