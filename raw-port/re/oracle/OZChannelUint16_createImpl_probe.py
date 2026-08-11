@@ -1,23 +1,38 @@
 #!/usr/bin/env python3
-"""w3_probe_u16impl.py — live differential probe for
+"""OZChannelUint16_createImpl_probe.py — live differential probe for
 OZChannelUint16::createOZChannelUint16Impl() @ProChannel 0xf52e
-(__ZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageInfoEv, a LOCAL `t` symbol,
-so it is called BY ADDRESS at slide + 0x6698, not by dlsym).
+(__ZN15OZChannelUint1625createOZChannelUint16ImplEv, a LOCAL `t` symbol, so it is called BY
+ADDRESS at slide + 0xf52e, not by dlsym).
 
 What it measures, against the live x86_64 ProChannel image (the SAME slice the port is
 transcribed from):
-  A. the opcode bytes at slide+0x6698 are the ones the port was transcribed from (self-check)
-  B. before any call: once-flag word @0xeb7b0 == 0 and the singleton @0xec2b8 == NULL
+  A. the 19 opcode bytes at slide+0xf52e are the ones the port was transcribed from (self-check)
+  B. before any call: once-flag word @0xeb7d8 == 0 and the singleton @0xec260 == NULL
   C. call #1 returns a non-NULL pointer P
   D. after call #1: the once flag reads exactly -1 (0xFFFFFFFFFFFFFFFF), NOT 1 — this is the
      decode fact the port's `!== -1n` fast path rests on, and the one a `=== 1` model gets wrong
-  E. the singleton word @0xec2b8 == P (the accessor returns the DEREF of that global)
+  E. the singleton word @0xec260 == P (the accessor returns the DEREF of that global)
   F. call #2 returns the SAME P and allocates nothing new (idempotence of the call_once path)
-  G. the allocation is 0x58 bytes with the OZChannelAspectRatioFootageInfo vtable installed at
-     +0x00 (0xccaa8 + slide) and the PCSingleton sub-object vtable at +0x50 (0xccac8 + slide) —
-     i.e. the initializer really ran `operator new(0x58)` + C2 @0x6780
 
-Run: arch -x86_64 /usr/bin/python3 -u /tmp/w3_probe_arf_info.py
+WHAT THIS PROBE DELIBERATELY DOES NOT MEASURE, and why there is no check G here.
+
+A–F cover the whole of what the Impl port claims, because the Impl port is the ACCESSOR only:
+its fast path (`cmpq $-0x1` @0xf53d), its `std::__call_once` call @0xf563 through the proxy
+@0xf6c1, and its `movq (%rax),%rax` load of the singleton @0xf56f. The INITIALIZER is a
+separate ledger unit and stays a frontier throw in the port — the lambda is its own out-of-line
+symbol `__ZZN15OZChannelUint1625createOZChannelUint16ImplEvENKUlvE_clEv` @0xf6d2, which builds a
+0x30-byte OZChannelImpl over a 0xb0-byte OZCurveInt (`operator new` @0xf6ee / @0xf6fb,
+`OZCurveInt::C2` @0xf709, `OZChannelImpl::C2` @0xf721, `PCSingleton::C2` @0xf732). Calling the
+live accessor DOES run that initializer, so the object at P is real — but nothing about its
+contents corroborates this port, which does not model it. Asserting its vtable words would be
+measuring a unit that has not been claimed yet.
+
+So: no G, and `RESULT: PASS` here means exactly A–F and nothing more. (The sibling
+OZChannelUint16_createInfo_probe.py DOES carry a G, because on that side the initializer was
+inlined into `__invoke` @0xf588 and the port transcribes it, so there is a claim to corroborate.)
+
+Run: arch -x86_64 /usr/bin/python3 -u raw-port/re/oracle/OZChannelUint16_createImpl_probe.py
+     (from the repo root; the probe needs no arguments)
 """
 import ctypes, ctypes.util, os, platform, subprocess, sys
 
@@ -26,10 +41,10 @@ PC = FCP + "/Frameworks/ProChannel.framework/Versions/A/ProChannel"
 RPATHS = [FCP + "/Frameworks", FCP + "/Frameworks/Flexo.framework/Versions/A/Frameworks",
           FCP + "/PlugIns", FCP + "/Frameworks/ProApps"]
 
-ACC = 0xf52e
-ONCE = 0xeb7d8
-GLOB = 0xec260
-# first 16 bytes of the accessor, read out of /tmp/ProChannel.x86_64
+ACC = 0xf52e          # the accessor under test
+ONCE = 0xeb7d8        # once-flag BSS   (0xf53d + 0xdc29b, from the movq's disp32 `9b c2 0d 00`)
+GLOB = 0xec260        # singleton pointer BSS (0xf56f + 0xdccf1)
+# first 19 bytes of the accessor (pushq..cmpq), read out of /tmp/ProChannel.x86_64
 EXPECT = bytes.fromhex("554889e54883ec20488b059bc20d004883f8ff")
 
 if platform.machine() != "x86_64":

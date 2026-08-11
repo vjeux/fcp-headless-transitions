@@ -489,10 +489,17 @@ export class OZChannelUint16 {
    *
    * MEASURED AGAINST THE LIVE BINARY
    * (raw-port/re/oracle/OZChannelUint16_createInfo_probe.py, `arch -x86_64`, called by address at
-   * slide+0xf4e4 after an opcode self-check, 8/8 checks PASS):
+   * slide+0xf4e4 after an opcode self-check, 10/10 checks PASS):
    *   before   once @0xeb7d0 = 0            singleton @0xec258 = NULL
    *   call #1  returns 0x600000fd4180      once -> 0xffffffffffffffff, singleton == the return value
    *   call #2  returns 0x600000fd4180      once unchanged (the fast path at 0xf4f7 is taken)
+   *   built    the object at that pointer carries vtable 0xcfac8+slide at +0x00 and the
+   *            PCSingleton sub-object vtable 0xcfae8+slide at +0x50 — the two words
+   *            `OZChannelUint16Info::C2` @0xf5cc writes @0xf610/@0xf61a. That is what
+   *            corroborates the INITIALIZER transcribed below (`operator new(0x58)` @0xf5a1 +
+   *            C2 @0xf5ac + publish @0xf5b1), rather than merely "a stable pointer came back",
+   *            which is true of any call_once accessor. Control in the same run: the sibling
+   *            OZChannelAspectRatioFootageInfo vtables (0xccaa8/0xccac8) would FAIL both.
    */
   static createOZChannelUint16Info(): OZChannelInfoPtr {
     // @0xf4ec-0xf4f7 — the libc++ fast path: once == ~0UL means init already completed.
@@ -561,6 +568,9 @@ export type { OZCompoundChannel };
 // What the trace REFUTES is the `=== 1` sentinel of the 2026-07-29 call_once cheat; what it cannot
 // separate is `!== -1n` from `!== 0n`, so the `-1` in the port comes from the `cmpq $-0x1` encoding
 // at 0xf53d (bytes `48 83 f8 ff`), not from the trace.
+// Those 8 checks cover the ACCESSOR and nothing else, which is all this unit claims: the probe
+// carries no check on the object the live initializer built, because the initializer here is the
+// out-of-line lambda @0xf6d2 — a separate ledger unit, deferred to a frontier throw below.
 // ═════════════════════════════════════════════════════════════════════════════════════════════
 
 /**

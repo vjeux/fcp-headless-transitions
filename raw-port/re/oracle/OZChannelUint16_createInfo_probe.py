@@ -1,23 +1,40 @@
 #!/usr/bin/env python3
-"""w3_probe_u16impl.py — live differential probe for
+"""OZChannelUint16_createInfo_probe.py — live differential probe for
 OZChannelUint16::createOZChannelUint16Info() @ProChannel 0xf4e4
-(__ZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageInfoEv, a LOCAL `t` symbol,
-so it is called BY ADDRESS at slide + 0x6698, not by dlsym).
+(__ZN15OZChannelUint1625createOZChannelUint16InfoEv, a LOCAL `t` symbol, so it is called BY
+ADDRESS at slide + 0xf4e4, not by dlsym).
 
 What it measures, against the live x86_64 ProChannel image (the SAME slice the port is
 transcribed from):
-  A. the opcode bytes at slide+0x6698 are the ones the port was transcribed from (self-check)
-  B. before any call: once-flag word @0xeb7b0 == 0 and the singleton @0xec2b8 == NULL
+  A. the 19 opcode bytes at slide+0xf4e4 are the ones the port was transcribed from (self-check)
+  B. before any call: once-flag word @0xeb7d0 == 0 and the singleton @0xec258 == NULL
   C. call #1 returns a non-NULL pointer P
   D. after call #1: the once flag reads exactly -1 (0xFFFFFFFFFFFFFFFF), NOT 1 — this is the
      decode fact the port's `!== -1n` fast path rests on, and the one a `=== 1` model gets wrong
-  E. the singleton word @0xec2b8 == P (the accessor returns the DEREF of that global)
+  E. the singleton word @0xec258 == P (the accessor returns the DEREF of that global)
   F. call #2 returns the SAME P and allocates nothing new (idempotence of the call_once path)
-  G. the allocation is 0x58 bytes with the OZChannelAspectRatioFootageInfo vtable installed at
-     +0x00 (0xccaa8 + slide) and the PCSingleton sub-object vtable at +0x50 (0xccac8 + slide) —
-     i.e. the initializer really ran `operator new(0x58)` + C2 @0x6780
+  G. WHAT THE INITIALIZER BUILT: the object at P carries the OZChannelUint16Info vtable pointer
+     at +0x00 (0xcfac8 + slide) and the PCSingleton sub-object vtable at +0x50 (0xcfae8 + slide).
+     Those are exactly the two words `OZChannelUint16Info::C2` @0xf5cc writes, at 0xf610 and
+     0xf61a (`leaq 0xc04b8(%rip)` @0xf609 -> 0xf610+0xc04b8 = 0xcfac8; `leaq 0xc04ce(%rip)`
+     @0xf613 -> 0xf61a+0xc04ce = 0xcfae8), and they are the addresses the landed
+     OZChannelUint16Info.ts records.
 
-Run: arch -x86_64 /usr/bin/python3 -u /tmp/w3_probe_arf_info.py
+     G is the check that pays here, and it is why it must not be skipped: the Info side is the
+     one part of this port that is a TRANSCRIPTION rather than a deferral. Its initializer was
+     inlined into the STL instantiation `__invoke` @0xf588 — `cmpq $0x0,(%r14)` @0xf596,
+     `operator new(0x58)` @0xf5a1, `OZChannelUint16Info::C2` called @0xf5ac, published to the
+     singleton @0xf5b1 — and the port transcribes that. A–F would pass for ANY call_once
+     accessor whatsoever (they say only "a stable non-NULL pointer came back and a flag went to
+     -1"); G is the only check that says the thing that came back is an OZChannelUint16Info
+     constructed by that ctor.
+
+     NOT measured by G, stated so `RESULT: PASS` cannot be read as covering it: the 0x58
+     allocation SIZE. It is decoded from `movl $0x58,%edi` @0xf59c and is not observable from
+     outside the allocator.
+
+Run: arch -x86_64 /usr/bin/python3 -u raw-port/re/oracle/OZChannelUint16_createInfo_probe.py
+     (from the repo root; the probe needs no arguments)
 """
 import ctypes, ctypes.util, os, platform, subprocess, sys
 
@@ -26,10 +43,12 @@ PC = FCP + "/Frameworks/ProChannel.framework/Versions/A/ProChannel"
 RPATHS = [FCP + "/Frameworks", FCP + "/Frameworks/Flexo.framework/Versions/A/Frameworks",
           FCP + "/PlugIns", FCP + "/Frameworks/ProApps"]
 
-ACC = 0xf4e4
-ONCE = 0xeb7d0
-GLOB = 0xec258
-# first 16 bytes of the accessor, read out of /tmp/ProChannel.x86_64
+ACC = 0xf4e4          # the accessor under test
+ONCE = 0xeb7d0        # once-flag BSS   (0xf4f3 + 0xdc2dd, from the movq's disp32 `dd c2 0d 00`)
+GLOB = 0xec258        # singleton pointer BSS (0xf525 + 0xdcd33)
+VT_INFO = 0xcfac8     # primary vtable ptr written by C2 @0xf610 (leaq @0xf609, disp 0xc04b8)
+VT_PCS = 0xcfae8      # PCSingleton sub-object vtable, written by C2 @0xf61a (leaq @0xf613)
+# first 19 bytes of the accessor (pushq..cmpq), read out of /tmp/ProChannel.x86_64
 EXPECT = bytes.fromhex("554889e54883ec20488b05ddc20d004883f8ff")
 
 if platform.machine() != "x86_64":
@@ -129,6 +148,29 @@ check("E singleton word == returned P", u64(GLOB) == p1,
 p2 = fn()
 check("F call#2 returns the same pointer", p2 == p1, "P2 = 0x%x" % (p2 or 0))
 check("F once flag unchanged after call#2", u64(ONCE) == 0xFFFFFFFFFFFFFFFF, "0x%x" % u64(ONCE))
+
+# G — what the initializer actually BUILT: the two vtable words C2 @0xf5cc writes.
+#     A–F are true of any call_once accessor; this is the check that binds the returned object to
+#     `operator new(0x58)` @0xf5a1 + OZChannelUint16Info::C2 @0xf5ac, i.e. to the one initializer
+#     this port TRANSCRIBES rather than defers. A NULL P is a FAIL, not a skip — silently doing
+#     nothing is how the previous revision of this file promised G and never ran it.
+if p1:
+    vt0 = ctypes.c_uint64.from_address(p1).value
+    vt50 = ctypes.c_uint64.from_address(p1 + 0x50).value
+    check("G object +0x00 vtable == 0xcfac8+slide", vt0 == slide + VT_INFO,
+          "0x%x vs 0x%x" % (vt0, slide + VT_INFO))
+    check("G object +0x50 vtable == 0xcfae8+slide", vt50 == slide + VT_PCS,
+          "0x%x vs 0x%x" % (vt50, slide + VT_PCS))
+    # CONTROL for G: G only means something if a WRONG class's vtable would fail it. The addresses
+    # of the sibling OZChannelAspectRatioFootageInfo (0xccaa8 / 0xccac8) are the ones a copied probe
+    # would have carried, so print the comparison G would have made against them.
+    print("  control  G vs the sibling ARFInfo vtables 0xccaa8/0xccac8: "
+          "+0x00 0x%x != 0x%x -> %s, +0x50 0x%x != 0x%x -> %s"
+          % (vt0, slide + 0xccaa8, "would FAIL" if vt0 != slide + 0xccaa8 else "would pass",
+             vt50, slide + 0xccac8, "would FAIL" if vt50 != slide + 0xccac8 else "would pass"))
+else:
+    check("G object vtables", False, "not run: call #1 returned NULL")
+
 
 # NEGATIVE CONTROL: a port that modelled the flag as "non-zero means done" would be
 # indistinguishable here, so state what this probe can and cannot separate.
