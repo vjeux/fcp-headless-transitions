@@ -88,6 +88,38 @@ cp -R "$T/raw-port/army/gate" raw-port/army/ 2>/dev/null; cp -R "$T/raw-port/arm
 
 git fetch -q origin main 2>&1 | tail -1
 CHANGED=$(git diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
+# THE MACHINERY ITSELF IS UNPROTECTED, AND THIS RUNS BEFORE THE SRC SHORT-CIRCUIT BELOW.
+# G6, regression_check and dup_check all guard raw-port/src/**.ts; every other file — the tools, the
+# gates, the verifiers, OPS_LOG — is guarded by nothing, and a whole-file write from a stale copy
+# reverts a peer's landed fix with a CLEAN merge and a GREEN gate. It happened twice on 2026-08-11,
+# once to a swarm_doctor rework 40 minutes after it was pushed.
+#
+# ORDER IS THE WHOLE POINT, and the first version of this wiring got it wrong: it sat below the
+# `no raw-port/src ports to gate` early exit, and a PR that changes no src EXITS THERE. Those are
+# exactly the PRs this check exists for — pure tooling and OPS_LOG changes, which is what both
+# incidents were. Measured on the queue at the time: 15 of 16 open PRs touched zero src files, and
+# ALL THREE that this check would have caught were among them, so the guard would have run on 1 PR
+# in 16 and on none of the three. It goes first, because non-src files are the only thing it looks
+# at.
+#
+# What is measured is the deletion the MERGE APPLIES (three dots) of lines main still has — not
+# whether the branch is stale, which is a different question and the one that got the first version
+# of this guard inverted. A deletion the author declares with `reverts-ok: <path>` in the commit
+# message passes and is still printed.
+# The `-f` test is not decoration: `python3 <missing file>` also exits 2, so without it a tool that
+# has not landed yet would be indistinguishable from a real REJECT.
+if [ -f raw-port/army/tools/stale_file_check.py ]; then
+  python3 raw-port/army/tools/stale_file_check.py origin/main HEAD; rc=$?
+  if [ "$rc" = "2" ]; then
+    post_status failure "deletes lines that are on main without a reverts-ok: declaration"
+    echo "PR_GATE: FAIL ❌ (#$PR) — deletes lines that are on main without a reverts-ok: declaration"
+    exit 1
+  elif [ "$rc" != "0" ]; then
+    post_status failure "stale_file_check errored rc=$rc"
+    echo "PR_GATE: FAIL ❌ (#$PR) — stale_file_check errored rc=$rc"
+    exit 1
+  fi
+fi
 if [ -z "$CHANGED" ]; then post_status success "no raw-port/src ports to gate (infra/tooling PR)"; echo "PR_GATE: PASS (no src changes) (#$PR)"; exit 0; fi
 echo "changed: $CHANGED"
 
@@ -132,21 +164,6 @@ if [ "$rc" = "5" ]; then FAIL=1; REASON="dup-ledger (already on main)"; elif [ "
 # files modelling one class means two struct layouts that silently drift.
 # --new-only judges the DELTA: a PR that adds no new duplicate passes even while main carries the
 # existing 7, which is what makes wiring this in possible today rather than after a cleanup.
-# THE MACHINERY ITSELF IS UNPROTECTED. G6, regression_check and dup_check all guard
-# raw-port/src/**.ts; every other file — the tools, the gates, the verifiers, OPS_LOG — is guarded by
-# nothing, and a whole-file write from a stale copy reverts a peer's landed fix with a CLEAN merge and
-# a GREEN gate. It happened twice today, once to a swarm_doctor rework 40 minutes after it was pushed,
-# and both agents were doing exactly what they had been asked to do. What is measured is the deletion
-# the MERGE APPLIES (three dots) of lines main still has — not whether the branch is stale, which is a
-# different question and the one that got the first version of this guard inverted. A deletion the
-# author declares with `reverts-ok: <path>` in the commit message passes and is still printed.
-# The `-f` test is not decoration: `python3 <missing file>` also exits 2, so without it a tool that
-# has not landed yet would be indistinguishable from a real REJECT.
-if [ -f raw-port/army/tools/stale_file_check.py ]; then
-  python3 raw-port/army/tools/stale_file_check.py origin/main HEAD; rc=$?
-  if [ "$rc" = "2" ]; then FAIL=1; REASON="deletes lines that are on main without a reverts-ok: declaration";
-  elif [ "$rc" != "0" ]; then FAIL=1; REASON="stale_file_check errored rc=$rc"; fi
-fi
 python3 raw-port/army/tools/check_duplicate_classes.py --new-only origin/main; rc=$?
 if [ "$rc" = "2" ]; then FAIL=1; REASON="introduces a duplicate class file (one C++ class = one .ts)";
 elif [ "$rc" != "0" ]; then FAIL=1; REASON="check_duplicate_classes errored rc=$rc"; fi
