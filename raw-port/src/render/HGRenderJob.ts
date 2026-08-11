@@ -10,6 +10,23 @@
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetResourceENS_8ResourceE.s (SetResource)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob23SetRenderThreadPriorityENS_20RenderThreadPriorityE.s
 //                                                                       (SetRenderThreadPriority)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE.s
+//                                                                       (SetGPUGraphicsAPI)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob19UsesOnlyGPUResourceEv.s (UsesOnlyGPUResource)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob17GetGPUGraphicsAPIEv.s   (GetGPUGraphicsAPI —
+//                                                                       read only to pin the
+//                                                                       +0x64 offset/width; the
+//                                                                       getter itself is a
+//                                                                       separate ledger entry)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob24IsRequestedVirtualScreenEi.s
+//                                                                       (IsRequestedVirtualScreen)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob20SetVirtualScreenMaskEj.s
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob20GetVirtualScreenMaskEv.s
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob16SetVirtualScreenEi.s    (these three read only
+//                                                                       to pin the +0xbc
+//                                                                       offset/width and prove it
+//                                                                       is a BITMASK; each is a
+//                                                                       separate ledger entry)
 //
 // This file ports ONLY the methods listed under "Symbols ported here" below.
 // HGRenderJob is a large class (fields at offsets 0xc8 and 0xd8 imply at
@@ -59,6 +76,8 @@
 //                             are modelled as boundary stubs; see externs section below.
 //   SetType                 — none.
 //   SetRenderThreadPriority — none.
+//   SetGPUGraphicsAPI       — none.
+//   UsesOnlyGPUResource     — none.
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -75,6 +94,54 @@
 //       — HGRenderJob::SetResource(HGRenderJob::Resource) @Helium 0x54380
 //   * __ZN11HGRenderJob23SetRenderThreadPriorityENS_20RenderThreadPriorityE
 //       — HGRenderJob::SetRenderThreadPriority(HGRenderJob::RenderThreadPriority) @Helium 0x544b0
+//   * __ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE
+//       — HGRenderJob::SetGPUGraphicsAPI(HGRenderJob::GPUGraphicsAPI) @Helium 0x54490
+//   * __ZN11HGRenderJob19UsesOnlyGPUResourceEv
+//       — HGRenderJob::UsesOnlyGPUResource() @Helium 0x54b20
+//   * __ZN11HGRenderJob24IsRequestedVirtualScreenEi
+//       — HGRenderJob::IsRequestedVirtualScreen(int) @Helium 0x54ad0
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM — IsRequestedVirtualScreen @0x54ad0
+// -----------------------------------------------------------------------------
+//   0x54ad0  pushq  %rbp                    ; frame prologue
+//   0x54ad1  movq   %rsp, %rbp
+//   0x54ad4  testl  %esi, %esi              ; flags on screen & screen -> SF = sign(screen)
+//   0x54ad6  js     0x54ae6                 ; SF=1 (screen < 0) -> the false tail
+//   0x54ad8  movl   0xbc(%rdi), %eax        ; eax = this->virtualScreenMask (u32 load)
+//   0x54ade  movl   %esi, %ecx              ; ecx = screen (only CL is used by the shift)
+//   0x54ae0  shrl   %cl, %eax               ; LOGICAL right shift; x86 masks the count to
+//                                           ; 5 bits for a 32-bit operand, so the machine
+//                                           ; shifts by (screen & 31) — NOT a saturating or
+//                                           ; zeroing shift. screen=32 re-tests bit 0.
+//   0x54ae2  andb   $0x1, %al               ; keep bit 0 -> the bool return value
+//   0x54ae4  popq   %rbp                    ; epilogue
+//   0x54ae5  retq
+//   0x54ae6  xorl   %eax, %eax              ; false tail: eax = 0
+//   0x54ae8  andb   $0x1, %al               ; (redundant mask the compiler kept)
+//   0x54aea  popq   %rbp                    ; epilogue
+//   0x54aeb  retq
+//   0x54aec  nopl   (%rax)                  ; padding
+//
+// `testl %esi,%esi ; js` is the standard signed-negative test: `test` ANDs the
+// operand with itself, so SF is simply bit 31 of `screen`, and `js` takes the
+// branch exactly when screen < 0. There is NO upper-bound check — the only
+// thing that keeps screen>=32 in range is the hardware's 5-bit shift-count
+// mask, which the port reproduces with JS `>>>` (ECMA-262 ToUint32 + `& 31`,
+// the same masking rule). Modelling it as "return false for screen >= 32"
+// would be a rewrite, and the oracle below measures the difference: 170 of
+// 1,600 cases.
+//
+// The field at +0xbc is pinned as a u32 BITMASK by three sibling methods (each
+// its own ledger entry, read here only for the layout, exactly as
+// GetGPUGraphicsAPI was used for +0x64):
+//   SetVirtualScreenMask(unsigned) @0x545d0  — `movl %esi, 0xbc(%rdi)`  (u32 store)
+//   GetVirtualScreenMask()         @0x54af0  — `movl 0xbc(%rdi), %eax`  (u32 load)
+//   SetVirtualScreen(int)          @0x545b0  — `movl $0x1,%eax ; movl %esi,%ecx ;
+//                                               shll %cl,%eax ; movl %eax,0xbc(%rdi)`
+//                                              i.e. mask = 1 << (screen & 31), which is
+//                                              what makes "bit N = screen N" certain
+//                                              rather than inferred.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — SetUserTag @0x54650
@@ -183,6 +250,30 @@ export type HGRenderJobRenderThreadPriority = number;
 export type HGRenderJobMetalShaderPrecision = number;
 
 /**
+ * HGRenderJob::GPUGraphicsAPI — enum tag stored at +0x64. Values are not yet
+ * enumerated here: `SetGPUGraphicsAPI` @Helium 0x54494 passes `esi` (an unsigned
+ * 32-bit int) straight into the slot with no validation, masking or branching,
+ * and its reader `GetGPUGraphicsAPI` @Helium 0x547f4 hands the same 32 bits back
+ * (`movl 0x64(%rdi), %eax`), so no decoded instruction pins a single enumerator.
+ * That matched 32-bit store/load pair is what fixes both the offset and the
+ * width. Model as an opaque u32 alias until a ctor or a comparison site reveals
+ * the values — same treatment as `HGRenderJobMetalShaderPrecision` above.
+ */
+export type HGRenderJobGPUGraphicsAPI = number;
+
+/**
+ * The pointee shape that `UsesOnlyGPUResource` @Helium 0x54b20 dereferences — both at
+ * `this+0x18` (`cmpl $0x1, 0x8(%rcx)` @0x54b40) and for every entry of the vector at
+ * `this+0x28..+0x30` (`cmpl $0x0, 0x8(%rax)` @0x54b74). Only the u32 at +0x08 is read by
+ * any decoded instruction, so only that word is modelled; naming the rest would be the
+ * magic-offset guesswork PORTING_SPEC Rule 5 forbids.
+ */
+export interface HGRenderJobTaggedRef {
+  /** +0x08 (u32) — compared against 1 @0x54b40 and against 0 @0x54b74. */
+  tag08: number;
+}
+
+/**
  * `HGRenderJob` — Helium render job. This file ports the setters listed in
  * "Symbols ported here" (see file header); every other method is a
  * separate ledger entry. Field offsets not yet decoded are omitted; the
@@ -230,6 +321,46 @@ export class HGRenderJob {
    *  which is what fixes both the offset and the width. Zero-initialised to a
    *  neutral tag until a ctor is transcribed to reveal the true default. */
   metalShaderPrecision: HGRenderJobMetalShaderPrecision = 0; // @Helium HGRenderJob@0x88
+
+  /** @Helium HGRenderJob@0x64 — the u32 HGRenderJob::GPUGraphicsAPI enum tag.
+   *  Written by SetGPUGraphicsAPI @0x54494 via a single `movl %esi, 0x64(%rdi)`,
+   *  and read back by GetGPUGraphicsAPI @0x547f4 via `movl 0x64(%rdi), %eax` — a
+   *  matched 32-bit store/load pair, which is what fixes both the offset and the
+   *  width. Confirmed by calling the live pair on a 0xAA-filled buffer: only the
+   *  four bytes at +0x64 change. Zero-initialised to a neutral tag until a ctor is
+   *  transcribed to reveal the true default. */
+  gpuGraphicsAPI: HGRenderJobGPUGraphicsAPI = 0; // @Helium HGRenderJob@0x64
+
+  /** @Helium HGRenderJob@0x18 — a nullable pointer to a tagged object whose u32 at
+   *  +0x08 is compared against 1 by UsesOnlyGPUResource @0x54b40
+   *  (`cmpl $0x1, 0x8(%rcx)`). Nothing else in the decoded methods touches it, so
+   *  only the tag word is modelled; the pointee's remaining layout is undecoded. */
+  taggedRef18: HGRenderJobTaggedRef | null = null; // @Helium HGRenderJob@0x18
+
+  /** @Helium HGRenderJob@0x28 / +0x30 — begin/end of a std::vector of 16-BYTE entries
+   *  (`addq $0x10` stride @0x54b5f/0x54b80), each of which starts with a pointer that
+   *  UsesOnlyGPUResource dereferences at +0x08 (`movq -0x10(%rdx), %rax ; cmpl $0x0,
+   *  0x8(%rax)` @0x54b70). Modelled as the array of pointed-to objects, so `.length`
+   *  is the (end-begin)/16 the machine computes; the other 8 bytes of each entry are
+   *  not read by any decoded method. */
+  taggedRefs: Array<HGRenderJobTaggedRef> = []; // @Helium HGRenderJob@0x28..+0x30
+
+  /** @Helium HGRenderJob@0x50 — an 8-byte slot that UsesOnlyGPUResource tests only for
+   *  non-null (`cmpq $0x0, 0x50(%rdi)` @0x54b46). Its type is undecoded, so it is
+   *  modelled as an opaque nullable reference. */
+  slot50: unknown | null = null; // @Helium HGRenderJob@0x50
+
+  /** @Helium HGRenderJob@0xbc — the u32 virtual-screen BITMASK (bit N set = virtual
+   *  screen N is requested). Read by IsRequestedVirtualScreen @0x54ad8 via
+   *  `movl 0xbc(%rdi), %eax`; the same dword is written by SetVirtualScreenMask
+   *  @0x545d4 (`movl %esi, 0xbc(%rdi)`), read back by GetVirtualScreenMask @0x54af4
+   *  (`movl 0xbc(%rdi), %eax`) — a matched 32-bit store/load pair that fixes both the
+   *  offset and the width — and set to a single bit by SetVirtualScreen @0x545c1
+   *  (`movl $0x1,%eax ; shll %cl,%eax ; movl %eax,0xbc(%rdi)`), which is what proves
+   *  the dword is a per-screen bit set rather than a screen index. Held as an
+   *  unsigned 32-bit value. Zero-initialised (no screens requested) until a ctor is
+   *  transcribed to reveal the true default. */
+  virtualScreenMask: number = 0; // @Helium HGRenderJob@0xbc
 
   /**
    * `HGRenderJob::SetUserTag(unsigned long long)` @Helium 0x54650
@@ -434,6 +565,124 @@ export class HGRenderJob {
   }
 
   /**
+   * `HGRenderJob::SetGPUGraphicsAPI(HGRenderJob::GPUGraphicsAPI)` @Helium 0x54490
+   *   (__ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE)
+   *
+   * Faithful line-for-line transcription of the whole 6-line function: one u32
+   * store into the `gpuGraphicsAPI` slot at `this+0x64`. Structural twin of
+   * `SetRenderThreadPriority` / `SetMetalShaderPrecision` above, a different slot.
+   * No callees, no validation, no branches. From raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE.s:
+   *
+   *   0x54490  pushq %rbp                    ; frame prologue
+   *   0x54491  movq  %rsp, %rbp
+   *   0x54494  movl  %esi, 0x64(%rdi)        ; this->gpuGraphicsAPI (u32) = esi
+   *   0x54497  popq  %rbp                    ; epilogue
+   *   0x54498  retq
+   *   0x54499  nopl  (%rax)                  ; padding
+   *
+   * The offset and width are pinned by the matching reader `GetGPUGraphicsAPI`
+   * @Helium 0x547f4 (`movl 0x64(%rdi), %eax`), and confirmed by DIFFERENTIAL
+   * against the live binary: both symbols are exported (`nm` class T), so calling
+   * the pair through dlsym on a 0x200-byte buffer pre-filled with 0xAA, under
+   * `arch -x86_64` (the port's addresses are x86_64 offsets), gives for each of
+   * 0, 1, 2, 0x12345678, 0x80000000 and 0xffffffff: the four bytes at +0x64 hold
+   * the value, `GetGPUGraphicsAPI` returns it, and EVERY other byte of the buffer
+   * is still 0xAA — i.e. the setter really is this single store and touches
+   * nothing else.
+   *
+   * @param api — HGRenderJob::GPUGraphicsAPI enum value (SysV %esi, u32).
+   */
+  SetGPUGraphicsAPI(api: HGRenderJobGPUGraphicsAPI): void {
+    // ------------------------------------------------------------
+    // @0x54490..0x54491 — prologue (no TS-visible effect).
+    // @0x54494 — movl %esi, 0x64(%rdi) : store u32 at offset +0x64.
+    //   Model 32-bit truncation with `>>> 0` so a negative / oversized
+    //   JS number stores the same bit-pattern the machine would.
+    // @0x54497..0x54498 — epilogue + retq.
+    // ------------------------------------------------------------
+    this.gpuGraphicsAPI = api >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::UsesOnlyGPUResource()` @Helium 0x54b20
+   *   (__ZN11HGRenderJob19UsesOnlyGPUResourceEv)
+   *
+   * Full transcription of the 40-line body (raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob19UsesOnlyGPUResourceEv.s). Returns `bool` in %al.
+   *
+   *   0x54b20  movl  0x10(%rdi), %ecx        ; ecx = this->_resource (u32 @+0x10)
+   *   0x54b23  movb  $0x1, %al               ; default answer = true
+   *   0x54b25  leal  -0x2(%rcx), %edx        ; edx = resource - 2
+   *   0x54b28  cmpl  $0x4, %edx
+   *   0x54b2b  jae   0x54b2e                 ; UNSIGNED >= 4 -> keep going
+   *   0x54b2d  retq                          ;   else return true (no frame was built)
+   *   0x54b2e  cmpl  $0x6, %ecx
+   *   0x54b31  jne   0x54b4f                 ; resource != 6 -> 0x54b4f: xorl %eax,%eax; ret
+   *   0x54b33  pushq %rbp ; movq %rsp,%rbp
+   *   0x54b37  movq  0x18(%rdi), %rcx        ; rcx = this->taggedRef18
+   *   0x54b3b  testq %rcx, %rcx
+   *   0x54b3e  je    0x54b46                 ; null -> skip the tag test
+   *   0x54b40  cmpl  $0x1, 0x8(%rcx)
+   *   0x54b44  je    0x54b4d                 ; tag08 == 1 -> return true (al still 1)
+   *   0x54b46  cmpq  $0x0, 0x50(%rdi)
+   *   0x54b4b  je    0x54b52                 ; slot50 == null -> walk the vector
+   *   0x54b4d  popq  %rbp ; retq             ;   else return true
+   *   0x54b4f  xorl  %eax, %eax ; retq       ; the resource != 6 exit -> false
+   *   0x54b52  movq  0x28(%rdi), %rdx        ; rdx = vector begin
+   *   0x54b56  movq  0x30(%rdi), %rcx        ; rcx = vector end
+   *   0x54b5a  cmpq  %rcx, %rdx
+   *   0x54b5d  je    0x54b88                 ; EMPTY vector -> 0x54b88: xorl %eax,%eax -> false
+   *   0x54b5f  addq  $0x10, %rdx             ; pre-advance; entries are 16 bytes
+   *   0x54b70  movq  -0x10(%rdx), %rax       ; rax = entry[i].ptr
+   *   0x54b74  cmpl  $0x0, 0x8(%rax)
+   *   0x54b78  setne %al                     ; al = (ptr->tag08 != 0)
+   *   0x54b7b  je    0x54b4d                 ; a ZERO tag returns immediately with al = 0
+   *   0x54b7d  cmpq  %rcx, %rdx
+   *   0x54b80  leaq  0x10(%rdx), %rdx
+   *   0x54b84  jne   0x54b70                 ; loop while the pre-increment cursor != end
+   *   0x54b86  jmp   0x54b4d                 ; ran out -> return al, which is 1
+   *
+   * So: resource in {2,3,4,5} is unconditionally GPU-only; anything other than 6 is not;
+   * and resource == 6 is GPU-only when EITHER `taggedRef18->tag08 == 1` OR `slot50` is
+   * non-null, else when the +0x28 vector is non-empty and EVERY entry's `tag08` is
+   * non-zero. An empty vector on that last path answers FALSE.
+   *
+   * Note the two branches that are easy to invert: `cmpl $0x4,%edx ; jae` is UNSIGNED, so
+   * resource 0 and 1 wrap to 0xfffffffe/0xffffffff and take the `jae` (they are NOT in the
+   * true set); and `je 0x54b52` fires when slot50 IS null, i.e. the vector walk is the
+   * fallback, not the primary test.
+   *
+   * DIFFERENTIAL against the live binary (exported `T`, so dlsym reaches it; run under
+   * `arch -x86_64`): raw-port/re/oracle/HGRenderJob_UsesOnlyGPUResource_oracle.py builds
+   * synthetic jobs — every resource value 0..8, taggedRef18 null / tag 0 / 1 / 2, slot50
+   * null or not, and vectors of length 0..3 with every tag combination — and compares the
+   * live answer to this body: 2,880 cases, 1,522 TRUE / 1,358 FALSE, 0 divergences.
+   *
+   * @returns true when the job needs only GPU resources.
+   */
+  UsesOnlyGPUResource(): boolean {
+    // @0x54b20/0x54b25/0x54b28 — UNSIGNED (resource - 2) < 4, i.e. resource in {2,3,4,5}
+    const resource = this._resource >>> 0;
+    if (((resource - 2) >>> 0) < 4) return true; // @0x54b2b jae not taken -> @0x54b2d ret al=1
+    // @0x54b2e/0x54b31 — anything but 6 is false
+    if (resource !== 6) return false; // @0x54b4f xorl %eax,%eax ; retq
+    // @0x54b37..0x54b44 — taggedRef18 != null && taggedRef18->tag08 == 1 -> true
+    const ref = this.taggedRef18;
+    if (ref !== null && (ref.tag08 >>> 0) === 1) return true; // @0x54b44 je -> @0x54b4d (al=1)
+    // @0x54b46/0x54b4b — slot50 non-null -> true; null -> fall through to the vector walk
+    if (this.slot50 !== null && this.slot50 !== undefined) return true; // @0x54b4d (al=1)
+    // @0x54b52..0x54b5d — an empty vector answers false
+    const refs = this.taggedRefs;
+    if (refs.length === 0) return false; // @0x54b88 xorl %eax,%eax
+    // @0x54b70..0x54b84 — every entry's tag08 must be non-zero; the first zero returns false
+    for (let i = 0; i < refs.length; i++) {
+      if ((refs[i].tag08 >>> 0) === 0) return false; // @0x54b78 setne al=0 ; @0x54b7b je
+    }
+    return true; // @0x54b86 jmp 0x54b4d with al = 1 from the last setne
+  }
+
+  /**
    * `HGRenderJob::SetMetalShaderPrecision(HGRenderJob::MetalShaderPrecision)`
    *   @Helium 0x54500
    *   (__ZN11HGRenderJob23SetMetalShaderPrecisionENS_20MetalShaderPrecisionE)
@@ -482,6 +731,60 @@ export class HGRenderJob {
     // @0x5450a..0x5450b — epilogue + retq.
     // ------------------------------------------------------------
     this.metalShaderPrecision = precision >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::IsRequestedVirtualScreen(int)` @Helium 0x54ad0
+   * (__ZN11HGRenderJob24IsRequestedVirtualScreenEi).
+   *
+   * Tests one bit of the virtual-screen mask at `this+0xbc`: returns true iff
+   * virtual screen `screen` is in the requested set. A negative index short-
+   * circuits to false through the `js` tail at @0x54ae6; there is no upper-bound
+   * check at all, so a large index is folded by the hardware's 5-bit shift-count
+   * mask (`shrl %cl` on a 32-bit operand shifts by `screen & 31`). See the FULL
+   * DISASM block in the file header for the line-by-line decode.
+   *
+   * ORACLE: verified against the live Helium binary. The symbol is EXPORTED
+   * (`nm -arch x86_64` type `T` @0x54ad0), so the harness dlopens Helium under
+   * `arch -x86_64 /usr/bin/python3` — the port is transcribed from the x86_64
+   * slice and calling the arm64 image would compare against code this port did
+   * not transcribe — and calls the real method on a 0x200-byte object pre-filled
+   * with 0xEE, with the mask dword planted at +0xbc. 1,600 cases (32 masks: 0, 1,
+   * 2, 0x80000000, 0xffffffff, 0xAAAAAAAA, 0x55555555, 0xEEEEEEEE + 24 random
+   * u32s; x 50 screen indices: -4..39, 63, 64, 127, INT_MAX, INT_MIN, -1):
+   * 1600/1600 bit-identical to this port, and 0 cases mutated any byte of the
+   * object (it is a pure read), with the real GetVirtualScreenMask @0x54af0
+   * confirming the planted dword on every call.
+   * NEGATIVE CONTROLS (measured, same 1,600 cases): dropping the negative-screen
+   * guard -> 84 wrong; treating screen >= 32 as false instead of masking the
+   * shift count to 5 bits -> 170 wrong; always testing bit 0 -> 616 wrong;
+   * reading the neighbouring dword at +0xb8 -> 750 wrong.
+   *
+   * @param screen — the virtual-screen index (SysV %esi, signed int).
+   * @returns whether that screen's bit is set in `virtualScreenMask`.
+   */
+  IsRequestedVirtualScreen(screen: number): boolean {
+    // ------------------------------------------------------------
+    // @0x54ad0..0x54ad1 — prologue (no TS-visible effect).
+    // @0x54ad4 — testl %esi, %esi : flags on `screen & screen`, so SF = bit 31.
+    // @0x54ad6 — js 0x54ae6 : taken iff screen < 0.
+    // ------------------------------------------------------------
+    if (screen < 0) {
+      // @0x54ae6 — xorl %eax, %eax ; @0x54ae8 — andb $0x1, %al : return false.
+      // @0x54aea..0x54aeb — epilogue + retq.
+      return false;
+    }
+    // ------------------------------------------------------------
+    // @0x54ad8 — movl 0xbc(%rdi), %eax : load the u32 mask.
+    // @0x54ade — movl %esi, %ecx      : shift count (CL) = screen.
+    // @0x54ae0 — shrl %cl, %eax       : logical right shift by (screen & 31).
+    //   JS `>>>` applies ToUint32 to both operands and masks the count with
+    //   `& 31`, which is exactly the x86 32-bit shift-count rule — so the
+    //   screen >= 32 wrap-around is reproduced, not approximated.
+    // @0x54ae2 — andb $0x1, %al       : keep bit 0 as the bool result.
+    // @0x54ae4..0x54ae5 — epilogue + retq.
+    // ------------------------------------------------------------
+    return (((this.virtualScreenMask >>> 0) >>> screen) & 1) !== 0;
   }
 }
 
