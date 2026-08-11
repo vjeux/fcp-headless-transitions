@@ -28,7 +28,7 @@ import re, os, sys, json, subprocess
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # raw-port/
 VERIFIER = os.path.join(ROOT, "army", "verifier")
 sys.path.insert(0, VERIFIER)
-from classify_disasm import classify, find_disasm
+from classify_disasm import classify, find_disasm, names_class as _names_class
 import reach_check
 
 FW_RE = re.compile(r'@(ProCore|ProChannel|Helium|Ozone|Flexo)\s+0x([0-9a-fA-F]+)')
@@ -184,9 +184,36 @@ def check_file(path):
         for s in ranked:
             dpath = find_disasm(s)
             if dpath: break
-        for key in (name, f"{file_class}.{method}", method, file_class):
+        for key in (name, f"{file_class}.{method}"):
             if dpath: break
             dpath = find_disasm(key)
+        # A BARE key (`method` or `file_class` alone) is not a symbol — it is a guess, and a guess
+        # that lands on ANOTHER CLASS produces a confident verdict about a function this file does
+        # not contain. Measured across the 2,298 exported functions in raw-port/src: of the 1,745
+        # that resolved to a disasm, 924 resolved via a bare key and 476 of those — 27% of ALL
+        # resolutions — named a DIFFERENT class. `AUPassThrough_D1` was judged against
+        # `LiMaterialLayer::D1` (TRAP), `AdvanceScopingWindowTask_performTask` against
+        # `UpdateScrubRateTask::performTask` (EMPTY), and every `*_ctor` export in the repo against
+        # one arbitrary framework's constructor. Both directions are wrong: a wrong EMPTY/TRAP waves
+        # an empty-body-for-REAL-work port through (the parseElement cheat), and a wrong REAL
+        # condemns an honest @0xADDR-cited sibling stub as a class-C cheat.
+        #
+        # So a bare-key hit must still NAME THE CLASS being ported. The class is the export's own
+        # prefix when it has one (`OZChannelImpl_setMin` -> OZChannelImpl, which is how a file that
+        # carries helpers for several classes still resolves correctly), else the file's class.
+        # A hit that names neither is discarded and falls through to the NO-DISASM FLAG below —
+        # "the reviewer must re-derive this from the binary" is the honest answer, and it is the
+        # answer this gate already has for the unresolvable case. #307 fixed the same disease for
+        # the class key alone; this closes the method key, which is 5x larger.
+        bare_dpath = None
+        for key in (method, file_class):
+            if bare_dpath: break
+            bare_dpath = find_disasm(key)
+        if bare_dpath and not dpath:
+            export_class = name.split("_", 1)[0] if "_" in name else file_class
+            base = os.path.basename(bare_dpath)
+            if _names_class(base, export_class) or _names_class(base, file_class):
+                dpath = bare_dpath
         # BLIND-SPOT FIX (reviewer-08, 2026-07-29): find_disasm sanitizes away dots, so a disasm
         # saved in the human-friendly dotted form `<FW>.<Class>.<method>.s` was NEVER matched by the
         # mangled-name search -> dpath=None -> silent flag+pass -> OZChannelBase::parseElement (a REAL
