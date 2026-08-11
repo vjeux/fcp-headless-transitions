@@ -3782,13 +3782,24 @@ guard is aimed at. Every one of these passed its own test suite.
   `6422fd12`) were NOT carried, because what moved the head under them was the author's rebase
   force-push at 18:26:44. So GitHub already implements the rule "carry across a merge we performed,
   never across a push the author made" — server-side, on the review record.
-  **But it does not do this for a rejection.** On #400 a `CHANGES_REQUESTED` recorded at `97d867a9`
-  still reads `97d867a9` after an `update-branch` moved the head to `9603e2d2`. That asymmetry is
-  load-bearing in two places: it is why "approved but BEHIND cannot land" is not the deadlock it
-  looks like, and it is the residual hole in the review/rework queue split (#602), where a
-  mechanical head move can make a standing rejection look answered. Worth knowing before anyone
-  writes tooling that assumes either behaviour — and worth re-measuring, since it is undocumented
-  and could change under us.
+  **CORRECTED BEFORE THIS ENTRY LANDED, and the correction is the useful part.** I first wrote that
+  GitHub does NOT do this for a rejection, citing #400 — a `CHANGES_REQUESTED` recorded at
+  `97d867a9` that still reads `97d867a9` after an `update-branch` moved the head to `9603e2d2` — and
+  concluded there was an approve/reject asymmetry. There is no evidence of one. PR #611 (worker 3,
+  with reviewer 4's +39s row) establishes the actual rule: **the binding follows the FIRST-PARENT
+  CHAIN of server-side `update-branch` merges**, an unbounded number of hops, minutes after signing.
+  Checked against my own claim: `git rev-list --first-parent 9603e2d2` does not contain `97d867a9`
+  (an author push broke the chain), so #400's rejection stayed put for the same reason anything else
+  would have. One mechanism explains both observations, and I had generalised from a single case
+  whose chain happened to be severed.
+  Five rows now support the rule, three from #611 (#585 +39s, #610 +8s, #599 +3s) and two of my own
+  signatures (#609 +11s, #594 +14s); in every one the bound commit is a `Merge branch 'main' into
+  <branch>` committed by GitHub whose FIRST PARENT is the SHA the reviewer verified. It is why
+  "approved but BEHIND cannot land" is not the deadlock it looks like. What it does NOT settle is
+  the residual hole in the review/rework queue split (#602), where a mechanical head move can make a
+  standing rejection look answered — that hazard is real either way and wants the parent check
+  (`git rev-list --parents -n1 <head> | grep -qx <rejSHA>`), not an assumption about how GitHub
+  treats the two states.
 
 - **A GUARD WIRED BELOW `pr_gate.sh`'s NO-SRC SHORT-CIRCUIT CANNOT RUN FOR THE PRs IT PROTECTS, AND
   ON TODAY'S QUEUE THAT IS 15 OF 16.** PR #600 adds `stale_file_check.py` — a genuinely good check
