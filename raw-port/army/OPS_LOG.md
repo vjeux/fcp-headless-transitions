@@ -81,6 +81,52 @@ detail to reproduce. That is how this list grows.
   ownership check belongs in `reset_clean`'s other caller, `cmd_gc`, which skips leased slots by
   existence for the same reason.
 
+## CORRECTION — 2026-08-11, worker 1 correcting worker 1 (the entry below, and PR #523, OVERSTATE what a stale force-push does)
+
+**I published a wrong consequence twice — in #499 (the entry below) and in #523 — and a reviewer's
+pushback (the `git diff` dots note later in this file) half-corrected it and then repeated my
+error. Here is the measured answer, from a scratch repo, so nobody has to litigate it a third
+time.**
+
+A stale-based force-push does NOT delete unrelated landed files when the PR merges. GitHub applies
+the THREE-dot delta (head vs the MERGE BASE), and a file that landed on main after that base is on
+neither side of it, so it cannot be removed. The scratch proof — main gains `mainMethod()` in a
+shared class AND a new file `Landed.ts`, while a branch cut from the older base adds
+`branchMethod()` to that same class:
+
+    two-dot   (git diff main head)     ->  M src/C.ts   D src/Landed.ts    <-- the alarming view
+    three-dot (git diff main...head)   ->  M src/C.ts                       <-- what a merge applies
+    after actually merging the branch:     src/C.ts  Landed.ts  Other.ts    <-- Landed.ts SURVIVES
+
+So the "16 files removed" figure in the entry below — and its "three ports, their oracles and an
+OPS_LOG section were queued for deletion" framing — is an artifact of reading a TWO-dot diff in a
+worktree whose `origin/main` had moved. Nothing was ever queued for deletion. Re-checked against the
+PR that triggered it (#504): the three-dot delta of the head I was alarmed about contains ZERO
+deletions, and `regression_check origin/main <that head> <its files>` exits 0 against today's main,
+so I also cannot attribute that PR's red gate to what I claimed.
+
+WHAT IS REAL, and it is exactly what REBASE-TASK MODE exists for: per-FILE staleness. For a file the
+branch DOES touch, the branch's copy can predate main's, and the three-dot delta carries that older
+content — reverting landed methods INSIDE that file (OPS_LOG #4/#9) or conflicting, as the
+`src/C.ts` line above shows. That hazard is invisible in a file LIST of any kind; it is a content
+question, which is why step 2 of REBASE-TASK MODE says to open main's CURRENT version of each
+conflicting file and ADD to it.
+
+WHAT TO ACTUALLY CHECK BEFORE A FORCE-PUSH, in the right dots:
+  * `git diff --name-only origin/main...HEAD` — every file listed must be one you meant to touch.
+    That is what you are publishing. (The `--diff-filter=D` guard #523 added to rebase_pr.sh uses
+    this form and is correct as written; it just guards a rarer thing than its message claimed.)
+  * for each listed file, confirm you started from main's CURRENT copy — the real check, and a
+    content question rather than a filename one.
+  * `git diff --stat origin/main HEAD` (two dots) answers a DIFFERENT question — "is my head
+    stale?" — which matters because branch protection requires up-to-date. A `D` in THAT list is not
+    a deletion you are about to make.
+
+The tool changes from #499/#523 stand on their own merits (fetch main before rebasing; refuse a
+force-push that genuinely deletes; re-check before committing). Only my explanation of WHY was
+wrong. #511 is unaffected — that one destroyed a file on disk in front of me and is reproduced by
+its own test.
+
 ## Open — reported 2026-08-11 by worker 1 (REBASE-TASK MODE can force-push a deletion of OTHER files)
 
 - **`rebase_pr.sh`'s prepared worktree is only as fresh as the moment it was prepared, and the
