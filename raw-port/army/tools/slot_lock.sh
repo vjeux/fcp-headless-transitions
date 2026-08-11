@@ -18,6 +18,10 @@
 #   slot_lock.sh heartbeat <role> <n> -> refresh the lock's mtime (run after every verdict/unit,
 #                                        so the stale-reclaim measures IDLENESS, not tick age)
 #   slot_lock.sh status               -> list held slot locks
+#
+# `acquire` also prints the `export FCT_AGENT_ID=<role>-<N>` line every slot should run: that
+# variable is what lets pr_submit's authored-marker and review_claim's self-review skip agree on
+# who you are. Unset, the skip is inert and both tools say so out loud rather than pretending.
 set -uo pipefail
 POOL="${FCT_STATE_DIR:-$HOME/.fct-pool}"; LKDIR="$POOL/slots"; mkdir -p "$LKDIR"
 STALE="${SLOT_STALE_MIN:-90}"
@@ -28,7 +32,17 @@ case "${1:-}" in
     lk="$LKDIR/${role}-${n}"
     if mkdir "$lk" 2>/dev/null; then
       echo "$(date +%s) pid-$$ $(hostname -s 2>/dev/null)" > "$lk/held"
-      echo "ACQUIRED ${role}-${n}"; exit 0
+      echo "${role}-${n}" > "$lk/agent_id"
+      echo "ACQUIRED ${role}-${n}"
+      # TELL THE AGENT ITS ID, HERE, because this is the one command every slot runs first and
+      # because the id cannot be discovered any other way. `pr_submit.sh` stamps
+      # $STATE/authored/<PR> with FCT_AGENT_ID and `review_claim.sh` skips a PR whose stamp matches
+      # its own — a mechanism that is switched OFF unless both halves see the same value, and
+      # nothing in the OS links two short-lived `bash -c` invocations of the same agent. So the id
+      # travels in the environment, and the instruction is printed at the moment it is needed
+      # rather than left in a brief:
+      echo "  export FCT_AGENT_ID=${role}-${n}   # so pr_submit/review_claim can tell your own PRs apart"
+      exit 0
     fi
     # reclaim a stale lock (holder died mid-tick)
     if [ -n "$(find "$lk/held" -mmin +$STALE 2>/dev/null)" ]; then

@@ -530,10 +530,69 @@ def check_brief_flags_exist():
     record("brief-flags-exist", OK, "every flag the briefs name exists in the tool")
 
 
+# ── 11. ACTIONABLE: every PR the REBASE queue offers must be one rebase_pr can actually act on ───
+def check_rebase_actionable():
+    """A queue whose own tool declares the work already done, then closes it for not being done.
+
+    THE INCIDENT (2026-08-11, worker 2, on #400 — APPROVED, +153 lines of OPS_LOG, gate
+    `regression (rebase needed): DIRTY on OPS_LOG.md`): `rebase_pr.sh 400` printed
+    `not stale / nothing to rebase (rebase_helper exit 3)` and stopped. `rebase_helper.py` returns 3
+    for "this branch changes no .ts files", which is true of every docs/tooling PR in the swarm, and
+    `rebase_pr` reported it as "nothing to rebase". Meanwhile `rebase_claim.sh` keeps re-offering the
+    PR — and past its 3-attempt cap that queue CLOSES it, with a comment about a shared-class
+    conflict and a promise to re-hand "the symbol" that means nothing for a documentation PR. So the
+    end state of the loop is: approved evidence closed, by a queue, for failing to do a thing whose
+    own tool said there was nothing to do.
+
+    Two halves, because either alone would mislead:
+      * the GUARD — does `rebase_pr.sh` on origin/main still equate "no .ts changes" with
+        "nothing to rebase", or does it ask GitHub whether the PR merges? Read from main, per
+        `from_main`'s reasoning: the canonical tree is routinely tens of commits behind.
+      * the LIVE state — which open PRs are in that class right now (no `raw-port/src/**/*.ts` in
+        their delta AND not mergeable). Those are the ones the loop is running on today.
+    """
+    src = from_main("raw-port/army/tools/rebase_pr.sh")
+    if not src:
+        return record("rebase-actionable", UNKNOWN, "could not read rebase_pr.sh from origin/main",
+                      "#400")
+    m = re.search(r'if \[ "\$rc" = 3 \]; then(.*?)(?:\n# ---- Attempt 2|\nWT=)', src, re.S)
+    if not m:
+        return record("rebase-actionable", UNKNOWN,
+                      "could not locate rebase_pr.sh's rebase_helper-exit-3 branch — it has been "
+                      "restructured; re-read it rather than trusting this check", "#400")
+    guarded = "mergeable" in m.group(1)
+
+    prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 "
+                       "--json number,files,mergeable,mergeStateStatus")
+    stuck = None
+    if prs is not None:
+        stuck = []
+        for pr in prs:
+            paths = [f.get("path", "") for f in (pr.get("files") or [])]
+            if any(x.startswith("raw-port/src/") and x.endswith(".ts") for x in paths):
+                continue                      # rebase_helper can see it; not this class
+            if pr.get("mergeable") == "CONFLICTING" or pr.get("mergeStateStatus") == "DIRTY":
+                stuck.append(pr["number"])
+
+    live = ("could not list PRs (%s)" % err) if stuck is None else (
+        "no open PR is in that class right now" if not stuck else
+        "open PRs in that class RIGHT NOW: " + ", ".join(f"#{n}" for n in sorted(stuck)))
+
+    if not guarded:
+        return record("rebase-actionable", FAIL,
+                      "rebase_pr.sh treats rebase_helper's exit 3 (no .ts changes) as "
+                      "'nothing to rebase' without asking whether the PR merges, so the rebase "
+                      "queue no-ops on every docs/tooling PR and its attempt cap then CLOSES them; "
+                      + live, "#400")
+    record("rebase-actionable", OK,
+           "rebase_pr.sh asks whether a no-.ts PR actually merges before reporting nothing to do; "
+           + live)
+
+
 CHECKS = [check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
-          check_brief_flags_exist]
+          check_brief_flags_exist, check_rebase_actionable]
 
 
 def main():
