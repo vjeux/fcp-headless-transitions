@@ -30,11 +30,14 @@ export type HGRenderNodeNotifyFn = (node: HGRenderNode | null) => void;
  */
 /**
  * `HGRenderNode::State` — the enum tag stored at +0x38. No decoded instruction
- * pins a single enumerator: `SetState` @0xdcc94 passes %esi straight into the
- * slot with no mask, no range check and no branch, and `GetState` @0xdcdf4 hands
- * the same 32 bits back. Modelled as an opaque u32 alias until a ctor or a
- * comparison site reveals the values — the same treatment the landed
- * HGRenderJob.ts gives its own enum tags.
+ * pins a single NAMED enumerator: `SetState` @0xdcc94 passes %esi straight into
+ * the slot with no mask, no range check and no branch, and `GetState` @0xdcdf4
+ * hands the same 32 bits back. One value is now known — the constructor
+ * initialises the slot to 1 (`movq $0x1, 0x38(%rbx)` @Helium 0xdc9ea), so 1 is
+ * the state of a freshly built node — but the enumerator NAMES are still
+ * undecoded, so the type stays an opaque u32 alias until a comparison site
+ * reveals them; the same treatment the landed HGRenderJob.ts gives its own enum
+ * tags.
  */
 export type HGRenderNodeState = number;
 
@@ -107,10 +110,24 @@ export class HGRenderNode {
    * @0xdcdf0 is its own ledger unit and is NOT ported here; it is read only for
    * the layout, the same way `SetRenderer`'s +0xb0 was established.)
    *
-   * Zero-initialised until the ctor `__ZN12HGRenderNodeC2Ev` is transcribed and
-   * reveals the true default.
+   * INITIAL VALUE 1, read from the constructor's own initialiser:
+   * `__ZN12HGRenderNodeC2Ev` @Helium 0xdc9c0 does
+   *
+   *   0xdc9df  movl $0x18, 0x30(%rbx)     ; the neighbouring +0x30 slot
+   *   0xdc9e6  movb $0x0,  0x34(%rbx)
+   *   0xdc9ea  movq $0x1,  0x38(%rbx)     ; <-- the state slot starts at 1
+   *   0xdc9f2  movl $0x0,  0x40(%rbx)
+   *
+   * so a freshly constructed HGRenderNode reports state 1, not 0. The store is
+   * a `movq`, i.e. eight bytes: it sets the u32 at +0x38 to 1 and separately
+   * zeroes +0x3c, which is a different slot and not modelled here.
+   *
+   * The ctor is its own ledger unit and is NOT ported in this file — this field
+   * only borrows its initialiser for the default, exactly as `rendererAtB0` and
+   * `notifyFuncAtA0` already borrow the `movups %xmm0` zeroing at +0xb0/+0xa0
+   * (@0xdca1e / @0xdca17).
    */
-  stateAt38: HGRenderNodeState = 0;
+  stateAt38: HGRenderNodeState = 1; // @Helium 0xdc9ea  movq $0x1, 0x38(%rbx)
 
   /**
    * `HGRenderNode::SetState(HGRenderNode::State)` @Helium 0xdcc90
