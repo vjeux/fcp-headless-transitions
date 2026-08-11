@@ -38,9 +38,9 @@ CAP="${REWORK_ATTEMPT_CAP:-3}"; LEASE_MIN="${REWORK_LEASE_MIN:-90}"
 
 lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
   local lk="$LEAS/$1"
-  mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; return 0; }
+  mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; [ -n "${FCT_AGENT_ID:-}" ] && echo "$FCT_AGENT_ID" > "$lk/owner"; return 0; }
   if [ -n "$(find "$lk/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
-    echo "$(date +%s)" > "$lk/held"; return 0; fi
+    echo "$(date +%s)" > "$lk/held"; [ -n "${FCT_AGENT_ID:-}" ] && echo "$FCT_AGENT_ID" > "$lk/owner"; return 0; fi
   return 1
 }
 
@@ -125,7 +125,24 @@ cmd_claim () {
 
 case "${1:-claim}" in
   claim)   cmd_claim ;;
-  release) rm -rf "$LEAS/${2:?usage: rework_claim.sh release <PR>}" 2>/dev/null; echo "RELEASED rework lease ${2}" ;;
+  release)
+  # OWNERSHIP: a release must only free YOUR OWN lease.
+  #
+  # `rm -rf` on a lease nobody checked ownership of means any agent can free any other's — and an
+  # end-of-run cleanup sweep did exactly that today, deleting a peer's lease taken 39 seconds
+  # earlier. It is the same hole `wt_pool.sh release` had and closed, arriving here through the
+  # queues. The peer then works a PR it no longer holds, and a second agent can claim it
+  # underneath — the duplicate-work race the leases exist to prevent.
+  #
+  # Fails OPEN on an unowned lease (one written before this landed, or by a caller with no
+  # FCT_AGENT_ID): a stuck lease is worse than an occasional double-free, and the stale reclaim
+  # still bounds it.
+    _pr="${2:?usage: rework_claim.sh release <PR>}"; _lk="$LEAS/$_pr"; _own=$(cat "$_lk/owner" 2>/dev/null || echo "")
+    if [ -n "$_own" ] && [ "$_own" != "unknown" ] && [ -n "${FCT_AGENT_ID:-}" ] && [ "$_own" != "$FCT_AGENT_ID" ]; then
+      echo "rework_claim: lease on PR #$_pr is held by $_own, not ${FCT_AGENT_ID}; NOT releasing another agents lease" >&2
+      exit 0
+    fi
+    rm -rf "$_lk" 2>/dev/null; echo "RELEASED rework lease $_pr" ;;
   status)
     echo "rework leases:"; ls -1 "$LEAS" 2>/dev/null | while read -r p; do
       echo "  PR#$p  held $(cat "$LEAS/$p/held" 2>/dev/null)"; done

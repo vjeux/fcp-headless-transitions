@@ -109,7 +109,16 @@ def layer2():
     print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
           "PASS" if ok8 else "FAIL")
     if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8
+    # 2i — the pool's release ownership. The suite existed on main and NOTHING RAN IT: row 44's
+    # shape for the third time, and the guard it pinned was opt-in on a caller-supplied tag that no
+    # caller supplies, so both the test and the guard were decoration. Wired here in the same PR
+    # that gives the guard a key the caller cannot forget (the claim-time FCT_AGENT_ID). ~2s.
+    r9 = run(["bash", os.path.join(TOOLS, "test_wt_pool_release_ownership.sh")])
+    ok9 = "test_wt_pool_release_ownership: PASS" in r9.stdout
+    print("LAYER 2i (worktree release ownership — a peer's live slot is never reset):",
+          "PASS" if ok9 else "FAIL")
+    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
 
 def _reach(spec, expect):
     import tempfile

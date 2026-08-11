@@ -275,6 +275,85 @@ def check_guards_wired():
            f"all {len(guards)} guards are invoked by a caller [origin/main {MAIN_SHA}]", "#44")
 
 
+def check_lease_ownership():
+    """#45: a worker's cleanup sweep ran `rework_claim.sh release <PR>` on a lease ANOTHER agent had
+    taken 39 seconds earlier, because release was an unconditional `rm -rf`. The peer kept working a
+    PR it no longer held and the queue was free to hand the same PR to a third agent — the
+    duplicate-work race the leases exist to prevent, arriving through the cleanup path.
+
+    `wt_pool.sh release` closed this hole for worktree slots long before the queues copied the
+    pattern without it, which is the reason to check all three together: the fix is only worth
+    anything if it is present everywhere a lease can be freed, and the next queue added to the swarm
+    will be written by copying one of these files."""
+    releasers = {
+        "raw-port/army/tools/rework_claim.sh": "rework queue",
+        "raw-port/army/tools/rebase_claim.sh": "rebase queue",
+        "raw-port/army/tools/wt_pool.sh": "worktree pool",
+    }
+    unguarded, unread = [], []
+    for rel, what in releasers.items():
+        src = from_main(rel)
+        if not src:
+            unread.append(what)
+            continue
+        # CODE ONLY. test_guards case B passed against a deleted line because the script's own
+        # explanatory comment repeated the words the check grepped for — and the comment block
+        # this very fix added is a long paragraph about ownership sitting directly above the code
+        # it describes. Stripping comments is the difference between checking the fix and checking
+        # the story about the fix.
+        code = "\n".join(l for l in src.split("\n") if not l.strip().startswith("#"))
+        if "FCT_AGENT_ID" not in code or "owner" not in code:
+            unguarded.append(what)
+    if unread:
+        return record("lease-ownership", UNKNOWN,
+                      f"could not read {', '.join(unread)} from origin/main — cannot tell a guarded "
+                      "release from an unguarded one", "#45")
+    if unguarded:
+        return record("lease-ownership", FAIL,
+                      f"release path frees a lease without checking who owns it: "
+                      f"{', '.join(unguarded)} — any agent's cleanup can free any other's lease "
+                      f"[origin/main {MAIN_SHA}]", "#45")
+    # Live state, second half: after the guard lands, a lease with no owner is one taken by a caller
+    # with no FCT_AGENT_ID. Those are releasable by anyone by design (fail-open), so they are not a
+    # fault — but they are the population the guard does not cover, and if it is ALL of them the
+    # guard is dormant, which is #44 again. Reported, never silently omitted.
+    # When did the stamping land? Anything leased before that instant predates the guard.
+    _r = sh("git log -1 --format=%ct origin/main -- raw-port/army/tools/wt_pool.sh")
+    since = int(_r.stdout.strip()) if _r.returncode == 0 and _r.stdout.strip().isdigit() else 0
+    total = owned = young = 0
+    for sub in ("rework_leases", "rebase_leases", "leases"):
+        d = os.path.join(STATE, sub)
+        if not os.path.isdir(d):
+            continue
+        for pr in os.listdir(d):
+            total += 1
+            owner = os.path.join(d, pr, "owner")
+            if os.path.isfile(owner) and open(owner).read().strip() not in ("", "unknown"):
+                owned += 1
+            # AGE MATTERS, AND THE CUTOFF IS THE FIX ITSELF. Every lease alive when the stamping
+            # landed was taken by the old claim path and can never grow an owner file; calling that
+            # a fault would put the board red for a whole lease cycle over a condition nobody can
+            # act on — the false-FAIL that made a GitHub blip read as "the verifier is broken" in
+            # test_guards case E. A wall-clock window would be a guess at when the fix landed; the
+            # commit date of the file that does the stamping IS when it landed, so a lease older
+            # than that is not evidence of anything and a lease younger than it is evidence.
+            for f in ("held", "holder"):
+                p = os.path.join(d, pr, f)
+                if os.path.exists(p):
+                    if since and os.path.getmtime(p) > since:
+                        young += 1
+                    break
+    if owned == 0 and young >= 3:
+        return record("lease-ownership", FAIL,
+                      f"every release path is guarded, but none of the {young} lease(s) taken since the "
+                      "stamping landed records an owner — the claim path has stopped stamping (or "
+                      "the slots are running without FCT_AGENT_ID), so the guard cannot fire on anything "
+                      f"now held [origin/main {MAIN_SHA}]", "#45/#44")
+    record("lease-ownership", OK,
+           f"all {len(releasers)} release paths check ownership; {owned}/{total} live lease(s) name an "
+           f"owner ({young} taken since the fix landed) [origin/main {MAIN_SHA}]", "#45")
+
+
 # ── 3. The canonical checkout must be current ───────────────────────────────────────────────────
 def check_tree_current():
     """Measured 107 commits behind for most of one session. Every agent reads OPS_LOG, AGENT_ENTRY
@@ -589,7 +668,7 @@ def check_rebase_actionable():
            + live)
 
 
-CHECKS = [check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
+CHECKS = [check_queue_coverage, check_guards_wired, check_lease_ownership, check_tree_current, check_no_stranded,
           check_leases, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
           check_brief_flags_exist, check_rebase_actionable]

@@ -13,6 +13,7 @@ scratch copy and the case must go red, because a guard you have never watched fa
   F  review_claim's self-review skip must actually SKIP                    (a guard that cannot fire)
   G  pr_gate must not post success over a reviewer's PARKED failure        (a verdict erased by a peer)
   H  pr_gate's verdict guards must WITHHOLD when gh does not answer       (a hiccup erases the verdict)
+  I  a queue lease may be released only by the agent holding it            (a peer's cleanup frees it)
 
 C and F run entirely offline against copies in a tempdir with a stubbed `gh_as.sh`. That is not
 squeamishness: C used to drive the REAL `pr_review.sh` at the first open PR it could find, so its
@@ -374,6 +375,94 @@ sl_code = "\n".join(l for l in open(os.path.join(TOOLS, "slot_lock.sh")).read().
                      if not l.strip().startswith("#"))
 if "export FCT_AGENT_ID" not in sl_code:
     fails.append("F. slot_lock.sh acquire does not print the export line that gives an agent its id")
+
+# ---------------------------------------------------------------- I. a release frees only YOUR lease
+# Incident 2026-08-11: a worker's end-of-run cleanup sweep ran `rework_claim.sh release 557` on a
+# lease ANOTHER agent had taken 39 seconds earlier, and the release was an unconditional `rm -rf`.
+# The peer went on working a PR it no longer held while the queue was free to hand the same PR to a
+# third agent — the duplicate-work race the leases exist to prevent, reintroduced by the cleanup
+# path. `wt_pool.sh release` had already closed this exact hole for worktree slots; the two queue
+# leases still had it. Worker 5 self-reported it, which is the only reason it was found at all.
+#
+# Runs fully offline: `release` never touches gh, and FCT_STATE_DIR relocates the lease root, so the
+# case cannot reach the live leases in ~/.fct-pool no matter how it breaks. The observable is the
+# lease DIRECTORY, not the exit code — a refusal deliberately exits 0 so that a cleanup sweep is not
+# hard-failed by a lease it does not own, which means the exit code cannot distinguish the two.
+def _lease_release_case(script, subdir, mutate=None):
+    """-> list of failures for one claim script. mutate: text->text applied to the script first."""
+    out = []
+    src = open(os.path.join(TOOLS, script)).read()
+    if mutate:
+        src = mutate(src)
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, script)
+        open(path, "w").write(src)
+        os.chmod(path, 0o755)
+        state = os.path.join(td, "state")
+
+        def lease(pr, owner):
+            d = os.path.join(state, subdir, str(pr))
+            os.makedirs(d, exist_ok=True)
+            open(os.path.join(d, "held"), "w").write("1786478000")
+            if owner is not None:
+                open(os.path.join(d, "owner"), "w").write(owner + "\n")
+            return d
+
+        def release(pr, as_agent):
+            env = f"FCT_STATE_DIR={state} "
+            env += f"FCT_AGENT_ID={as_agent} " if as_agent else "FCT_AGENT_ID= "
+            return sh(f"{env}bash {path} release {pr}")
+
+        # 1. a FOREIGN lease must survive the release
+        d = lease(101, "worker-9")
+        release(101, "worker-5")
+        if not os.path.isdir(d):
+            out.append(f"I. {script}: released a lease owned by ANOTHER agent — this is the #557 "
+                       "incident, a peer's lease deleted by someone else's cleanup sweep")
+        # 2. your OWN lease must still go away — a guard that blocks everything is not a guard
+        d = lease(102, "worker-5")
+        release(102, "worker-5")
+        if os.path.isdir(d):
+            out.append(f"I. {script}: refused to release the caller's OWN lease — the queue would "
+                       "strand every PR until the stale reclaim")
+        # 3. a legacy lease with NO owner file (claimed before this landed) must still be releasable
+        d = lease(103, None)
+        release(103, "worker-5")
+        if os.path.isdir(d):
+            out.append(f"I. {script}: an unowned legacy lease could not be released — a lease no "
+                       "one can free is worse than the double-free it replaces")
+        # 4. ...and so must one whose owner is the literal 'unknown' the first cut of this patch
+        #    wrote for callers with no FCT_AGENT_ID. That version failed CLOSED: no identified agent
+        #    could ever free it. Pinned because the bug was in the shipped text, not hypothetical.
+        d = lease(104, "unknown")
+        release(104, "worker-5")
+        if os.path.isdir(d):
+            out.append(f"I. {script}: a lease owned by the literal 'unknown' could not be released")
+        # 5. a releaser with no identity of its own must fail OPEN, exactly like review_claim's skip
+        d = lease(105, "worker-9")
+        release(105, None)
+        if os.path.isdir(d):
+            out.append(f"I. {script}: with FCT_AGENT_ID unset the release must fail OPEN — a "
+                       "cleanup path that cannot name itself must still be able to free a lease")
+        # 6. and the claim side must actually RECORD an owner, or every check above is vacuous
+        if "owner" not in src.split("lease_free", 1)[-1].split("\n}", 1)[0]:
+            out.append(f"I. {script}: lease_free() does not write an owner file — the release "
+                       "guard can never fire, which reads as protection while providing none")
+    return out
+
+
+for _script, _subdir in (("rework_claim.sh", "rework_leases"), ("rebase_claim.sh", "rebase_leases")):
+    fails += _lease_release_case(_script, _subdir)
+    # MUTATION: with the ownership test stripped out of the release branch, case 1 must go red.
+    # Without this the whole case would pass just as happily against the unconditional `rm -rf` it
+    # exists to forbid — five green assertions about a guard that was never there.
+    _mutated = _lease_release_case(
+        _script, _subdir,
+        mutate=lambda s: re.sub(r'if \[ -n "\$_own" \].*?\n    fi\n', "", s, flags=re.S))
+    if not any("released a lease owned by ANOTHER agent" in m for m in _mutated):
+        fails.append(f"I. {_script}: the mutation check did not go red — removing the ownership "
+                     "test from the release branch left this case passing, so it is not evidence")
+
 
 # A run in which cases never executed must not read like a full pass — prove_all prints a child's
 # output only on failure, so a silent skip is invisible exactly when it matters.
