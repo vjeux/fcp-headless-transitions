@@ -1,8 +1,9 @@
 // PCAtomMetadataHandler.ts — ProCore.framework metadata-handler class.
 //
-// This file ports ONLY `PCAtomMetadataHandler::copyMetadata()`. The class owns a
-// CoreFoundation dictionary of atom metadata at field +0x88; copyMetadata() returns
-// an immutable copy of it via CoreFoundation's CFDictionaryCreateCopy.
+// This file ports `PCAtomMetadataHandler::copyMetadata()`, `createParsedHDRMetadata()`
+// and `createParsedGoogleV2Metadata()`. The class owns a CoreFoundation dictionary of
+// atom metadata at field +0x88; copyMetadata() returns an immutable copy of it via
+// CoreFoundation's CFDictionaryCreateCopy.
 //
 // Verbatim from FCP's ProCore framework:
 //   /Applications/Final Cut Pro.app/Contents/Frameworks/ProCore.framework/Versions/A/ProCore
@@ -255,6 +256,24 @@ function CFNumberGetTypeID(): CFTypeID {
   throw new Error(
     "_CFNumberGetTypeID is a CoreFoundation extern with no pure-JS equivalent " +
       "(@ProCore stub 0xddfe2).",
+  );
+}
+
+/** `_CFStringCreateWithBytes(allocator, bytes, numBytes, encoding, isExternalRepresentation)`
+ *  — CoreFoundation extern, ProCore stub 0xde066 (@0xb4927). TRUE out-of-scope extern.
+ *  Used by createParsedGoogleV2Metadata to turn the "svhd" NUL-scanned byte range into a
+ *  CFString with encoding kCFStringEncodingUTF8 (0x08000100); returns a retained CFStringRef
+ *  or NULL. */
+function CFStringCreateWithBytes(
+  _allocator: CFAllocatorRef,
+  _bytes: Uint8Array,
+  _numBytes: number,
+  _encoding: number,
+  _isExternalRepresentation: number,
+): CFStringRef | null {
+  throw new Error(
+    "_CFStringCreateWithBytes is a CoreFoundation extern with no pure-JS " +
+      "equivalent (@ProCore stub 0xde066).",
   );
 }
 
@@ -516,6 +535,248 @@ export class PCAtomMetadataHandler {
     }
 
     // @0xb5bed/0xb5c07  delete[] keys ; delete[] values ; return (libc; GC owns arrays).
+  }
+
+  /**
+   * PCAtomMetadataHandler::createParsedGoogleV2Metadata(__CFDictionary const*)
+   * @0xADDR ProCore 0x00000000000b47b6
+   *   (__ZN21PCAtomMetadataHandler28createParsedGoogleV2MetadataEPK14__CFDictionary)
+   *
+   * Parses Google's Spherical Video V2 / stereo QuickTime boxes carried in the input
+   * CFDictionary — "st3d" (Stereoscopic 3D), "svhd" (Spherical Video Header), "prhd"
+   * (Projection Header), "cbmp" (Cubemap Projection) and "equi" (Equirectangular
+   * Projection) — into a fresh mutable CFDictionary of human-readable strings keyed by
+   * the standard field names. Returns the new dictionary (the caller owns the +1 from
+   * CFDictionaryCreateMutable).
+   *
+   * All string literals were recovered from the __cfstring literal pool (otool prints
+   * "@\"bad cfstring ref\"" because the __cfstring dataptr is a rebased pointer):
+   *   input box keys : "st3d" @0x14ea18, "svhd" @0x14ea38, "prhd" @0x14ea58,
+   *                    "cbmp" @0x14ea78, "equi" @0x14ea98.
+   *   formats        : "%d" @0x14d8f8 (integers), "%.6f" @0x14fbd8 (pose degrees).
+   *   out keys       : "stereo_mode" @0x14fb98, "metadata_source" @0x14fbb8,
+   *     "pose_yaw_degrees" @0x14fbf8, "pose_pitch_degrees" @0x14fc18,
+   *     "pose_roll_degrees" @0x14fc38, "cube_layout" @0x14fc58, "cube_padding" @0x14fc78,
+   *     "projection_bounds_top" @0x14fc98, "_bottom" @0x14fcb8, "_left" @0x14fcd8,
+   *     "_right" @0x14fcf8.
+   *   float consts   : 2^-16 = 1.52587890625e-05 @0x127f28; clamps 180.0 @0x123570,
+   *                    -180.0 @0x128198, 90.0 @0x1281a0, -90.0 @0x1281a8.
+   *
+   * DECODE (raw-port/re/disasm/…createParsedGoogleV2MetadataEPK14__CFDictionary.s, 324 lines):
+   *   0xb47c7..0xb47e9  out = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, keyCB, valueCB)
+   *   0xb47ec  if (input == NULL) goto 0xb4c62 (return out)
+   *   0xb47f5  st3d = CFDictionaryGetValue(input, "st3d")
+   *     0xb4807 if NULL, 0xb4818 if CFDataGetLength(st3d) < 5 -> skip
+   *     0xb4822 movzbl 0x4(p),%ecx : UNSIGNED byte at +4 -> "%d" -> "stereo_mode"
+   *   0xb485b  svhd = CFDictionaryGetValue(input, "svhd")
+   *     0xb486d if NULL, 0xb4882 if CFDataGetLength(svhd) < 5 -> skip
+   *     len=CFDataGetLength; p=CFDataGetBytePtr; rsi=p+4 (skip 4-byte version/flags header).
+   *     0xb48a6..0xb48c2 scan rsi[0..len) for the first NON-zero byte -> start index (edx).
+   *       (all-zero / len<=0 fall to 0xb48c4: start=0,end=0,bom=0 -> empty string.)
+   *     0xb48cd if start==len -> no content (start=0? end=0,bom=0 kept). else BOM test:
+   *       0xb48dd if len>=4 && p[4]==0xEF && p[5]==0xBB && p[6]==0xBF -> bom flag (dil)=1.
+   *       0xb48f9 start=edx (offset of first non-zero); end=len (r8d).
+   *     0xb48fe eax = end - start ; 0xb4903 if eax>=2 && p[len-1]==0 -> eax-- (trim trailing NUL).
+   *     0xb4915 rsi += start ; 0xb4927 CFStringCreateWithBytes(alloc, rsi, eax,
+   *       0x08000100 kCFStringEncodingUTF8, bom) -> "metadata_source"
+   *   0xb494e  prhd = CFDictionaryGetValue(input, "prhd")
+   *     0xb4960 if NULL, 0xb4976 if (CFDataGetLength(prhd) & 0xFFFFFFF0)==0 (len<16) -> skip
+   *     3 signed int32 BE (movl; bswapl; cvtsi2sd) at +4,+8,+c, each * 2^-16 then clamped:
+   *       yaw   @+4: min(v,180) then max(.,-180)  -> [-180,180] -> "%.6f" -> "pose_yaw_degrees"
+   *       pitch @+8: min(v, 90) then max(., -90)   -> [-90,90]   -> "pose_pitch_degrees"
+   *       roll  @+c: min(v,180) then max(.,-180)   -> [-180,180] -> "pose_roll_degrees"
+   *   0xb4a93  cbmp = CFDictionaryGetValue(input, "cbmp")
+   *     0xb4aa5 if NULL, 0xb4ab9 if CFDataGetLength(cbmp) < 12 (unsigned jb) -> skip
+   *     2 signed int32 BE at +4,+8 -> "%d" -> "cube_layout", "cube_padding"
+   *   0xb4b40  equi = CFDictionaryGetValue(input, "equi")
+   *     0xb4b52 if NULL, 0xb4b66 if CFDataGetLength(equi) < 20 (unsigned jb) -> skip
+   *     4 signed int32 BE at +4,+8,+c,+10 -> "%d" -> "projection_bounds_top/bottom/left/right"
+   *   0xb4c62  return out
+   *
+   * ENDIANNESS: every multi-byte scalar is read big-endian — int32 via `movl; bswapl`
+   * (Google's boxes are big-endian per the spec). The st3d field is a single UNSIGNED
+   * byte (`movzbl`); the prhd pose fields are SIGNED int32 (`cvtsi2sd` of the bswapped
+   * value, i.e. a signed 16.16 fixed-point angle scaled by 2^-16 and clamped). The svhd
+   * source is a UTF-8 byte range with optional NUL padding, leading BOM, and trailing NUL.
+   *
+   * FRONTIER CALLEES: all CoreFoundation externs (boundary stubs above) —
+   * CFDictionaryCreateMutable/GetValue/SetValue, CFDataGetLength/BytePtr,
+   * CFStringCreateWithFormat, CFStringCreateWithBytes, CFRelease, and the two callback
+   * globals. NO in-scope callees. The CF byte model is not simulated, so the first CF call
+   * reaches its documented CoreFoundation boundary; the parse/formatting control flow is
+   * transcribed faithfully line-for-line.
+   */
+  createParsedGoogleV2Metadata(input: CFDictionaryRef | null): CFDictionaryRef {
+    // @0xb47c7..0xb47e9  out = CFDictionaryCreateMutable(default, 0, keyCB, valueCB).
+    const allocator = kCFAllocatorDefault(); // @0xb47c7/0xb47ce deref _kCFAllocatorDefault
+    const keyCB = kCFTypeDictionaryKeyCallBacks(); // @0xb47d1
+    const valueCB = kCFTypeDictionaryValueCallBacks(); // @0xb47d8
+    const out = CFDictionaryCreateMutable(allocator, 0, keyCB, valueCB); // @0xb47e4
+
+    // @0xb47ec  if (input == NULL) return out.
+    if (input === null || input === undefined) {
+      // @0xb4c62  return out.
+      return out;
+    }
+
+    // The repeated "format one value and store it under key" block (@0xb4826..0xb4856
+    // etc.): the SAME sequence emitted once per field — format is "%d" for integers.
+    const setFieldInt = (key: string, fmt: string, value: number): void => {
+      // @…  s = CFStringCreateWithFormat(default, NULL, fmt, value).
+      const s = CFStringCreateWithFormat(allocator, null, fmt, value);
+      // @…  testq %rax,%rax ; je (skip) : only set/release when non-NULL.
+      if (s !== null) {
+        CFDictionarySetValue(out, key as unknown as CFStringRef, s); // @…  set
+        CFRelease(s); // @…  release
+      }
+    };
+    // big-endian SIGNED int32 read: movl (p+off) ; bswapl. `| 0` yields a signed 32-bit int.
+    const be32 = (p: Uint8Array, off: number): number =>
+      ((p[off]! << 24) | (p[off + 1]! << 16) | (p[off + 2]! << 8) | p[off + 3]!) | 0;
+
+    // ---- "st3d" (Stereoscopic 3D) @0xb47f5 ----
+    const st3d = CFDictionaryGetValue(input, "st3d" as unknown as CFStringRef); // @0xb47ff
+    // @0xb4807 if != NULL && @0xb4818 CFDataGetLength(st3d) >= 5 (signed `jl`).
+    if (st3d !== null && CFDataGetLength(st3d) >= 5) {
+      // @0xb481d p = CFDataGetBytePtr(st3d) ; @0xb4822 movzbl 0x4(p) : UNSIGNED byte.
+      const p = CFDataGetBytePtr(st3d);
+      setFieldInt("stereo_mode", "%d", p[0x4]! & 0xff); // @0xb4822/0xb4834
+    }
+
+    // ---- "svhd" (Spherical Video Header) @0xb485b : a UTF-8 "metadata_source" string ----
+    const svhd = CFDictionaryGetValue(input, "svhd" as unknown as CFStringRef); // @0xb4865
+    // @0xb486d if != NULL && @0xb4882 CFDataGetLength(svhd) >= 5 (signed `jl`).
+    if (svhd !== null && CFDataGetLength(svhd) >= 5) {
+      // @0xb488b len = CFDataGetLength(svhd) ; @0xb4896 p = CFDataGetBytePtr(svhd).
+      const len = CFDataGetLength(svhd); // r12
+      const p = CFDataGetBytePtr(svhd);
+      // @0xb489b rsi = p + 4 (skip the 4-byte version/flags header). We index p at +4+i.
+      const base = 4;
+
+      // @0xb489f start=0 ; @0xb48a6..0xb48c2 scan for the first NON-zero byte in [0,len).
+      //   `cmpb $0,(rsi,rdx); jne 0xb48cd` -> break to the BOM/emit path on a non-zero byte.
+      //   If the whole range is zero (or len<=0), fall through @0xb48c4 to empty result.
+      let start = 0;
+      let end = 0;
+      let bom = 0;
+      let foundNonZero = false;
+      if (len > 0) {
+        const n = len & 0x7fffffff; // @0xb48ae andl $0x7fffffff
+        let idx = 0;
+        for (; idx < n; idx++) {
+          // @0xb48b6 cmpb $0,(rsi,rdx) ; jne -> stop at first non-zero byte.
+          if ((p[base + idx] ?? 0) !== 0) {
+            foundNonZero = true;
+            break;
+          }
+        }
+        if (!foundNonZero) {
+          // @0xb48c4 xorl ecx/r8d/edi : all-zero range -> start=end=bom=0 (empty string).
+          start = 0;
+          end = 0;
+          bom = 0;
+        } else {
+          // @0xb48cd r8d=0 ; edi=0 ; @0xb48d8 if (idx == len) skip BOM (start/end stay 0).
+          if (idx === (len | 0)) {
+            start = 0;
+            end = 0;
+            bom = 0;
+          } else {
+            // @0xb48dd BOM: len>=4 && p[4]==0xEF && p[5]==0xBB && p[6]==0xBF.
+            //   (reads at rsi=p+4, then rax+5=p[5], rax+6=p[6].)
+            if (
+              (len | 0) >= 4 &&
+              (p[0x4] ?? 0) === 0xef &&
+              (p[0x5] ?? 0) === 0xbb
+            ) {
+              bom = 1; // @0xb48ee movb $1,%dil
+              // @0xb48f1 cmpb $-0x41,0x6(rax) ; je keep : third BOM byte must be 0xBF.
+              if ((p[0x6] ?? 0) !== 0xbf) bom = 0; // @0xb48f7 xorl edi,edi
+            } else {
+              bom = 0; // @0xb48f7
+            }
+            // @0xb48f9 start = idx (first non-zero offset) ; @0xb48fb end = len.
+            start = idx;
+            end = len | 0;
+          }
+        }
+      }
+
+      // @0xb48fe eax = end - start (content length).
+      let n = (end - start) | 0;
+      // @0xb4903 if (n >= 2) : cmpb $1,-1(rsi+end) ; sbbl $0,eax -> if last byte < 1 (==0),
+      //   subtract the borrow, i.e. trim ONE trailing NUL. (rsi+end-1 = p[base+end-1].)
+      if (n >= 2) {
+        const lastByte = p[base + (end - 1)] ?? 0;
+        const cf = lastByte < 1 ? 1 : 0; // cmpb $1 sets CF iff byte < 1 (byte == 0)
+        n = (n - cf) | 0; // sbbl $0,eax
+      }
+
+      // @0xb4915 rsi += start : content view begins at p[base+start].
+      const view = p.subarray(base + start, base + start + n);
+      // @0xb4922 encoding = 0x08000100 (kCFStringEncodingUTF8) ; @0xb491b r8 = bom flag.
+      const s = CFStringCreateWithBytes(allocator, view, n, 0x08000100, bom); // @0xb4927
+      // @0xb492c testq %rax,%rax ; je -> only set/release when non-NULL.
+      if (s !== null) {
+        CFDictionarySetValue(
+          out,
+          "metadata_source" as unknown as CFStringRef,
+          s,
+        ); // @0xb4941
+        CFRelease(s); // @0xb4949
+      }
+    }
+
+    // ---- "prhd" (Projection Header): 3 signed 16.16 fixed-point pose angles @0xb494e ----
+    const prhd = CFDictionaryGetValue(input, "prhd" as unknown as CFStringRef); // @0xb4958
+    // @0xb4960 if != NULL && @0xb4971 (CFDataGetLength(prhd) & 0xFFFFFFF0) != 0 (len >= 16).
+    if (prhd !== null && (CFDataGetLength(prhd) & 0xfffffff0) !== 0) {
+      // @0xb497f p = CFDataGetBytePtr(prhd).
+      const p = CFDataGetBytePtr(prhd);
+      // The pose helper mirrors @0xb4987..0xb49d8 (repeated 3×): read a signed int32 BE,
+      // scale by 2^-16, clamp to [lo,hi] (`minsd hi` then `maxsd lo`), "%.6f", set, release.
+      const setPose = (key: string, value: number, lo: number, hi: number): void => {
+        // @…  cvtsi2sd %eax,%xmm0 (signed) ; mulsd 2^-16 ; minsd hi ; maxsd lo.
+        let d = value * 1.52587890625e-5; // 2^-16 @0x127f28
+        d = Math.min(d, hi); // minsd hi
+        d = Math.max(d, lo); // maxsd lo
+        const s = CFStringCreateWithFormat(allocator, null, "%.6f", d); // @…  movb $1,%al (1 fp arg)
+        if (s !== null) {
+          CFDictionarySetValue(out, key as unknown as CFStringRef, s);
+          CFRelease(s);
+        }
+      };
+      // @0xb4987 yaw @+4 -> min(v,180) max(-180) ; @0xb49dd pitch @+8 -> min(90) max(-90) ;
+      // @0xb4a38 roll @+c -> min(180) max(-180).
+      setPose("pose_yaw_degrees", be32(p, 0x4), -180.0, 180.0); // @0xb4987
+      setPose("pose_pitch_degrees", be32(p, 0x8), -90.0, 90.0); // @0xb49dd
+      setPose("pose_roll_degrees", be32(p, 0xc), -180.0, 180.0); // @0xb4a38
+    }
+
+    // ---- "cbmp" (Cubemap Projection) @0xb4a93 ----
+    const cbmp = CFDictionaryGetValue(input, "cbmp" as unknown as CFStringRef); // @0xb4a9d
+    // @0xb4aa5 if != NULL && @0xb4ab9 CFDataGetLength(cbmp) >= 12 (unsigned `jb`).
+    if (cbmp !== null && (CFDataGetLength(cbmp) >>> 0) >= 0xc) {
+      // @0xb4ac2 p = CFDataGetBytePtr(cbmp) ; 2 signed int32 BE at +4,+8.
+      const p = CFDataGetBytePtr(cbmp);
+      setFieldInt("cube_layout", "%d", be32(p, 0x4)); // @0xb4aca
+      setFieldInt("cube_padding", "%d", be32(p, 0x8)); // @0xb4b04
+    }
+
+    // ---- "equi" (Equirectangular Projection) @0xb4b40 ----
+    const equi = CFDictionaryGetValue(input, "equi" as unknown as CFStringRef); // @0xb4b4a
+    // @0xb4b52 if != NULL && @0xb4b66 CFDataGetLength(equi) >= 20 (unsigned `jb`).
+    if (equi !== null && (CFDataGetLength(equi) >>> 0) >= 0x14) {
+      // @0xb4b6f p = CFDataGetBytePtr(equi) ; 4 signed int32 BE at +4,+8,+c,+10.
+      const p = CFDataGetBytePtr(equi);
+      setFieldInt("projection_bounds_top", "%d", be32(p, 0x4)); // @0xb4b77
+      setFieldInt("projection_bounds_bottom", "%d", be32(p, 0x8)); // @0xb4bb1
+      setFieldInt("projection_bounds_left", "%d", be32(p, 0xc)); // @0xb4bec
+      setFieldInt("projection_bounds_right", "%d", be32(p, 0x10)); // @0xb4c27
+    }
+
+    // @0xb4c62  return out.
+    return out;
   }
 }
 

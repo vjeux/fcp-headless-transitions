@@ -76,6 +76,10 @@ const OFF_PROJ_STACK_SLOTS = 0x1b0;
  *  at (%rdi). */
 const OFF_MODELVIEW_CONTROLLER = 0x300;
 
+/** Byte offset of the CURRENT color (packed 4-float [r,g,b,a] SSE lane),
+ *  written by color4f at disasm 0x1978e6 (`movaps %xmm0, 0x260(%rdi)`). */
+const OFF_CURRENT_COLOR = 0x260;
+
 /** Modeled HGRasterizer shape used by rotatef. Only the fields the disasm
  *  touches are named; the rest of the class is unmapped and marked so. */
 export interface HGRasterizer {
@@ -89,6 +93,14 @@ export interface HGRasterizer {
   /** +0x450  — u32 current GL matrix mode (GL_MODELVIEW / GL_PROJECTION /
    *  other). See OFF_MATRIX_MODE above. */
   matrixMode: number;
+  /** +0x454  — u8 flags byte. Bit 0 (0x1) is the "clear to black" request
+   *  flag, OR'd in by clearToBlack() @0x1981f4 (`orb $0x1, 0x454(%rdi)`).
+   *  Other bits are unmapped so far. */
+  flags0x454: number;
+  /** +0x260  — the rasterizer's CURRENT color as a packed 4-float vector
+   *  [r, g, b, a] (a 16-byte SSE lane). Written by color4f @0x1978d0 via a
+   *  single `movaps %xmm0, 0x260(%rdi)`. See OFF_CURRENT_COLOR below. */
+  currentColor: [number, number, number, number];
 }
 
 /** A GL_PROJECTION stack slot at rasterizer+0x1b0+8*i is a pointer-to-
@@ -205,4 +217,67 @@ export function HGRasterizer_rotatef(
   // is an extern boundary @0x1975c0: the concrete virtual target is not
   // yet transcribed.
   ctrl.rotate(angleD, xD, yD, zD);
+}
+
+/**
+ * HGRasterizer::clearToBlack() @Helium 0x1981f0  (__ZN12HGRasterizer12clearToBlackEv)
+ *
+ * Requests that the rasterizer clear its framebuffer to black by setting bit 0
+ * of the flags byte at +0x454. A deferred flag: the actual clear happens later
+ * when the flag is consumed; this entry point just records the request.
+ *
+ * DECODE (raw-port/re/disasm/Helium.__ZN12HGRasterizer12clearToBlackEv.s):
+ *   0x1981f0  pushq %rbp ; movq %rsp,%rbp        ; frame
+ *   0x1981f4  orb   $0x1, 0x454(%rdi)            ; *(u8*)(this+0x454) |= 0x1
+ *   0x1981fb  popq %rbp ; retq                   ; void
+ *
+ * Zero callees, no externs — a single read-modify-write OR of the low bit into
+ * the +0x454 flags byte. The `orb` is a byte operation, so we mask to 8 bits.
+ */
+export function HGRasterizer_clearToBlack(self: HGRasterizer): void {
+  // 0x1981f4 — orb $0x1, 0x454(%rdi) : set bit 0 of the u8 flags byte at +0x454.
+  self.flags0x454 = (self.flags0x454 | 0x1) & 0xff;
+}
+
+/**
+ * HGRasterizer::color4f(float r, float g, float b, float a) — sets the
+ * rasterizer's CURRENT color (glColor4f-style). It packs the four f32
+ * arguments into a single 16-byte SSE lane [r, g, b, a] and stores it at
+ * this+0x260. Pure state write; no branches, no calls.
+ *
+ * @0x1978d0  __ZN12HGRasterizer7color4fEffff
+ *
+ * Disasm (raw-port/re/disasm/Helium.HGRasterizer.color4f.s):
+ *
+ *   0x1978d0  pushq  %rbp
+ *   0x1978d1  movq   %rsp, %rbp
+ *   0x1978d4  insertps $0x10, %xmm1, %xmm0   ; xmm0 = [r, g,   x,   x]  (g -> lane1)
+ *   0x1978da  insertps $0x20, %xmm2, %xmm0   ; xmm0 = [r, g,   b,   x]  (b -> lane2)
+ *   0x1978e0  insertps $0x30, %xmm3, %xmm0   ; xmm0 = [r, g,   b,   a]  (a -> lane3)
+ *   0x1978e6  movaps %xmm0, 0x260(%rdi)      ; this.currentColor = [r,g,b,a]
+ *   0x1978ed  popq   %rbp
+ *   0x1978ee  retq
+ *
+ * The four args arrive in xmm0=r, xmm1=g, xmm2=b, xmm3=a. `insertps $imm`
+ * with the count-field imm 0x10/0x20/0x30 copies src lane 0 into dst lanes
+ * 1/2/3 respectively (leaving dst lane 0 = r). So the packed lane is
+ * exactly [r, g, b, a]. Numerics: these are f32 lanes, so each component is
+ * wrapped in Math.fround to preserve its exact single-precision identity.
+ * @0x260 store: raw-port/re/disasm/Helium.HGRasterizer.color4f.s.
+ */
+export function HGRasterizer_color4f(
+  self: HGRasterizer,
+  r: number,
+  g: number,
+  b: number,
+  a: number,
+): void {
+  // 0x1978d4-0x1978e0 — insertps builds the packed lane [r, g, b, a].
+  // 0x1978e6 — movaps store to this+0x260 (OFF_CURRENT_COLOR). f32 lanes.
+  self.currentColor = [
+    Math.fround(r),
+    Math.fround(g),
+    Math.fround(b),
+    Math.fround(a),
+  ];
 }

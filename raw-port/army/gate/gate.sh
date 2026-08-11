@@ -58,6 +58,15 @@ python3 "$ROOT/army/gate/g5_impl_gate.py" "$@"
 G5=$?
 [ "$G5" = 2 ] && { echo "  G5 REJECT"; FAIL=1; }
 
+echo "== G6 add-only (no landed symbol may be deleted) =="
+# G6 catches the ONE loss mode G0-G5 are all blind to: a change that REMOVES a ported symbol which
+# is already merged on origin/main. Fired for real on 2026-08-10 — commit ef8ffc72 regenerated
+# HGRenderContext.ts and silently deleted another worker's landed IsGPU. The file still typechecked,
+# the new method was faithful, and every other gate passed; only a human noticing saved it. Same
+# signature as stacking on a stale PR-less port/<Class> branch whose file predates landed methods.
+python3 "$ROOT/army/gate/addonly_gate.py" "$@"
+[ $? = 2 ] && { echo "  G6 REJECT"; FAIL=1; }
+
 echo ""
 [ "$FAIL" = 0 ] && echo "GATE: PASS ✅" || echo "GATE: REJECT ❌ (fix the above; shortcuts do not land)"
 exit $FAIL

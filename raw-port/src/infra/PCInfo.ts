@@ -97,6 +97,12 @@ function dispatch_once(
  * getter (and its dispatch_once init state) is ported in this file.
  */
 export class PCInfo {
+  /** @ProCore 0x15ad34 — `s_workingGamma`, the file-static single-precision working
+   *  gamma value read verbatim by getWorkingGamma() (`movss s_workingGamma(%rip),%xmm0`
+   *  @0x15424). Initialised to 1.0f in the binary's __data (bytes 00 00 80 3f). Kept as a
+   *  fround'd f32 per PORTING_SPEC Rule 4 (the read is a single-precision `movss`). */
+  private static s_workingGamma = Math.fround(1.0);
+
   /** @ProCore 0x15b240 — dispatch_once_t guard for getCPUFrequency's static.
    *  0 = not yet initialised; -1 = block has run (fast-path sentinel). */
   private static getCPUFrequency_predicate: { value: bigint } = { value: 0n };
@@ -273,5 +279,24 @@ export class PCInfo {
     }
     // @0x14ae6..0x14aec — movl activecpu(%rip),%eax : return the cached int.
     return PCInfo.getActiveCPU_activecpu | 0;
+  }
+
+  /**
+   * PCInfo::getWorkingGamma()
+   * @0xADDR ProCore 0x0000000000015420  (__ZN6PCInfo15getWorkingGammaEv)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN6PCInfo15getWorkingGammaEv.s):
+   *   0x015420  pushq %rbp ; movq %rsp,%rbp                    ; frame
+   *   0x015424  movss __ZL14s_workingGamma(%rip),%xmm0         ; xmm0 = s_workingGamma (f32)
+   *                                                            ;   @0x15ad34 (disp 0x145908)
+   *   0x01542c  popq %rbp ; retq                               ; return the float
+   *
+   * A plain single-precision static accessor: returns the file-static `s_workingGamma`
+   * (a `float`, value 1.0f — see the field above). Zero callees, no externs. The `movss`
+   * is a 32-bit load, so the value is fround'd (Rule 4).
+   */
+  static getWorkingGamma(): number {
+    // @0x015424 — movss s_workingGamma(%rip),%xmm0 : load the f32 static and return it.
+    return Math.fround(PCInfo.s_workingGamma);
   }
 }

@@ -168,3 +168,326 @@ export function TextureUsage_summary(
   // 47c55..47c59: this.f6 += c.f1  (scalar movq/addq trailer).
   self.f6 = u64add(self.f6, c.f1);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HGTextureManager::TextureInfo — the second nested value-type of
+// HGTextureManager (the GL texture descriptor handed to texImage2D /
+// createTexture / _findTexture).
+//
+// ── STRUCT LAYOUT — HGTextureManager::TextureInfo (0x3a bytes) ──────────────
+//
+//   struct TextureInfo {              // sizeof == 0x3a (58 bytes)
+//     u32  target;          // +0x00
+//     u32  width;           // +0x04
+//     u32  height;          // +0x08
+//     u32  internalFormat;  // +0x0c
+//     u32  format;          // +0x10
+//     u32  type;            // +0x14
+//     u64  pixels;          // +0x18  (client-storage data pointer)
+//     u64  f20;             // +0x20
+//     u64  f28;             // +0x28
+//     u64  f30;             // +0x30
+//     u8   f38;             // +0x38
+//     u8   f39;             // +0x39
+//   };
+//
+//   The six u32 head fields are NAMED (not generic fN) because
+//   `HGTextureManager::texImage2D(TextureInfo const&)` @Helium 0x4e6d0 feeds
+//   them straight into the libGL `glTexImage2D` call at 0x4e988, and the
+//   SysV argument registers pin each offset to a named GL parameter
+//   (disasm 0x4e95c..0x4e988, with `%r14` = &info):
+//
+//     0x4e960  movl (%r14), %edi        -> arg1 target         => +0x00 target
+//     0x4e983  xorl %esi, %esi          -> arg2 level    = 0
+//     0x4e95c  movl 0xc(%r14), %edx     -> arg3 internalformat => +0x0c internalFormat
+//     0x4e963  movl 0x4(%r14), %ecx     -> arg4 width          => +0x04 width
+//     0x4e967  movl 0x8(%r14), %r8d     -> arg5 height         => +0x08 height
+//     0x4e985  xorl %r9d, %r9d          -> arg6 border   = 0
+//     0x4e980  movl %eax, (%rsp)        -> arg7 format         => +0x10 format
+//              (%eax loaded at 0x4e96b from 0x10(%r14))
+//     0x4e97c  movl %esi, 0x8(%rsp)     -> arg8 type           => +0x14 type
+//              (%esi loaded at 0x4e96f from 0x14(%r14))
+//     0x4e977  movq %r9, 0x10(%rsp)     -> arg9 pixels         => +0x18 pixels
+//              (%r9 loaded at 0x4e973 from 0x18(%r14))
+//
+//   +0x04/+0x08 are independently corroborated by the HGLogger::log call at
+//   0x4e732, whose format string is "creating texture (%dx%d) in unit %d\n"
+//   and whose %ecx/%r8d come from 0x4(%r14)/0x8(%r14) (0x4e711/0x4e715).
+//
+//   The tail fields keep generic fN names (Rule 5: offsets documented, no
+//   invented semantics) — their purposes are only partially observable from
+//   the comparison predicates, which is not enough to name them:
+//     sameBaseInfo       @0x46f70 — compares +0x00,+0x04,+0x08,+0x0c
+//     sameSourceDataType @0x46fa0 — base + (pixels != 0) XOR-parity
+//     sameClientStorage  @0x46fe0 — base + pixels-nullness + f39
+//     sameStorageInfo    @0x47030 — base + pixels-nullness + f39 + f38
+//     sameStorageData    @0x47080 — sameStorageInfo + pixels + f20
+//     sameRangeData      @0x470f0 — sameStorageInfo + f28 + f30
+//   Those are separate ledger entries and are NOT ported here.
+//
+//   sizeof == 0x3a is pinned by the default ctor
+//   `TextureInfo::TextureInfo()` @Helium 0x46ef0, whose four overlapping
+//   16-byte zero stores cover exactly [0x00, 0x3a):
+//     movups %xmm0, 0x2a(%rdi) / 0x20(%rdi) / 0x10(%rdi) / (%rdi)
+//   and by the trailing `movw $0x0, 0x38(%rdi)` of the 6-arg ctor below.
+//
+// ── END LAYOUT ───────────────────────────────────────────────────────────────
+
+/**
+ * `HGTextureManager::TextureInfo` — GL texture descriptor. Field widths match
+ * Helium's 0x3a-byte layout: six u32 heads (kept as `number`, they are 32-bit
+ * GL enums / dimensions) and four u64 tails plus two u8 flags. The u64 tails
+ * are `bigint` because +0x18 is a raw 64-bit host pointer and +0x20/+0x28/
+ * +0x30 are compared with full-width `cmpq` (they can exceed 2^53).
+ *
+ * @Helium 0x000000000004e6d0 (field naming recovered from texImage2D's
+ *                             glTexImage2D call at 0x4e988)
+ * @Helium 0x0000000000046ef0 (size 0x3a pinned by the default constructor)
+ */
+export class TextureInfo {
+  target: number = 0; // +0x00 u32
+  width: number = 0; // +0x04 u32
+  height: number = 0; // +0x08 u32
+  internalFormat: number = 0; // +0x0c u32
+  format: number = 0; // +0x10 u32
+  type: number = 0; // +0x14 u32
+  pixels: bigint = 0n; // +0x18 u64
+  f20: bigint = 0n; // +0x20 u64
+  f28: bigint = 0n; // +0x28 u64
+  f30: bigint = 0n; // +0x30 u64
+  f38: number = 0; // +0x38 u8
+  f39: number = 0; // +0x39 u8
+
+  /**
+   * `HGTextureManager::TextureInfo::TextureInfo(unsigned int, unsigned int,
+   *  unsigned int, unsigned int, unsigned int, unsigned int)`
+   *   — @Helium 0x0000000000046f40
+   *   mangled: __ZN16HGTextureManager11TextureInfoC1Ejjjjjj
+   *
+   * The C1 (complete-object) variant. Stores the six u32 arguments into the
+   * head fields, then zero-fills the whole tail. Calls nothing (no `callq` in
+   * the body) and has no in-scope dependencies.
+   *
+   * Disasm (x86_64 slice, 13 real insns + padding):
+   *   0x46f40  pushq   %rbp
+   *   0x46f41  movq    %rsp, %rbp
+   *   0x46f44  movl    0x10(%rbp), %eax    ; eax = arg6 (stack-passed: rdi holds
+   *                                        ;   `this`, so only 5 of the 6 u32
+   *                                        ;   args fit the SysV int registers;
+   *                                        ;   16(%rbp) is the first stack slot
+   *                                        ;   past saved-rbp + return address)
+   *   0x46f47  movl    %esi,  (%rdi)       ; this->target         = arg1
+   *   0x46f49  movl    %edx,  0x4(%rdi)    ; this->width          = arg2
+   *   0x46f4c  movl    %ecx,  0x8(%rdi)    ; this->height         = arg3
+   *   0x46f4f  movl    %r8d,  0xc(%rdi)    ; this->internalFormat = arg4
+   *   0x46f53  movl    %r9d,  0x10(%rdi)   ; this->format         = arg5
+   *   0x46f57  movl    %eax,  0x14(%rdi)   ; this->type           = arg6
+   *   0x46f5a  xorps   %xmm0, %xmm0        ; xmm0 = 0
+   *   0x46f5d  movups  %xmm0, 0x18(%rdi)   ; zero [0x18, 0x28) -> pixels, f20
+   *   0x46f61  movups  %xmm0, 0x28(%rdi)   ; zero [0x28, 0x38) -> f28, f30
+   *   0x46f65  movw    $0x0,  0x38(%rdi)   ; zero [0x38, 0x3a) -> f38, f39
+   *   0x46f6b  popq    %rbp
+   *   0x46f6c  retq
+   *   0x46f6d  nopl    (%rax)              ; padding
+   *
+   * Every argument is stored with a 32-bit `movl`, so each is truncated to
+   * u32 — mirrored here with `>>> 0`.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN16HGTextureManager11TextureInfoC1Ejjjjjj.s
+   *
+   * @Helium 0x0000000000046f40
+   */
+  constructor(
+    target: number,
+    width: number,
+    height: number,
+    internalFormat: number,
+    format: number,
+    type: number,
+  ) {
+    // 0x46f47: movl %esi, (%rdi)
+    this.target = target >>> 0;
+    // 0x46f49: movl %edx, 0x4(%rdi)
+    this.width = width >>> 0;
+    // 0x46f4c: movl %ecx, 0x8(%rdi)
+    this.height = height >>> 0;
+    // 0x46f4f: movl %r8d, 0xc(%rdi)
+    this.internalFormat = internalFormat >>> 0;
+    // 0x46f53: movl %r9d, 0x10(%rdi)
+    this.format = format >>> 0;
+    // 0x46f44 + 0x46f57: movl 0x10(%rbp), %eax ; movl %eax, 0x14(%rdi)
+    this.type = type >>> 0;
+    // 0x46f5a-0x46f5d: xorps %xmm0,%xmm0 ; movups %xmm0, 0x18(%rdi)
+    this.pixels = 0n;
+    this.f20 = 0n;
+    // 0x46f61: movups %xmm0, 0x28(%rdi)
+    this.f28 = 0n;
+    this.f30 = 0n;
+    // 0x46f65: movw $0x0, 0x38(%rdi)  — one 16-bit store covering both u8s.
+    this.f38 = 0;
+    this.f39 = 0;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// HGTextureManager::PostTextureDeleteEventList — the deferred texture-delete
+// queue nested inside HGTextureManager.
+// -----------------------------------------------------------------------------
+// SYMBOL PORTED HERE
+//   HGTextureManager::PostTextureDeleteEventList::popEvent()  @Helium 0x48090
+//   __ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv
+//   re/disasm: raw-port/re/disasm/
+//     Helium.__ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv.s
+//
+// FULL DISASM (9 lines, @0x48090..@0x480a6)
+//   __ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv:
+//     0x48090  pushq %rbp
+//     0x48091  movq  %rsp, %rbp
+//     0x48094  movq  0x48(%rdi), %rcx        ; rcx = this->__end_   (+0x48)
+//     0x48098  movq  -0x8(%rcx), %rax        ; rax = rcx[-1]        (the last void*)
+//     0x4809c  addq  $-0x8, %rcx             ; rcx -= one 8-byte element
+//     0x480a0  movq  %rcx, 0x48(%rdi)        ; this->__end_ = rcx
+//     0x480a4  popq  %rbp
+//     0x480a5  retq
+//     0x480a6  nopw  %cs:(%rax,%rax)         ; alignment padding
+//
+// LAYOUT — recovered from the sibling methods, NOT guessed:
+//   +0x00  pthread_mutex_t (0x40 bytes)
+//          The constructor @0x47f50 calls `_pthread_mutex_init(%rdi, 0)` @0x47f72
+//          with %rdi still holding `this`, so the mutex sits at offset 0 and the
+//          next member starts at +0x40 — i.e. it occupies exactly 0x40 bytes,
+//          which is sizeof(pthread_mutex_t) on macOS x86_64.
+//   +0x40  void** __begin_
+//   +0x48  void** __end_
+//   +0x50  void** __end_cap_
+//          The classic libc++ `std::vector<void*>` triple:
+//            * ctor @0x47f64 `movups %xmm0, 0x40(%rdi)` zeroes +0x40/+0x48 and
+//              @0x47f68 `movq $0x0, 0x50(%rdi)` zeroes +0x50 — three null pointers.
+//            * `hasEvent()` @0x48070 is `__begin_ != __end_`
+//              (`movq 0x40(%rdi),%rax ; cmpq 0x48(%rdi),%rax ; setne %al`).
+//            * `addEvent(void*)` @0x42b20 is push_back: compare __end_ (+0x48)
+//              against __end_cap_ (+0x50) @0x42b3c, store on the fast path, else
+//              grow via `__Znwm` @0x42bb1 with libc++'s exact
+//              `max(2*capacity, size+1)` / `0x1fffffffffffffff` overflow guard.
+//            * the ctor's unwind path @0x47f85 `operator delete`s the block at
+//              (%r15) = +0x40 — i.e. __begin_ owns the allocation.
+//
+// FRONTIER CALLEES: none. popEvent has no `callq` at all — two loads, one store,
+// one pointer decrement. No externs, no indirect/virtual call.
+
+/**
+ * The element type of `PostTextureDeleteEventList`'s vector: the `void*` that
+ * `addEvent(void*)` (`__ZN16HGTextureManager26PostTextureDeleteEventList8addEventEPv`
+ * @Helium 0x42b20) stores verbatim @0x42b41 (`movq %rsi, (%r14)`) and that
+ * `popEvent` hands back untouched in %rax @0x48098.
+ *
+ * The binary never dereferences it anywhere in this class, so the port keeps it
+ * opaque rather than inventing a shape for it.
+ */
+export type PostTextureDeleteEvent = unknown;
+
+/**
+ * `pthread_mutex_t` at `PostTextureDeleteEventList+0x00` — an out-of-scope
+ * libSystem type. `lock()` @Helium 0x42b10 and `unlock()` @Helium 0x42c30 are
+ * its only users, and both are separate ledger units; `popEvent` never touches
+ * it. Modelled as an opaque handle so the 0x40-byte member the constructor
+ * initialises (`_pthread_mutex_init` @stub 0x3c5564, called @0x47f72) is
+ * represented rather than silently dropped from the layout.
+ */
+export interface PthreadMutexT {
+  readonly __pthreadMutexT: unique symbol;
+}
+
+/**
+ * `HGTextureManager::PostTextureDeleteEventList` — a mutex-guarded LIFO of
+ * `void*` delete events, held as a libc++ `std::vector<void*>` at +0x40.
+ *
+ * Only `popEvent()` is transcribed in this ledger unit; `lock`, `unlock`,
+ * `addEvent`, `hasEvent`, the constructors and the destructors are their own
+ * units. The member layout above is nonetheless pinned by those siblings'
+ * disassembly (see the LAYOUT block), so no offset here is a guess.
+ *
+ * @Helium 0x47f50 (`__ZN16HGTextureManager26PostTextureDeleteEventListC2Ev`,
+ * the constructor the layout is recovered from)
+ */
+export class PostTextureDeleteEventList {
+  /**
+   * @Helium offset +0x00 — the `pthread_mutex_t` guarding the vector, zero-arg
+   * initialised @0x47f72 by `_pthread_mutex_init(this, nullptr)`. Untouched by
+   * `popEvent`; `null` models the pre-`pthread_mutex_init` state.
+   */
+  mutex_at_0x00: PthreadMutexT | null = null;
+
+  /**
+   * The heap block that `__begin_`/`__end_`/`__end_cap_` point into, one entry
+   * per 8-byte `void*` slot. In the binary this is the single allocation made by
+   * `operator new` @0x42bb1 inside `addEvent`'s grow path and freed by
+   * `operator delete` (the ctor's unwind path @0x47f91 and the destructor
+   * @0x47ff0); the three members below are byte offsets into it, exactly as the
+   * machine holds byte pointers into it.
+   *
+   * @Helium 0x42bb1 (the `__Znwm` that creates the block)
+   */
+  storage: Array<PostTextureDeleteEvent> = [];
+
+  /**
+   * @Helium offset +0x40 — libc++ `__begin_`, as a BYTE offset into `storage`.
+   * Zeroed by the constructor @0x47f64 (`movups %xmm0, 0x40(%rdi)`), compared
+   * against `__end_` by `hasEvent` @0x48074. `popEvent` never reads it.
+   */
+  begin_at_0x40 = 0;
+
+  /**
+   * @Helium offset +0x48 — libc++ `__end_` (one past the last live element), as
+   * a BYTE offset into `storage`. Zeroed by the constructor @0x47f64, advanced
+   * by 8 per `addEvent` @0x42b44, and decremented by 8 by `popEvent` @0x4809c.
+   * This is the only field `popEvent` writes.
+   */
+  end_at_0x48 = 0;
+
+  /**
+   * @Helium offset +0x50 — libc++ `__end_cap_` (one past the last allocated
+   * slot), as a BYTE offset into `storage`. Zeroed by the constructor @0x47f68
+   * (`movq $0x0, 0x50(%rdi)`) and read by `addEvent`'s capacity check @0x42b38.
+   * `popEvent` never touches it — a pop does not shrink the allocation.
+   */
+  endCap_at_0x50 = 0;
+
+  /**
+   * `HGTextureManager::PostTextureDeleteEventList::popEvent()` — @Helium 0x48090
+   * (`__ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv`).
+   *
+   * Faithful line-for-line transcription of the 9-line disassembly quoted above:
+   * read `__end_`, load the element just below it, move `__end_` down by one
+   * 8-byte slot, and return that element. This is `back()` followed by
+   * `pop_back()` fused into one function — legal for `void*` because the element
+   * type is trivially destructible, so libc++ emits no destructor call and the
+   * whole body is two loads, a subtraction and a store.
+   *
+   * NOT thread-safe on its own: the function contains no `callq`, so it never
+   * takes the `pthread_mutex_t` at +0x00. Callers are expected to bracket it
+   * with `lock()` @0x42b10 / `unlock()` @0x42c30 themselves.
+   *
+   * NOT bounds-checked: on an empty list (`__begin_ == __end_`) the machine
+   * still executes `movq -0x8(%rcx), %rax` and reads the 8 bytes below the
+   * buffer, then leaves `__end_` one slot below `__begin_`. We do NOT insert a
+   * guard the disasm doesn't have (PORTING_SPEC Rule 1); the TS mirror reads the
+   * out-of-range index exactly as the binary reads out-of-range memory.
+   *
+   * @0xADDR Helium 0x48090
+   */
+  popEvent(): PostTextureDeleteEvent {
+    // @0x48094  movq 0x48(%rdi), %rcx      ; rcx = this->__end_
+    let rcx = this.end_at_0x48;
+    // @0x48098  movq -0x8(%rcx), %rax      ; rax = *(void**)(rcx - 8)
+    const rax = this.storage[(rcx - 0x8) >> 3];
+    // @0x4809c  addq $-0x8, %rcx           ; rcx -= 8 (one element)
+    rcx = rcx + -0x8;
+    // @0x480a0  movq %rcx, 0x48(%rdi)      ; this->__end_ = rcx
+    this.end_at_0x48 = rcx;
+    // @0x480a4  popq %rbp
+    // @0x480a5  retq                       ; return rax
+    return rax;
+  }
+}

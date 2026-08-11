@@ -47,7 +47,12 @@ while IFS=$'\t' read -r SYM DEM; do
   fi
   SEEN_METH="${SEEN_METH:-}
 $METH"
-  awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+  # Indexed lookup — this loop runs ONE PER METHOD, so on a 20-method class the old awk scan re-read
+  # the whole dump 20 times (20 x 220MB on Flexo). symidx seeks to each body instead; byte-identical
+  # (verify_symidx.py), with the awk scan as fallback.
+  if ! python3 "$ROOT/tools/symidx.py" slice "$FW" "$SYM" > "$OUT" 2>/dev/null; then
+    awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+  fi
   if [ ! -s "$OUT" ]; then
     # ICF-folded / no otool label — objdump per-symbol fallback (exact boundary).
     if [ -s "$THIN" ]; then "$OBJDUMP" --macho -d --disassemble-symbols="$SYM" "$THIN" 2>/dev/null > "$OUT" || true; fi
