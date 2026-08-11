@@ -49,12 +49,37 @@ git rebase -q origin/main 2>&1 | tail -2 || { echo "REBASE CONFLICT on $BR — r
 bash "$GHAPP/git_push_as.sh" worker -q -u origin "$BR" --force-with-lease 2>&1 | tail -2
 
 # open (or find) the PR
+# RECORD WHO OPENED IT. GitHub cannot tell one agent from another here — every PR is authored by the
+# worker app, and the operator login is shared by the whole swarm — so a reviewer slot has no way to
+# know it is about to review its own work (it happened; the lease and the verification were wasted,
+# and GitHub then refuses the verdict). The authoring agent is the only party that knows, so it
+# writes the fact down: $STATE/authored/<PR> = the agent id. review_claim skips its own.
+# The id must be one a REVIEWER process can also hold, which rules out the obvious default: this
+# function used to fall back to `$(hostname -s)-$$`, the pid of THIS pr_submit run, and no other
+# process can ever equal that — so the marker was written, looked healthy, and could never match.
+# A marker that cannot match is worse than no marker: it makes a dormant guard look wired. With no
+# id, write nothing and say why (absent marker => "not mine" => review_claim proceeds, which is the
+# fail-open behaviour it documents).
+note_authored () { # <PR#>
+  [ -n "${1:-}" ] || return 0
+  if [ -z "${FCT_AGENT_ID:-}" ]; then
+    echo "pr_submit: FCT_AGENT_ID unset — not recording who authored PR #$1, so a reviewer slot" >&2
+    echo "           cannot skip its own PR. (run: export FCT_AGENT_ID=worker-<N>)" >&2
+    return 0
+  fi
+  local d="${FCT_STATE_DIR:-$HOME/.fct-pool}/authored"
+  mkdir -p "$d" 2>/dev/null || return 0
+  echo "$FCT_AGENT_ID" > "$d/$1" 2>/dev/null || true
+}
+
 EXIST=$(bash "$GHAPP/gh_as.sh" worker pr list --repo "$REPO_SLUG" --head "$BR" --json number --jq '.[0].number' 2>/dev/null)
 if [ -n "$EXIST" ]; then
   echo "PR already open: #$EXIST"
+  note_authored "$EXIST"
   bash "$GHAPP/gh_as.sh" worker pr view "$EXIST" --repo "$REPO_SLUG" --json url --jq .url
 else
   bash "$GHAPP/gh_as.sh" worker pr create --repo "$REPO_SLUG" --base main --head "$BR" --fill \
     --title "port: $CLASS" \
     --body "Automated raw-port unit for \`$CLASS\`. Faithfulness gate (G0-G5 + regression + dup) runs via pr_gate.sh on vjeux-mac; adversarial reviewer approves. See PR_MIGRATION_PLAN.md." 2>&1 | tail -3
+  note_authored "$(bash "$GHAPP/gh_as.sh" worker pr list --repo "$REPO_SLUG" --head "$BR" --json number --jq '.[0].number' 2>/dev/null)"
 fi

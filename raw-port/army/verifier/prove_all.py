@@ -77,7 +77,17 @@ def layer2():
     print("LAYER 2e (rebase path — no phantom symbols, no branch guessing, no dropped files):",
           "PASS" if ok5 else "FAIL")
     if not ok5: print(r5.stdout[-1200:], r5.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5
+    # 2f — the guards that stop a TOOL from overriding a PERSON. A mechanical success must not paper
+    # over a reviewer's rejection; a signature must not slide onto a head that moved; a slot must not
+    # be handed on mid-rebase or carrying disasm residue that switches off the blind-spot flag.
+    # Every case is mutation-checked (revert the fix, watch it go red) — one of them originally
+    # passed with its own fix deleted, because it matched the explanatory comment rather than code.
+    r6 = run([sys.executable, os.path.join(HERE, "test_guards.py")])
+    ok6 = "test_guards: PASS" in r6.stdout
+    print("LAYER 2f (guards — no status override, no head drift, no dirty slot handover):",
+          "PASS" if ok6 else "FAIL")
+    if not ok6: print(r6.stdout[-1200:], r6.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6
 
 def _reach(spec, expect):
     import tempfile
