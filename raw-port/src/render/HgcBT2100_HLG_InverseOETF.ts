@@ -882,19 +882,430 @@ export function renderAlpha_HLG_InverseOETF(
   );
 }
 
-/** HgcBT2100_HLG_InverseOETF::RenderTile_AVX(HGTile*) @0x3b1660.
- *  8-wide AVX2 port of the same inverse-OETF math.  Full body is not
- *  separately transcribed here — the pure math is covered by
- *  `renderChannel_HLG_InverseOETF` above.  This method throws so the
- *  frontier tool sees the AVX-scaffolding as an open node. */
-export function RenderTile_AVX(
-  _self: HgcBT2100_HLG_InverseOETFInstance,
-  _tile: HGTile,
-): void {
-  throw new Error(
-    "HgcBT2100_HLG_InverseOETF::RenderTile_AVX @Helium @0x3b1660 tile-loop scaffolding (HGTile field access, AVX2 dispatch) not yet transcribed"
-  );
+// ── SIMD lane primitives for the AVX tile kernel below ──────────────────────────────────────
+// The machine's `vandps`/`vpslld`/`vpsrld` operate on the BITS of the same register file, and JS
+// has no other way to express that. Not FCP functions; pure plumbing, mirroring the landed
+// raw-port/src/render/Gettype1_half_unpremultTile_AVX.ts.
+const bitScratch = new DataView(new ArrayBuffer(4));
+
+function bitsOf(x: number): number {
+  bitScratch.setFloat32(0, x, true);
+  return bitScratch.getUint32(0, true);
 }
+
+function floatOf(bits: number): number {
+  bitScratch.setUint32(0, bits >>> 0, true);
+  return bitScratch.getFloat32(0, true);
+}
+
+/** The "QNaN floating-point indefinite" an x86 SSE/AVX arithmetic op produces when the operation
+ *  itself is INVALID (Inf-Inf, 0*Inf, …). Intel SDM vol 1 4.8.3.7: it is 0xffc00000 — the sign bit
+ *  is SET. JavaScript has exactly one NaN and writing it into a Float32Array yields 0x7fc00000, so
+ *  a port that just lets JS produce the NaN differs from the machine in that one bit. This is not
+ *  theoretical: the differential for this kernel reported 420 divergent lanes, every one of them
+ *  `native=ffc00000 ts=7fc00000`, before this rule was modelled. */
+const QNAN_INDEFINITE = floatOf(0xffc00000);
+
+/** x86's NaN-propagation rule for a two-source arithmetic op (SDM: SRC1 wins, then SRC2, then the
+ *  indefinite). An SNaN operand is QUIETED (bit 22 set) on the way out, which `| 0x00400000` does
+ *  and which leaves a QNaN untouched. `src1` is the FIRST Intel source, i.e. the SECOND operand
+ *  written in AT&T order. */
+function nanResult(src1: number, src2: number): number {
+  if (Number.isNaN(src1)) return floatOf(bitsOf(src1) | 0x00400000);
+  if (Number.isNaN(src2)) return floatOf(bitsOf(src2) | 0x00400000);
+  return QNAN_INDEFINITE;
+}
+
+/** ADDPS lane, with the NaN rule. Arguments in INTEL order (src1, src2). */
+function addps(src1: number, src2: number): number {
+  const r = Math.fround(src1 + src2);
+  return Number.isNaN(r) ? nanResult(src1, src2) : r;
+}
+
+/** SUBPS lane (src1 - src2), with the NaN rule. */
+function subps(src1: number, src2: number): number {
+  const r = Math.fround(src1 - src2);
+  return Number.isNaN(r) ? nanResult(src1, src2) : r;
+}
+
+/** MULPS lane, with the NaN rule. */
+function mulps(src1: number, src2: number): number {
+  const r = Math.fround(src1 * src2);
+  return Number.isNaN(r) ? nanResult(src1, src2) : r;
+}
+
+/** MAXPS lane rule: `(src1 > src2) ? src1 : src2` — src2 wins on equal AND on unordered. */
+function maxps(src1: number, src2: number): number {
+  return src1 > src2 ? src1 : src2;
+}
+
+/** CMPPS(LT): all-ones when `a < b` ORDERED, all-zero otherwise (NaN gives false). */
+function cmpltps(a: number, b: number): number {
+  return a < b ? 0xffffffff : 0x00000000;
+}
+
+/** CMPPS(LE): all-ones when `a <= b` ORDERED, all-zero otherwise (NaN gives false). */
+function cmpleps(a: number, b: number): number {
+  return a <= b ? 0xffffffff : 0x00000000;
+}
+
+/** CMPPS(NLE): all-ones when NOT(a <= b) — which INCLUDES the unordered case, so a NaN operand
+ *  yields all-ones. The 4-wide tail's predicate where the 8-wide body uses CMPLT. */
+function cmpnleps(a: number, b: number): number {
+  return !(a <= b) ? 0xffffffff : 0x00000000;
+}
+
+/** `vroundps $0x9` — round toward -inf with the precision exception suppressed; on an f32 lane
+ *  that is exactly `floor`, and the floor of a finite f32 is always representable. */
+function roundps_floor(x: number): number {
+  return Math.fround(Math.floor(x));
+}
+
+/** `vcvttps2dq` — f32 to i32, truncating toward zero. Out-of-range and NaN give the "integer
+ *  indefinite" 0x80000000 (Intel SDM), which the exponent arithmetic then shifts like any other
+ *  bit pattern; the `vmaxps` against exp2LowClamp bounds the input from below but not from
+ *  above, so that path is reachable and is modelled. */
+function cvttps2dq(x: number): number {
+  if (!(x > -2147483649 && x < 2147483648)) return -2147483648 | 0;
+  return Math.trunc(x) | 0;
+}
+
+/**
+ * `HgcBT2100_HLG_InverseOETF::RenderTile_AVX(HGTile*)` @Helium 0x3b1660
+ * (`__ZN25HgcBT2100_HLG_InverseOETF14RenderTile_AVXEP6HGTile`).
+ *
+ * TRANSCRIBED IN FULL. This method used to raise instead of computing; the body below is the
+ * transcription of all 150
+ * instructions at 0x3b1660..0x3b1936. `grep -c callq` = 0: a LEAF with no vtable slot and no
+ * RIP-relative constant. Every number comes out of the param buffer at `this+0x198`, at the
+ * offsets `PARAM_OFFSETS` above already documents, so this port reads that buffer rather than
+ * inventing values. Regenerate the decode with
+ *   bash raw-port/tools/disasm.sh --sym \
+ *     __ZN25HgcBT2100_HLG_InverseOETF14RenderTile_AVXEP6HGTile Helium
+ *
+ * AT&T operand order: `vop src2, src1, dst` is Intel `vop dst, src1, src2`. So
+ * `vmaxps %ymm1,%ymm0,%ymm6` is MAXPS(src1=ymm0, src2=ymm1) — which returns src2 on equal AND on
+ * unordered — and `vblendvps mask, src2, src1, dst` sets dst = mask ? src2 : src1.
+ *
+ * WHAT IT COMPUTES, per RGBA texel (`P0` = hgParams0 @+0x00, `P1` = hgParams1 @+0x20):
+ *
+ *   c    = max(texel, alphaThresh)                        // (0,0,0,0.005): RGB floor 0, alpha 0.005
+ *   u    = (c*P1.x + P1.y) with the ALPHA lane put back from the raw texel
+ *   lo   = P0.y * c²                                      // the quadratic segment
+ *   hi   = exp2(max(u, exp2LowClamp)) * P1.z + P1.w       // the exponential segment
+ *   gate = (P0.x < blend(c, sel)) ? … the select below
+ *   out  = gate ? hi : lo
+ *   out.a = texel.a * sel                                 // sel is 0 or exp2LowClamp per lane
+ *
+ * where `sel` = `(alphaThresh <= u) & exp2LowClamp` @0x3b1715/@0x3b171a — a 0-or-constant value
+ * that is used THREE times: as the alpha multiplier @0x3b17e6, and spliced into lane 3/7 of both
+ * gate operands @0x3b175a and @0x3b17d5. The alpha lane is therefore NOT a passthrough: it is the
+ * raw texel times a per-lane 0-or-`exp2LowClamp.w` (= 1.0, slot 3's alpha lane), i.e. alpha
+ * survives only where the comparison holds and is zeroed otherwise. That is transcribed as it
+ * stands rather than simplified.
+ *
+ * There is no log2 here — only exp2 — which is why the buffer holds exp2 coefficients and no
+ * mantissa mask, and why the port is short.
+ *
+ * EXACTNESS: load/store, max, add/sub/mul, and, the integer exponent ops, `vroundps`,
+ * `vcvttps2dq`. No `vrcpps`, `vrsqrtps`, `vdivps` or `vsqrtps` — every operation is exactly
+ * specified, so this port is bit-exact and its oracle demands 0 divergences. (Its `HLG_OETF`
+ * counterpart @0x3b04b0 is NOT in that position: it carries six `vrsqrtps`, and is still a stub.)
+ *
+ * THE TWO PATHS. An 8-wide body @0x3b16d0..0x3b180d entered only when the tile is at least 2
+ * texels wide, then a 4-wide tail @0x3b1826..0x3b1928 for the odd texel, which runs at most once
+ * per row (it ends in `jmp 0x3b16a0`, the row advance). They differ: the tail uses `vcmpnleps`
+ * @0x3b190d where the body uses `vcmpltps` @0x3b17db (they disagree on NaN), loads the buffer
+ * with `vmovaps` instead of `vmovups`, adds the exponent bias straight from memory
+ * (`vpaddd 0x140(%rbx)` @0x3b18d4), and splices `sel` into a different register.
+ *
+ * DEGENERATE TILES: rows <= 0 returns before the frame is built (`jle 0x3b1931` @0x3b1666);
+ * cols <= 0 falls through the `cmpl $0x2` @0x3b16b8 into the tail guard `jge` @0x3b1819 with
+ * r11d = 0 and writes nothing for that row. The function always returns 0 (`xorl %eax,%eax`
+ * @0x3b1934) — the stub this replaces declared `void`; the widened return type is what the
+ * machine actually leaves in %eax, and `RenderTile` @0x3b196c tail-jumps here, so its caller sees
+ * it.
+ * @0x3b1660
+ */
+export function RenderTile_AVX(
+  self: HgcBT2100_HLG_InverseOETFInstance,
+  tile: HGTile,
+): number {
+  const f32 = self.paramBuf;
+  const i32 = self.paramBufI32;
+  /** lane `l` of the 32-byte (ymm) buffer vector at byte offset `off` */
+  const kv = (off: number, l: number): number => f32[off / 4 + l] as number;
+  /** the `vbroadcastss` scalar at byte offset `off` */
+  const ks = (off: number): number => f32[off / 4] as number;
+  /** lane `l` of the 16-byte integer vector at byte offset `off` (the `vpaddd` operand) */
+  const ki = (off: number, l: number): number => i32[off / 4 + l] as number;
+
+  // @0x3b1660/@0x3b1663: eax = tile[+0x0c] - tile[+0x04]
+  const rows = (tile.y1 - tile.y0) | 0;
+  // @0x3b1666: jle 0x3b1931
+  if (rows <= 0) return 0;
+  // @0x3b1673/@0x3b1676: ecx = tile[+0x08] - tile[+0x00]
+  const cols = (tile.x1 - tile.x0) | 0;
+  // @0x3b1678/@0x3b1688 and @0x3b1684/@0x3b168c: strides <<4 bytes == 4 f32 == 1 texel
+  const outRowStride = (tile.dstStride16 | 0) * 4;
+  const inRowStride = (tile.srcStride16 | 0) * 4;
+  const outArr = tile.dst; // @0x3b167c
+  const inArr = tile.src; // @0x3b1680
+  let outBase = 0; // r8, advanced @0x3b16a3
+  let inBase = 0; // r9, advanced @0x3b16a0
+
+  // Register file; the 4-wide tail uses lanes 0..3 of the same arrays, as an xmm is the low half
+  // of its ymm. This kernel spills nothing — there is no `subq %rsp` at all.
+  const ymm0 = new Float32Array(8);
+  const ymm1 = new Float32Array(8);
+  const ymm2 = new Float32Array(8);
+  const ymm3 = new Float32Array(8);
+  const ymm4 = new Float32Array(8);
+  const ymm5 = new Float32Array(8);
+  const ymm6 = new Float32Array(8);
+  const ymm7 = new Float32Array(8);
+  const ymm8 = new Float32Array(8);
+  const ymm9 = new Float32Array(8);
+  const mk = new Uint32Array(8); // a compare writes all-ones / all-zero into the same file
+  const iA = new Int32Array(8);
+  const iB = new Int32Array(8);
+
+  // @0x3b1690: r10d = 0; @0x3b16a6..@0x3b16ac: exactly `rows` iterations.
+  for (let row = 0; row < rows; row++) {
+    // @0x3b16b2: movl $0x0,%r11d
+    let r11 = 0;
+    // @0x3b16b8/@0x3b16bb: cmpl $0x2,%ecx ; jl 0x3b1816 — narrower than 2 texels: tail only.
+    if (cols >= 2) {
+      // @0x3b16c1: ebx = 0x10, so every access is at byte offset 32*k.
+      let k = 0;
+      for (;;) {
+        const p = inBase + 8 * k;
+        const q = outBase + 8 * k;
+        // @0x3b16d0: vmovups -0x10(%r9,%rbx),%ymm0 — two RGBA texels
+        for (let l = 0; l < 8; l++) ymm0[l] = inArr[p + l] as number;
+        // @0x3b16d7: movq 0x198(%rdi),%r14 — the param buffer (reloaded every iteration)
+        // @0x3b16de/@0x3b16e4/@0x3b16ea
+        for (let l = 0; l < 8; l++) ymm1[l] = kv(PARAM_OFFSETS.alphaThresh_A, l);
+        for (let l = 0; l < 8; l++) ymm5[l] = kv(PARAM_OFFSETS.exp2LowClamp_A, l);
+        for (let l = 0; l < 8; l++) ymm2[l] = kv(PARAM_OFFSETS.exp2OneThresh_A, l);
+        // @0x3b16f3: vmaxps %ymm1,%ymm0,%ymm6 — c = max(texel, alphaThresh)
+        for (let l = 0; l < 8; l++) ymm6[l] = maxps(ymm0[l] as number, ymm1[l] as number);
+        // @0x3b16f7/@0x3b16fd: vbroadcastss 0x20 / 0x24
+        for (let l = 0; l < 8; l++) ymm3[l] = ks(PARAM_OFFSETS.hgParams1_A);
+        for (let l = 0; l < 8; l++) ymm4[l] = ks(PARAM_OFFSETS.hgParams1_A + 4);
+        // @0x3b1703: vmulps %ymm3,%ymm6,%ymm3 ; @0x3b1707: vaddps %ymm3,%ymm4,%ymm3
+        for (let l = 0; l < 8; l++) ymm3[l] = mulps(ymm6[l] as number, ymm3[l] as number);
+        for (let l = 0; l < 8; l++) ymm3[l] = addps(ymm4[l] as number, ymm3[l] as number);
+        // @0x3b170b: vblendps $0x88,%ymm0,%ymm3,%ymm7 — lanes 3,7 from the RAW texel
+        for (let l = 0; l < 8; l++) ymm7[l] = ymm3[l] as number;
+        ymm7[3] = ymm0[3] as number;
+        ymm7[7] = ymm0[7] as number;
+        // @0x3b1711: vmulps %ymm6,%ymm6,%ymm4 — c²
+        for (let l = 0; l < 8; l++) ymm4[l] = mulps(ymm6[l] as number, ymm6[l] as number);
+        // @0x3b1715: vcmpleps %ymm7,%ymm1,%ymm3 — (alphaThresh <= u)
+        for (let l = 0; l < 8; l++) mk[l] = cmpleps(ymm1[l] as number, ymm7[l] as number);
+        // @0x3b171a: vandps %ymm5,%ymm3,%ymm3 — sel = mask & exp2LowClamp
+        for (let l = 0; l < 8; l++) {
+          ymm3[l] = floatOf((mk[l] as number) & bitsOf(ymm5[l] as number));
+        }
+        // @0x3b171e/@0x3b1724: vbroadcastss 0x4 ; vmulps %ymm4,%ymm8,%ymm4 — lo = P0.y · c²
+        for (let l = 0; l < 8; l++) ymm8[l] = ks(PARAM_OFFSETS.hgParams0_A + 4);
+        for (let l = 0; l < 8; l++) ymm4[l] = mulps(ymm8[l] as number, ymm4[l] as number);
+        // @0x3b1728: vmaxps %ymm5,%ymm7,%ymm5 — clamp the exp2 input from below
+        for (let l = 0; l < 8; l++) ymm5[l] = maxps(ymm7[l] as number, ymm5[l] as number);
+        // @0x3b172c/@0x3b1732: vroundps $0x9 ; vsubps — integer and fractional parts
+        for (let l = 0; l < 8; l++) ymm7[l] = roundps_floor(ymm5[l] as number);
+        for (let l = 0; l < 8; l++) ymm5[l] = subps(ymm5[l] as number, ymm7[l] as number);
+        // @0x3b1736/@0x3b173f
+        for (let l = 0; l < 8; l++) {
+          ymm8[l] = mulps(ymm5[l] as number, kv(PARAM_OFFSETS.exp2C5_A, l));
+        }
+        for (let l = 0; l < 8; l++) {
+          ymm8[l] = addps(ymm8[l] as number, kv(PARAM_OFFSETS.exp2C4_A, l));
+        }
+        // @0x3b1748: vmulps %ymm5,%ymm5,%ymm9 — f²
+        for (let l = 0; l < 8; l++) ymm9[l] = mulps(ymm5[l] as number, ymm5[l] as number);
+        // @0x3b174c: vmulps %ymm8,%ymm9,%ymm8
+        for (let l = 0; l < 8; l++) ymm8[l] = mulps(ymm9[l] as number, ymm8[l] as number);
+        // @0x3b1751: vmulps 0xc0(%r14),%ymm5,%ymm9
+        for (let l = 0; l < 8; l++) {
+          ymm9[l] = mulps(ymm5[l] as number, kv(PARAM_OFFSETS.exp2C3_A, l));
+        }
+        // @0x3b175a: vblendps $0x88,%ymm3,%ymm6,%ymm6 — lanes 3,7 of `c` replaced by `sel`
+        ymm6[3] = ymm3[3] as number;
+        ymm6[7] = ymm3[7] as number;
+        // @0x3b1760/@0x3b1769/@0x3b176e/@0x3b1772/@0x3b177b/@0x3b177f
+        for (let l = 0; l < 8; l++) {
+          ymm9[l] = addps(ymm9[l] as number, kv(PARAM_OFFSETS.exp2C2_A, l));
+        }
+        for (let l = 0; l < 8; l++) ymm8[l] = addps(ymm8[l] as number, ymm9[l] as number);
+        for (let l = 0; l < 8; l++) ymm8[l] = mulps(ymm8[l] as number, ymm5[l] as number);
+        for (let l = 0; l < 8; l++) {
+          ymm8[l] = addps(ymm8[l] as number, kv(PARAM_OFFSETS.exp2Ln2_A, l));
+        }
+        for (let l = 0; l < 8; l++) ymm5[l] = mulps(ymm8[l] as number, ymm5[l] as number);
+        for (let l = 0; l < 8; l++) ymm5[l] = addps(ymm2[l] as number, ymm5[l] as number);
+        // @0x3b1783: vcvttps2dq %ymm7,%ymm7
+        for (let l = 0; l < 8; l++) iA[l] = cvttps2dq(ymm7[l] as number);
+        // @0x3b1787: vmovdqa 0x140(%r14),%xmm8 — the i32 bias, ONE 16-byte group
+        for (let l = 0; l < 4; l++) iB[l] = ki(PARAM_OFFSETS.exp2Bias_A, l);
+        // @0x3b1790/@0x3b1794/@0x3b179a: vpaddd both halves against the SAME xmm8
+        for (let l = 0; l < 8; l++) iA[l] = ((iB[l & 3] as number) + (iA[l] as number)) | 0;
+        // @0x3b179e/@0x3b17a4/@0x3b17a9: vpslld $0x17 on each half, recombined
+        for (let l = 0; l < 8; l++) ymm7[l] = floatOf(((iA[l] as number) << 23) >>> 0);
+        // @0x3b17af: vmulps %ymm7,%ymm5,%ymm5 — · 2^int
+        for (let l = 0; l < 8; l++) ymm5[l] = mulps(ymm5[l] as number, ymm7[l] as number);
+        // @0x3b17b3/@0x3b17b9/@0x3b17bd/@0x3b17c3: hi = exp2 · P1.z + P1.w
+        for (let l = 0; l < 8; l++) ymm7[l] = ks(PARAM_OFFSETS.hgParams1_A + 8);
+        for (let l = 0; l < 8; l++) ymm5[l] = mulps(ymm7[l] as number, ymm5[l] as number);
+        for (let l = 0; l < 8; l++) ymm7[l] = ks(PARAM_OFFSETS.hgParams1_A + 12);
+        for (let l = 0; l < 8; l++) ymm5[l] = addps(ymm7[l] as number, ymm5[l] as number);
+        // @0x3b17c7/@0x3b17cc: vbroadcastss (%r14) ; vcmpltps %ymm6,%ymm7,%ymm6 — (P0.x < ymm6)
+        for (let l = 0; l < 8; l++) ymm7[l] = ks(PARAM_OFFSETS.hgParams0_A);
+        for (let l = 0; l < 8; l++) mk[l] = cmpltps(ymm7[l] as number, ymm6[l] as number);
+        // @0x3b17d1: vandps %ymm2,%ymm6,%ymm2
+        for (let l = 0; l < 8; l++) {
+          ymm2[l] = floatOf((mk[l] as number) & bitsOf(ymm2[l] as number));
+        }
+        // @0x3b17d5: vblendps $0x88,%ymm3,%ymm2,%ymm2 — lanes 3,7 from `sel`
+        ymm2[3] = ymm3[3] as number;
+        ymm2[7] = ymm3[7] as number;
+        // @0x3b17db: vcmpltps %ymm2,%ymm1,%ymm1 — (alphaThresh < that)
+        for (let l = 0; l < 8; l++) mk[l] = cmpltps(ymm1[l] as number, ymm2[l] as number);
+        // @0x3b17e0: vblendvps %ymm1,%ymm5,%ymm4,%ymm1 — the exponential or the quadratic segment
+        for (let l = 0; l < 8; l++) {
+          ymm1[l] = ((mk[l] as number) & 0x80000000) !== 0 ? (ymm5[l] as number) : (ymm4[l] as number);
+        }
+        // @0x3b17e6: vmulps %ymm0,%ymm3,%ymm0 — the alpha lane is texel · sel, not a passthrough
+        for (let l = 0; l < 8; l++) ymm0[l] = mulps(ymm3[l] as number, ymm0[l] as number);
+        // @0x3b17ea: vblendps $0x88,%ymm0,%ymm1,%ymm0
+        for (let l = 0; l < 8; l++) {
+          if (l !== 3 && l !== 7) ymm0[l] = ymm1[l] as number;
+        }
+        // @0x3b17f0: vmovups %ymm0,-0x10(%r8,%rbx)
+        for (let l = 0; l < 8; l++) outArr[q + l] = ymm0[l] as number;
+
+        // @0x3b17f7: addq $0x20,%rbx
+        k++;
+        // @0x3b17fb/@0x3b1802/@0x3b1805: r14d = r11d + ecx - 2 (r11d BEFORE the decrement)
+        const r14 = (((r11 + cols) | 0) - 2) | 0;
+        // @0x3b17fe: addl $-0x2,%r11d
+        r11 = (r11 - 2) | 0;
+        // @0x3b1809/@0x3b180d: cmpl $0x1,%r14d ; jg 0x3b16d0
+        if (!(r14 > 1)) break;
+      }
+      // @0x3b1813: negl %r11d
+      r11 = -r11 | 0;
+    }
+
+    // @0x3b1816/@0x3b1819: cmpl %ecx,%r11d ; jge 0x3b16a0 — also the cols <= 0 exit, which
+    // writes nothing at all for the row.
+    if (r11 < cols) {
+      // @0x3b181f/@0x3b1822: movl %r11d,%r11d ; shlq $0x4,%r11
+      const p = inBase + 4 * r11;
+      const q = outBase + 4 * r11;
+      // ── 4-wide tail: exactly ONE texel, then `jmp 0x3b16a0` ─────────────────────────────
+      // @0x3b1826: vmovaps (%r9,%r11),%xmm0
+      for (let l = 0; l < 4; l++) ymm0[l] = inArr[p + l] as number;
+      // @0x3b182c: movq 0x198(%rdi),%rbx
+      // @0x3b1833/@0x3b1838/@0x3b183d — `vmovaps`, and note %xmm4 holds what %ymm5 held above
+      for (let l = 0; l < 4; l++) ymm1[l] = kv(PARAM_OFFSETS.alphaThresh_A, l);
+      for (let l = 0; l < 4; l++) ymm4[l] = kv(PARAM_OFFSETS.exp2LowClamp_A, l);
+      for (let l = 0; l < 4; l++) ymm2[l] = kv(PARAM_OFFSETS.exp2OneThresh_A, l);
+      // @0x3b1845: vmaxps %xmm1,%xmm0,%xmm5 — c
+      for (let l = 0; l < 4; l++) ymm5[l] = maxps(ymm0[l] as number, ymm1[l] as number);
+      // @0x3b1849/@0x3b184f/@0x3b1853/@0x3b1859: u = c·P1.x + P1.y
+      for (let l = 0; l < 4; l++) ymm3[l] = ks(PARAM_OFFSETS.hgParams1_A);
+      for (let l = 0; l < 4; l++) ymm3[l] = mulps(ymm5[l] as number, ymm3[l] as number);
+      for (let l = 0; l < 4; l++) ymm6[l] = ks(PARAM_OFFSETS.hgParams1_A + 4);
+      for (let l = 0; l < 4; l++) ymm3[l] = addps(ymm6[l] as number, ymm3[l] as number);
+      // @0x3b185d: vblendps $0x8,%xmm0,%xmm3,%xmm6 — lane 3 from the RAW texel
+      for (let l = 0; l < 4; l++) ymm6[l] = ymm3[l] as number;
+      ymm6[3] = ymm0[3] as number;
+      // @0x3b1863: vmulps %xmm5,%xmm5,%xmm7 — c²
+      for (let l = 0; l < 4; l++) ymm7[l] = mulps(ymm5[l] as number, ymm5[l] as number);
+      // @0x3b1867/@0x3b186c: sel = (alphaThresh <= u) & exp2LowClamp
+      for (let l = 0; l < 4; l++) mk[l] = cmpleps(ymm1[l] as number, ymm6[l] as number);
+      for (let l = 0; l < 4; l++) {
+        ymm3[l] = floatOf((mk[l] as number) & bitsOf(ymm4[l] as number));
+      }
+      // @0x3b1870: vblendps $0x8,%xmm3,%xmm5,%xmm5 — lane 3 of `c` replaced by `sel`. The 8-wide
+      //   path does this into %ymm6 @0x3b175a and later than the c² above; same value either way.
+      ymm5[3] = ymm3[3] as number;
+      // @0x3b1876/@0x3b187c: lo = P0.y · c²
+      for (let l = 0; l < 4; l++) ymm8[l] = ks(PARAM_OFFSETS.hgParams0_A + 4);
+      for (let l = 0; l < 4; l++) ymm7[l] = mulps(ymm8[l] as number, ymm7[l] as number);
+      // @0x3b1880/@0x3b1884/@0x3b188a
+      for (let l = 0; l < 4; l++) ymm4[l] = maxps(ymm6[l] as number, ymm4[l] as number);
+      for (let l = 0; l < 4; l++) ymm6[l] = roundps_floor(ymm4[l] as number);
+      for (let l = 0; l < 4; l++) ymm4[l] = subps(ymm4[l] as number, ymm6[l] as number);
+      // @0x3b188e..@0x3b18cc — the same exp2 polynomial, same order
+      for (let l = 0; l < 4; l++) {
+        ymm8[l] = mulps(ymm4[l] as number, kv(PARAM_OFFSETS.exp2C5_A, l));
+      }
+      for (let l = 0; l < 4; l++) {
+        ymm8[l] = addps(ymm8[l] as number, kv(PARAM_OFFSETS.exp2C4_A, l));
+      }
+      for (let l = 0; l < 4; l++) ymm9[l] = mulps(ymm4[l] as number, ymm4[l] as number);
+      for (let l = 0; l < 4; l++) ymm8[l] = mulps(ymm9[l] as number, ymm8[l] as number);
+      for (let l = 0; l < 4; l++) {
+        ymm9[l] = mulps(ymm4[l] as number, kv(PARAM_OFFSETS.exp2C3_A, l));
+      }
+      for (let l = 0; l < 4; l++) {
+        ymm9[l] = addps(ymm9[l] as number, kv(PARAM_OFFSETS.exp2C2_A, l));
+      }
+      for (let l = 0; l < 4; l++) ymm8[l] = addps(ymm8[l] as number, ymm9[l] as number);
+      for (let l = 0; l < 4; l++) ymm8[l] = mulps(ymm8[l] as number, ymm4[l] as number);
+      for (let l = 0; l < 4; l++) {
+        ymm8[l] = addps(ymm8[l] as number, kv(PARAM_OFFSETS.exp2Ln2_A, l));
+      }
+      for (let l = 0; l < 4; l++) ymm4[l] = mulps(ymm8[l] as number, ymm4[l] as number);
+      for (let l = 0; l < 4; l++) ymm4[l] = addps(ymm2[l] as number, ymm4[l] as number);
+      // @0x3b18d0/@0x3b18d4/@0x3b18dc — the bias comes straight out of memory here
+      for (let l = 0; l < 4; l++) iA[l] = cvttps2dq(ymm6[l] as number);
+      for (let l = 0; l < 4; l++) {
+        iA[l] = ((iA[l] as number) + ki(PARAM_OFFSETS.exp2Bias_A, l)) | 0;
+      }
+      for (let l = 0; l < 4; l++) ymm6[l] = floatOf(((iA[l] as number) << 23) >>> 0);
+      // @0x3b18e1/@0x3b18e5/@0x3b18eb/@0x3b18ef/@0x3b18f5: hi = exp2 · P1.z + P1.w
+      for (let l = 0; l < 4; l++) ymm4[l] = mulps(ymm4[l] as number, ymm6[l] as number);
+      for (let l = 0; l < 4; l++) ymm6[l] = ks(PARAM_OFFSETS.hgParams1_A + 8);
+      for (let l = 0; l < 4; l++) ymm4[l] = mulps(ymm6[l] as number, ymm4[l] as number);
+      for (let l = 0; l < 4; l++) ymm6[l] = ks(PARAM_OFFSETS.hgParams1_A + 12);
+      for (let l = 0; l < 4; l++) ymm4[l] = addps(ymm6[l] as number, ymm4[l] as number);
+      // @0x3b18f9/@0x3b18fe/@0x3b1903
+      for (let l = 0; l < 4; l++) ymm6[l] = ks(PARAM_OFFSETS.hgParams0_A);
+      for (let l = 0; l < 4; l++) mk[l] = cmpltps(ymm6[l] as number, ymm5[l] as number);
+      for (let l = 0; l < 4; l++) {
+        ymm2[l] = floatOf((mk[l] as number) & bitsOf(ymm2[l] as number));
+      }
+      // @0x3b1907: vblendps $0x8,%xmm3,%xmm2,%xmm2
+      ymm2[3] = ymm3[3] as number;
+      // @0x3b190d: vcmpnleps %xmm1,%xmm2,%xmm1 — NOT(that <= alphaThresh); the 8-wide path uses
+      //   CMPLT with the operands the other way round, and the two differ on NaN.
+      for (let l = 0; l < 4; l++) mk[l] = cmpnleps(ymm2[l] as number, ymm1[l] as number);
+      // @0x3b1912: vblendvps %xmm1,%xmm4,%xmm7,%xmm1
+      for (let l = 0; l < 4; l++) {
+        ymm1[l] = ((mk[l] as number) & 0x80000000) !== 0 ? (ymm4[l] as number) : (ymm7[l] as number);
+      }
+      // @0x3b1918: vmulps %xmm0,%xmm3,%xmm0 — alpha = texel · sel
+      for (let l = 0; l < 4; l++) ymm0[l] = mulps(ymm3[l] as number, ymm0[l] as number);
+      // @0x3b191c: vblendps $0x8,%xmm0,%xmm1,%xmm0
+      for (let l = 0; l < 3; l++) ymm0[l] = ymm1[l] as number;
+      // @0x3b1922: vmovaps %xmm0,(%r8,%r11)
+      for (let l = 0; l < 4; l++) outArr[q + l] = ymm0[l] as number;
+      // @0x3b1928: jmp 0x3b16a0 — the row advance; the tail never iterates.
+    }
+
+    // @0x3b16a0/@0x3b16a3: addq %rsi,%r9 ; addq %rdx,%r8
+    inBase += inRowStride;
+    outBase += outRowStride;
+  }
+
+  // @0x3b192d..@0x3b1936: popq %rbx ; popq %r14 ; popq %rbp ; vzeroupper ; xorl %eax,%eax ; retq
+  return 0;
+}
+
 
 /** HgcBT2100_HLG_InverseOETF::RenderTile(HGTile*) @0x3b1940.
  *  Dispatch: if `HGRenderer::GetTarget(0) >= 0x4700000` tail-call
