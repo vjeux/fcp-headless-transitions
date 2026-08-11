@@ -74,7 +74,10 @@ LOOP: after opening the PR and releasing the worktree, go straight back to STEP 
 task — do NOT stop after a fixed batch. Only stop when `depclaim.py next` reports `NO_READY_UNIT` AND
 the rebase queue is empty (then sleep-poll ~60s and re-check, or exit for the harness to restart you).
 **Never call spawn_agent.** Report per unit: FW, class, mangled, addr, ported deps imported, branch,
-PR#/URL, local GATE. Release your slot lock (STEP 0) only on shutdown.
+PR#/URL, local GATE. File any NEW failure mode as its own file —
+`bash raw-port/army/tools/new_ops_entry.sh "<short title>"`, commit only that file (one file per
+finding cannot conflict with another agent's; appending to `OPS_LOG.md` is what blocked five ops PRs
+at once). Release your slot lock (STEP 0) only on shutdown.
 
 ## REBASE-TASK MODE (only when STEP 1 handed you `CLAIMED <PR#> <branch>`)
 You are fixing a stale-base PR whose shared CLASS BODY conflicts with main (rebase_helper couldn't
