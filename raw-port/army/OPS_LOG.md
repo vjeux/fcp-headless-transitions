@@ -4384,6 +4384,115 @@ rejected). Everything below was hit live and every number is measured on this bo
   `arch -x86_64 /usr/bin/python3`, which I reproduced. The reading-only review then missed a real
   lane-indexing defect that the differential kills 22/128 of. **Every `RenderTile_AVX` unit in the
   queue is oracle-able**; "Rosetta has no AVX" is not a reason to sign one on reading.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 4 (an approval is rebound to a commit nobody read; instruments that apply the operation under test; a probe that deadlocks the box; NEW)
+
+Fifteen verdicts this run (#585, #610, #613, #618, #620, #619, #553, #571 approved; #599, #608,
+#611, #615 rejected; 6 landed). Amended after review: reviewer 2 correctly caught that one instance
+below had been fixed between the head I reviewed and the head that landed, which is the same
+stale-entry harm three of my own rejections were about. It is annotated rather than deleted,
+because the closed loop is the better story.
+
+- **AN APPROVAL IS RETROACTIVELY REBOUND TO A COMMIT THAT DID NOT EXIST WHEN IT WAS WRITTEN, BY THE
+  `pr_land` RUN THAT DEMANDED IT.** The mechanism, the timestamp table and the first-parent rule are
+  in **#611** (reviewer 3's entry, landed) — go there for the derivation. What is NOT there, and is
+  why this bullet exists:
+  * **`--expect-head` is not the fix and was never the hole.** `pr_review.sh` has always sent an
+    explicit `commit_id`, and when `--expect-head` is given and matches it IS the verified SHA (a
+    mismatch exits 5 before the POST). All three rebound reviews were signed that way. A patch
+    sending `EXPECT_HEAD` as `commit_id` is a no-op on every reachable path — proven and then
+    pinned by two tests in #619, which is the right place for that to be remembered.
+  * **THE FIX BELONGS IN `pr_land`:** do not `update-branch` a PR holding a live review lease
+    (expose the lease from `review_claim.sh`), or re-post the verdict against the head
+    `update-branch` created — it is the thing that moved it.
+  * **The read-back has to run AFTER the PR lands, not after signing.** Immediately after the POST
+    the `commit_id` is correct; the move happens seconds later. So the check cannot refuse, only
+    report. Walk first parents from the recorded commit: if you reach the SHA you signed, only the
+    label moved and the code you read is intact. Audited all seven of my own verdicts that way —
+    four moved (1, 1, 1 and 2 hops) and every one reaches its signed head.
+  * **AUDITING "WHICH REVIEW IS MINE" BY `user.login` DOES NOT WORK** and cost me five confused
+    minutes: every slot posts as `vjeux-reviewer[bot]`, so `[.[]|select(.user.login==…)]|last` on
+    #599 handed me reviewer 3's approval and read as if my own rejection had been replaced. Match on
+    the body's opening line; it is the only thing that distinguishes slots.
+
+- **AN INSTRUMENT THAT APPLIES THE OPERATION UNDER TEST — TO ITS SUBJECT'S INPUT OR OUTPUT —
+  MEASURES NOTHING THERE, AND IT HIDES INSIDE A HEALTHY PER-CLASS COUNT.** Fourth variant of the
+  control rule, after "kills 0 = blind", worker 1's "inflated by a shared base-model bug" and
+  reviewer 2's "implied control that restates the measurement beside it". This one is not a bad
+  control; it is a good control rendered unfalsifiable by the transport around it. Two independent
+  instances in one run, in two authors' harnesses:
+
+      #585  HGExecutionUnit_CommitStack_vec4_driver.mts reports the port's result through
+            `hex = (v) => BigInt.asUintN(64, v)…` — the operation the port is judged on. LIVE ON
+            MAIN, measured by reviewer 2 with a baseline and a control:
+              M0 unmutated                                     369/369, wrap 9/9  VERIFIED
+              M1 delete the port's own store truncation        369/369, wrap 9/9  VERIFIED  <- SURVIVES
+              M2 delete the truncation on the TOP (control)    wrap 4/9           DIVERGED
+            M2 is what makes M1 mean something: the harness kills a different mutation of the same
+            function, so it is not blind in general — it is blind exactly where the transport
+            narrows.
+      #608  OZRenderState__TransformSet_rotation_driver.mts computed
+            `lo32 = Number(BigInt.asUintN(32, arg)) >>> 0` and passed THAT to the port, so the
+            port's own `(enable >>> 0)` was never exercised; mutating both bodies to `enable !== 0`
+            scored 288/288 VERIFIED at head b2e75b77.
+            **FIXED IN THE REWORK BEFORE LANDING (9c4efdeb, landed f1f059e2):** the driver now
+            passes the raw value and narrows only for its own models, and the same mutant kills
+            48/288. Kept here as a worked example of the rule closing.
+
+  TEST, and it costs ten seconds: **grep the driver for the operation the port is being judged on.**
+  If an `asUintN`, `>>> 0`, `fround`, mask or cast sits on the wire between the port and the
+  comparison, that property is untested no matter what the case list says. Move raw values across
+  (hex string in, hex string out) and let the COMPARISON narrow.
+
+- **A PORT'S HEADER CAN GENERALISE PAST ITS OWN MEASUREMENTS, AND THE NEXT UNIT IN THE FAMILY PAYS.**
+  #608 transcribed `OZRenderState::TransformSet::rotation`/`translation` correctly — 288/288 against
+  the live symbols — while asserting the field is "a 14-bit set of five 3-bit groups" and listing
+  `shear` in its own sibling table as "masks not decoded here". Five 3-bit groups is 15 bits, so the
+  sentence did not close on itself. One `ctypes.string_at` over five consecutive 0x20-byte bodies
+  decoded all five in one pass:
+
+      0x277160  pivot        andl $0x3ff8 / orq $0x007    bits 0..2    (3)
+      0x277180  rotation     andl $0x3fc7 / orq $0x038    bits 3..5    (3)
+      0x2771a0  scale        andl $0x3e3f / orq $0x1c0    bits 6..8    (3)
+      0x2771c0  shear        andl $0x39ff / orq $0x600    bits 9..10   (2)   <- not three
+      0x2771e0  translation  andl $0x07ff / orq $0x3800   bits 11..13  (3)
+
+  3+3+3+2+3 = 14, and `0x3FFF & ~orq == andl` holds for all five. RULE: **a claim about a STRUCTURE
+  is a claim about every member of it — either measure the members or scope the sentence to the ones
+  you measured.** Sibling families are exactly where the next worker looks first, and a wrong group
+  width in a landed header is indistinguishable from a decoded fact. (Corrected in the rework; the
+  landed header now carries the table.)
+
+  Corroborating, from the same PR: otool renders `orq $0x3800, %rax` at 0x2771ef as
+  `orq $"-[OZPanTool displayDefaultOnScreenControls]", %rax`. The existing entry records this
+  mis-symbolization for a `leaq` DISPLACEMENT; this is the same bug on an `orq` IMMEDIATE, in my own
+  fresh disassembly. Decode the bytes whenever an operand names a symbol that makes no sense.
+
+- **DO NOT PROBE A libc++ `once_flag` WITH 1 — IT DEADLOCKS THE PROCESS, AND IT IS THE ONLY VALUE
+  THAT WOULD DISCRIMINATE THE SENTINEL.** Reviewing #620 I wanted a live negative control for the
+  RESOLVED `call_once` rule's central claim: that the fast path tests `== ~0UL` and not merely
+  `!= 0`. The discriminating input is a flag of 1 — and 1 is libc++'s **in-progress** state, so
+  `std::__1::__call_once` blocks forever waiting on a thread that does not exist. My probe hung and
+  I killed it after five minutes. CONSEQUENCE: **the `== -1` versus `!= 0` distinction is not
+  testable on a live symbol**; it has to be read out of the encoding (`48 83 f8 ff` = `cmpq $-1`),
+  which is a good reason to keep reading bytes rather than mnemonics on this family.
+  What IS safely testable, and is the control that harness lacked: set the flag to `~0UL`, poison
+  the singleton global, and call — the accessor must return the poison verbatim and not re-run the
+  initializer (measured: returned `0xcafef00d`, flag unmoved). That kills any model that returns a
+  constructed or cached value instead of the global. Bound any such probe with `signal.alarm`.
+
+- **Two small ones.** (a) `gh` failed once with
+  `tls: failed to verify certificate: x509: certificate signed by unknown authority` and succeeded
+  on the next attempt three seconds later — the corp TLS stack, not auth. It reads exactly like a
+  credentials failure and will send someone to `app_token.sh --check`; retry once before believing
+  it. (b) `pr_land`'s refusal to merge over an un-dismissed `CHANGES_REQUESTED` fires on a rework
+  where the SAME slot is both rejecter and re-reviewer, which is the common case — the dismissal is
+  correct and deliberate, but budget for it, and **put the re-measurement in the dismissal message**
+  so the trail says why the rejection stopped applying. Do NOT dismiss a rejection you did not write
+  unless you verified every item it named; on #600 I approved and deliberately left reviewer 2's
+  standing rejection in place because one of its two asks was still open.
 ---
 
 ## Open — reported 2026-08-11 by reviewer 2 (three guards that could not fire, a hash that makes failure look like agreement, and what GitHub does to a verdict behind your back; NEW)
