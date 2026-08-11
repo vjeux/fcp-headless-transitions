@@ -37,11 +37,17 @@
 //               offset, which is what the oracle below uses to confirm the offset rather than
 //               asserting it.
 //
-// FRONTIER CALLEES — all three are TRUE OUT-OF-SCOPE externs (VideoToolbox and CoreFoundation are
-// not among the five ported frameworks), so each is a raising boundary stub citing its address,
-// exactly as the pthread callees are in src/infra/PCConditionVariable.ts:
-//   * _VTDecompressionSessionCreate   @Flexo stub 0x1495c76, called @0xdee073
-//   * _CFRelease                      @Flexo stub 0x149484e, called @0xdee091
+// FRONTIER CALLEES — all three are out-of-scope externs (VideoToolbox and CoreFoundation are not
+// among the five ported frameworks), and the RESOLVED extern-boundary ruling in REVIEWER_BRIEF.md
+// puts the two CALLS on opposite sides of its line:
+//   * _VTDecompressionSessionCreate   @Flexo stub 0x1495c76, called @0xdee073 — VALUE-PRODUCING (it
+//     writes the session through %r9), so a raising boundary stub citing its address, exactly as
+//     the pthread callees are in src/infra/PCConditionVariable.ts.
+//   * _CFRelease                      @Flexo stub 0x149484e, called @0xdee091 — a LIFETIME/
+//     OWNERSHIP primitive, so a documented JS NO-OP, matching OZChannelBase.ts, OZChannelInfo.ts,
+//     FFMediaReaderService.ts and the PCCFRef_CF* family on main. The machine releases and returns
+//     NULL on that path; a throw would raise where the binary returns. (This was a THROW in the
+//     first revision of this PR and reviewer 5 rejected it — see the stub's own doc block.)
 //   * _kCFAllocatorDefault            CoreFoundation global, loaded @0xdee057 via the literal pool
 //     (`movq 0xb015aa(%rip), %rax ; movq (%rax), %rax`). Its VALUE is never inspected by this
 //     function — it is loaded and handed straight to VTDecompressionSessionCreate — so it is
@@ -85,15 +91,31 @@ function VTDecompressionSessionCreate_stub(
 }
 
 /**
- * `CFRelease(CFTypeRef)` — imported stub in Flexo @0x149484e, called @0xdee091. CoreFoundation:
- * a TRUE out-of-scope extern, same policy.
+ * `CFRelease(CFTypeRef)` — imported stub in Flexo @0x149484e, called @0xdee091.
+ *
+ * A CoreFoundation LIFETIME/OWNERSHIP primitive, so it is a JS **NO-OP**, not a throw. That is the
+ * RESOLVED extern-boundary ruling in `REVIEWER_BRIEF.md` ("LIFETIME / OWNERSHIP primitives → JS
+ * NO-OP … VALUE-PRODUCING externs → THROW with @0xADDR"), and it is what every landed instance
+ * does: `raw-port/src/channels/OZChannelBase.ts`, `OZChannelInfo.ts`, `FFMediaReaderService.ts` and
+ * the `PCCFRef_CFArray/CFData/CFDictionary.ts` family all model `_CFRelease` as a documented
+ * no-op. All the call decrements is a retain count this port does not maintain — the JS garbage
+ * collector owns the `VTDecompressionSessionRef` surrogate — so "do nothing" is the faithful model
+ * of the boundary.
+ *
+ * The sibling `VTDecompressionSessionCreate_stub` above stays a THROW, and the two are not
+ * inconsistent: that one is VALUE-PRODUCING (it writes a session through `%r9`) and JS cannot
+ * fabricate what it would return. The ruling splits on exactly that line.
+ *
+ * NOT COSMETIC, even though nothing reaches this today. The transcription of
+ * @0xdee08e..@0xdee096 is "release the leaked session, then return NULL"; with a no-op this port
+ * does that, and with a throw it raises where the machine returns NULL. The statement is dead only
+ * because the create-stub above throws first and dominates every path to it — so the divergence
+ * would appear the moment VideoToolbox is modelled or a test injects a status, which is precisely
+ * the latent-wrong-answer-behind-a-green-gate shape. Caught in review by reviewer 5 on #741.
  */
 function CFRelease_stub(_cf: VTDecompressionSessionRef): void {
-  throw new Error(
-    "CFRelease @Flexo imported stub 0x149484e (called @0xdee091) — CoreFoundation is a true " +
-      "out-of-scope extern; not yet transcribed. " +
-      "@0xdee040",
-  );
+  // NO-OP. @Flexo imported stub 0x149484e, called @0xdee091 (function @0xdee040) — a refcount
+  // decrement with no JS-visible effect.
 }
 
 /**
@@ -181,7 +203,9 @@ export class CoreMediaMovieReader_Query {
    *     branch, executed;
    *   * the branch that releases a leaked session cannot be reached without a real decoder, and
    *     is NOT claimed as verified. It is transcribed from the instructions and left to a
-   *     reviewer's re-derivation.
+   *     reviewer's re-derivation. Since revision 2 that branch RETURNS NULL, as the machine does,
+   *     rather than raising: `CFRelease_stub` is a no-op per the lifetime/ownership ruling, so the
+   *     only thing standing between a caller and that path is the create stub above it.
    * The TypeScript side raises at the VideoToolbox boundary by policy, so a value-for-value
    * differential exists only for the early-exit path; the oracle asserts exactly that, and that
    * the port throws (rather than inventing a session) on the other one.
