@@ -120,6 +120,20 @@ export class FFConditionLock {
   cond_at_0x58: PthreadCond | null = null;
 
   /**
+   * (this+0x88) — the CONDITION value, a 64-bit signed integer.
+   *
+   * Three independent readings agree on the width, so it is not an inference
+   * from one instruction: the ctor `FFConditionLock(long long)` @0x12b93b2
+   * stores its argument here with `movq %rsi, 0x88(%rdi)`,
+   * `setCondition(long long)` @0x12b9504 does the same (the Itanium `x` in
+   * `__ZN15FFConditionLock12setConditionEx` IS `long long`), and
+   * `getCondition() const` @0x12b94f4 reads it back with `movq`. Modelled as
+   * `bigint` per PORTING_SPEC Rule 4 — the field is int64 and a JS number
+   * cannot hold its extremes, which the differential exercises directly.
+   */
+  condition_at_0x88: bigint = 0n;
+
+  /**
    * `FFConditionLock::~FFConditionLock()` [D1 base destructor] @Flexo 0x12b9470
    *   — __ZN15FFConditionLockD1Ev
    *
@@ -171,5 +185,39 @@ export class FFConditionLock {
     // @0x12b949f..0x12b94a2 landing pad: movq %rax,%rdi; callq
     //   ___clang_call_terminate — std::terminate on unwinding pthread destroy
     //   inside a dtor. Out-of-scope (libc++ terminate handler).
+  }
+  /**
+   * `FFConditionLock::getCondition() const` @Flexo 0x12b94f0
+   *   — __ZNK15FFConditionLock12getConditionEv
+   *
+   * Faithful transcription of the whole 7-line body:
+   *   0x12b94f0  pushq %rbp                    ; frame prologue
+   *   0x12b94f1  movq  %rsp, %rbp
+   *   0x12b94f4  movq  0x88(%rdi), %rax        ; rax = this->condition (8 bytes)
+   *   0x12b94fb  popq  %rbp                    ; frame epilogue
+   *   0x12b94fc  retq
+   *   0x12b94fd  nopl  (%rax)                  ; alignment padding
+   *
+   * A pure 64-bit load. No callees, no externs, no writes — the method is
+   * `const` and the differential confirms it leaves a poisoned object
+   * byte-identical.
+   *
+   * ORACLED (raw-port/re/oracle/FFConditionLock_getCondition_oracle.py, under
+   * `arch -x86_64 /usr/bin/python3`): the symbol is exported, so it was called
+   * for real, with dlsym checked against slide + 0x12b94f0 by comparing the
+   * eleven prologue bytes (554889e5488b8788000000). Twelve patterns written
+   * into a poisoned 256-byte object — 0, +-1, 2, INT32_MAX, 2^31, 2^32-1, 2^32,
+   * 0x123456789ABCDEF0, INT64_MAX, INT64_MIN, -0x123456789A — all 12 returned
+   * exactly, and the object was byte-identical after every call. Three mutated
+   * expectations were scored beside them: the field at +0x80 (killed 12/12), at
+   * +0x90 (12/12), and a 4-byte load (7/12 — only the patterns whose high half
+   * is significant can tell those apart, which is why the corpus contains them).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Flexo.__ZNK15FFConditionLock12getConditionEv.s (7 lines)
+   */
+  getCondition(this: FFConditionLock): bigint {
+    // @0x12b94f4  movq 0x88(%rdi), %rax — the full 64-bit field, returned as-is.
+    return this.condition_at_0x88;
   }
 }
