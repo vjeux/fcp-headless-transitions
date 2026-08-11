@@ -1161,11 +1161,11 @@ export class OZScene {
     );
   }
 
-  /** OZScene::setFlag(u32)  @0x4d370 — frontier. */
-  setFlag(_v: number): void {
-    throw new Error("OZScene::setFlag unimplemented — @Ozone 0x4d370");
-  }
-
+  // `OZScene::setFlag(unsigned int)` @Ozone 0x4d370 — the frontier throw-stub
+  // that used to sit here is REPLACED by the real transcription at the bottom of
+  // this class (the same de-stubbing `resetFlag` @Ozone 0x4d380 got in #306).
+  // The declaration and its address citation live there now; only the throw is
+  // gone, so no landed symbol is dropped.
   /**
    * `OZScene::resetFlag(unsigned int)` — @Ozone 0x4d380
    *   __ZN7OZScene9resetFlagEj
@@ -1482,5 +1482,47 @@ export class OZScene {
     //                      into the u32 field at +0xd0.
     this.toneMappingMode_at_0xd0 = mode >>> 0;
     // @0x81eaa..0x81eab — epilogue + retq (no return value).
+  }
+
+  /**
+   * `OZScene::setFlag(unsigned int)` — @Ozone 0x4d370
+   *   __ZN7OZScene7setFlagEj
+   *
+   * OR the argument's bits into the scene's 32-bit flag word at +0x590.
+   *
+   * Full transcription — every instruction, in order (7-line disasm at
+   * raw-port/re/disasm/__ZN7OZScene7setFlagEj.s):
+   *
+   *   0x4d370  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x4d371  movq  %rsp,%rbp            ; frame setup (no TS counterpart)
+   *   0x4d374  orl   %esi,0x590(%rdi)     ; this->flags |= mask (32-bit RMW)
+   *   0x4d37a  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x4d37b  retq                       ; returns void (%rax never written)
+   *   0x4d37c  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * `orl %esi,0x590(%rdi)` is a read-modify-write to MEMORY with a 32-bit
+   *     operand size: the destination is the memory operand (AT&T puts the
+   *     destination last), so the flag word — not the register — is updated.
+   *     It is a plain `orl`, NOT `lock orl`: the update is non-atomic, so no
+   *     locking is modelled (contrast `getRawWorkingGamut` @0x81da0, which
+   *     really does take the shared mutex).
+   *   * the operand size fixes the field at 4 bytes; the port keeps it as an
+   *     unsigned 32-bit value with `>>> 0`. `|` in TS is a signed-32 operation,
+   *     so the `>>> 0` is what makes bit 31 read back as 0x80000000 rather than
+   *     a negative number — the same treatment the +0xd0 setter above uses.
+   *   * NO mask validation, NO read-back, NO other slot touched, and nothing
+   *     is returned: the single RMW is the entire function.
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps __ZN7OZScene7setFlagEj` lists nothing).
+   *
+   * @param mask the `unsigned int` bit mask arriving in %esi.
+   */
+  setFlag(mask: number): void {
+    // @0x4d370..0x4d371 — prologue (no TS-visible effect).
+    // @0x4d374          — orl %esi, 0x590(%rdi): set the mask's bits in the
+    //                     u32 flag word at +0x590.
+    this.flagsAt590 = (this.flagsAt590 | mask) >>> 0;
+    // @0x4d37a..0x4d37b — epilogue + retq (no return value).
   }
 }
