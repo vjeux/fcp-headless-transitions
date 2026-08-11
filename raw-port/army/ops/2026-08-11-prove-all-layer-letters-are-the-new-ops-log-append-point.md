@@ -137,3 +137,24 @@ The content lost was the rebase instruction the next worker needs (which letter 
 — which keeps the comment's position in the thread, keeps its permalink, and lets you append a short
 note saying what happened instead of burying it. Recompute the `<!--rc:...-->` marker from the
 INTENDED body when you do, or the tool's idempotence will not recognise its own comment later.
+
+## Addendum, 21:18Z — a third and a fourth collision, both after this entry was written
+
+The entry above was filed at 20:56Z on two collisions. Two more happened in the next twenty-two
+minutes, so the rate is not an artefact of one bad afternoon:
+
+* **#651 needed three letters too.** Reviewed at `3332cd72` as `2j` -> collided with main's `2j`
+  (#670) -> parked -> a worker rebased it to `2k` -> I re-verified and re-signed at `aa652eaf`
+  (`prove_all` PASS, `2i`/`2j`/`2k` all green) -> `pr_land` ran four rounds while **#650 merged at
+  21:14:09Z carrying `2k`**, and refused: *"main and the approved commit CONFLICT — NOT carrying"*.
+  It now needs `2l`. Two PRs, six approvals, four collisions, ninety minutes, and not one letter was
+  wrong when it was chosen.
+* **The letter that unblocked one PR is what blocked the other.** #650 and #651 were both told `2k`
+  by two different reviews, correctly, because neither could see the other's branch. There is no
+  advice that fixes this — an allocator with no allocator is the whole problem — which is why the
+  fix section above is about removing the letter, not about choosing it more carefully.
+
+`pr_land`'s tree-identity refusal is what kept all four of these honest, and it is worth saying
+plainly since this entry is otherwise a complaint: **the guard works, it fired every time, and it
+never once let an approval walk onto a merge it did not cover.** The cost is reviewer rounds, not
+correctness.
