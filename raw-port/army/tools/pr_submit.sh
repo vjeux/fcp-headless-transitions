@@ -44,9 +44,38 @@ git fetch -q origin main 2>&1 | tail -1
 # this, the next push to a REUSED class branch name fails with "! [rejected] (stale info)" — reported
 # by 3 separate workers, each of whom debugged it from scratch.
 git remote prune origin >/dev/null 2>&1 || true
-git rebase -q origin/main 2>&1 | tail -2 || { echo "REBASE CONFLICT on $BR — resolve or use rebase_helper.py"; exit 4; }
 
-bash "$GHAPP/git_push_as.sh" worker -q -u origin "$BR" --force-with-lease 2>&1 | tail -2
+# REBASE ONLY WHAT NOBODY HAS SEEN. On a branch with no remote counterpart, a rebase rewrites
+# commits that exist only here, and the push that follows is a plain create — nothing to force.
+# On a branch that IS already published, the same rebase rewrites the PUBLISHED head, and the push
+# then has to force. That is the whole source of the force-push in the worker path, and it is the
+# one that hurts most: re-pushing a reworked PR is exactly when a reviewer has already signed the
+# old head. Merging instead keeps the rejected commit in the history where the review trail can
+# still point at it, and makes the push a fast-forward.
+#
+# (A force-push onto a commit that is already on main also CLOSES the PR outright — observed today,
+# and restoring the branch does not reopen it.)
+if git rev-parse --verify -q "refs/remotes/origin/$BR" >/dev/null; then
+  git merge --no-edit origin/main 2>&1 | tail -2 || {
+    echo "MERGE CONFLICT on $BR — resolve it here, or use rebase_helper.py"; exit 4; }
+else
+  git rebase -q origin/main 2>&1 | tail -2 || {
+    echo "REBASE CONFLICT on $BR — resolve or use rebase_helper.py"; exit 4; }
+fi
+
+# NO --force-with-lease. Either the branch is new (nothing to overwrite) or we merged (a
+# descendant, so it fast-forwards). A rejection here means a peer moved the branch, which is
+# something to read rather than something to overpower.
+if ! bash "$GHAPP/git_push_as.sh" worker -q -u origin "$BR" 2>/tmp/pr_submit_push.log; then
+  if grep -qE "non-fast-forward|fetch first|rejected" /tmp/pr_submit_push.log 2>/dev/null; then
+    echo "pr_submit: push REJECTED — a peer has pushed to $BR since you branched."
+    echo "  Do NOT force. Bring their work in and re-run:"
+    echo "      git fetch origin $BR && git merge --no-edit origin/$BR"
+    exit 4
+  fi
+  tail -2 /tmp/pr_submit_push.log
+  echo "pr_submit: push failed"; exit 4
+fi
 
 # open (or find) the PR
 # RECORD WHO OPENED IT. GitHub cannot tell one agent from another here — every PR is authored by the
