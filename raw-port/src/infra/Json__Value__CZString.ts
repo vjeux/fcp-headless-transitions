@@ -10,17 +10,27 @@
 // Provenance (ProCore framework, x86_64):
 //   /Applications/Final Cut Pro.app/Contents/Frameworks/ProCore.framework/Versions/A/ProCore
 //
-// Symbol ported in this file — ONE method, nothing else:
+// Symbols ported in this file — TWO methods, nothing else (one ledger unit
+// each; the second was added by a later PR, extending this class ADD-ONLY):
 //   @0xce3c8  Json::Value::CZString::operator==(Json::Value::CZString const&) const
 //               __ZNK4Json5Value8CZStringeqERKS1_
+//   @0xce376  Json::Value::CZString::operator<(Json::Value::CZString const&) const
+//               __ZNK4Json5Value8CZStringltERKS1_
 //
 // Source disassembly (re-derived from the binary in this worktree with
-// `raw-port/tools/disasm.sh --sym __ZNK4Json5Value8CZStringeqERKS1_ ProCore`):
+// `raw-port/tools/disasm.sh --sym <mangled> ProCore`):
 //   raw-port/re/disasm/ProCore.__ZNK4Json5Value8CZStringeqERKS1_.s (24 lines)
+//   raw-port/re/disasm/ProCore.__ZNK4Json5Value8CZStringltERKS1_.s (34 lines)
+//
+// NOTE ON ADDRESSES: ProCore is a fat binary (x86_64 + arm64) and this project
+// ports the x86_64 slice. `nm` on an Apple-silicon box defaults to the NATIVE
+// arm64 slice, where these same two symbols sit at 0xc0740 and 0xc06d4; every
+// citation in this file — and everything `disasm.sh` / `symidx.py` index — is
+// the x86_64 slice.
 //
 // Every OTHER member of CZString (the four ctors @0xce22a/@0xce23a/@0xce24e/
 // @0xce31c, the dtor @0xcdde0, `swap` @0xce336, `operator=` @0xce354,
-// `operator<` @0xce376, `index` @0xcddb0, `length` @0xcdd68, `data` @0xc47ea,
+// `index` @0xcddb0, `length` @0xcdd68, `data` @0xc47ea,
 // `isStaticString` @0xcdd34) is a SEPARATE ledger unit and is deliberately NOT
 // ported here. The accessors are quoted below as LAYOUT EVIDENCE only.
 //
@@ -209,5 +219,163 @@ export class Json__Value__CZString {
       return false;
     }
     return true;
+  }
+
+  /**
+   * `Json::Value::CZString::operator<(CZString const&) const`
+   * @ProCore 0xce376 (__ZNK4Json5Value8CZStringltERKS1_).
+   *
+   * The map's ORDERING predicate, sibling of `eq` above: same two-kind key,
+   * same `_memcmp` boundary, but it distinguishes all THREE memcmp outcomes
+   * and breaks a tie on length.
+   *
+   * Faithful transcription of the 34-line body quoted in full:
+   *
+   *   0xce376  pushq   %rbp                 ; frame setup (no TS counterpart)
+   *   0xce377  movq    %rsp,%rbp            ; frame setup (no TS counterpart)
+   *   0xce37a  pushq   %r14                 ; callee-save (no TS counterpart)
+   *   0xce37c  pushq   %rbx                 ; callee-save (no TS counterpart)
+   *   0xce37d  movq    %rdi,%rax            ; rax = this
+   *   0xce380  movq    (%rdi),%rdi          ; rdi = this->cstr_        (+0x00)
+   *   0xce383  movl    0x8(%rax),%ebx       ; ebx = this->storage_     (+0x08)
+   *   0xce386  testq   %rdi,%rdi
+   *   0xce389  je      0xce3bc              ; cstr_ == null -> INDEX-KEY branch
+   *   -- STRING-KEY branch (cstr_ != null) --
+   *   0xce38b  shrl    $0x2,%ebx            ; ebx = this->length_
+   *   0xce38e  movl    0x8(%rsi),%r14d      ; r14d = other.storage_
+   *   0xce392  shrl    $0x2,%r14d           ; r14d = other.length_
+   *   0xce396  cmpl    %ebx,%r14d           ; AT&T: computes other_len - this_len
+   *   0xce399  movl    %ebx,%edx            ; edx = this_len
+   *   0xce39b  cmovbl  %r14d,%edx           ; CF (other_len < this_len) -> edx =
+   *                                         ;   other_len, i.e. edx = min(both)
+   *   0xce39f  movq    (%rsi),%rsi          ; rsi = other.cstr_
+   *   0xce3a2  callq   0xde95a              ; eax = _memcmp(this->cstr_,
+   *                                         ;               other.cstr_, min_len)
+   *   0xce3a7  movl    %eax,%ecx            ; ecx = comp
+   *   0xce3a9  movb    $0x1,%al             ; provisional result = true
+   *   0xce3ab  testl   %ecx,%ecx
+   *   0xce3ad  js      0xce3c2              ; comp < 0 -> return TRUE
+   *   0xce3af  sete    %cl                  ; cl = (comp == 0)
+   *   0xce3b2  cmpl    %r14d,%ebx           ; AT&T: computes this_len - other_len
+   *   0xce3b5  setb    %al                  ; al = CF = this_len < other_len
+   *   0xce3b8  andb    %cl,%al              ; return (comp == 0) &&
+   *                                         ;        (this_len < other_len)
+   *   0xce3ba  jmp     0xce3c2
+   *   -- INDEX-KEY branch (cstr_ == null) --
+   *   0xce3bc  cmpl    0x8(%rsi),%ebx       ; AT&T: computes this_word -
+   *                                         ;   other_word, on the UNSHIFTED
+   *                                         ;   words (the shrl @0xce38b is on
+   *                                         ;   the other side of the branch)
+   *   0xce3bf  setb    %al                  ; return this->index_ < other.index_
+   *                                         ;   (UNSIGNED — CF, not SF)
+   *   0xce3c2  popq    %rbx                 ; teardown (no TS counterpart)
+   *   0xce3c3  popq    %r14                 ; teardown (no TS counterpart)
+   *   0xce3c5  popq    %rbp                 ; teardown (no TS counterpart)
+   *   0xce3c6  retq                         ; returns the bool in %al
+   *   0xce3c7  nop                          ; alignment padding, not executed
+   *
+   * Decode notes (AT&T: `cmp %src,%dst` sets flags on `dst - src`):
+   *   * @0xce396 is (other_len - this_len) and @0xce3b2 is the OPPOSITE
+   *     subtraction (this_len - other_len). Reading either in Intel order
+   *     inverts it: the first would pick the MAXIMUM length for the memcmp
+   *     count, the second would reverse the tiebreak. Both `setb`/`cmovb` are
+   *     the CF (UNSIGNED) test, which is right — `length_` is a 30-bit
+   *     bitfield and `index_` an `unsigned`, so neither is ever negative.
+   *   * all three memcmp outcomes are distinguished: `js` @0xce3ad takes the
+   *     comp<0 exit with al already 1; comp>0 leaves cl=0 so the `andb`
+   *     @0xce3b8 yields false; comp==0 defers to the length tiebreak. A port
+   *     that only tested `!= 0` would order equal-prefix keys wrongly.
+   *   * the index branch @0xce3bc compares the RAW +0x08 words — policy bits
+   *     included, exactly as `eq`'s index branch does — and never touches
+   *     `other.cstr_`.
+   *
+   * Together `eq` and this method give the map a strict weak ordering over
+   * jsoncpp's two key kinds: bytes first, then length.
+   *
+   * EXTERN: `_memcmp` (libc) via the ProCore stub @0xde95a, modelled inline as
+   * the byte-wise comparison it is defined to be — here the SIGN of the first
+   * differing pair of UNSIGNED bytes, not just its zeroness.
+   *
+   * DEPENDENCIES: none in-scope (`depgraph.py deps` lists nothing).
+   */
+  lt(other: Json__Value__CZString): boolean {
+    // @0xce380  movq (%rdi),%rdi — rdi = this->cstr_
+    const thisCstr: Uint8Array | null = this.cstr_;
+    // @0xce383  movl 0x8(%rax),%ebx — the RAW 32-bit word
+    const thisStorage: number = this.storage_ >>> 0;
+
+    // @0xce386..@0xce389  testq %rdi,%rdi ; je 0xce3bc
+    if (thisCstr === null) {
+      // -- INDEX-KEY branch @0xce3bc --
+      // cmpl 0x8(%rsi),%ebx ; setb %al — UNSIGNED compare of the unshifted
+      // words: `this->index_ < other.index_`.
+      return thisStorage < (other.storage_ >>> 0);
+    }
+
+    // -- STRING-KEY branch --
+    // @0xce38b  shrl $0x2,%ebx
+    const thisLength: number = thisStorage >>> 2;
+    // @0xce38e..@0xce392  movl 0x8(%rsi),%r14d ; shrl $0x2,%r14d
+    const otherLength: number = (other.storage_ >>> 0) >>> 2;
+
+    // @0xce396..@0xce39b  cmpl %ebx,%r14d ; movl %ebx,%edx ; cmovbl %r14d,%edx
+    //   CF <=> otherLength < thisLength, so edx = min(thisLength, otherLength).
+    const minLength: number = otherLength < thisLength ? otherLength : thisLength;
+
+    // @0xce39f  movq (%rsi),%rsi — rsi = other.cstr_
+    const otherCstr: Uint8Array | null = other.cstr_;
+
+    // @0xce3a2  callq 0xde95a  ## symbol stub for: _memcmp
+    //
+    // Byte-wise model of `_memcmp(this->cstr_, other.cstr_, minLength)`: the
+    // difference of the first differing pair read as UNSIGNED chars (a
+    // Uint8Array element already is one), else 0. A count of zero reads
+    // nothing and is 0 for ANY pointers, exactly as libc defines it.
+    let comp = 0;
+    if (minLength > 0 && otherCstr === null) {
+      // `eq` above can answer a null peer with "not equal" and lose nothing.
+      // An ORDERING has no such safe answer: the machine dereferences the peer
+      // inside `_memcmp` @0xce3a2 (the body null-tests only `this->cstr_`
+      // @0xce386) and faults. There is no instruction to transcribe for the
+      // fault, and returning either bool would invent an order, so this port
+      // refuses loudly instead.
+      throw new Error(
+        'Json::Value::CZString::operator< @ProCore 0xce3a2: _memcmp through a ' +
+          'null other.cstr_ — the binary faults here; no ordering is defined',
+      );
+    }
+    for (let i = 0; i < minLength; i++) {
+      // Both reads can be `undefined` when `storage_ >> 2` claims more bytes
+      // than the modelled buffer holds — the length field and the allocation
+      // are independent in the machine, where the read would simply take
+      // whatever memory follows. Laundering `undefined` into arithmetic would
+      // make `comp` NaN and silently answer "not less than" (the #154 trap),
+      // so this is loud too.
+      const a: number | undefined = thisCstr[i];
+      const b: number | undefined = (otherCstr as Uint8Array)[i];
+      if (a === undefined || b === undefined) {
+        throw new Error(
+          'Json::Value::CZString::operator< @ProCore 0xce3a2: _memcmp count ' +
+            'from storage_>>2 runs past the modelled cstr_ buffer — the binary ' +
+            'reads adjacent memory here; no value is defined',
+        );
+      }
+      if (a !== b) {
+        comp = a - b;
+        break;
+      }
+    }
+
+    // @0xce3a9..@0xce3ad  movb $0x1,%al ; testl %ecx,%ecx ; js 0xce3c2
+    if (comp < 0) {
+      return true;
+    }
+
+    // @0xce3af  sete %cl — cl = (comp == 0)
+    const compIsZero: boolean = comp === 0;
+    // @0xce3b2..@0xce3b5  cmpl %r14d,%ebx ; setb %al — UNSIGNED this < other
+    const thisIsShorter: boolean = thisLength < otherLength;
+    // @0xce3b8  andb %cl,%al ; @0xce3c6 retq
+    return compIsZero && thisIsShorter;
   }
 }
