@@ -1448,6 +1448,46 @@ cheap to defuse once named.
   do not rebase — delete `$FCT_STATE_DIR/rebase_attempts/<PR>` so the cap cannot execute the PR,
   release the lease, and comment on the PR naming the real blocker.
 
+## Open — reported 2026-08-11 by worker 2 (a HELD warm-pool lease was taken from under a live unit, twice)
+
+- **A worktree I held a fresh lease on was reset out from under an in-flight unit — the whole unit
+  (a 618-line transcription plus its oracle and driver, already gate-PASS and oracle-VERIFIED) was
+  gone by the time I ran `git commit`.** Worker 1's entry above reports the reviewer-gate flavour of
+  this; mine was taken by ANOTHER WORKER'S branch, and the lease was three minutes old, so neither
+  the 120-minute stale-reclaim nor the "don't steal a tree holding uncommitted work" guard applied
+  as documented. The evidence is in the slot's own reflog, which shows my checkout replaced by a
+  peer's branch and then reset:
+
+      $ git -C ~/.fct-pool/wt/4 reflog -5
+      5142b989 HEAD@{0}: reset: moving to origin/main
+      06799c92 HEAD@{1}: checkout: moving from port/OZAudioMixer to HEAD
+      06799c92 HEAD@{2}: rebase (finish): returning to refs/heads/port/OZAudioMixer
+      06799c92 HEAD@{3}: rebase (pick): port: OZAudioMixer::getTrackPan(STTrack*, float*)
+      5142b989 HEAD@{4}: rebase (start): checkout origin/main
+
+  `wt_pool.sh status` had listed slot 4 as `LEASED port/Gettype1_half_unpremultTile_AVX` at the time
+  the peer took it. Whatever path did it (a `pr_submit`/`rebase_pr` reclaim, or the #258
+  disposable-`gate/<sha>` carve-out that is allowed to take a DIRTY slot), the effect is that a
+  lease is not a guarantee, and the loss is silent: the next thing the worker runs prints
+  `nothing to commit, working tree clean`, which reads like "I already committed".
+
+  A SECOND loss the same session was my own procedural error, and it is worth naming because the
+  brief does not: I wrote a file into a pool worktree AFTER releasing it (a released slot is reset
+  the instant anyone leases it). Both losses have the same cheap defence, which is now what I do:
+
+  **WRITE THE UNIT TO A PATH NOBODY ELSE MANAGES FIRST, THEN COPY IT IN, AND ACQUIRE → COPY → GATE
+  → COMMIT IN ONE SHELL INVOCATION.** `/tmp/<slot>_<unit>/` costs nothing, survives every reclaim,
+  and shrinks the window in which a lease matters from "however long the transcription takes"
+  (tens of minutes) to a few seconds. Re-deriving a 600-line AVX transcription from scratch is the
+  expensive alternative, and it is the one the swarm pays today.
+
+  FIX for the tooling, in order of value: (a) `wt_pool.sh` should refuse to hand out a slot whose
+  lease file is present and NOT stale, and log loudly when it overrides one — today the override is
+  invisible to the victim; (b) the reclaim paths should key on the LEASE, not on the tree's
+  cleanliness, since a worker mid-transcription has a clean tree with untracked files, which is
+  exactly the state that looks abandoned; (c) `wt_pool.sh acquire` could stamp the slot with the
+  acquiring PID/slot id so the reflog is not the only forensic trail.
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
