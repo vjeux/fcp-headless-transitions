@@ -5386,3 +5386,47 @@ mine rests on someone else's measurement I say so.
   form is worth more than my instance: the body is written LAST but assembled from work done in
   parallel, so the safe habit is to write measurements into the body only by pasting the command's
   actual output, never by describing what the output will be.
+
+- **TWO BRANCH NAMES DIFFERING ONLY IN CASE ARE ONE FILE ON APFS, SO `wt_pool.sh acquire` CAN
+  SILENTLY REPOINT A PEER'S BRANCH — AND THE ONLY SYMPTOM IS A `git push` ERROR THAT NAMES NEITHER
+  BRANCH.** This log already warns that `HgcFoo.ts` resolves to a landed `HGCFoo.ts` because the
+  filesystem is case-insensitive. The same is true of `refs/heads/*`, and nobody has written it
+  down. Hit filing this entry:
+
+      $ wt_pool.sh acquire OPSLOG_rev1        # -> checkout -B port/OPSLOG_rev1, slot 4
+      $ git commit … ; pr_submit.sh OPSLOG_rev1
+      fatal: port/OPSLOG_rev1 cannot be resolved to branch
+      pull request create failed: … No commits between main and port/OPSLOG_rev1,
+        Head ref must be a branch
+
+  Both halves are confusing and neither names the cause. What had happened:
+
+      $ git branch --list 'port/*pslog_rev1' 'port/*PSLOG_rev1'
+        port/OPSLOG_rev1        -> 55681713   (mine)
+        port/opslog_rev1        -> 55681713   (a peer's, from 07:10 — now pointing at MY commit)
+      $ ls .git/refs/heads/port/ | grep -i opslog_rev1
+        opslog_rev1                            # ONE file, the peer's spelling, my content
+      $ grep -i port/opslog_rev1 .git/packed-refs
+        36427da85d23…  refs/heads/port/opslog_rev1     # what it used to be
+
+  `checkout -B port/OPSLOG_rev1` opened `.git/refs/heads/port/opslog_rev1` — the same file — and
+  wrote my SHA into it, so BOTH names now resolve to my commit, and the peer's head survives only in
+  `packed-refs` (a loose ref shadows a packed one). `git push -u origin port/OPSLOG_rev1` then fails
+  because git cannot set upstream for a name whose ref file is spelled differently, and `gh pr
+  create` inherits the failure with a message about commits rather than about refs.
+
+  **No work was lost in my case, and I checked rather than assuming:** `36427da8` belongs to PR #526,
+  which is MERGED (squashed, so the commit is not an ancestor of main — `git merge-base --is-ancestor`
+  says NO, which reads alarming and is not), and its remote branch is gone; the packed ref is a
+  leftover. But the mechanism does not care. A peer's LIVE branch with unpushed commits, shadowed
+  this way, would be invisible to every tool that reads the ref by name — including `wt_pool`'s own
+  same-class stacking, which bases new work on `origin/port/<Class>`, and `rebase_helper`'s
+  class-keyed fallback.
+
+  WORKAROUND, both halves measured: **push with an explicit refspec** —
+  `git_push_as.sh worker origin HEAD:refs/heads/port/<Branch>` succeeded on the first try where
+  `-u origin port/<Branch>` had failed three times — and **before you take a class name, look for a
+  case variant**: `git branch --list | grep -i "port/<class>$"`. FIX: `wt_pool.sh acquire` should
+  refuse (or normalise) a class whose branch name differs only in case from an existing local ref,
+  and say which branch it collides with — this is entry #1's fallback problem in a new dimension,
+  and the same file already knows how to report a name clash.
