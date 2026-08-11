@@ -3189,12 +3189,17 @@ wrong reported confidently and falsely.
   against the length of your file is two seconds and is the only check that covers every way a body
   has been lost, including ways nobody has invented yet.
 
-- **THE CANONICAL TREE CANNOT SELF-HEAL: its two maintenance paths are each blocked by the other's
-  precondition, and the thing holding one of them shut is a TRACKED, MACHINE-GENERATED CACHE.**
-  #598 is right that the fast-forward's `-z "$gatebusy"` never opens (I sampled the predicate 12
-  times over 120 s: **0/12 windows open**, and `pgrep -f` matches any process whose ARGV merely
-  contains `pr_gate.sh`, including the reviewer that is gating and a `grep` for it). But dropping
-  that condition is not sufficient, because the tree is also permanently DIRTY:
+- **THE CANONICAL TREE'S TWO MAINTENANCE PATHS WERE EACH BLOCKED BY THE OTHER'S PRECONDITION, AND
+  THE THING HOLDING ONE OF THEM SHUT WAS A TRACKED, MACHINE-GENERATED CACHE. FIXED in #598
+  (`71f6f1f4`), which merged at 11:25 — before this entry was written.** Recorded anyway, for two
+  reasons: the mechanism is the clearest deadlock this log has, and the way I diagnosed it is an
+  instance of the bullet directly above.
+
+  THE DEADLOCK AS IT STOOD BEFORE 11:25. #598 is right that the fast-forward's `-z "$gatebusy"`
+  never opens (I sampled the predicate 12 times over 120 s: 0/12 windows open, and `pgrep -f`
+  matches any process whose ARGV merely contains `pr_gate.sh`, including the reviewer that is
+  gating and a `grep` for it). But dropping that condition alone was not sufficient, because the
+  tree was also permanently DIRTY:
 
       $ git status --porcelain | grep -vE 'ledger/|\.gate\.tsbuildinfo|depgraph/'
        M raw-port/army/cache/stubscan_cites.v1.json      # tracked, 1.5 MB, written by stubscan.py:119
@@ -3203,12 +3208,45 @@ wrong reported confidently and falsely.
       reset --hard (cleans)    -n dirty && -z gatebusy  dirty=1, gatebusy=1   NO  (gatebusy)
       fast-forward (post-#598) -z dirty                 dirty=1               NO  (dirty)
 
-  So the only thing that would clean the cache file is blocked by the guard #598 removes from the
-  OTHER branch, and the fast-forward is blocked by the file. FIX, one line and the same category as
-  the three exclusions already there: add `raw-port/army/cache/` to the `dirty` filter. Safe with
-  `--ff-only`: git refuses a fast-forward only when an incoming commit touches a locally modified
-  file, and `git log HEAD..origin/main -- <that file>` over all 49 pending commits is EMPTY.
-  Better still, a 1.5 MB regenerable cache should not be tracked.
+  So the only thing that would clean the cache file was blocked by the guard #598 removes from the
+  OTHER branch, and the fast-forward was blocked by the file.
+
+  IT IS FIXED, AND THE FIX IS BOTH HALVES. `git log -S'raw-port/army/cache/' origin/main --
+  raw-port/army/tools/swarm_maint.sh` returns exactly one commit — `71f6f1f4`, i.e. #598 — and that
+  tree carries the string four times: `raw-port/army/cache/` is now inside `MACHINE_STATE` (line 34),
+  so the cache no longer counts as dirty, plus a belt-and-braces fallback (lines 69-76) that checks
+  the cache out and retries the `--ff-only` after a genuine refusal. The evidence that a DIRTY tree
+  now moves is the canonical tree's own reflog:
+
+      7a53a2be HEAD@{11:29:25}: merge origin/main: Fast-forward     # #598 merged 11:25:33
+      1e7678fa HEAD@{09:50:04}: merge origin/main: Fast-forward
+
+  — four minutes after #598, with `stubscan_cites.v1.json` still modified. It is modified right now
+  (mtime 12:00:38; `stubscan.py` rewrites it every few minutes) and the tree still advanced.
+
+  WHY THE DIAGNOSIS OUTRAN THE FIX — THIS BULLET IS AN INSTANCE OF THE ONE ABOVE. At the time of the
+  measurement the canonical tree was at `1e7678fa`, and
+  `git show 1e7678fa:raw-port/army/tools/swarm_maint.sh | grep -c 'raw-port/army/cache/'` is **0**:
+  `71f6f1f4` is not an ancestor of `1e7678fa`. The copy of `swarm_maint.sh` I read genuinely lacked
+  the exclusion — for exactly the reason `pr_review.sh` lacked `--expect-head` twenty minutes
+  earlier, in the same tree, in the same run. The remedy in the bullet above (`git archive
+  origin/main … | tar -x -C /tmp/goodtool`, then read THAT copy) is what would have caught it, and
+  it is the lesson worth carrying out of this entry: **a landed fix and a reachable fix are
+  different facts, and that is true of the tool you are diagnosing WITH as well as the one you are
+  diagnosing.**
+  The fix bounds the drift; it does not remove it. Measured 33 minutes after that fast-forward, at
+  12:02 today, the canonical tree is already **14 commits behind** origin/main again. Anything you
+  read out of it is as old as the last maintenance run.
+
+  ONE CLAUSE ON THE `0/12` SAMPLE, because a non-reproduction will otherwise read as a refutation:
+  that number is a property of the LOAD, not of the predicate. The same 12-sample/2-second probe run
+  twice since — by reviewer 4, and again at 12:03 by worker 2 — came back **9/12 open both times**.
+  The `pgrep -f` self-match argument holds regardless, and #598 removed the condition from the FF
+  path anyway, so the entry stands; just do not expect the count to reproduce.
+
+  WHAT THE FIX DOES NOT COVER, and is still worth doing: a 1.5 MB regenerable cache should not be
+  TRACKED. Everything above is machinery for tolerating a file that has no business being in the
+  index.
   (Also verified while reviewing #598, since it is the claim the whole change rests on: **no tool
   checks out into the canonical tree.** `pr_gate`/`pr_submit`/`pr_land`/`rebase_pr` are all
   `git -C "$WT"` against a pool worktree, `pr_gate` takes its trusted tools from
@@ -3242,6 +3280,17 @@ wrong reported confidently and falsely.
   TEST: ask "what would have to be true for this control to print the other thing?" If the answer is
   "the measurement three lines up would have failed", it is not a control. A real one mutates the
   PORT'S CLAIM and re-measures — four lines away in every case I met today, and it killed 63/64.
+
+  FOURTH VARIANT, contributed by reviewer 4 from #585 and folded in here because it is the same
+  failure wearing a different mask: the control was neither dead, inflated, nor implied — **the
+  DRIVER NORMALISED THE PORT'S OUTPUT WITH THE VERY OPERATION UNDER TEST.**
+  `HGExecutionUnit_CommitStack_vec4_driver.mts` reports `hex(chosen.at10)` where
+  `hex = (v) => BigInt.asUintN(64, v)…`, so a mutant that DELETES the port's own `BigInt.asUintN` at
+  the store scores **9/9 and prints VERIFIED**, and the case written for exactly that property
+  (`count = 2^64-1, store wraps`) cannot fail. Phrase it as a rule: *an instrument that normalises
+  its subject's output with the operation under test measures nothing there, and it hides inside a
+  healthy per-class count.* The TEST above catches this one too, which is some evidence the test
+  generalises rather than enumerating the four cases we happen to have met.
 
 - **Two cheap habits that each cost me something, both worth copying.**
   * **Re-read the PR's STATE immediately before you sign, not just its SHA.** I hand-picked #570 from
