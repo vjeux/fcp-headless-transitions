@@ -132,7 +132,21 @@ def layer2():
     print("LAYER 2j (a PR's base must be main — the gate and the merge target must agree):",
           "PASS" if ok10 else "FAIL")
     if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
-    # 2k — the stale-file guard's own suite. `stale_file_check.py` is a HARD gate inside pr_gate,
+    # 2k — WHICH QUEUE OWNS A G5-FLAGGED PR. The gate cannot clear a NO-DISASM blind spot itself; it
+    # fails with "reviewer must re-derive disasm" and hands the PR back to a reviewer. No queue
+    # offered it: review_claim excluded every FAILURE, rebase_claim takes regression/rebase only,
+    # rework_claim takes CHANGES_REQUESTED only. #645 sat claimable-by-nobody until queue-coverage
+    # noticed. Offline, jq-backed fixtures with the real status descriptions. ~1s.
+    # (2k, not 2i or 2j: written when 2i was free, then main took 2i (queue coverage) and 2j
+    #  (PR base) while this PR was open. Renumbered again on this rebase, as its own note asked —
+    #  two layers claiming one letter is the kind of silent collision this suite exists to refuse.
+    #  Third collision on this line today; the letters are allocated by whoever merges first.)
+    r11 = run(["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")])
+    ok11 = "test_review_claim_g5: PASS" in r11.stdout
+    print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
+          "PASS" if ok11 else "FAIL")
+    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    # 2l — the stale-file guard's own suite. `stale_file_check.py` is a HARD gate inside pr_gate,
     # ABOVE the "no raw-port/src ports to gate" early exit, so it runs on the whole non-src
     # population — 15 of the 16 open PRs when it landed. A later edit that broke its
     # still-on-main filter would therefore hard-fail honest PRs across the entire queue, and the one
@@ -141,12 +155,12 @@ def layer2():
     # pr_gate and swarm_doctor all referenced it zero times — which is OPS_LOG row 44's shape ("a
     # guard that exists, works, and is never called is indistinguishable from no guard at all, and
     # reads as reassurance"). 0.4s.
-    r11 = run(["bash", os.path.join(TOOLS, "test_stale_file_check.sh")])
-    ok11 = "TEST_STALE_FILE_CHECK: PASS" in r11.stdout
-    print("LAYER 2k (stale-file guard — a deletion main still has is caught, a pure append is not):",
-          "PASS" if ok11 else "FAIL")
-    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11
+    r12 = run(["bash", os.path.join(TOOLS, "test_stale_file_check.sh")])
+    ok12 = "TEST_STALE_FILE_CHECK: PASS" in r12.stdout
+    print("LAYER 2l (stale-file guard — a deletion main still has is caught, a pure append is not):",
+          "PASS" if ok12 else "FAIL")
+    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11 and ok12
 
 def _reach(spec, expect):
     import tempfile
