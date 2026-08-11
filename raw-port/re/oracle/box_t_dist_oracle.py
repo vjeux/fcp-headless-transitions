@@ -135,18 +135,39 @@ def build_cases():
             x, y = rng.uniform(-10, 10), rng.uniform(-10, 10)
             w = rng.choice([0.0, -0.0, rng.uniform(-5, 5)])
             h = rng.choice([0.0, -0.0, rng.uniform(-5, 5)])
+        elif kind == "signed_zero":
+            # THE CLASS THE FIRST REVISION OF THIS CORPUS MISSED, and it is why a real defect
+            # shipped: the earlier `degenerate` kind put -0.0 in the EXTENTS but never in the
+            # ORIGINS or the SCALES, and the origin is where a -0.0 reaches the getter's
+            # pass-through arm. Every field here is drawn from a pool containing both zeros.
+            zs = [-0.0, 0.0]
+            x = rng.choice(zs + [rng.uniform(-2, 2)])
+            y = rng.choice(zs + [rng.uniform(-2, 2)])
+            w = rng.choice(zs + [1.0, -1.0, rng.uniform(-2, 2)])
+            h = rng.choice(zs + [1.0, -1.0, rng.uniform(-2, 2)])
+            sx = rng.choice(zs + [1.0, -1.0, 2.0])
+            sy = rng.choice(zs + [1.0, -1.0, 2.0])
+            return {"x": x, "y": y, "w": w, "h": h, "sx": sx, "sy": sy}
         else:  # tiny / huge magnitudes
             x, y = rng.choice([1e-8, 1e8, -1e8]) * rng.random(), rng.uniform(-1, 1)
             w, h = rng.choice([1e-8, 1e8]) * rng.random(), rng.uniform(0.1, 3)
-        sx = rng.choice([1.0, 0.5, 2.0, 0.0, -1.0, rng.uniform(-3, 3)])
-        sy = rng.choice([1.0, 0.5, 2.0, 0.0, -1.0, rng.uniform(-3, 3)])
+        sx = rng.choice([1.0, 0.5, 2.0, 0.0, -0.0, -1.0, rng.uniform(-3, 3)])
+        sy = rng.choice([1.0, 0.5, 2.0, 0.0, -0.0, -1.0, rng.uniform(-3, 3)])
         return {"x": x, "y": y, "w": w, "h": h, "sx": sx, "sy": sy}
 
     cases = []
-    kinds = ["int", "frac", "degenerate", "extreme"]
+    kinds = ["int", "frac", "degenerate", "extreme", "signed_zero"]
     while len(cases) < 3584:
-        k = kinds[len(cases) % 4]
+        k = kinds[len(cases) % len(kinds)]
         cases.append({"a": rnd_box(k), "b": rnd_box(k)})
+
+    # The reviewer's minimal reproducer for the signed-zero defect (PR #445), kept verbatim as a
+    # regression case: identical X on both boxes, only Y matters, and both polarities of A.scaleY.
+    for sy_a, sy_b in ((-0.0, 0.0), (0.0, -0.0), (-0.0, -0.0), (0.0, 0.0)):
+        cases.append({
+            "a": {"x": 0.0, "y": -0.0, "w": 1.0, "h": -0.0, "sx": 1.0, "sy": sy_a},
+            "b": {"x": 0.0, "y": -0.0, "w": 1.0, "h": -1.0, "sx": 1.0, "sy": sy_b},
+        })
 
     # 512 boundary pairs: B placed so a scaled edge lands EXACTLY on A's, which is where every
     # `jae`/`jbe` in the body flips (and where a >= vs > misread would hide).
@@ -181,15 +202,24 @@ def to_wire(cases):
 
 
 # --- python mirrors of the port, for the negative controls ----------------------------------
-def cg_min(v, e):
+def zn(v):
+    """The live CG getters never return -0.0: a zero edge always comes back +0.0. Measured over
+    4,289 rectangles / 17,156 live getter calls — returning the origin verbatim disagrees on 254
+    of them, all -0.0-vs-+0.0; this normalisation on 0. See the port's own note."""
+    return 0.0 if v == 0 else v
+
+
+def cg_min(v, e, zero_sign_bug=False):
     """CGRectGetMinX/MinY: the standardized origin (one rounding when the extent is negative)."""
-    return v + e if e < 0 else v
+    r = v + e if e < 0 else v
+    return r if zero_sign_bug else zn(r)
 
 
-def cg_max(v, e):
+def cg_max(v, e, zero_sign_bug=False):
     """CGRectGetMaxX/MaxY: `(v + e) - e` when the extent is negative — TWO roundings, which is a
     different double from `max(v, v + e)` on 50 of this corpus's 8,198 rectangles."""
-    return (v + e) - e if e < 0 else v + e
+    r = (v + e) - e if e < 0 else v + e
+    return r if zero_sign_bug else zn(r)
 
 
 def axis_intersects(a_lo, a_hi, b_lo, b_hi):
@@ -226,14 +256,17 @@ def model(a, b, variant="port"):
     sxb, syb = (b["sx"], b["sy"])
     if variant == "swapped_scales":
         sxa, sya, sxb, syb = b["sx"], b["sy"], a["sx"], a["sy"]
-    aMinXs = cg_min(a["x"], a["w"]) * sxa
-    aMaxXs = cg_max(a["x"], a["w"]) * sxa
-    aMinYs = cg_min(a["y"], a["h"]) * sya
-    aMaxYs = cg_max(a["y"], a["h"]) * sya
-    bMinXs = cg_min(b["x"], b["w"]) * sxb
-    bMaxXs = cg_max(b["x"], b["w"]) * sxb
-    bMinYs = cg_min(b["y"], b["h"]) * syb
-    bMaxYs = cg_max(b["y"], b["h"]) * syb
+    # `zero_sign_bug` is the SHIPPED-AND-REJECTED getter: it hands back the origin verbatim, so a
+    # -0.0 origin survives into the scaled edge. It is a negative control now.
+    zsb = variant == "zero_sign_bug"
+    aMinXs = cg_min(a["x"], a["w"], zsb) * sxa
+    aMaxXs = cg_max(a["x"], a["w"], zsb) * sxa
+    aMinYs = cg_min(a["y"], a["h"], zsb) * sya
+    aMaxYs = cg_max(a["y"], a["h"], zsb) * sya
+    bMinXs = cg_min(b["x"], b["w"], zsb) * sxb
+    bMaxXs = cg_max(b["x"], b["w"], zsb) * sxb
+    bMinYs = cg_min(b["y"], b["h"], zsb) * syb
+    bMaxYs = cg_max(b["y"], b["h"], zsb) * syb
 
     def axis(v):
         if variant == "abs_axis":
@@ -296,7 +329,15 @@ def main():
         print(f"  case {i}: native={native[i]!r} (0x{bits(native[i]):016x})  "
               f"ts=0x{ts[i]:016x}\n    a={cases[i]['a']}\n    b={cases[i]['b']}")
 
-    for variant, label in (("scaled_intersect", "intersection test applied to SCALED rects"),
+    zero_valued = sum(1 for v in native if v == 0)
+    neg_zero_live = sum(1 for v in native if bits(v) == 0x8000000000000000)
+    print(f"  of those, {zero_valued} returned a ZERO distance "
+          f"({neg_zero_live} of them NEGATIVE zero on the live side) — the class this corpus "
+          f"missed before PR #445's rework")
+
+    for variant, label in (("zero_sign_bug", "getters returning the origin verbatim (-0.0 "
+                                             "survives) — THE DEFECT #445 WAS REJECTED FOR"),
+                           ("scaled_intersect", "intersection test applied to SCALED rects"),
                            ("abs_axis", "abs() on the single-axis result"),
                            ("swapped_scales", "each box scaled by the OTHER box's factors"),
                            ("sqrt_axis", "sqrt() on the single-axis paths")):

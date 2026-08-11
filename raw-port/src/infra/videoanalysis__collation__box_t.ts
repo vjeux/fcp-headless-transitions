@@ -83,15 +83,20 @@
 // really has mapped the x86_64 slice this port was transcribed from. Flexo loads outside the app
 // bundle once its @rpath dependencies are preloaded depth-first (OPS_LOG, worker 1).
 //
-// RESULT: 4,096 random box pairs (integer, fractional, negative, zero-and-negative width/height,
-// zero and negative scales, shared edges, containment, and 512 pairs built to sit exactly on the
-// branch boundaries) — 4,096/4,096 BIT-EXACT (compared as raw IEEE-754 bit patterns, so signed
-// zero and NaN payloads count), 0 divergences.
+// RESULT: 4,100 box pairs (integer, fractional, negative, zero-and-negative width/height, zero
+// and negative scales, shared edges, containment, a SIGNED-ZERO class described below, 512 pairs
+// built to sit exactly on the branch boundaries, and the 4 pairs of the reviewer's minimal
+// reproducer) — 4,100/4,100 BIT-EXACT (compared as raw IEEE-754 bit patterns, so signed zero and
+// NaN payloads count), 0 divergences. 815 of those cases return a ZERO distance and 31 of them
+// return a NEGATIVE zero from the live binary, which is the class the first revision of this
+// corpus could not see: it put -0.0 in the EXTENTS but never in the ORIGINS or the SCALES, and
+// the origin is where a -0.0 reaches the getters' pass-through arm.
 // NEGATIVE CONTROLS (same corpus): scaling each box by the OTHER box's factors diverges on
-// 3,037 pairs; applying the scales to the intersection test as well — the most plausible
-// "tidy-up" of the asymmetry above — diverges on 431; abs() on the single-axis result diverges
-// on 96; and returning sqrt() on the single-axis paths diverges on 96 (the same 96, since both
-// wrongly discard the sign).
+// 2,928 pairs; applying the scales to the intersection test as well — the most plausible
+// "tidy-up" of the asymmetry above — diverges on 415; abs() on the single-axis result diverges
+// on 121; returning sqrt() on the single-axis paths diverges on 121 (the same 121, since both
+// wrongly discard the sign); and the getters returning the origin VERBATIM — the defect this
+// file was rejected for, kept as a control — diverges on 18.
 // TWO EARLIER REVISIONS OF THIS FILE FAILED THIS DIFFERENTIAL, and both failures were in the
 // CoreGraphics boundary rather than in the transcription: `max(x, x+w)` for CGRectGetMaxX cost
 // 50 one-ulp divergences (the standardize double-rounding, see below), and the documented
@@ -128,27 +133,56 @@ export interface CGRect {
 // `max(x, x+w)` disagreed on 50 of them by exactly 1 ulp, and the model below on 0. The 1-ulp
 // error then propagated through the scale multiply and the sqrt into the returned distance.
 
+// THE SECOND MEASURED PROPERTY OF THESE GETTERS: A ZERO EDGE ALWAYS COMES BACK POSITIVE.
+// The live getters NEVER return -0.0. Returning the origin verbatim does, whenever the origin
+// itself is -0.0 and the extent is not negative, and that survives into the scaled edge and out
+// of `dist` as the sign of a zero result. Measured against the live CoreGraphics over 4,289
+// rectangles / 17,156 getter calls covering ±0 origins, ±0 extents, negative extents, tiny and
+// huge magnitudes: returning the origin verbatim disagrees on 254 calls, all of them a -0.0 the
+// live function reports as +0.0; normalising a zero result to +0.0 disagrees on 0.
+//
+//     CGRectGetMinY({y: -0.0, height:  1.0})  -> live +0.0   (origin verbatim: -0.0)
+//     CGRectGetMinY({y: -0.0, height: -0.0})  -> live +0.0   (note -0.0 < 0 is FALSE, so the
+//     CGRectGetMaxY({y: -0.0, height: -0.0})  -> live +0.0    negative-extent arm is not taken)
+//
+// This is consistent with the two-step standardization above: CGRectStandardize recomputes the
+// edge arithmetically (`x' = x + width`, and the max as `x' + width'`) rather than passing the
+// field through, and IEEE addition of two zeros of opposite sign — or of any finite value to its
+// negation — yields +0.0. There is no input in the sweep for which a getter returns -0.0.
+//
+// WHY IT MATTERS HERE, AND WHY ONLY HERE: `dist` multiplies each edge by that box's own scale,
+// so a wrongly-signed zero edge flips the sign of a zero DISTANCE, and 0.0 === -0.0 in JS, so a
+// value-equal comparison cannot see it at all. It is invisible for every non-zero magnitude,
+// which is why the earlier sweeps agreed on 4,764 of 4,768 random cases.
+
+/** Normalise a zero edge to +0.0 — the live getters never return -0.0 (see the note above).
+ *  `v === 0` is true for both zeros, so this maps -0.0 to +0.0 and leaves everything else,
+ *  including NaN and both infinities, untouched. */
+function cgZeroNormalize(v: number): number {
+  return v === 0 ? 0 : v;
+}
+
 /** `CGRectGetMinX` — symbol stub @Flexo 0x1494eae (12 call sites, e.g. @0x1322269).
  *  Standardized origin: for a negative width the origin moves to `x + width` (one rounding). */
 function CGRectGetMinX(r: CGRect): number {
-  return r.width < 0 ? r.x + r.width : r.x;
+  return cgZeroNormalize(r.width < 0 ? r.x + r.width : r.x);
 }
 
 /** `CGRectGetMaxX` — symbol stub @Flexo 0x1494e96 (12 call sites, e.g. @0x132228b).
  *  `(x + width) - width` for a negative width — see the two-rounding note above. */
 function CGRectGetMaxX(r: CGRect): number {
-  return r.width < 0 ? r.x + r.width - r.width : r.x + r.width;
+  return cgZeroNormalize(r.width < 0 ? r.x + r.width - r.width : r.x + r.width);
 }
 
 /** `CGRectGetMinY` — symbol stub @Flexo 0x1494eb4 (8 call sites, e.g. @0x13222fd). */
 function CGRectGetMinY(r: CGRect): number {
-  return r.height < 0 ? r.y + r.height : r.y;
+  return cgZeroNormalize(r.height < 0 ? r.y + r.height : r.y);
 }
 
 /** `CGRectGetMaxY` — symbol stub @Flexo 0x1494e9c (8 call sites, e.g. @0x132231f).
  *  `(y + height) - height` for a negative height — see the two-rounding note above. */
 function CGRectGetMaxY(r: CGRect): number {
-  return r.height < 0 ? r.y + r.height - r.height : r.y + r.height;
+  return cgZeroNormalize(r.height < 0 ? r.y + r.height - r.height : r.y + r.height);
 }
 
 /**
