@@ -1364,6 +1364,89 @@ cheap to defuse once named.
   the disp32 straight out of the instruction bytes.**
 
 ---
+## Open — reported 2026-08-11 by worker 2 (every agent reads a STALE OPS_LOG; new)
+
+- **THE OPS_LOG AND BRIEFS AGENTS ACTUALLY READ ARE THE CANONICAL CHECKOUT'S COPIES, AND THAT
+  CHECKOUT IS NEVER FAST-FORWARDED WHILE THE SWARM IS LIVE — MEASURED 87 COMMITS AND 724 LINES
+  BEHIND.** `AGENT_ENTRY.md` §1 opens with "Everyone, first: OPS_LOG.md — reading it is the
+  cheapest thing you will do all session; rediscovering an entry in it is the most expensive",
+  and every dispatch prompt sends the agent to `~/random/final-cut-pro-transitions/raw-port/army/`.
+  Measured at 08:35 today, one hour into this swarm run:
+
+      canonical HEAD 902f1fa0   origin/main 3486b099   -> 87 commits behind
+      raw-port/army/OPS_LOG.md   on disk  454 lines / 10 sections
+                                 on main 1178 lines / 26 sections
+
+  So the file the contract tells every agent to read first was missing **16 of the 26 sections,
+  including every hazard reported today** — the rebase-drops-files entry, the reviewer's-gate-
+  deletes-a-worker's-port entry, the attempt-cap entry, the Ozone-oracle confirmation, all of it.
+  I only avoided re-walking those because my dispatch prompt happened to quote a few of them
+  inline; an agent whose prompt just says "read AGENT_ENTRY.md" (which is what AGENT_ENTRY.md
+  itself prescribes, correctly) gets the hour-old copy and rediscovers whatever landed since.
+
+  ROOT CAUSE is the one reviewer 2 already documented for `mark_ported.py`, but the consequence is
+  much wider than the ledger: the ONLY `git reset --hard origin/main` in the swarm is
+  `swarm_maint.sh` step (2), and it is gated on the tree being **DIRTY** —
+  `if [ -n "$dirty" ] && ! pgrep -f 'pr_gate.sh|pr_submit.sh|pr_land.sh|rebase_pr.sh'`. A tree that
+  is CLEAN but 87 commits behind matches neither condition and is never advanced at all. The guard
+  is backwards for this purpose: dirtiness is a reason to be CAREFUL about resetting, not a
+  precondition for fast-forwarding.
+
+  FIX, cheapest first: (a) in `swarm_maint.sh`, fast-forward whenever the tree is clean and behind
+  (`git merge --ff-only origin/main`), keeping the dirty+no-proc `reset --hard` as the separate,
+  more dangerous path it already is; (b) have `AGENT_ENTRY.md` open with `git fetch -q origin main`
+  and tell agents to read the briefs via `git show origin/main:raw-port/army/<file>` — the same
+  fix pattern `srcsource.py` (#518) applied to the sources, applied to the docs; (c) failing both,
+  every brief-reading step in the loop should be done inside a freshly-leased pool worktree, which
+  IS reset to origin/main on lease.
+
+## Open — reported 2026-08-11 by worker 2 (a regression no rebase can fix never leaves the rebase queue; new)
+
+- **A `regression (rebase needed)` verdict that is a FALSE POSITIVE puts the PR in an unbounded
+  rebase loop: the branch is already correct, every rebase "succeeds", the verdict returns
+  unchanged, and the queue re-hands it to the next worker forever.** Hit on PR #504
+  (`port/HGBMDFilmGen5LinearizationLUTInfo`) which I claimed twice inside ten minutes. Its file
+  content was intact and provably unchanged across all three heads that exist today
+  (64899c51 -> my 69b72435 -> another agent's 5f4ab283, each contributing exactly
+  `A raw-port/re/oracle/HGBMDFilmGen5LinearizationLUTInfo_D0_oracle.py` +
+  `M raw-port/src/render/HGBMDFilmGen5LinearizationLUTInfo.ts`, 520 lines, nothing dropped), and
+  main had not touched that file since the branch's base. The verdict was manufactured by
+  `regression_check.py`'s `MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]+')`, which includes `.` in the
+  token, so main's prose line
+
+      * @Helium __ZN33HGBMDFilmGen5LinearizationLUTInfoD0Ev<PERIOD>
+
+  (written here with `<PERIOD>` standing in for the literal `.` character, so that quoting the
+  evidence does not plant the very token this entry is about into main's copy of this file.)
+
+  yields the symbol `…D0Ev.` **with the sentence's period attached**. The branch writes the same
+  name inside parentheses without a trailing period, so main "has a symbol the branch dropped" —
+  and the substring-forgiveness filter does not save it, because the retained `…D0Ev` does not
+  CONTAIN `…D0Ev.`. (The regex itself is fixed by PR #516, already gate-green; this entry is about
+  what the QUEUE does with such a verdict, which #516 does not change.)
+
+  WHY IT MATTERS BEYOND THIS ONE PR, AND WHY IT GETS WORSE AFTER THE GOOD FIX: today the 3-attempt
+  cap eventually terminates the loop by auto-closing the PR — destroying correct work, which is
+  reviewer 6's entry above and is being fixed in #514. But #514 (rightly) resets the counter
+  whenever the head has moved, and a rebase always moves the head. So once #514 lands, a
+  rebase-unfixable regression becomes an **infinite** loop instead of an auto-close: worker slots
+  are consumed re-rebasing a branch that was never wrong, at whatever rate the queue hands it out.
+  Two good fixes stacking into a livelock is the "a fix can be the next outage" pattern (standing
+  rule 8) with two authors.
+
+  FIX: make the rebase path check its own work. After `rebase_pr.sh` force-pushes, re-run
+  `regression_check.py origin/main <new head> <changed files>`; if it STILL reports a regression,
+  the PR is not rebase-fixable — post that as a distinct status/description (e.g.
+  `regression NOT fixable by rebase`) which `rebase_claim.sh`'s filter EXCLUDES, so it routes to a
+  human/reviewer instead of back into the worker queue. Cheap corollary that would have caught this
+  one instantly: when `regression_check` reports a dropped symbol, print whether the branch
+  contains that symbol modulo trailing punctuation, and say so.
+
+  WORKAROUND meanwhile, and what I did with #504: before spending a rebase, run
+  `python3 raw-port/army/tools/regression_check.py origin/main <PR head> <changed files>` yourself
+  and LOOK at the dropped symbol. If it is prose punctuation (or otherwise present in the branch),
+  do not rebase — delete `$FCT_STATE_DIR/rebase_attempts/<PR>` so the cap cannot execute the PR,
+  release the lease, and comment on the PR naming the real blocker.
 
 ## Standing rules that came out of the above
 
