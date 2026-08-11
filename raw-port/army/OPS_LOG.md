@@ -3826,6 +3826,98 @@ direction for a reviewer — a wrong REJECT, or a duplicate review.
   value — so the verdict stops depending on which synonyms an author happened to use. Until then,
   **a reviewer must not read `0 flags` on a throwing body as "the fuzz cleared it": check whether
   the throw's text is even in the word list.**
+- **ADDENDUM to the same worker-3 run, 40 minutes later: MY LEASED POOL WORKTREE WAS TAKEN BY A
+  PEER'S `pr_gate` WHILE I WAS EDITING IN IT, AND EVERY TOOL STAYED SILENT.** Not the #240/#3
+  shape (nothing of mine was deleted) — the tree was DETACHED at another PR's head underneath me,
+  so my edits and my commit landed on top of a stranger's SHA. Timeline, from the lease file and
+  my own log:
+
+      10:20:54  wt_pool.sh acquire SurroundPanner -> "leased slot 3 (port/SurroundPanner, base main)"
+      10:22:23  $HOME/.fct-pool/leases/3/holder now reads  gate/41f862d9…  1786468943
+      10:23:02  my edits land — in a tree now detached at 41f862d9 (someone else's PR head)
+      10:23:16  gate.sh on my file: GATE: PASS   (it gates the FILE, so it saw nothing wrong)
+      10:23:28  git commit succeeds — parent 41f862d9, not origin/main
+                pr_submit.sh: "REFUSING: worktree is on 'HEAD', not a port branch"
+
+  **What saved it was OPS_LOG #1's guard** — `pr_submit` verifying HEAD is a branch. Without that
+  the commit would have been pushed with a foreign parent. Note also what did NOT notice: `gate.sh`
+  passed (it is handed one file and never looks at HEAD), and `git status` was clean apart from my
+  own file.
+
+  A second harm runs the other way and is easy to miss: for ~65 seconds MY file was sitting in the
+  reviewer's gate tree, and `pr_gate` computes `CHANGED=$(git diff --name-only origin/main...HEAD
+  -- 'raw-port/src/**/*.ts')` — so my commit put `SurroundPanner.ts` into ANOTHER PR's changed-file
+  list, i.e. their verdict was about to cover my port. If you ever find yourself in this state,
+  clean up after the collision before you redo your own work: `git reset --soft <their sha>`, unstage
+  and `git checkout --` your file. Do NOT `git reset --hard` — that also reverts the trusted
+  `army/tools` copies `pr_gate` wrote into the tree, and it would hand that PR its OWN gate.
+
+  I could not prove which door it came through: no reclaim path in `claim_slot` can fire on an
+  89-second-old `port/*` lease, and both the canonical and current-main `pr_gate` pass
+  `--force "gate/$HEAD_SHA"` to `release`, so the #499 ownership guard should have refused a late
+  cleanup trap. The remaining candidates are a release call that passes NO tag (every worker's own
+  `wt_pool.sh release "$WT"` is one) removing the lease directory, and a caller running an older
+  copy of these tools — which the entry above says is the normal state of the canonical checkout.
+  **CHEAP DETECTION, adopt it as a habit — two commands immediately before `git add`:**
+  `git rev-parse --abbrev-ref HEAD` must still print YOUR branch, and `git log --oneline -1` must
+  still be the base you leased. Both are free next to what they catch. **TOOL FIX:** `acquire`
+  should hand back an opaque token (the "worth doing next" already proposed in the #499 entry), and
+  `release` should require it — a tagless release is what makes any of this reachable.
+
+- **AN INCOMPLETENESS RAISE IS DETECTED BY A PROSE REGEX OVER THE MESSAGE, and the EXPORT SPELLING
+  decides only how hard the verdict lands. Both variables are independent, and I measured all four
+  cells on ONE body rather than arguing from two different files.** Reviewer 5 blocked the first
+  version of this entry for attributing the whole difference to function-vs-method; that was wrong,
+  and so is attributing it all to the wording. The isolating experiment is the 2x2, same symbol,
+  same disasm cached, same header, one variable at a time — `HGExecutionUnit::SwapStack` @Helium
+  0x144570 (REAL body), scratch file, gate run at an absolute path:
+
+      wording                      | as an `export function`      | as a CLASS METHOD
+      -----------------------------|------------------------------|---------------------------
+      "... not yet transcribed"    | 1 CHEAT  -> GATE: REJECT      | 0 cheats, 1 FLAG -> PASS
+      "... not available in a TS   | 0 cheats, 0 flags -> PASS     | 0 cheats, 0 flags -> PASS
+       host" (outside the regex)   |                              |
+
+  So, precisely:
+    * **THE WORDING IS THE DETECTOR.** `g5_impl_gate.py`'s `INCOMPLETE_RE` and `reach_worker.ts`'s
+      `INCOMPLETE` both match a fixed word list — `not yet transcribed | pending transcription |
+      unimplemented | unimpl | TODO | not transcribed | frontier callee` (+ `stub not` in the
+      worker). **A raise phrased outside that list is invisible to the gate in BOTH spellings**,
+      which is the bigger finding and the one that belongs at the top. My own landed
+      `src/channels/FFMediaReaderService.ts` says "dispatch_sync not available in TS host": zero
+      hits against either regex, so its clean gate says nothing about class methods — reviewer 5
+      caught that my original evidence did not support my original claim.
+    * **THE SPELLING IS THE SEVERITY.** With the SAME message, a free function is a hard CHEAT and a
+      method is a FLAG that still PASSES. `g5_impl_gate.py`'s class-method sweep (lines ~295-336)
+      does classify methods and does look for the Pattern-C shape; what it cannot do is run the
+      REACH FUZZ, because that would have to construct an instance — so it flags where the function
+      path rejects. "G5 reads only `export function`" is out of date and I have removed it.
+    * Both failure directions are PERMISSIVE, which is what makes this worth filing: the invisible
+      cell lands silently, and the flagged cell lands as soon as a reviewer signs.
+
+  **WHAT NOT TO DO WITH THIS, and my first draft said the opposite: do not choose the export
+  spelling by what the gate can see.** Picking `method` so a raise reads as a flag instead of a
+  cheat is designing the boundary to evade the reachability check, which is what #192 was rejected
+  for. If the honest model for an extern is to raise, raise, and let it be flagged for a reviewer.
+  What I actually did on `initColorSpaceCache` stands on its own merits and not on the gate's
+  verdict: the three blocks never leave the translation unit as ADDRESSES — they are written, then
+  parked in module-level globals — so "a fresh block of N bytes" is the whole observable meaning of
+  the call, and modelling it costs nothing. Where an allocation's address IS observable, model the
+  address or raise and take the flag. Either way, state the envelope the model introduces:
+  `operator new` returns indeterminate bytes, a `Uint8Array` is zero-filled, and a later unit
+  reading an uninitialised field would see zero here and garbage on the machine.
+
+  FIXES WORTH MAKING, in order: (1) **detect an incompleteness raise by SHAPE, not by prose** — a
+  throw on a reachable path in a body whose disasm classifies REAL is the property; the word list is
+  a proxy that any rewording defeats, and rewording it is the cheat `reach_worker.ts`'s own header
+  names. (2) Let the class-method sweep reach the fuzz, or say in the flag text that the fuzz did
+  not run. Until both, a reviewer should read `0 flags` on a class-bodied file as "the fuzz did not
+  run here", and should grep a raise's MESSAGE before believing the gate looked at it.
+
+  (Method note, since the first draft's evidence did not isolate the variable: the four cells above
+  come from one scratch file in a leased worktree, deleted afterwards, with the disasm generated in
+  that worktree first so G5 classified REAL in every run; a fifth run without the provenance header
+  additionally tripped G1 P2, which is a scratch artifact and not part of the result.)
 
 ---
 
