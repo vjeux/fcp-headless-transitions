@@ -3295,3 +3295,125 @@ direction for a reviewer — a wrong REJECT, or a duplicate review.
   value — so the verdict stops depending on which synonyms an author happened to use. Until then,
   **a reviewer must not read `0 flags` on a throwing body as "the fuzz cleared it": check whether
   the throw's text is even in the word list.**
+---
+
+## Open — reported 2026-08-11 by worker 2 (a tool copy that reads an empty ledger; a rebase base that moves under you; a decoy process that is not there; NEW)
+
+Found over one shift working the rework, rebase and port queues. The first one is the important
+one, because the advice that causes it is advice several dispatch prompts are giving right now.
+
+- **RUNNING `depclaim.py` OR `depgraph.py` FROM A COPY OF THE TOOLS OUTSIDE THE REPO REPORTS AN
+  EMPTY QUEUE — `NO_READY_UNIT`, `ported = 0`, `READY NOW = 0` — AND NOTHING ANYWHERE SAYS THE
+  LEDGER WAS NOT FOUND.** My prompt told me, correctly and for good reason, that the canonical
+  checkout runs stale tools (it was 45 commits behind while I worked) and that I should run the
+  tools from somewhere current. I extracted `raw-port/army/tools` from `origin/main` into `/tmp`
+  and ran the queue tools from there. The two shell queues behave perfectly that way — they set
+  `CANON="$HOME/random/final-cut-pro-transitions"` and `cd` there, so only the SCRIPT is fresh, and
+  that is what let me pick up the `rework_claim` fix that the canonical copy lacks. The two PYTHON
+  tools do the opposite:
+
+      ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+      LED  = os.path.join(ROOT, "army", "ledger")
+
+  so from `/tmp/w2tools/raw-port/army/tools/` they look for the ledger in
+  `/tmp/w2tools/raw-port/army/ledger/`, find nothing, and report an empty world:
+
+      built global graph: 44561 functions, 6900 in-scope dep edges
+      NO_READY_UNIT (every dependency-ready unit is already claimed or ported)
+      ported = 0 ... READY NOW = 0 ... (graph nodes not in ledger) = 44561
+
+  The same command in the canonical checkout claimed a unit immediately. Note what the failure
+  looks like from inside: `NO_READY_UNIT` is the documented, expected end state of the whole
+  project, and `HARNESS_LOOP` tells a worker to sleep and poll on it. A worker that took the
+  "run the current tools" advice one step further than the shell queues need would have polled a
+  16,000-unit queue forever and reported the port queue drained. **The tell is the last line of
+  `depgraph stats`: `(graph nodes not in ledger) = 44561` — the graph is built from the framework
+  binaries and needs no ledger, so a full graph with an empty ledger means the ledger PATH is
+  wrong, not that the work is done.**
+  RULE until it is fixed: run `depclaim.py` / `depgraph.py` / `build_ledger.py` / `mark_ported.py`
+  **from a real checkout** (the canonical tree or a pool worktree, whose `link_deps` wires the
+  gitignored state in). Run the shell queues (`rework_claim.sh`, `rebase_claim.sh`,
+  `review_claim.sh`, `rebase_pr.sh`) from wherever is CURRENT, since they re-anchor themselves.
+  FIX worth making: have both tools refuse rather than report zero — if `LED` holds no
+  `*.ledger.json`, print `FATAL: no ledger under <path> (running from a copy outside the repo?)`
+  and exit non-zero. `ensure_ledger.sh` already knows how to say this; the tools that depend on it
+  say nothing. A cheap second fix: resolve `ROOT` from `git rev-parse --show-toplevel` with the
+  `__file__` walk as a fallback, so a fresh copy of the script still finds the real state.
+
+- **A REBASE'S BASE MOVES WHILE YOU RESOLVE THE CONFLICT, AND THE SYMPTOM IS A PILE OF DELETIONS
+  THAT ARE NOT YOURS.** Reconciling PR #553 (11 files, two genuine conflicts) I built the merged
+  `OPS_LOG.md` from `git show origin/main:...`, resolved the other file, staged, and then read
+  `git diff --cached --stat origin/main`: **86 deleted lines**, a whole section belonging to a PR
+  that had landed in the two minutes since I captured main's copy. Nothing warned me; `git diff`
+  simply re-resolves `origin/main` to whatever it is NOW, so the stale-base damage appears only if
+  you look after staging. This is the per-FILE staleness the CORRECTION at the top of this file
+  describes, met on a normal-length rebase rather than a long one — two minutes was enough, because
+  this swarm lands a PR every couple of minutes and `OPS_LOG.md` is the file everybody appends to.
+  WHAT WORKS, and it is worth making the standard shape of a rebase loop rather than a habit:
+  record `origin/main` before you start, and refuse to commit unless (a) it is unchanged at commit
+  time and (b) the staged delta for each file you rebuilt contains ZERO deletions. Retry from the
+  new base if either fails. Three OPS_LOG rebases went out clean under that loop; without it the
+  first one would have reverted somebody's landed entry, with a green gate, because **the gate only
+  inspects `.ts` files handed to it and no gate looks at `OPS_LOG.md` at all**.
+  And the reason those four PRs were conflicting in the first place: every one of them INSERTED its
+  entry into a section. Appending at the end of the file is what makes two concurrent entries merge
+  instead of collide — this entry is appended.
+
+- **A DECOY PROCESS FOR A `pgrep -f` TEST IS USUALLY NOT THERE: `sh -c '<single command>'` EXECS
+  THE COMMAND AND THE ARGV YOU ARE GREPPING FOR IS GONE.** Writing a test for `swarm_maint.sh`'s
+  "is a gate running" guard, I launched `/bin/sh -c 'sleep 25 # pr_gate.sh'` as a decoy. The shell
+  optimises a single-command `-c` into an `exec`, so the process table shows `sleep 25` and
+  `pgrep -f pr_gate.sh` never matches. The case reported PASS while exercising the opposite branch.
+  Two commands (`sleep 25; : pr_gate.sh`) keep the shell alive with its original argv — but the
+  better answer is not to use a decoy at all: put a **stub `pgrep` on `PATH`** that answers from an
+  environment variable and REFUSES if it is called without the pattern under test. That is
+  deterministic, it cannot be perturbed by the real swarm, and it does not perturb the real swarm
+  either — a decoy carrying `pr_gate.sh` in its argv makes every other agent's `swarm_maint` tick
+  see a phantom gate and skip its cleanup for as long as the decoy lives.
+  Same family as the two shipped guards that could not fire: **the harness is part of the guard,
+  and it needs its own negative control.** Mine now asserts that the stub is visible before it
+  trusts the case.
+
+- **`otool -tV` SYMBOLIZES AN `orq` IMMEDIATE TOO, NOT ONLY A `leaq` DISPLACEMENT — AND ON AN
+  IMMEDIATE IT IS THE MORE DANGEROUS OF THE TWO.** The existing entry records a struct-field
+  displacement printing as an ObjC selector. Met the same bug on a CONSTANT while porting
+  `OZRenderState::TransformSet::translation(bool)` @Ozone 0x2771e0, where the whole content of the
+  method is two bit masks:
+
+      0x2771e9  andl  $0x7ff, %ecx
+      0x2771ef  orq   $"-[OZPanTool displayDefaultOnScreenControls]", %rax
+
+  The bytes there are `48 0d 00 38 00 00` — `orq $0x3800, %rax` — and 0x3800 is exactly the bits
+  the 0x07FF mask removes, which is the cross-check that settles it. Why an immediate is worse than
+  a displacement: a displacement at least still reads as an offset, so an agent knows it is looking
+  at a number, while an immediate rendered as a selector reads as a CALL TARGET and invites a
+  transcription of the wrong KIND of thing entirely. It also lands on exactly the shape this
+  codebase is full of — a flag setter whose one constant IS the port. Note which sibling it hit:
+  four of the five methods in that family encode their OR as `48 83 c8 <imm8>` and print correctly;
+  only the one whose constant needs an imm32 (`48 0d <imm32>`) is exposed, so the misrender is a
+  property of the ENCODING and will hit whichever member of a family happens to need the wide form.
+  WHAT I DID, and it generalises: the oracle asserts the OR's byte encoding is present in the
+  function body before it reports a number, so a later re-derivation cannot quietly substitute a
+  different constant.
+
+- **A PEER'S `pr_gate` RESET MY LEASED WORKTREE EIGHT SECONDS AFTER I TOOK IT — a fresh instance of
+  the ownership hole above, timed.** `wt_pool.sh acquire OZRenderState__TransformSet` returned slot
+  3 on my branch at head `f77f3da1`; my first write into it failed with `FileNotFoundError` on a
+  file that was committed on that very branch, and `wt_pool.sh status` showed slot 3 holding
+  `gate/46082ace…` with a holder mtime 8 seconds after my acquire. Nothing failed loudly at the
+  moment of the theft — the acquire had already printed the path and the branch. Two things worth
+  adding to what is already written: **the window is not a long-unit hazard, it is an
+  any-unit hazard** (eight seconds), and **the cheapest detection is to re-read
+  `git rev-parse --abbrev-ref HEAD` immediately before the write, not only before the commit** —
+  by commit time the evidence of what happened is gone, and the failure I actually saw was a
+  missing file rather than a wrong branch. Recovery cost nothing because the PR's content was
+  already pushed; the lesson is to push early rather than to hold a slot.
+
+- **Two smaller things, each of which cost a few minutes.** (a) `rework_claim.sh claim` and
+  `rebase_claim.sh claim` run in the same poll cycle BOTH lease something, so a worker following
+  "check rework, then rebase, then fresh" holds two leases while working one. Release the one you
+  are not doing immediately — a rebase lease sat on for twenty minutes is a PR no other worker can
+  take, and the 90-minute auto-reclaim is far longer than the mistake. Better: have the queues take
+  a `--peek` that reports without leasing. (b) `slot_lock.sh heartbeat <role> <n>` DOES exist and
+  prints `BEAT worker-2`; the entry above saying it does not is describing the stale canonical
+  copy, which is the first bullet of this entry wearing a different hat.
