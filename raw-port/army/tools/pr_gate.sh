@@ -133,7 +133,8 @@ if [ "$rc" = "5" ]; then FAIL=1; REASON="dup-ledger (already on main)"; elif [ "
 # --new-only judges the DELTA: a PR that adds no new duplicate passes even while main carries the
 # existing 7, which is what makes wiring this in possible today rather than after a cleanup.
 python3 raw-port/army/tools/check_duplicate_classes.py --new-only origin/main; rc=$?
-if [ "$rc" = "2" ]; then FAIL=1; REASON="introduces a duplicate class file (one C++ class = one .ts)"; fi
+if [ "$rc" = "2" ]; then FAIL=1; REASON="introduces a duplicate class file (one C++ class = one .ts)";
+elif [ "$rc" != "0" ]; then FAIL=1; REASON="check_duplicate_classes errored rc=$rc"; fi
 
 if [ "$FAIL" != 0 ]; then post_status failure "$REASON"; echo "PR_GATE: FAIL ❌ (#$PR) — $REASON"; exit 1; fi
 if [ "$FLAGS" -gt 0 ] && [ "$REVIEWED" != 1 ]; then
