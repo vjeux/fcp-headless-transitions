@@ -49,7 +49,7 @@ USAGE
 Exit codes for `slice`: 0 = wrote body, 3 = symbol not in dump (caller should fall back to its
 objdump path, exactly as it does for a 0-line awk result), 4 = dump missing.
 """
-import os, sys, sqlite3, time
+import os, re, sys, sqlite3, time
 
 FWS = ["ProCore", "ProChannel", "Helium", "Ozone", "Flexo"]
 
@@ -57,10 +57,32 @@ def dump_path(fw):  return f"/tmp/{fw}_tV.txt"
 def idx_path(fw):   return f"/tmp/{fw}_symidx.sqlite"
 def lock_path(fw):  return f"/tmp/{fw}_symidx.lock"
 
-# A label line is a bare `__Z...:` symbol label. A BOUNDARY is any line ending in ':' — this mirrors
-# awk's `/:$/` exit condition exactly, so bodies end where the awk pipeline ended them.
+# A BODY ENDS AT THE NEXT LABEL — not at "any line ending in a colon".
+#
+# The original awk used `/:$/` as its exit condition, and this file faithfully reproduced it so the
+# index would be byte-identical to the pipeline it replaced. Both were wrong the same way: otool
+# annotates ObjC call sites with comments that END IN A COLON, e.g.
+#
+#     0000000000023a7b  movq 0xa370f6(%rip), %rsi   ## Objc selector ref: resolveCounterRange:
+#
+# so a body containing an ObjC selector reference was CUT OFF at that line. Measured across the five
+# dumps: 198 symbols truncated, 55,463 instructions silently hidden.
+#
+# This is not cosmetic — it inverts gate verdicts. HGMetalCounterSet::resolve reads as 11 lines and
+# classifies EMPTY, when it is 81 lines with 10 stores and classifies REAL. An EMPTY verdict
+# AUTHORISES A NO-OP PORT of a real function. Found by reviewer-03.
+#
+# A real label starts at column 0 (instruction lines start with a hex address) and is a bare symbol
+# or an ObjC method name. Anything else that merely ends in ':' is a comment or an operand.
+_LABEL_RE = re.compile(r'^(?:[A-Za-z_$][^\s]*|[-+]\[[^\]]*\]):$')
+
+def _is_boundary(line):
+    """True if this line starts a NEW symbol (any label), i.e. the previous body ends here."""
+    return bool(_LABEL_RE.match(line))
+
 def _is_label(line):
-    return line.startswith("__Z") and line.endswith(":")
+    """True if this line is an indexable C++ symbol label."""
+    return line.startswith("__Z") and _is_boundary(line)
 
 def _src_stamp(fw):
     st = os.stat(dump_path(fw))
@@ -114,7 +136,7 @@ def build(fw, force=False):
             for raw in f:
                 ln = len(raw)
                 line = raw.rstrip(b"\n").decode("utf-8", "replace")
-                if cur_name is not None and line.endswith(":"):
+                if cur_name is not None and _is_boundary(line):
                     rows.append((cur_name, cur_off, pos - cur_off))
                     cur_name = None
                 if _is_label(line):
