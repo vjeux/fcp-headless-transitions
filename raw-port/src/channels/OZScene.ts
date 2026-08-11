@@ -24,6 +24,16 @@
 //   __ZNK7OZScene18getRawWorkingGamutEv                               @0x81da0  ← CORE
 //   __ZN7OZScene18setRawWorkingGamutE19PCWorkingGamutValue             @0x81de0  ← CORE
 //   __ZN7OZScene30setDynamicRangeTrackingEnabledEb                    @0x81ed0  ← CORE
+//   __ZN7OZScene19gotoHeadOfPlayRangeEv                               @0x71ea0  ← CORE
+//
+// WHY THIS FILE (and not raw-port/src/nodes/OZScene.ts): two files carry the
+// name OZScene. THIS one is the raw transcription of Ozone's C++ class — every
+// method cites an @Ozone address and the byte offsets of the real 0x500+-byte
+// object (+0x20 selector, +0x3b8 currentTime, +0x4b0/+0x4e0 play ranges), which
+// is exactly the storage `gotoHeadOfPlayRange` moves bytes between. The
+// `nodes/OZScene.ts` file is a different object: a .motr scene-graph model
+// (layers/settings/factories, parseElement) with no address provenance and none
+// of these fields. A method decoded from the binary belongs here.
 //
 // ============================================================================
 //  STRUCT LAYOUT (partial — only what's touched by the core surface)
@@ -137,6 +147,25 @@ export interface OZSceneSettingsHandle {
 /** PCTimeRange opaque — 0x30-byte value type (see layout comment). */
 export interface PCTimeRangeHandle {
   readonly __pcTimeRange: true;
+  /**
+   * +0x00..+0x17 — the range's `start` CMTime.
+   *
+   * Added by the `gotoHeadOfPlayRange` @0x71ea0 port, which reads exactly those
+   * 24 bytes out of the selected range (`movups (%rax),%xmm0` @0x71eba for
+   * value/timescale/flags and `movq 0x10(%rax),%rax` @0x71ec4 for epoch) and
+   * copies them into `currentTime`. The offsets agree with the landed
+   * `raw-port/src/infra/PCTimeRange.ts` model (start +0x00, duration +0x18).
+   *
+   * OPTIONAL because the pre-existing users of this handle (getPlayRange /
+   * setPlayRange / setTimeRange) treat the 0x30 bytes as opaque and never
+   * populate them; nothing about their behaviour changes.
+   */
+  start?: CMTime;
+  /**
+   * +0x18..+0x2f — the range's `duration` CMTime. Not read by any body in this
+   * file; recorded so the 0x30-byte layout is complete (same source as above).
+   */
+  duration?: CMTime;
 }
 
 /** PCSharedMutex opaque — non-recursive read/write lock (frontier). */
@@ -657,6 +686,87 @@ export class OZScene {
       timescale: t.timescale,
       flags: t.flags,
       epoch: t.epoch,
+    };
+  }
+
+  /**
+   * OZScene::gotoHeadOfPlayRange()  @Ozone 0x71ea0
+   *   __ZN7OZScene19gotoHeadOfPlayRangeEv
+   *
+   * Sets `currentTime` to the START of whichever play range the +0x20 variant
+   * selector picks — "rewind the playhead to the head of the play range".
+   *
+   * Full transcription — every instruction, in order (14-line disasm at
+   * raw-port/re/disasm/__ZN7OZScene19gotoHeadOfPlayRangeEv.s):
+   *
+   *   0x71ea0  pushq  %rbp                    ; frame setup (no TS counterpart)
+   *   0x71ea1  movq   %rsp,%rbp               ; frame setup (no TS counterpart)
+   *   0x71ea4  leaq   0x4e0(%rdi),%rax        ; rax = &playRangeSecondary
+   *   0x71eab  leaq   0x4b0(%rdi),%rcx        ; rcx = &playRangePrimary
+   *   0x71eb2  cmpl   $-0x1,0x20(%rdi)        ; variantSelector == -1 ?
+   *   0x71eb6  cmoveq %rcx,%rax               ;   if equal, rax = &playRangePrimary
+   *   0x71eba  movups (%rax),%xmm0            ; \ 16 bytes: start.{value,timescale,flags}
+   *   0x71ebd  movups %xmm0,0x3b8(%rdi)       ; /  -> currentTime.{value,timescale,flags}
+   *   0x71ec4  movq   0x10(%rax),%rax         ; \ 8 bytes: start.epoch
+   *   0x71ec8  movq   %rax,0x3c8(%rdi)        ; /  -> currentTime.epoch
+   *   0x71ecf  popq   %rbp                    ; frame teardown (no TS counterpart)
+   *   0x71ed0  retq
+   *   0x71ed1  nopw %cs:(%rax,%rax)           ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * the selector test is the SAME `cmpl $-0x1,0x20(%rdi)` + `cmove` pair
+   *     that `getPlayRange` @0x4fb10 uses (and the same polarity: EQUAL to -1
+   *     selects the PRIMARY range at +0x4b0, otherwise the SECONDARY at +0x4e0),
+   *     so this method reuses the ported selector logic verbatim rather than
+   *     restating it. Both `leaq`s are computed before the compare; only the
+   *     `cmove` chooses.
+   *   * the copy reads the range's FIRST 24 bytes — offset +0x00 of the 0x30-byte
+   *     PCTimeRange, i.e. its `start` CMTime (the `duration` at +0x18 is not
+   *     touched) — and writes them into the +0x3b8 currentTime slot in the same
+   *     16-then-8 split the landed getCurrentTime/setCurrentTime ports document.
+   *   * unlike `setPlayRange`, there is NO self-alias check: source and
+   *     destination can never overlap here (+0x3b8 vs +0x4b0/+0x4e0).
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps` lists nothing). Pure field moves.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN7OZScene19gotoHeadOfPlayRangeEv.s (14 lines)
+   */
+  gotoHeadOfPlayRange(): void {
+    // @0x71ea4/@0x71eab/@0x71eb2/@0x71eb6 — the selector picks the range whose
+    //   address ends up in %rax. Identical to getPlayRange's cmove @0x4fb26.
+    const sel = this.playRangeVariantSelector >>> 0;
+    const range =
+      sel === 0xffffffff ? this.playRangePrimary : this.playRangeSecondary;
+
+    // @0x71eba/@0x71ec4 read 24 bytes out of that range. In the binary the two
+    //   slots are EMBEDDED storage (`leaq`, not a pointer load), so %rax is
+    //   never null and the bytes always exist. In this port they are nullable
+    //   handles because OZScene's ctor @0x4cc00 is still frontier and never
+    //   populates them — a null/unpopulated range here is a PORT-STATE gap, not
+    //   a branch the machine has, so it is surfaced loudly instead of being
+    //   silently replaced with a zero CMTime (which would be a plausible wrong
+    //   answer of exactly the kind the gate's G7 note warns about).
+    const start = range === null ? undefined : range.start;
+    if (start === undefined) {
+      throw new Error(
+        "OZScene::gotoHeadOfPlayRange @Ozone 0x71eba — the embedded PCTimeRange at " +
+          "+0x4b0/+0x4e0 has no decoded `start` in this port (OZScene's ctor @Ozone 0x4cc00 " +
+          "is not yet transcribed, so the slot is unpopulated); refusing to invent a CMTime",
+      );
+    }
+
+    // @0x71eba/@0x71ebd  movups (%rax),%xmm0 ; movups %xmm0,0x3b8(%rdi)
+    //   — the 16-byte {value, timescale, flags} block, copied FIRST.
+    // @0x71ec4/@0x71ec8  movq 0x10(%rax),%rax ; movq %rax,0x3c8(%rdi)
+    //   — then the 8-byte epoch tail. The copy is BY VALUE (bytes into the
+    //   embedded currentTime), so the port builds a fresh CMTime rather than
+    //   aliasing the range's object.
+    this.currentTime = {
+      value: start.value,
+      timescale: start.timescale,
+      flags: start.flags,
+      epoch: start.epoch,
     };
   }
 

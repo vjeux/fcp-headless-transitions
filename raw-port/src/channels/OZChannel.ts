@@ -91,6 +91,26 @@ import { OZCurve } from "./OZCurve";
 export interface OZChannelImpl {
   /** Byte @0x20 — when non-zero, copy-ctor SKIPS deep-cloning this impl. */
   skipCloneFlag: number;
+  /**
+   * +0x08 — the wrapped `OZCurve*`, i.e. the "curve interface" this channel
+   * delegates its keyframe work to.
+   *
+   * Read by `OZChannel::getCurveInterface()` @ProChannel 0x184fa
+   * (`movq 0x8(%rax), %rax` right after `movq 0x70(%rdi), %rax`), and by the
+   * two keyframe queries that virtual-dispatch ON it —
+   * `getFirstKeyframe(CMTime*, double*)` @0x1b5c6/@0x1b5cd (vtable slot
+   * +0x2f8) and `getLastKeyframe(CMTime*, double*)` @0x1b5e0/@0x1b5e7 (slot
+   * +0x308) — which is what proves the slot holds a POLYMORPHIC object, not a
+   * scalar. The already-landed sibling port `OZChannelImpl.ts` documents the
+   * same offset as `+0x08 OZCurve* curve` (arg2 of its ctor @0xaa27b), so the
+   * type is grounded from both sides.
+   *
+   * OPTIONAL here (not on the landed `OZChannelImpl` class) only because this
+   * is the file's minimal structural stand-in for the impl: making it required
+   * would force every existing structural user to spell it out. In memory the
+   * slot always exists; NULL is its empty state.
+   */
+  curveAt8?: OZCurve | null;
   /** Vtable pointer for internal book-keeping (opaque here). */
   vtable?: number;
   /** Deep-clone constructor `OZChannelImpl::OZChannelImpl(OZChannelImpl const&)`
@@ -435,4 +455,50 @@ export interface OZChannelAuxRef {
    * Returns a pointer suitable for storage at OZChannel@0x90 in the copy.
    */
   cloneForChannel(): OZChannelAuxRef | null;
+}
+
+/**
+ * `OZChannel::getCurveInterface()`
+ *   — @ProChannel 0x184f2
+ *   — __ZN9OZChannel17getCurveInterfaceEv
+ *
+ * Two chained loads: fetch the channel's primary impl, then return that
+ * impl's curve.
+ *
+ * Full transcription — every instruction, in order:
+ *
+ *   0x184f2  pushq %rbp                 ; frame setup (no TS counterpart)
+ *   0x184f3  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+ *   0x184f6  movq  0x70(%rdi), %rax     ; rax = this->implPrimary      (+0x70)
+ *   0x184fa  movq  0x8(%rax), %rax      ; rax = impl->curveAt8         (+0x08)
+ *   0x184fe  popq  %rbp                 ; frame teardown (no TS counterpart)
+ *   0x184ff  retq                       ; return that OZCurve*
+ *
+ * NO NULL CHECK on either pointer: the machine dereferences `this+0x70`
+ * unconditionally, so a channel with a NULL impl faults here. The port
+ * reproduces that — it reads through the impl without re-testing — rather than
+ * inventing a guard the binary does not have. The loaded value is returned
+ * RAW, NULL included.
+ *
+ * The +0x70 slot is the OWNED primary impl the ctor stores
+ * (`movq %r14, 0x70(%rbx)` @0x13d3d, documented above); the +0x08 field of the
+ * impl is its `OZCurve*` — the same slot `getFirstKeyframe()` @0x1b5c6 and
+ * `getLastKeyframe()` @0x1b5e0 load before dispatching through its vtable
+ * (slots +0x2f8 / +0x308 respectively; those two methods are their own ledger
+ * units and are NOT ported here — their bodies end in an indirect `jmpq *%rax`).
+ *
+ * ZERO callees of any kind: no in-scope call, no extern, no indirect and no
+ * virtual dispatch (`depgraph.py deps` lists nothing) — two loads and a return.
+ *
+ * Source disassembly:
+ *   raw-port/re/disasm/ProChannel.__ZN9OZChannel17getCurveInterfaceEv.s (6 lines)
+ */
+export function OZChannel_getCurveInterface(
+  self: OZChannelLayout,
+): OZCurve | null {
+  // @0x184f6  movq 0x70(%rdi),%rax — the primary impl, dereferenced without a
+  //   NULL check exactly as the machine does.
+  const impl = self.implPrimary as OZChannelImpl;
+  // @0x184fa-0x184ff  movq 0x8(%rax),%rax ; retq — returned raw.
+  return impl.curveAt8 as OZCurve | null;
 }
