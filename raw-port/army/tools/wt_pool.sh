@@ -103,6 +103,23 @@ wt_has_work () {
   return 1
 }
 
+# Stamp a slot's lease: who holds it (tag) and WHICH AGENT took it.
+#
+# The tag says what the slot is being used for; it does not say who is using it, and release's
+# ownership guard was keyed on the tag alone — passed in by the caller, so it could only ever fire
+# for a caller that chose to arm it. Measured across origin/main: not one of the callers passes it
+# (rebase_pr.sh x4, pr_gate's cleanup trap, both worker briefs, HARNESS_LOOP). The guard was written
+# for the pr_gate-trap incident and, as wired, could not have stopped that incident. #44: a guard
+# that is never called is indistinguishable from no guard, and reads as reassurance.
+#
+# The agent id needs no cooperation from the caller, so it cannot be left dormant. Rewritten on every
+# (re)claim, and REMOVED when the taker has no id, so the file always names the CURRENT holder or
+# nothing — a stale owner left behind by a previous holder would refuse the new one its own release.
+stamp_holder () { # <lockdir> <tag>
+  echo "$2 $(date +%s)" > "$1/holder"
+  if [ -n "${FCT_AGENT_ID:-}" ]; then echo "$FCT_AGENT_ID" > "$1/owner"; else rm -f "$1/owner"; fi
+}
+
 # atomically claim a free slot (mkdir lock). reclaims a lease older than WT_POOL_STALE min (agent died).
 claim_slot () {
   local tag="$1"; local deadline=$(( $(date +%s) + WAIT )); local stale="${WT_POOL_STALE:-120}"
@@ -115,12 +132,12 @@ claim_slot () {
   while :; do
     for i in $(seq 1 "$NPOOL"); do
       local lk="$LEASES/$i"
-      if mkdir "$lk" 2>/dev/null; then echo "$tag $(date +%s)" > "$lk/holder"; echo "$i"; return 0; fi
+      if mkdir "$lk" 2>/dev/null; then stamp_holder "$lk" "$tag"; echo "$i"; return 0; fi
       # FAST PATH: a disposable gate lease older than gate_stale is a dead holder — take it.
       case "$(cat "$lk/holder" 2>/dev/null)" in
         gate/*)
           if [ -n "$(find "$lk/holder" -mmin +$gate_stale 2>/dev/null)" ]; then
-            echo "$tag $(date +%s)" > "$lk/holder"
+            stamp_holder "$lk" "$tag"
             log "wt_pool: reclaimed abandoned gate slot $i (>${gate_stale}min)"
             echo "$i"; return 0
           fi;;
@@ -137,7 +154,7 @@ claim_slot () {
         # every pr_gate run leaked until the pool was exhausted and gating/merging stopped dead).
         # A `port/<Class>` lease still gets the full protection — that is a worker's real work.
         case "$(cat "$lk/holder" 2>/dev/null)" in
-          gate/*) echo "$tag $(date +%s)" > "$lk/holder"; log "wt_pool: reclaimed stale disposable gate slot $i"; echo "$i"; return 0;;
+          gate/*) stamp_holder "$lk" "$tag"; log "wt_pool: reclaimed stale disposable gate slot $i"; echo "$i"; return 0;;
         esac
         if wt_has_work "$WTDIR/$i"; then
           # A DEAD AGENT'S WORK MUST NOT HOLD A SLOT FOREVER. This used to `continue`
@@ -176,7 +193,7 @@ claim_slot () {
           fi
           log "wt_pool: slot $i ABANDONED >${abandon}min — rescued $(wc -c < "$rescue.uncommitted.patch" | tr -d ' ') bytes to $rescue.*.patch, reclaiming"
         fi
-        echo "$tag $(date +%s)" > "$lk/holder"; log "wt_pool: reclaimed stale slot $i (clean)"; echo "$i"; return 0
+        stamp_holder "$lk" "$tag"; log "wt_pool: reclaimed stale slot $i (clean)"; echo "$i"; return 0
       fi
     done
     [ "$(date +%s)" -ge "$deadline" ] && { log "POOL_FULL: no free slot after ${WAIT}s"; return 3; }
@@ -347,6 +364,39 @@ cmd_release () {
       return 0
     fi
   fi
+  # ...AND IT MUST BELONG TO *THIS AGENT*, whether or not the caller passed a tag.
+  #
+  # The expect-tag check above is additive by design: "callers that pass nothing behave exactly as
+  # before". Every caller passes nothing (rebase_pr.sh in four places, pr_gate's cleanup trap, both
+  # worker briefs, HARNESS_LOOP), so the guard written for the pr_gate-trap incident would not have
+  # fired during the pr_gate-trap incident. The agent id is stamped by stamp_holder at claim time and
+  # needs no cooperation from the caller, which is the whole point — an opt-in guard in a swarm where
+  # the dangerous callers are cleanup traps firing late is a guard nobody arms.
+  #
+  # Two deliberate escape hatches, because a slot that CANNOT be freed ends in the POOL_FULL deadlock
+  # of #12 — a worse failure than the double-free this prevents:
+  #   * unowned either side (no owner file, or a releaser with no FCT_AGENT_ID) -> fail OPEN;
+  #   * a lease already stale enough for claim_slot to reclaim -> its holder is dead by the pool's
+  #     own definition, so anyone may free it. Uses the SAME windows claim_slot uses, so the two can
+  #     never disagree about whether a holder is alive.
+  # Note --force does NOT bypass this: --force was how the pr_gate trap wiped worker 1's slot, and a
+  # flag meaning "discard my own work" must not also mean "discard someone else's".
+  local owner; owner="$(cat "$LEASES/$slot/owner" 2>/dev/null)"
+  # `unknown` is accepted as "no owner" here for the same reason the three queue guards accept it:
+  # two spellings of one condition is the seed of the one-principal-two-spellings bug, and nothing
+  # should have to know WHICH file wrote a lease to know whether it is owned. Nothing writes the
+  # literal today; this keeps the four guards from disagreeing if anything ever does.
+  if [ -n "$owner" ] && [ "$owner" != "unknown" ] && [ -n "${FCT_AGENT_ID:-}" ] && [ "$owner" != "$FCT_AGENT_ID" ]; then
+    local win="${WT_POOL_STALE:-120}"
+    case "$(cat "$LEASES/$slot/holder" 2>/dev/null)" in gate/*) win="${GATE_STALE_MIN:-15}";; esac
+    if [ -z "$(find "$LEASES/$slot/holder" -mmin +"$win" 2>/dev/null)" ]; then
+      log "wt_pool: slot $slot is owned by '$owner', not '$FCT_AGENT_ID' — NOT resetting $wt"
+      log "         (a live peer holds this slot; its uncommitted work would be lost)"
+      return 0
+    fi
+    log "wt_pool: slot $slot is owned by '$owner' but its lease is stale (>${win}min) — freeing it"
+  fi
+
   # Refuse to discard live work unless explicitly forced. A worker that abandons a unit should say so:
   #   wt_pool.sh release <path> --force [expected-tag]
   if [ "$force" != "--force" ] && wt_has_work "$wt"; then

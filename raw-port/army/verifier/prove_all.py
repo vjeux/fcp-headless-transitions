@@ -278,6 +278,10 @@ LAYER2 = [
      "pr_comment_once argv — an unknown flag must not become the comment",
      ["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")],
      "passed, 0 failed"),
+    ("2z",
+     "worktree release ownership — a peer's live slot is never reset",
+     ["bash", os.path.join(TOOLS, "test_wt_pool_release_ownership.sh")],
+     "test_wt_pool_release_ownership: PASS"),
 ]
 
 def check_layer_labels():
