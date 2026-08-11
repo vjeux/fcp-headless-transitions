@@ -132,17 +132,35 @@ def layer2():
     print("LAYER 2j (a PR's base must be main — the gate and the merge target must agree):",
           "PASS" if ok10 else "FAIL")
     if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
-    # 2k — the self-heal that clears attempt counters whose PR has already merged. It only looked at
+    # 2k — WHICH QUEUE OWNS A G5-FLAGGED PR. The gate cannot clear a NO-DISASM blind spot itself; it
+    # fails with "reviewer must re-derive disasm" and hands the PR back to a reviewer. No queue
+    # offered it: review_claim excluded every FAILURE, rebase_claim takes regression/rebase only,
+    # rework_claim takes CHANGES_REQUESTED only. #645 sat claimable-by-nobody until queue-coverage
+    # noticed. Offline, jq-backed fixtures with the real status descriptions. ~1s.
+    # (2k, not 2i or 2j: written when 2i was free, then main took 2i (queue coverage) and 2j
+    #  (PR base) while this PR was open. Renumbered again on this rebase, as its own note asked —
+    #  two layers claiming one letter is the kind of silent collision this suite exists to refuse.
+    #  Third collision on this line today; the letters are allocated by whoever merges first.)
+    r11 = run(["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")])
+    ok11 = "test_review_claim_g5: PASS" in r11.stdout
+    print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
+          "PASS" if ok11 else "FAIL")
+    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    # (2l, renumbered on this rebase for the SECOND time: this block went out as 2i, became 2j,
+    #  and main has since taken 2i/2j/2k. Keeping both sides is the only safe resolution here —
+    #  a layer that is not in the file cannot fail. See
+    #  army/ops/2026-08-11-every-tooling-pr-conflicts-on-prove-alls-layer-tail.md.)
+    # 2l — the self-heal that clears attempt counters whose PR has already merged. It only looked at
     # counters AT the cap, while swarm_doctor flags any dead counter at all, so the tool reporting
     # the fault and the tool fixing it disagreed by construction and the board could never go green.
     # Offline, function extracted from the shipped file, stubbed gh. ~0.5s.
-    r11 = run(["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")])
-    ok11 = "test_reap_dead_counters: PASS" in r11.stdout
-    print("LAYER 2k (dead attempt counters — the reaper can reach what the doctor reports):",
-          "PASS" if ok11 else "FAIL")
-    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    r12 = run(["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")])
+    ok12 = "test_reap_dead_counters: PASS" in r12.stdout
+    print("LAYER 2l (dead attempt counters — the reaper can reach what the doctor reports):",
+          "PASS" if ok12 else "FAIL")
+    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
     return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
-            and ok11)
+            and ok11 and ok12)
 
 def _reach(spec, expect):
     import tempfile
