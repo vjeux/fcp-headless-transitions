@@ -44,7 +44,36 @@ lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
   return 1
 }
 
+reap_dead_counters () {
+  # SELF-HEAL: an attempt counter must not outlive its PR.
+  #
+  # Counters are the authority to stop offering work, and they are never cleared when a PR merges or
+  # closes — so they accumulate as dead state that reads exactly like stranded work. Measured today:
+  # 64 counters for long-merged PRs, one of which (#387, MERGED) reported as "stranded at 3/3" and
+  # cost a round of investigation. Worse, a counter inflated by a bug that has SINCE BEEN FIXED stays
+  # at the cap and keeps real work invisible — the fix alone does not free the state it created
+  # (OPS_LOG #28), which is why two PRs had to be un-stranded by hand this session.
+  #
+  # So the queue reaps its own dead state on every claim. Cheap (only counters at or past the cap are
+  # checked, and only their state field), self-limiting, and it removes a standing manual chore that
+  # otherwise depends on somebody noticing.
+  local f b n st
+  for f in "$ATT"/*; do
+    [ -f "$f" ] || continue
+    b="$(basename "$f")"; case "$b" in *.sha) continue;; esac
+    case "$b" in ''|*[!0-9]*) continue;; esac
+    n=$(cat "$f" 2>/dev/null || echo 0)
+    [ "${n:-0}" -ge "$CAP" ] || continue
+    st=$(gh pr view "$b" --repo "$SLUG" --json state --jq .state 2>/dev/null)
+    if [ "$st" = "MERGED" ] || [ "$st" = "CLOSED" ]; then
+      rm -f "$f" "$f.sha" 2>/dev/null
+      echo "rework_claim: reaped a dead counter for PR #$b ($st) — it was masquerading as stranded work" >&2
+    fi
+  done
+}
+
 cmd_claim () {
+  reap_dead_counters
   git fetch -q origin main 2>/dev/null || true
   local cand
   # Oldest first: a rejection that has sat longest is the one whose reviewer evidence is most at risk
