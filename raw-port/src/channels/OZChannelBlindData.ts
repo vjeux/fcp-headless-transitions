@@ -11,9 +11,11 @@
 // Provenance (ProChannel framework, x86_64):
 //   /Applications/Final Cut Pro.app/Contents/Frameworks/ProChannel.framework/Versions/A/ProChannel
 //
-// Symbol ported in this file:
+// Symbols ported in this file:
 //   @0x4fe94  OZChannelBlindData::findKeyframe(CMTime const&, unsigned int)
 //               __ZN18OZChannelBlindData12findKeyframeERK6CMTimej
+//   @0x505ce  OZChannelBlindData::hasKeypoints(unsigned int) const
+//               __ZNK18OZChannelBlindData12hasKeypointsEj
 //
 // Source disassembly (re-derived from the binary with
 // `raw-port/tools/disasm.sh --sym __ZN18OZChannelBlindData12findKeyframeERK6CMTimej ProChannel`):
@@ -316,4 +318,58 @@ export function OZChannelBlindData_findKeyframe(
 
   // @0x4ff8c  movq %r15,%rbx — every other path returns end.
   return end;
+}
+
+/**
+ * `OZChannelBlindData::hasKeypoints(unsigned int) const`
+ *   — @ProChannel 0x505ce
+ *   — __ZNK18OZChannelBlindData12hasKeypointsEj
+ *
+ * Returns whether the keyframe vector is NON-EMPTY. The `unsigned int`
+ * parameter is DEAD — `%esi` is never read by the body.
+ *
+ * Full transcription — every instruction, in order (9-line disasm at
+ * raw-port/re/disasm/ProChannel.__ZNK18OZChannelBlindData12hasKeypointsEj.s):
+ *
+ *   0x505ce  pushq %rbp                 ; frame setup (no TS counterpart)
+ *   0x505cf  movq  %rsp,%rbp            ; frame setup (no TS counterpart)
+ *   0x505d2  movq  0xa0(%rdi),%rax      ; rax = keyframes.end
+ *   0x505d9  cmpq  0x98(%rdi),%rax      ; flags on (end - begin)
+ *   0x505e0  setne %al                  ; return (end != begin)
+ *   0x505e3  popq  %rbp                 ; frame teardown (no TS counterpart)
+ *   0x505e4  retq
+ *   0x505e5  nop                        ; alignment padding, not executed
+ *
+ * Decode notes:
+ *   * the same +0x98 / +0xa0 begin/end pair `findKeyframe` walks (see the file
+ *     header's layout section), compared for INEQUALITY — a pointer compare, so
+ *     the answer is "the vector holds at least one element", i.e.
+ *     `keyframes.length !== 0`. No division by the 0x20 stride is needed or
+ *     performed.
+ *   * `%esi` (the `unsigned int` argument) is never touched: no instruction
+ *     between the prologue and the `retq` reads it. Whatever the parameter
+ *     means to callers — the sibling `hasKeypointAt(CMTime const&, unsigned)`
+ *     @0x50602 takes the same trailing `unsigned` — this method ignores it, and
+ *     the port ignores it identically rather than inventing a filter the
+ *     machine does not apply.
+ *   * the immediately following sibling `hasMoreThanOneKeypoint()` @0x505e6 is
+ *     the same load pair with `subq 0x98(%rdi),%rax ; cmpq $0x21,%rax ; setae`
+ *     (i.e. byteCount >= 0x21, one full 0x20 element plus one byte — "two or
+ *     more elements"): independent confirmation of both the field offsets and
+ *     the 0x20 stride. It is a SEPARATE ledger unit and is NOT ported here.
+ *
+ * Zero callees: no in-scope call, no extern, no indirect or virtual dispatch
+ * (`depgraph.py deps` lists nothing).
+ *
+ * @param self   — the `OZChannelBlindData` instance (`%rdi`).
+ * @param _unused — `%esi`, the dead `unsigned int` parameter.
+ * @returns true iff the keyframe vector is non-empty.
+ */
+export function OZChannelBlindData_hasKeypoints(
+  self: OZChannelBlindDataState,
+  _unused: number,
+): boolean {
+  // @0x505d2 / @0x505d9 / @0x505e0 — movq end ; cmpq begin ; setne.
+  // end != begin is exactly "the vector is not empty".
+  return self.keyframes.length !== 0;
 }
