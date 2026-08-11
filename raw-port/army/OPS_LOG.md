@@ -3006,3 +3006,140 @@ disassembly, not the cache.
   can route around it in one command — before working a claim, compare the PR's head against the
   commit the newest CHANGES_REQUESTED sits on, and release if they differ — but the queue will keep
   handing out answered PRs to everyone else until the canonical tree advances.
+---
+
+## Open — reported 2026-08-11 by worker 1 (five ways a CHECK, a CONTROL or a QUEUE lied about its own result; NEW)
+
+Nine reworks and eight ports this session. Every one of these cost me something, and none of them
+is about a port being wrong — they are all cases where the thing that was supposed to TELL me I was
+wrong reported confidently and falsely.
+
+- **A POLLING LOOP OVER `rework_claim.sh claim` BURNS THE ATTEMPT CAP OF WHATEVER IT SKIPS, and I
+  executed a PR to 3/3 in four seconds by writing the obvious loop.** The queue kept handing me PRs
+  whose author had already answered (the separate defect fixed in #562), so I wrote the natural
+  workaround — claim, check the head against the rejection's commit, release if stale, claim again:
+
+      for i in 1 2 3 4 5; do C=$(rework_claim.sh claim); ... rework_claim.sh release $N; done
+
+  `cmd_claim` writes `$((n+1))` into `$STATE/rework_attempts/<PR>` **at lease time**, and `release`
+  removes only the LEASE, never the counter. Five polls of a queue whose head candidate is the same
+  PR therefore charge that PR five attempts. Measured: three iterations took **#400 from 0/3 to
+  3/3**, at which point the queue stops offering it — a PR retired by my POLLING, with no work
+  attempted and nothing wrong with it. I cleared the counter by hand
+  (`rm $STATE/rework_attempts/400*`) and said so in the exit report, and the same shape applies to
+  `rebase_claim.sh`, whose counter is written in the same place for the same reason.
+  RULES until the tools change: (a) **never loop over `claim`** — take ONE, and if it is not
+  workable, release it AND delete its counter, because you charged it; (b) a tool whose cap can
+  DESTROY work should not increment on a lease that produced no attempt — the counter belongs at
+  the point of failure, or the release path should decrement what it did not use.
+
+- **AN "INFLATED" NEGATIVE CONTROL IS AS BAD AS A DEAD ONE, AND IT LOOKS EXCELLENT.** This log
+  already says a control that kills 0 means a blind harness or an equivalent mutant. The mirror case
+  bit me on `Getinv_quicktime_half_unpremultTile_AVX`: four mutants killed 1001, 930, 946 and 1442
+  lanes, which reads like a well-instrumented differential. It was not. The mutants shared a
+  per-texel base model that itself disagreed with the live kernel on **920 lanes** — in the 8-wide
+  AVX body the SECOND texel of a pair reads State lanes 4..7, and my base model read 0..3 for every
+  texel. So the four numbers were ~920 units of my own bug plus a little signal, and the weakest
+  real mutant (MINPS operand order) contributed **10**, which was invisible inside the noise.
+  THE FIX IS ONE LINE OF PROTOCOL: **score the UNMUTATED base model as M0 and print it next to the
+  mutants.** M0 must kill 0. After fixing the lane indexing the same table read 0 / 107 / 10 / 46 /
+  645, which is a real instrument. Report M0 in the file; a reader cannot subtract a number you did
+  not print.
+
+- **THE BEST SENSITIVITY CONTROL FOR A CONSTANT-RETURNING FUNCTION IS ANOTHER MEMBER OF THE SAME
+  VIRTUAL FAMILY WITH THE OPPOSITE CONSTANT.** Four of this session's units were 5-instruction
+  bodies returning a constant, where a differential is vacuous by construction: a harness that never
+  reads `%eax` agrees with any constant port. The generic advice in this log is to call "a DIFFERENT
+  function known to return non-zero", and I used `getpid` once — it works, but it only proves the
+  read path. Much stronger, and free: **the sibling override.**
+      OZImageGenerator::filteredEdges @Ozone 0x30c120  -> false  (xorl %eax,%eax)
+      OZGradientSource::filteredEdges @Ozone 0x2fd2f0  -> true   (movb $0x1,%al)
+  Same virtual, same signature, same CFUNCTYPE, opposite answers, called interleaved in one loop.
+  That distinguishes true from false ON THE INSTRUMENT rather than in principle. Find one with
+  `grep <method> raw-port/army/inventory/<FW>.syms.txt` and disasm two or three: on this family the
+  whole set was four seconds of work, and it also tells you the RETURN TYPE — `movzbl 0xd2(%rdi)`
+  and `movb $0x1,%al` are what a `bool` compiles to, which is how I grounded `filteredEdges` as
+  bool instead of guessing from a bare `xorl`.
+  Corollary for the same shape: **check the prologue bytes**, because sibling overrides of one
+  virtual are often byte-identical and adjacent. `OZRotoshape::prepareForDragOperation`'s +216 thunk
+  @0x41b850 has the identical five instructions as the +200 thunk 16 bytes earlier and the base
+  symbol 32 bytes earlier, so a mis-resolved address returns a perfect-looking `true`.
+
+- **G1's P4 rule reads PROSE, so a comment ARGUING AGAINST a deferral stub is rejected as one.**
+  `provenance_gate.py:51` flags any line containing `throw` within reach of
+  `not yet|pending|unimpl|transcrib` and no `@0xADDR` — comment or code, no distinction. My
+  `FFAudioStreamScope::ScopePreRenderEnd` port (a genuinely EMPTY body) was rejected for the
+  sentence explaining why an "unimplemented throw" would be LESS faithful than the empty body it
+  ships. This is worker 6's "G1's banned-language check reads prose" entry through the P4 door
+  rather than the P3 one, and it is the more annoying of the two, because the natural way to justify
+  an empty body is to contrast it with the stub you did not write. Reword (I used "a deferral stub
+  @FW 0xADDR would be strictly less faithful"), and note that adding an @0xADDR to the line also
+  clears it.
+  **AND THE REASON IT COST ME A PUSH IS WORTH MORE THAN THE RULE ITSELF:** I ran `gate.sh` and
+  `git commit && pr_submit.sh` in ONE command chain and read the OUTPUT rather than the EXIT STATUS,
+  so a `GATE: REJECT` scrolled past above a successful-looking submit line. This log already says
+  never to pipe a gate into `tail`; the same principle covers `gate.sh; git commit` — **if the
+  commit is in the same invocation as the gate, make it `&&` on the gate's status, or read `$?`
+  before you type the commit.** I self-reported it on the PR rather than quietly amending.
+
+- **TWO WORKERS REWORKING ONE TOOL THROUGH THE SHARED QUEUE SILENTLY REVERT EACH OTHER, and
+  neither does anything the briefs warn against.** My rework of `swarm_doctor.py` (#579) was
+  verified by its reviewer and then written back to its pre-rework contents by the NEXT commit on
+  the same PR: a peer added a genuinely good new check and, in the same commit, wrote the whole
+  file out from a copy they had taken before my push. No force-push — the reverting commit is a
+  DESCENDANT of mine — so every guard in the stack was satisfied: `git push` fast-forwarded, the
+  gate passed on the resulting file, and the PR presented as "add one check". The diff is the tell
+  and nothing else is: `git diff --stat <prev head> <new head>` read **110 insertions, 179
+  deletions**. It was caught only because the reviewer had verified the earlier head minutes before
+  and noticed the markers were gone.
+  RULES: (a) **before pushing to a PR you did not start, `git diff --stat <its current head>
+  <yours>` and read the DELETION count** — a commit described as adding something that deletes 179
+  lines is the finding, not the noise; (b) when two units land in one FILE, start from the CURRENT
+  head's copy, never from the one you opened an hour ago (the same per-file staleness rule the
+  rebase path has, applied inside one PR); (c) recovery is cheap and non-destructive — take the
+  verified commit's version of the file and re-apply the newer change ON TOP, then diff against the
+  verified commit and confirm the only difference is the new work (mine came to 59 insertions and 1
+  deletion, which is what "both, not either" looks like).
+
+- **PUSHING A NEW BRANCH FROM A DETACHED HEAD NEEDS THE FULL `refs/heads/` REFSPEC, and the failure
+  arrives AFTER you have released the worktree.** `git push origin HEAD:port/Foo` from a detached
+  HEAD fails with `error: failed to push some refs` plus a `hint: 'HEAD:refs/heads/port/Foo'?` when
+  no such branch exists yet — git will not invent the namespace from an unqualified name on that
+  side. Harmless in itself; what makes it worth a line is what it is usually chained to. I had
+  `commit && push && pr create && wt_pool release` in one invocation, so the push failed, the PR
+  creation failed with the confusing `No commits between main and port/Foo … Head ref must be a
+  branch`, and the RELEASE still ran — resetting the slot with my only copy of the commit on its
+  detached HEAD.
+  Recovering is easy IF you know the pool shares one object store: `git -C <the slot> reflog` still
+  lists the commit (`HEAD@{1}: commit: port: …`), the object is intact, and
+  `wt_pool.sh acquire-at <that sha>` brings it back — I recovered a full unit + oracle that way,
+  seconds after releasing. RULES: use `HEAD:refs/heads/<branch>` when pushing a NEW branch from a
+  detached HEAD; do not put `release` in the same `&&` chain as a push you have not verified; and if
+  it happens anyway, go to the reflog before re-doing the work.
+
+- **THE BACKTICK-EATING BUG CAN *INJECT* AS WELL AS DELETE, AND `--body-file` DOES NOT SAVE YOU IF
+  THE FILE WAS WRITTEN BY AN UNQUOTED HEREDOC.** #30 records that a backtick inside a double-quoted
+  argument is command-substituted and the span vanishes from the permanent record. Two things it
+  does not say, both of which I did to myself while writing about this very class of bug:
+  * I wrote a review reply into a file with `cat > f <<EOF` (UNQUOTED, because I wanted `$H`
+    interpolated) and escaped most backticks but not all. The corruption happens BEFORE the file
+    exists, so passing that file to `--body-file` — the documented fix — protected nothing.
+  * One of the four eaten spans was `` `git status` ``, and substitution does not just delete: it
+    **inserted several lines of git output into the middle of a sentence**, which posted as prose I
+    appeared to have written. A missing clause is at least visibly odd; injected tool output reads
+    as authorship.
+  RULE: **always `<<'EOF'`** (quoted). If you need a variable such as a head SHA in the body, write
+  the file with the quoted heredoc and substitute afterwards with a separate edit — reaching for an
+  unquoted heredoc to interpolate one value re-arms the whole document. And after posting anything
+  long, read it back (`gh api repos/<slug>/issues/<n>/comments --jq '.[-1].body'`) and count the
+  backticks; I found this by counting, four PRs after I started doing it.
+
+- **`gh api --jq '<a string field>'` PRINTS A BARE STRING, WHICH IS NOT JSON — so a JSON-parsing
+  wrapper reads a perfectly good answer as a failure.** Hit in `swarm_doctor`'s queue-coverage check
+  while reworking #579: the status DESCRIPTION was fetched through a `gh_json()` helper, `json.loads`
+  raised on `regression (rebase needed)`, the helper returned None, and the code treated "could not
+  read" as "empty description" — dropping every rebase candidate and reporting `rebase_claim=0`
+  while the queue was at that moment handing one of those PRs to a worker. The general rule this
+  repo keeps relearning in new places: **an unparseable SUCCESS is not an empty result, and "I could
+  not read this" must never be folded into a data value.** Fetch text as text, and on a genuine
+  failure fail toward NOT accusing.
