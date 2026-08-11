@@ -10,6 +10,13 @@
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetResourceENS_8ResourceE.s (SetResource)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob23SetRenderThreadPriorityENS_20RenderThreadPriorityE.s
 //                                                                       (SetRenderThreadPriority)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE.s
+//                                                                       (SetGPUGraphicsAPI)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob17GetGPUGraphicsAPIEv.s   (GetGPUGraphicsAPI —
+//                                                                       read only to pin the
+//                                                                       +0x64 offset/width; the
+//                                                                       getter itself is a
+//                                                                       separate ledger entry)
 //
 // This file ports ONLY the methods listed under "Symbols ported here" below.
 // HGRenderJob is a large class (fields at offsets 0xc8 and 0xd8 imply at
@@ -59,6 +66,7 @@
 //                             are modelled as boundary stubs; see externs section below.
 //   SetType                 — none.
 //   SetRenderThreadPriority — none.
+//   SetGPUGraphicsAPI       — none.
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -75,6 +83,8 @@
 //       — HGRenderJob::SetResource(HGRenderJob::Resource) @Helium 0x54380
 //   * __ZN11HGRenderJob23SetRenderThreadPriorityENS_20RenderThreadPriorityE
 //       — HGRenderJob::SetRenderThreadPriority(HGRenderJob::RenderThreadPriority) @Helium 0x544b0
+//   * __ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE
+//       — HGRenderJob::SetGPUGraphicsAPI(HGRenderJob::GPUGraphicsAPI) @Helium 0x54490
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — SetUserTag @0x54650
@@ -183,6 +193,18 @@ export type HGRenderJobRenderThreadPriority = number;
 export type HGRenderJobMetalShaderPrecision = number;
 
 /**
+ * HGRenderJob::GPUGraphicsAPI — enum tag stored at +0x64. Values are not yet
+ * enumerated here: `SetGPUGraphicsAPI` @Helium 0x54494 passes `esi` (an unsigned
+ * 32-bit int) straight into the slot with no validation, masking or branching,
+ * and its reader `GetGPUGraphicsAPI` @Helium 0x547f4 hands the same 32 bits back
+ * (`movl 0x64(%rdi), %eax`), so no decoded instruction pins a single enumerator.
+ * That matched 32-bit store/load pair is what fixes both the offset and the
+ * width. Model as an opaque u32 alias until a ctor or a comparison site reveals
+ * the values — same treatment as `HGRenderJobMetalShaderPrecision` above.
+ */
+export type HGRenderJobGPUGraphicsAPI = number;
+
+/**
  * `HGRenderJob` — Helium render job. This file ports the setters listed in
  * "Symbols ported here" (see file header); every other method is a
  * separate ledger entry. Field offsets not yet decoded are omitted; the
@@ -230,6 +252,15 @@ export class HGRenderJob {
    *  which is what fixes both the offset and the width. Zero-initialised to a
    *  neutral tag until a ctor is transcribed to reveal the true default. */
   metalShaderPrecision: HGRenderJobMetalShaderPrecision = 0; // @Helium HGRenderJob@0x88
+
+  /** @Helium HGRenderJob@0x64 — the u32 HGRenderJob::GPUGraphicsAPI enum tag.
+   *  Written by SetGPUGraphicsAPI @0x54494 via a single `movl %esi, 0x64(%rdi)`,
+   *  and read back by GetGPUGraphicsAPI @0x547f4 via `movl 0x64(%rdi), %eax` — a
+   *  matched 32-bit store/load pair, which is what fixes both the offset and the
+   *  width. Confirmed by calling the live pair on a 0xAA-filled buffer: only the
+   *  four bytes at +0x64 change. Zero-initialised to a neutral tag until a ctor is
+   *  transcribed to reveal the true default. */
+  gpuGraphicsAPI: HGRenderJobGPUGraphicsAPI = 0; // @Helium HGRenderJob@0x64
 
   /**
    * `HGRenderJob::SetUserTag(unsigned long long)` @Helium 0x54650
@@ -431,6 +462,46 @@ export class HGRenderJob {
     // @0x544b7..0x544b8 — epilogue + retq.
     // ------------------------------------------------------------
     this.renderThreadPriority = priority >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::SetGPUGraphicsAPI(HGRenderJob::GPUGraphicsAPI)` @Helium 0x54490
+   *   (__ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE)
+   *
+   * Faithful line-for-line transcription of the whole 6-line function: one u32
+   * store into the `gpuGraphicsAPI` slot at `this+0x64`. Structural twin of
+   * `SetRenderThreadPriority` / `SetMetalShaderPrecision` above, a different slot.
+   * No callees, no validation, no branches. From raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob17SetGPUGraphicsAPIENS_14GPUGraphicsAPIE.s:
+   *
+   *   0x54490  pushq %rbp                    ; frame prologue
+   *   0x54491  movq  %rsp, %rbp
+   *   0x54494  movl  %esi, 0x64(%rdi)        ; this->gpuGraphicsAPI (u32) = esi
+   *   0x54497  popq  %rbp                    ; epilogue
+   *   0x54498  retq
+   *   0x54499  nopl  (%rax)                  ; padding
+   *
+   * The offset and width are pinned by the matching reader `GetGPUGraphicsAPI`
+   * @Helium 0x547f4 (`movl 0x64(%rdi), %eax`), and confirmed by DIFFERENTIAL
+   * against the live binary: both symbols are exported (`nm` class T), so calling
+   * the pair through dlsym on a 0x200-byte buffer pre-filled with 0xAA, under
+   * `arch -x86_64` (the port's addresses are x86_64 offsets), gives for each of
+   * 0, 1, 2, 0x12345678, 0x80000000 and 0xffffffff: the four bytes at +0x64 hold
+   * the value, `GetGPUGraphicsAPI` returns it, and EVERY other byte of the buffer
+   * is still 0xAA — i.e. the setter really is this single store and touches
+   * nothing else.
+   *
+   * @param api — HGRenderJob::GPUGraphicsAPI enum value (SysV %esi, u32).
+   */
+  SetGPUGraphicsAPI(api: HGRenderJobGPUGraphicsAPI): void {
+    // ------------------------------------------------------------
+    // @0x54490..0x54491 — prologue (no TS-visible effect).
+    // @0x54494 — movl %esi, 0x64(%rdi) : store u32 at offset +0x64.
+    //   Model 32-bit truncation with `>>> 0` so a negative / oversized
+    //   JS number stores the same bit-pattern the machine would.
+    // @0x54497..0x54498 — epilogue + retq.
+    // ------------------------------------------------------------
+    this.gpuGraphicsAPI = api >>> 0;
   }
 
   /**
