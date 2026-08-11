@@ -30,7 +30,8 @@
 //   raw-port/re/disasm/OZ3DEngineScenePlacementBehavior.targetObject.s  @0x3ca9a0 (non-const)
 //                                                                      @0x3ca9c0 (const overload)
 //   raw-port/re/disasm/OZ3DEngineScenePlacementBehavior.getLockDependencies.s @0x3ca9e0
-//   getLockingID (private, mostly thunk)                                @0x3cab90
+//   getLockingID (private)                                              @0x3cab90
+//   non-virtual thunk to getLockingID (OZLocking subobject at +0x148)   @0x3caba0
 //   operator=(OZBehavior const&)                                        @0x3ca870
 //
 // Vtable installs (from the C2 ctor at 0x3ca266..0x3ca28d — resolved via
@@ -102,6 +103,13 @@ export interface OZ3DEngineScenePlacementBehavior {
   readonly __vtable_head?: unknown;         // +0x000 (vt+0x010) @0x3ca277
   readonly __vtable_10?:   unknown;         // +0x010 (vt+0x2a8) @0x3ca277
   readonly __vtable_28?:   unknown;         // +0x028 (vt+0x500) @0x3ca282
+  // +0x048  int32 lockingID — a field of the OZBehavior base subobject, returned
+  //         verbatim by getLockingID() @0x3cab94 `movl 0x48(%rdi), %eax` and by
+  //         the OZLocking adjustor thunk @0x3caba4 `movl -0x100(%rdi), %eax`
+  //         (entered with %rdi = this + 0x148, so -0x100 lands on this same +0x48).
+  //         Same field/offset as the landed sibling OZAlignToBehavior.lockingID
+  //         (@Ozone 0x4c5c34), which is also an OZBehavior subclass.
+  lockingID: number;                        // +0x048 (int32)
   // +0x030  OZChannelFolder subobject (inside OZBehavior). All 5 channels below
   //         are constructed with `&this+0x30` as their `folder` arg.
   __ozChannelFolder_at_0x30?: unknown;      // +0x030 folder (used by every channel ctor)
@@ -288,12 +296,47 @@ export function OZ3DEngineScenePlacementBehavior_getLockDependencies(
 // ---------------------------------------------------------------------------
 // OZ3DEngineScenePlacementBehavior::getLockingID() const   @0x3cab90  (private)
 // ---------------------------------------------------------------------------
-// Not decoded here — this is an OZLocking virtual overridden via a Thn thunk.
-// Deferred to the OZLocking worker.
+// Full body (raw-port/re/disasm/__ZNK32OZ3DEngineScenePlacementBehavior12getLockingIDEv.s):
+//   00000000003cab90  pushq %rbp
+//   00000000003cab91  movq  %rsp, %rbp
+//   00000000003cab94  movl  0x48(%rdi), %eax     ; return *(int32*)(this + 0x48)
+//   00000000003cab97  popq  %rbp
+//   00000000003cab98  retq
+// Five instructions, no callee, no branch: it returns the int32 at this+0x48.
+// Precedent for the same field at the same offset in a sibling OZBehavior
+// subclass: OZAlignToBehavior.getLockingID @Ozone 0x4c5c34 (`movl 0x48(%rdi),%eax`),
+// landed in raw-port/src/channels/OZAlignToBehavior.ts.
 export function OZ3DEngineScenePlacementBehavior_getLockingID(
-  _self: OZ3DEngineScenePlacementBehavior,
-): unknown {
-  throw new Error("OZ3DEngineScenePlacementBehavior::getLockingID @0x3cab90 not yet transcribed (OZLocking vtable override; wait for OZLocking port)");
+  self: OZ3DEngineScenePlacementBehavior,
+): number {
+  return self.lockingID; // @0x3cab94  movl 0x48(%rdi), %eax
+}
+
+// ---------------------------------------------------------------------------
+// non-virtual thunk to OZ3DEngineScenePlacementBehavior::getLockingID() const
+//   __ZThn328_NK32OZ3DEngineScenePlacementBehavior12getLockingIDEv   @0x3caba0
+// ---------------------------------------------------------------------------
+// Full body (raw-port/re/disasm/__ZThn328_NK32OZ3DEngineScenePlacementBehavior12getLockingIDEv.s):
+//   00000000003caba0  pushq %rbp
+//   00000000003caba1  movq  %rsp, %rbp
+//   00000000003caba4  movl  -0x100(%rdi), %eax   ; return *(int32*)(this - 0x100)
+//   00000000003cabaa  popq  %rbp
+//   00000000003cabab  retq
+// This is the NON-VIRTUAL ADJUSTOR THUNK (Itanium `_ZThn328_`) installed in the
+// secondary vtable of the OZLocking subobject, which the ctor constructs at
+// this+0x148 (= 328 decimal, @0x3ca261, vtable slot @0x3ca28d — see file header).
+// It is entered with %rdi pointing at that OZLocking subobject, i.e.
+// %rdi == (OZ3DEngineScenePlacementBehavior*)this + 0x148, so the load at
+// -0x100(%rdi) reads this + 0x148 - 0x100 = this + 0x48 — EXACTLY the field the
+// primary getLockingID @0x3cab94 returns. The thunk does not re-dispatch (the
+// adjustment is folded into the single load), so the transcription is the
+// pointer adjustment followed by the same read.
+export function OZ3DEngineScenePlacementBehavior_getLockingID__Thn328(
+  selfLocking: OZ3DEngineScenePlacementBehavior, // OZLocking* == &self + 0x148
+): number {
+  // %rdi is the +0x148 OZLocking subobject; -0x100 from it is the owner's +0x48.
+  const self = selfLocking; // the OZLocking subobject's owner (thunk's this-adjust of -0x148)
+  return self.lockingID; // @0x3caba4  movl -0x100(%rdi), %eax  == owner + 0x48
 }
 
 // ---------------------------------------------------------------------------
