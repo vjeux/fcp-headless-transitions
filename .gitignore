@@ -70,3 +70,7 @@ raw-port/.gate.tsbuildinfo
 # GitHub App private keys — real keys live in ~/.fct-pool/ghapp/ (outside the repo);
 # this is a defensive guard so one can never be committed by accident.
 *.pem
+
+# Per-file scan cache (srcsource.FileCache) — content-addressed, regenerable, and it would
+# otherwise churn a multi-MB blob on every reconcile.
+raw-port/army/cache/

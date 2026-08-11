@@ -93,6 +93,25 @@
 //   * __ZN14HGBufferDumperD1Ev
 //       — HGBufferDumper::~HGBufferDumper() [D1] @Helium 0x1c79a0
 //         (byte-identical D2 twin @0x1c7950 — a separate ledger entry)
+//   * __ZN14HGBufferDumper7setPathEPKc
+//       — HGBufferDumper::setPath(char const*) @Helium 0x1c79f0
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM — setPath @0x1c79f0 (13 lines, the entire function)
+// -----------------------------------------------------------------------------
+//   __ZN14HGBufferDumper7setPathEPKc:
+//     0x1c79f0  pushq %rbp / movq %rsp,%rbp / pushq %rbx / pushq %rax
+//     0x1c79f6  movq  %rdi, %rbx              ; rbx = this (survives the call)
+//     0x1c79f9  callq 0x3c4e44                ## std::string::assign(char const*)
+//                                             ; %rdi = this (so the string
+//                                             ; subobject is at +0x00), %rsi =
+//                                             ; the caller's pointer, forwarded
+//     0x1c79fe  movl  $0xffffffff, 0x48(%rbx) ; slot48 = -1 — a FOUR-byte store
+//     0x1c7a05  addq $0x8,%rsp / popq %rbx / popq %rbp / retq
+//
+// The width of that store matters and is easy to get wrong: the ctor @0x1c7943,
+// `reset` @0x1c7b33 and `setLevel` @0x1c7a55 all write the same -1 with a `movq`,
+// which ALSO clears +0x4c; `setPath` uses `movl` and leaves +0x4c alone.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — D1 @0x1c79a0 (24 lines, the entire function)
@@ -174,6 +193,29 @@
  * @0x1c77c0, the C2 ctor @0x1c78f0 and the dtors @0x1c7950 / @0x1c79a0 are each
  * a separate ledger entry and will be ADDED to this file when claimed.
  */
+/**
+ * `std::__1::basic_string<char>::assign(char const*)` — libc++ extern, reached
+ * through the mach-o symbol stub @Helium 0x3c4e44 from the call site @0x1c79f9
+ * in `setPath`.
+ *
+ * A TRUE out-of-scope extern (the C++ standard library, not one of the five
+ * ported frameworks), so per DEP_WORKER_BRIEF it is modelled as a boundary stub.
+ * Its observable contract is "the string object now holds a copy of the
+ * NUL-terminated C string", which a JS string models exactly — the same
+ * treatment `_strdup` gets in the landed HGRenderJob.ts. Whether libc++ keeps
+ * the bytes in the SSO buffer or on the heap is invisible at this boundary (and
+ * it is precisely what the D1 destructor above has to care about).
+ *
+ * @param _self the string subobject being assigned into (%rdi @0x1c79f9 — for
+ *              `setPath` that is `this`, since the string lives at +0x00).
+ * @param s     the NUL-terminated C string (%rsi, forwarded unmodified).
+ * @returns the new value of the string subobject.
+ */
+function std__string_assign(_self: string, s: string): string {
+  // @Helium stub 0x3c4e44 — libc++ basic_string::assign(char const*).
+  return s;
+}
+
 export class HGBufferDumper {
   /**
    * @Helium HGBufferDumper@0x00..0x18 — the output-directory path, a libc++
@@ -357,6 +399,45 @@ export class HGBufferDumper {
     // @0x1c79de/@0x1c79e8 — movq 0x10(%rbx),%rdi ; TAIL jmp operator delete.
     _operator_delete(this.path);
     // @0x1c79ba..@0x1c79c0 — the all-short path falls straight through to retq.
+  }
+
+  /**
+   * `HGBufferDumper::setPath(char const*)` @Helium 0x1c79f0
+   *   (__ZN14HGBufferDumper7setPathEPKc)
+   *
+   * Assigns the C string into the `std::string` at `this+0x00`, then stores -1
+   * into the i32 at `this+0x48`. No branches, no null check, no other state
+   * touched — in particular it does NOT reset `level` (+0x50) and does NOT clear
+   * `slot4c_at_0x4c`, because its store is a 4-byte `movl` where the ctor,
+   * `reset` and `setLevel` use an 8-byte `movq`. See the FULL DISASM block in
+   * the file header.
+   *
+   * That the string subobject is at offset +0x00 is not an assumption: %rdi is
+   * passed to `assign` unchanged @0x1c79f9, so the string IS `this`.
+   *
+   * ORACLE (raw-port/re/oracle/HGBufferDumper_setPath_oracle.py, carried over
+   * from the branch this method was rebased from): 900 calls across paths on
+   * both sides of the libc++ SSO threshold — each time the decoded string equals
+   * the argument, the i32 at +0x48 reads 0xffffffff, the byte at +0x4c STILL
+   * holds its 0xAA poison (which is what proves `movl` and not `movq`), and no
+   * other byte of the object changed. Negative controls (200 cases each):
+   * storing the counter 64-bit like the ctor does -> 200/200 wrong; not touching
+   * the counter -> 200/200 wrong; assigning to a string at +0x18 -> 200/200
+   * wrong.
+   *
+   * @param path the new destination path (%rsi, passed straight to
+   *             `basic_string::assign` @0x1c79f9).
+   */
+  setPath(this: HGBufferDumper, path: string): void {
+    // @0x1c79f0..@0x1c79f6 — prologue; %rbx = this, so the object survives the
+    //   call. No TS-visible effect.
+    // @0x1c79f9 — callq stub 0x3c4e44 : this->path.assign(path).
+    this.path = std__string_assign(this.path, path);
+    // @0x1c79fe — movl $0xffffffff, 0x48(%rbx) : a 32-BIT store of -1. `| 0`
+    //   keeps the value in the int32 domain the slot holds, and using the
+    //   4-byte store is what leaves slot4c_at_0x4c untouched.
+    this.slot48_at_0x48 = 0xffffffff | 0;
+    // @0x1c7a05..@0x1c7a0b — epilogue + retq (void).
   }
 }
 

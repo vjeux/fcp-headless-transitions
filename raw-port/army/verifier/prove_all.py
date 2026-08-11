@@ -56,7 +56,17 @@ def layer2():
     print("LAYER 2c (G5 bare-key guard — right method, not just right class):",
           "PASS" if ok3 else "FAIL")
     if not ok3: print(r3.stdout[-1200:], r3.stderr[-400:])
-    return ok and ok2 and ok3
+    # 2d — the status reconciler's fast path must agree with the reference it replaced. The
+    # depth/enclosing-class test decides whether a throw-only body demotes a unit from `ported` to
+    # `stub`; drift there moves the headline number silently, in the flattering direction. The
+    # batch scanner is 29x faster than the per-def originals, which remain in the tree AS the
+    # reference this compares against.
+    r4 = run([sys.executable, os.path.join(HERE, "test_brace_context.py")])
+    ok4 = "BRACE_CONTEXT: PASS" in r4.stdout
+    print("LAYER 2d (status reconciler brace-context — fast path == reference):",
+          "PASS" if ok4 else "FAIL")
+    if not ok4: print(r4.stdout[-1200:], r4.stderr[-400:])
+    return ok and ok2 and ok3 and ok4
 
 def _reach(spec, expect):
     import tempfile
