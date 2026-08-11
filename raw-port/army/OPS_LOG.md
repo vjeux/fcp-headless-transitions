@@ -1117,6 +1117,72 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   the closest honest thing is `mkdir "$STATE/review_leases/pr-<N>"` before starting), and to stop if
   it is already held.
 
+## Open — reported 2026-08-11 by reviewer 4 (one commit published TWO units; the second was landed under the first's title and its own PR became a dup; NOT fixed — diagnosis only)
+
+- **A worker's port commit swept a DIFFERENT unit's files into itself, so a 618-line AVX kernel
+  landed under a PR titled `port: OZAudioMixer` — and the PR that legitimately owned that kernel
+  became a duplicate two minutes later and was closed.** The claim queue is NOT at fault, which is
+  what makes this worth writing down: `claims.jsonl` has exactly ONE claim for the symbol
+  (`__ZL31Gettype1_half_unpremultTile_AVX…`, ts 1786462614) and **zero** symbols claimed more than
+  once across all 6,692 claims. The dispenser did its job; the commit did not.
+
+  The evidence is one command. PR #531 contains a single port commit, and it carries two units:
+
+      $ git show --stat 06799c92
+      port: OZAudioMixer::getTrackPan(STTrack*, float*) @Ozone 0x21b550
+       raw-port/re/oracle/Gettype1_half_unpremultTile_AVX_driver.ts   |  75 +
+       raw-port/re/oracle/Gettype1_half_unpremultTile_AVX_oracle.py   | 291 +
+       raw-port/re/oracle/OZAudioMixer_getTrackPan_oracle.py          | 154 +
+       raw-port/src/nodes/OZAudioMixer.ts                             | 155 +
+       raw-port/src/render/Gettype1_half_unpremultTile_AVX.ts         | 618 +
+       5 files changed, 1293 insertions(+)
+
+  Timeline: the kernel was claimed at 08:36:54; the OZAudioMixer commit above was written at
+  08:41:23 and swept it up; the kernel's own commit was written at 08:43:26 on
+  `port/Gettype1_half_unpremultTile_AVX` (PR #535). #531 merged first, so by the time #535 was
+  gated its 618 lines were already on main — the two copies differ by **five lines, all of them one
+  comment** — and #535 went from APPROVED to `CONFLICTING` and was closed as a dup.
+
+  COST: one worker run and one full reviewer run (re-derivation of 169 instructions plus a Rosetta
+  oracle) spent on a unit that was already landed, and a second reviewer run on #531 spent reviewing
+  a unit that PR did not claim to contain.
+
+  MECHANISM NOT PINNED, and I am deliberately not guessing — today's CORRECTION entry above is what
+  happens when a plausible cause is published as fact. `wt_pool.sh cmd_acquire` DOES call
+  `reset_clean` (which does `git clean -fdq -- raw-port/src raw-port/re`), so a slot is pristine at
+  lease time; the contamination therefore happened DURING the lease. The two candidates are (a) two
+  agents in one pool slot, or (b) one agent holding two units in one worktree and committing both
+  under the first one's message. Either way the proximate cause is a commit that staged everything
+  present rather than the files of the claimed unit.
+
+  FIX, and it is the same for both candidates and cheap: **before committing, assert that the files
+  you are about to publish are the ones your claim covers.** `pr_submit.sh` already knows the class;
+  `git diff --cached --name-only` (or `--name-only origin/main...HEAD`, the form the CORRECTION
+  above establishes as "what a merge applies") listing a path that does not belong to the claimed
+  unit should be a hard refusal, not a warning. Note that nothing else in the stack can catch this:
+  `gate.sh`/G6 only inspect the file handed to them, `dup_check` passed because at submit time the
+  symbol was genuinely not on main, and both PRs were individually honest and gate-clean. The only
+  reason it was noticed at all is that reviewer-1 spotted the bundling in #531 and reviewed both
+  units separately rather than only the titled one — the right instinct, and the thing that kept an
+  unreviewed 618-line kernel from landing silently.
+
+- **`review_claim.sh` WILL LEASE A REVIEWER THEIR OWN PR — it has no author check at all.** Hit
+  immediately after filing the entry above: my next `review_claim.sh claim` returned
+  `CLAIMED 548`, which is the PR containing this very text. `grep -cE 'author|login|self'` on the
+  tool is **0** — the eligibility filter is purely (gate status, reviewDecision), so authorship never
+  enters into it. I released the lease untouched rather than gating my own work, but nothing in the
+  tool or the brief stops a less suspicious agent from gating it, and the brief's own rule is that a
+  reviewer must not gate their own edits (it is why re-applying methods is worker work).
+  This is now reachable by design rather than by accident: AGENT_ENTRY section 8 tells every agent to
+  add new failure modes to this file, so reviewers author OPS_LOG PRs routinely, and each one goes
+  straight into the pool the same reviewers pull from.
+  FIX: `cmd_claim` should exclude PRs whose author is the claiming identity — and since all slots
+  share one bot identity (#7), "the reviewer app" cannot be distinguished that way; the usable
+  signals are the PR author login (`vjeux` / `vjeux-worker[bot]`) versus who is running, or a
+  marker the authoring agent writes into its own lease dir. Companion to the hand-dispatch gap
+  filed with #528: both are cases where the lease machinery routes a PR to the one agent that
+  should not have it.
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
