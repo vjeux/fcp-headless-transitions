@@ -802,6 +802,81 @@ export class HGNode extends HGObject {
     return masked >>> 2;
   }
 
+  // ---------------------------------------------------------------------------
+  // `DisableInplaceHardwareBlending` @Helium 0x122100 — DECODE NOTES
+  //
+  // The whole body is one byte-wide store:
+  //
+  //   0x122100  pushq %rbp                ; frame setup (no TS counterpart)
+  //   0x122101  movq  %rsp, %rbp          ; frame setup (no TS counterpart)
+  //   0x122104  movb  $0x0, 0x14c(%rdi)   ; this->field_14c = 0  (ONE byte)
+  //   0x12210b  popq  %rbp                ; frame teardown
+  //   0x12210c  retq
+  //   0x12210d  nopl  (%rax)              ; alignment padding, not executed
+  //
+  // WIDTH MATTERS HERE, and the byte encoding is what settles it: the seven
+  // bytes are `c6 87 4c 01 00 00 00` — `c6` is MOV r/m8, imm8 (modrm `87` =
+  // [rdi]+disp32, disp32 `4c 01 00 00` = 0x14c, imm8 `00`), so exactly ONE byte
+  // at +0x14c is written. It is NOT a u32 store: the neighbours are `field_148`
+  // (i32, the ctor writes -1 @0x11bbe3) and `field_150` (u64, @0x11bbf4), and a
+  // 4-byte store here would clobber 0x14d..0x14f. Confirmed live — see ORACLE.
+  //
+  // WHAT +0x14c IS. The landed layout above already records `0x14c: u8` and the
+  // ctor's `movb $0x0, 0x14c(%rbx)` @0x11bbed; this unit is what NAMES it: the
+  // in-place hardware-blending ENABLE FLAG. Its siblings, each its own ledger
+  // unit and NOT ported here, confirm the grouping:
+  //   0x122110  SetInPlaceHardwareBlendingInfo(HGBlendingInfo const&)
+  //             — two `movups` writing 0x150..0x170
+  //   0x122130  GetInPlaceHardwareBlendingInfo() const — `leaq 0x150(%rdi)`
+  //   0x122140  SetInPlaceHardwareBlendingColor(float const vector[4]&)
+  // So the flag at +0x14c gates the blending-info block that starts at +0x150.
+  // The field KEEPS its landed name `field_14c`: renaming a landed declaration
+  // is exactly what G6 add-only forbids, and the meaning belongs in this
+  // comment, not in a rename that would break every other citation of it.
+  //
+  // FRONTIER CALLEES: zero. One store — `depgraph.py deps
+  // __ZN6HGNode30DisableInplaceHardwareBlendingEv` reports nothing (0 in-scope
+  // callees, 0 externs, 0 indirect).
+  //
+  // Source disassembly:
+  //   raw-port/re/disasm/Helium.__ZN6HGNode30DisableInplaceHardwareBlendingEv.s
+  //
+  // ORACLE — verified by CALLING the live function:
+  //   raw-port/re/oracle/HGNode_DisableInplaceHardwareBlending_oracle.py
+  // A MEMORY-EFFECT differential (the body has no return value): poison a
+  // 0x200-byte arena, call the real Helium function, and diff the arena against
+  // what this port's model would have written. Run under
+  // `arch -x86_64 /usr/bin/python3` so the process executes the x86_64 slice
+  // this transcription came from. Results (2026-08-11):
+  //   * dlsym cross-check PASS — the symbol is exported (`nm` `T`), and dlsym
+  //     and `slide + 0x122100` resolve to the SAME address, so the
+  //     address-based call cannot have landed on the neighbour 16 bytes later.
+  //   * byte self-check PASS — `55 48 89 e5 c6 87 4c 01 00 00 00 5d c3`; the
+  //     disp32 reads 0x14c and the imm8 reads 0x00.
+  //   * 64 trials over varying poison fills: 0 divergences, and the set of
+  //     modified bytes is `[0x14c]` in EVERY trial — 511 of 512 bytes untouched.
+  //   * negative controls, all live: store-at-0x148 64/64, store-at-0x150
+  //     64/64, store-1-instead-of-0 64/64, u32-instead-of-u8 64/64,
+  //     do-nothing 64/64.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * `HGNode::DisableInplaceHardwareBlending()` — @Helium 0x122100
+   * (__ZN6HGNode30DisableInplaceHardwareBlendingEv).
+   *
+   * Clears the in-place hardware-blending flag: one byte-wide store of 0 to
+   * `field_14c` (+0x14c). Nothing is read, nothing is returned, and no other
+   * byte of the object is touched (verified live — see the decode notes above).
+   *
+   * Faithful transcription:
+   *   0x122104  movb $0x0, 0x14c(%rdi)
+   */
+  DisableInplaceHardwareBlending(): void {
+    // @Helium 0x122104: movb $0x0, 0x14c(%rdi) — a ONE-byte store of zero into
+    // the u8 at +0x14c; the u64 at +0x150 and the i32 at +0x148 are untouched.
+    this.field_14c = 0;
+  }
+
   // NOTE: the vtable slot *0x78 for HGNode is HGNode::SetInput @0x11c5f0,
   // and *0x80 is HGNode::GetInput @0x11c8b0. Subclasses that inherit
   // HGNode's default behavior get exactly the methods above.
