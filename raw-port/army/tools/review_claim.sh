@@ -56,7 +56,7 @@ cmd_claim () {
   # 2>/dev/null here would have hidden the message. Pipe to real jq when you need arguments.
   rows=$(gh pr list --repo "$SLUG" --state open --limit 100 \
       --json number,headRefOid,statusCheckRollup,reviewDecision \
-      --jq '.[] | {n:.number, sha:.headRefOid, d:(.reviewDecision // ""), s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select(.s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or (.s=="SUCCESS" and .d!="APPROVED" and .d!="CHANGES_REQUESTED")) | "\(.n)\t\(.sha)"' 2>/dev/null)
+      --jq '.[] | {n:.number, sha:.headRefOid, d:(.reviewDecision // ""), s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select(.s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or .s=="FAILURE" or (.s=="SUCCESS" and .d!="APPROVED" and .d!="CHANGES_REQUESTED")) | "\(.n)\t\(.sha)\t\(.s)"' 2>/dev/null)
   [ -z "$rows" ] && { echo "NONE"; return 1; }
   # randomize so parallel reviewers don't collide on the same first row
   rows=$(printf '%s\n' "$rows" | sort -R 2>/dev/null || printf '%s\n' "$rows")
@@ -68,8 +68,46 @@ cmd_claim () {
     echo "review_claim: FCT_AGENT_ID is unset — the self-review skip is INACTIVE for this run" >&2
     echo "              (run: export FCT_AGENT_ID=reviewer-<N>; slot_lock.sh acquire prints it)" >&2
   fi
-  while IFS=$'\t' read -r num sha; do
+  while IFS=$'\t' read -r num sha gate; do
     [ -z "$num" ] && continue
+    # A GATE FAILURE IS USUALLY THE AUTHOR'S PROBLEM — EXCEPT WHEN THE GATE ASKS FOR A REVIEWER.
+    #
+    # G5 flags are NO-DISASM blind spots. The gate cannot clear them itself; it posts FAILURE saying
+    # in so many words "reviewer must re-derive disasm, then rerun --reviewed", and REVIEWER_BRIEF
+    # tells reviewers to do exactly that. But this queue excluded every FAILURE, and rebase_claim
+    # only takes failures whose reason is regression/rebase, and rework_claim only takes
+    # CHANGES_REQUESTED. So a PR the gate had explicitly handed BACK TO A REVIEWER fell into no
+    # queue at all. Measured 2026-08-11 on #645 (`16 G5 flag(s)`, 15 minutes old, reviewDecision
+    # empty): swarm_doctor's queue-coverage check reported it as claimable by nothing, which is the
+    # only reason anyone noticed. The reviewer who ran the gate is supposed to carry straight on to
+    # the re-derivation; when that slot dies mid-unit — and slots die — nothing re-offers the work.
+    #
+    # The reason lives ONLY in the REST status description; GraphQL's statusCheckRollup returns
+    # description: null (verified on all six failing PRs), which is why the rollup query above
+    # cannot make this distinction and rebase_claim does the same second call.
+    if [ "$gate" = "FAILURE" ]; then
+      local gdesc
+      gdesc=$(gh api "repos/$SLUG/commits/$sha/statuses" \
+                --jq '[.[] | select(.context=="faithfulness-gate")] | first | .description' 2>/dev/null)
+      case "$gdesc" in
+        *"G5 flag"*|*"re-derive disasm"*) : ;;   # the gate is asking for a reviewer -> ours
+        ""|null)
+          # `null` is the shape an ANSWERED-BUT-EMPTY query takes: gh --jq prints the four letters
+          # for `[] | first | .description`, so a head with no gate status at all — or a call that
+          # failed after gh had already written its output — arrives here as a string, not as "".
+          # Reading it as a reason would drop the PR into the mechanical branch and skip it in
+          # silence; the test that caught this asserts the diagnostic, not just the direction.
+          # An unanswered query is not evidence — but here the safe direction is to SKIP, not to
+          # offer. Offering on an unknown reason hands reviewers mechanically-failing PRs whose
+          # re-gate produces the same FAILURE, i.e. every reviewer churns the same rows forever.
+          # Skipping costs one poll, and an orphan left by a transport failure is exactly what
+          # swarm_doctor's queue-coverage check is for.
+          echo "review_claim: PR #$num — could not read why its gate failed; skipping this pass" >&2
+          continue ;;
+        *)
+          continue ;;                            # a mechanical failure: the AUTHOR fixes it
+      esac
+    fi
     # Did THIS agent open this PR? (marker written by pr_submit.sh; absent => not mine => proceed)
     if [ -n "${FCT_AGENT_ID:-}" ] && [ -f "$mine_dir/$num" ] \
        && [ "$(cat "$mine_dir/$num" 2>/dev/null)" = "$FCT_AGENT_ID" ]; then
