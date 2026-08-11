@@ -14,6 +14,10 @@ Runs three layers and asserts every fixture verdict:
      class-C (REAL + throw)    -> REJECT_CHEAT
      real-work port            -> LIKELY_REAL
 
+  LAYER 2j — the argv contracts of pr_review.sh / pr_comment_once.sh: an unknown
+     flag must be a usage error, never the review or comment BODY.
+     (2i is main's queue-coverage layer; this one is renumbered around it.)
+
 Exit 0 iff ALL layers pass. This is the gate that MUST pass before any swarm restart.
 """
 import os, sys, subprocess, json
@@ -191,6 +195,89 @@ LAYER2 = [
      "driver timeout — a hang is a kill, not a pending result",
      ["bash", os.path.join(TOOLS, "test_driver_timeout.sh")],
      "test_driver_timeout: PASS"),
+    # 2v — the doctor's verifier-contention counting. The check reports a NUMBER and the number is
+    # the whole message: "8 concurrent prove_all.py runs" is actionable, the naive `pgrep | wc -l`
+    # of the same pile-up says 20 (it counts each run's sh wrapper and its timeout), and "1" while a
+    # run is live is a false all-clear. Offline, driven over the captured `ps` output of the real
+    # incident, with three mutants that must break the cases they cover. ~0.2s.
+    #
+    # LETTER: 2v is the next free one (main holds 2p and 2u; #656 holds 2m-2o, #714 2q, #655 2r,
+    # #651 2s, #696 2t). As a ROW there is no r<N>/ok<N> left to collide — what the table refactor
+    # bought — and check_layer_labels() refuses a duplicate label before any layer runs.
+    ("2v",
+     "verifier contention — the doctor counts RUNS, not the wrappers around them",
+     [sys.executable, os.path.join(TOOLS, "test_verifier_contention.py")],
+     "test_verifier_contention: PASS"),
+    # LETTER: this went out as 2v and is renumbered to 2w because #735 took 2v first —
+    # a collision between two PRs neither of which could see the other's choice, which is
+    # the thing THIS row's check reports. Keeping both rows is the only safe resolution;
+    # taking a side would delete a layer and the suite would still print PASS.
+    # 2w — the doctor's own duplicate-label check, which THIS table's arrival silently retired: its
+    # pattern was `print("LAYER 2<letter>` and it matched nothing here, so `swarm_doctor` reported
+    # `?? layer-letters … not evidence of anything` on every run, permanently, against a main whose
+    # fifteen labels were all distinct. An UNKNOWN that no correct state can clear is a check that
+    # has stopped checking while still occupying a line in the report. The suite feeds the extractor
+    # BOTH shapes plus an unrecognisable one, so the next refactor of this file fails a suite instead
+    # of quietly retiring a guard. Offline — no gh, no network, no pool. ~2s.
+    ("2w",
+     "the doctor can still read this table — a refactor must not silently retire its check",
+     [sys.executable, os.path.join(TOOLS, "test_doctor_layer_labels.py")],
+     "test_doctor_layer_labels: PASS"),
+    # 2t — AND NO QUEUE MAY OFFER SUCH A PR IN THE FIRST PLACE. 2j stops the two tools that would
+    # act wrongly on an off-main PR; this stops the three queues that hand it out. Both halves are
+    # wanted: #650 reached a reviewer's signature and #656 was leased to a WORKER as a rebase task
+    # whose DIRTY was a conflict with a peer branch, and the refusals do not give those slots back.
+    # `check_pr_base` keeps such a PR VISIBLE, which is what makes skipping it safe rather than
+    # stranding (see the note in that check and the ops/ entry). Offline, jq-backed fixtures; the
+    # mutation cases strip the clause from a copy of each tool and require the wrong answer. ~2s.
+    #
+    # LETTER: this block held 2k/r11, then 2t/r21 against the hand-numbered tail; main has since
+    # replaced that tail with this table, which is the real fix for the collision it was renumbered
+    # around twice. As a ROW there is no variable left to share — the failure that made the
+    # renumbering dangerous — and check_layer_labels() refuses a duplicate label before any layer
+    # runs. 2t is kept because it is the label the review of this PR cites.
+    ("2t",
+     "a queue may only offer PRs that can reach main",
+     ["bash", os.path.join(TOOLS, "test_queue_base_main.sh")],
+     "test_queue_base_main: PASS"),
+    # 2q — the two refusals that stand between a rebase tool and a PR's content. Wired in the same
+    # change that adds them (row 44: a guard nothing runs is indistinguishable from no guard). It
+    # exists because on 2026-08-11 rebase_pr.sh force-pushed a branch it had accidentally cut from
+    # main over PR #690, emptying it behind a `REBASE_CLEAN … gate PASS` line. Offline: scratch
+    # repos with a real bare origin, no gh, ~2s. Its suite carries an M0 control, so a mutant that
+    # dies of a broken harness cannot read as a catch.
+    #
+    # LETTER: 2n -> 2q -> a ROW. main replaced the hand-numbered tail with this table while the PR
+    # was open, which retires the r<N>/ok<N> half of the collision entirely — the half that could
+    # turn a RED layer into a PASS by sharing a variable. 2q is kept because it is the label the
+    # review cites; check_layer_labels() refuses a duplicate before any layer runs.
+    ("2q",
+     "publish guard — a push cannot empty a PR or drop its files",
+     ["bash", os.path.join(TOOLS, "test_publish_guard.sh")],
+     "TEST_PUBLISH_GUARD: PASS"),
+    # THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed the
+    # thing they exist to preserve, in the same way, at exit 0, behind a plausible success line: an
+    # unrecognised flag falls through to `BODY="$*"` and is posted AS the record. `pr_review.sh` lost
+    # 11KB of a differential that way (row 43, fixed in #596); `pr_comment_once.sh` was left with the
+    # identical hole and replaced 1,204 bytes of evidence on PR #600 with the 33 characters
+    # "--body-file /tmp/...". `test_pr_review_argv.sh` already existed and NOTHING RAN IT — row 44's
+    # shape sitting on top of this very hazard — so both are wired here, in the change that closes
+    # the second hole. Offline: each drives the real script against a fake `gh`/`gh_as.sh` in a
+    # scratch sandbox, so nothing reaches a live PR and a GitHub 5xx cannot flake the startup gate.
+    # COST measured in a pool worktree under swarm load, not on an idle box: 40.9s + 4.5s.
+    #
+    # TOKEN: "N passed, 0 failed" — the count is in the middle, so the token is the tail. My first
+    # attempt guessed "test_pr_review_argv: 0 failed" and the verification step caught it; a guessed
+    # token that happens not to match makes a real suite look red, and one that matches too loosely
+    # makes a red suite look green.
+    ("2x",
+     "pr_review argv — an unknown flag must not become the review body",
+     ["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")],
+     "passed, 0 failed"),
+    ("2y",
+     "pr_comment_once argv — an unknown flag must not become the comment",
+     ["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")],
+     "passed, 0 failed"),
     ("2z",
      "worktree release ownership — a peer's live slot is never reset",
      ["bash", os.path.join(TOOLS, "test_wt_pool_release_ownership.sh")],

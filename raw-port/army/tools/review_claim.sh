@@ -92,9 +92,15 @@ cmd_claim () {
   # "unknown arguments", exits 0, and writes nothing to stdout, so rows comes back EMPTY and every
   # reviewer polls NONE forever against a non-empty queue. Caught in review before it shipped; the
   # 2>/dev/null here would have hidden the message. Pipe to real jq when you need arguments.
+  # `.baseRefName=="main"` — A VERDICT MUST BE ACTIONABLE, NOT MERELY DESERVED. `gh pr merge`
+  # merges into the PR's BASE, so approving and landing a PR based on a peer's feature branch writes
+  # the content onto that branch (main's protection does not apply to it) and MOVES the peer's head,
+  # which silently stales any CHANGES_REQUESTED standing against it. Live instances: #650 was caught
+  # in review, #656 was handed to a worker by rebase_claim while based on #651's branch. Every queue
+  # answered "does this PR need work?" and none asked "can the work be acted on?".
   rows=$(gh pr list --repo "$SLUG" --state open --limit 100 \
-      --json number,headRefOid,statusCheckRollup,reviewDecision \
-      --jq '.[] | {n:.number, sha:.headRefOid, d:(.reviewDecision // ""), s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select(.s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or .s=="FAILURE" or (.s=="SUCCESS" and .d!="APPROVED" and .d!="CHANGES_REQUESTED")) | "\(.n)\t\(.sha)\t\(.s)"' 2>/dev/null)
+      --json number,headRefOid,statusCheckRollup,reviewDecision,baseRefName \
+      --jq '.[] | select(.baseRefName=="main") | {n:.number, sha:.headRefOid, d:(.reviewDecision // ""), s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select(.s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or .s=="FAILURE" or (.s=="SUCCESS" and .d!="APPROVED" and .d!="CHANGES_REQUESTED")) | "\(.n)\t\(.sha)\t\(.s)"' 2>/dev/null)
   [ -z "$rows" ] && { echo "NONE"; return 1; }
   # randomize so parallel reviewers don't collide on the same first row
   rows=$(printf '%s\n' "$rows" | sort -R 2>/dev/null || printf '%s\n' "$rows")

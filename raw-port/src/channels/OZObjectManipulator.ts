@@ -2,8 +2,10 @@
 //
 // The base class of Ozone's manipulable scene objects — 255 symbols carry its name, and OZScene
 // tracks its instances (`registerObject` @0x576c0, `selectObject` @0x50fd0, and the
-// `list<OZObjectManipulator*>` threaded through the hash/state calls). ONE symbol is transcribed in
-// this file — `prepareForDragOperation(OZPasteList*, OZChannelBase*, unsigned int, unsigned int)`.
+// `list<OZObjectManipulator*>` threaded through the hash/state calls). TWO symbols are transcribed
+// in this file, each from its own claim:
+// `prepareForDragOperation(OZPasteList*, OZChannelBase*, unsigned int, unsigned int)` and
+// `didFinishLoadingIntoMotionEffect()`.
 //
 // Provenance (Ozone framework, x86_64 slice of
 //   /Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/Versions/A/Ozone):
@@ -11,6 +13,8 @@
 //   @0x149bb0  OZObjectManipulator::prepareForDragOperation(OZPasteList*, OZChannelBase*,
 //                                                           unsigned int, unsigned int)
 //                __ZN19OZObjectManipulator23prepareForDragOperationEP11OZPasteListP13OZChannelBasejj
+//   @0xfae40   OZObjectManipulator::didFinishLoadingIntoMotionEffect()
+//                __ZN19OZObjectManipulator32didFinishLoadingIntoMotionEffectEv
 //
 // Disassembly (regenerate with
 //   `bash raw-port/tools/disasm.sh --sym __ZN19OZObjectManipulator23prepareForDragOperationEP11OZPasteListP13OZChannelBasejj Ozone`):
@@ -99,5 +103,69 @@ export class OZObjectManipulator {
   ): boolean {
     // @0x149bb4  movb $0x1,%al — an unconditional true; %al alone is the bool return register.
     return true;
+  }
+
+  /**
+   * `OZObjectManipulator::didFinishLoadingIntoMotionEffect()` — @Ozone 0xfae40
+   *   `__ZN19OZObjectManipulator32didFinishLoadingIntoMotionEffectEv`
+   *
+   * FULL transcription — every instruction, in order:
+   *
+   *   0xfae40  pushq %rbp                   ; frame setup (no TS counterpart)
+   *   0xfae41  movq  %rsp,%rbp              ; frame setup (no TS counterpart)
+   *   0xfae44  popq  %rbp                   ; frame teardown (no TS counterpart)
+   *   0xfae45  retq                         ; return (void)
+   *   0xfae46  nopw  %cs:(%rax,%rax)        ; alignment padding, not executed
+   *
+   * THE BODY IS EMPTY, AND THAT IS THE IMPLEMENTATION. Between the prologue and the epilogue
+   * there is not one instruction: no load, no store, no call, no branch, no immediate, and
+   * `%rdi` is never touched, so `this` is neither read nor written. This is the base class's
+   * do-nothing default for a virtual that subclasses override — the load-completion hook that
+   * a plain manipulator has no work for. Its immediate neighbour
+   * `OZObjectManipulator::didFinishLoadingIntoScene()` @0xfae30 is byte-for-byte the same
+   * six-byte shape (a SEPARATE ledger unit, not ported here); the pair is the two default
+   * load hooks.
+   *
+   * NOT A STUB, AND NOT AN UNDECODED GAP. The distinction matters because an empty TS body is
+   * also what a skipped port looks like, so it is settled against the machine rather than
+   * asserted: subclasses that DO have work emit it here — `OZSceneNode`'s override of this
+   * same virtual @0x961a0 pushes `%r14`/`%rbx`, walks the intrusive lists at `this+0x3e0` and
+   * `this+0x3c8`, and makes a virtual call through `+0x180` (a separate ledger unit, cited as
+   * a control only). If @0xfae40 were a decode failure rather than an empty function, that
+   * sibling would read empty too.
+   *
+   * CALLEES: none — no call, no branch, no extern, no indirect or virtual dispatch
+   * (`depgraph.py deps` lists nothing for this symbol).
+   *
+   * LAYOUT: nothing observable. The body touches no field of `this`, so this unit adds no
+   * instance state to the class (inventing a field here would be invention, not transcription).
+   *
+   * ORACLE (executed against live FCP, not read) — the differential is
+   * `raw-port/re/oracle/OZObjectManipulator_didFinishLoadingIntoMotionEffect_oracle.py`, run
+   * under `arch -x86_64 /usr/bin/python3` (every address here is an x86_64 offset; an arm64
+   * vmaddr would land on another function and fail silently toward VERIFIED). The symbol is
+   * LOCAL (`nm` type `t`), so it is called at `_dyld_get_image_vmaddr_slide(Ozone) + 0xfae40`
+   * with the bytes checked first. "It does nothing" is the one claim an instrument can seem to
+   * confirm while measuring nothing, so each half is paired with a control that fails if the
+   * instrument is blind — and all of them fired:
+   *   * the body reads back as `55 48 89 e5 5d c3`, with a one-byte-off negative control that
+   *     fails as it must;
+   *   * SHAPE CONTROL: `OZSceneNode`'s override @0x961a0, read through the identical path, is
+   *     `55 48 89 e5 41 56 53 …` — a different shape, so "empty" is a fact about this address;
+   *   * WRITES NOTHING: a 0xCD-poisoned 0x100-byte `this` is byte-identical after the call,
+   *     and the MUTATION CONTROL (`pthread_cond_init` over an identical arena) IS reported as
+   *     changed by the same comparison, so the diff can see a write when there is one;
+   *   * READS NOTHING: called with `this` at UNMAPPED 0xdead0000 it returns normally, and the
+   *     FAULT CONTROL — a forked child dereferencing that same address — dies with SIGSEGV, so
+   *     an unmapped read really is fatal here and surviving means no read happened.
+   *
+   * @returns nothing; the C++ return type is `void` (the epilogue defines no register).
+   */
+  didFinishLoadingIntoMotionEffect(): void {
+    // @0xfae40..0xfae41 — prologue (no TS-visible effect).
+    // The function body is empty: there is no instruction between the prologue and the
+    // epilogue, so there is nothing to transcribe here. `this` is not touched.
+    // @0xfae44..0xfae45 — popq %rbp; retq.
+    return; // @Ozone 0xfae45
   }
 }

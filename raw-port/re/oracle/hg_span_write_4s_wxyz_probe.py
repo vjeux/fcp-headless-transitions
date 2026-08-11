@@ -49,7 +49,7 @@ RPATHS = [FCP + "/Frameworks", FCP + "/Frameworks/Flexo.framework/Versions/A/Fra
 
 
 def deps(path):
-    out = subprocess.run(["otool", "-L", path], capture_output=True, text=True, timeout=DRIVER_TIMEOUT).stdout
+    out = subprocess.run(["otool", "-L", path], capture_output=True, text=True).stdout
     return [l.split()[0] for l in out.splitlines()[1:] if l.strip()]
 
 
@@ -199,8 +199,7 @@ DRIVER = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 ts = {}
 if os.path.exists(DRIVER):
     r = subprocess.run(["node", "--experimental-strip-types", DRIVER],
-                       input=json.dumps(CASES), capture_output=True, text=True,
-                       timeout=DRIVER_TIMEOUT)
+                       input=json.dumps(CASES), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if r.returncode != 0:
         check("D the TypeScript port runs", False, (r.stderr or "")[-300:])
     else:

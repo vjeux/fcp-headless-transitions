@@ -127,9 +127,13 @@ cmd_claim () {
   local cand
   # Oldest first: a rejection that has sat longest is the one whose reviewer evidence is most at risk
   # of being re-derived from scratch by somebody else.
+  # `.baseRefName=="main"`: reworking a PR that cannot reach main is not wasted so much as
+  # MISDIRECTED — the fix would land on a peer's branch. Such a PR needs an unstacking decision
+  # (retarget, or land the parent first), which is a human's call, not a worker's. See the same
+  # clause in review_claim.sh.
   cand=$(gh pr list --repo "$SLUG" --state open --limit 200 \
-      --json number,headRefName,headRefOid,reviewDecision,updatedAt \
-      --jq '[.[] | select(.reviewDecision=="CHANGES_REQUESTED")] | sort_by(.updatedAt) | .[]
+      --json number,headRefName,headRefOid,reviewDecision,updatedAt,baseRefName \
+      --jq '[.[] | select(.baseRefName=="main") | select(.reviewDecision=="CHANGES_REQUESTED")] | sort_by(.updatedAt) | .[]
             | "\(.number)\t\(.headRefName)\t\(.headRefOid)"' 2>/dev/null)
   [ -z "$cand" ] && { echo "NONE"; return 1; }
   while IFS=$'\t' read -r num br sha; do

@@ -50,6 +50,31 @@ Ozone/Flexo is ALREADY PORTED: `python3 raw-port/army/tools/depgraph.py deps <ma
 `ported` — import and CALL them. An indirect/virtual call (`callq *off(reg)`) you shouldn't be handed;
 if you see one, STOP that unit and claim the next — do NOT stub it.
 
+**BUT NOT EVERY OUT-OF-SCOPE EXTERN THROWS — and getting this wrong is a rejection, not a nit.**
+The paragraph above says which callees are out of scope. It does not say how to MODEL them, and
+there is a RESOLVED, decisive ruling that splits them in two (it is quoted at length in
+`REVIEWER_BRIEF.md` under "RESOLVED: extern boundary model", which workers are not otherwise sent
+to read — that gap is why this note exists):
+
+- **LIFETIME / OWNERSHIP primitives are a JS NO-OP, never a throw.** `_CFRelease`, `_CFRetain`,
+  `_CGColorSpaceRelease`/`_CGColorSpaceRetain`, `_objc_release`, `_objc_retain` — release-family
+  does nothing (the JS GC owns our surrogate), retain-family returns its argument unchanged. That
+  IS the faithful boundary model for a refcount op, and it is what every landed instance does
+  (`src/channels/OZChannelBase.ts`, `OZChannelInfo.ts`, `FFMediaReaderService.ts`, the whole
+  `PCCFRef_*` family). A reviewer will REJECT a port that throws here, and correctly: your own
+  transcription says the machine releases and carries on, so a throw diverges from the instruction
+  you just wrote down.
+- **VALUE-PRODUCING externs THROW, citing @0xADDR.** `VTDecompressionSessionCreate`,
+  `CFBundleGetBundleWithIdentifier`, `CGColorSpaceCreateWithName`, a value-returning
+  `_objc_msgSend`, `pthread_cond_*` — JS cannot fabricate the value (or the effect) the caller
+  depends on, so an honest citing-throw is required.
+
+The two can sit in ONE function: `CoreMediaMovieReader_Query::newMutableDecompressionSession...`
+@Flexo 0xdee040 calls `VTDecompressionSessionCreate` (throws — it produces the session) and
+`CFRelease` (no-op — it just drops a refcount). Filing both as throws is what got that port
+rejected, and no gate can catch it: the value-producing throw dominates every path to the lifetime
+one, so `reach_check` never reaches the defect.
+
 ### Port loop
 1. `python3 raw-port/army/tools/depgraph.py deps <mangled>` — confirm every dep is `ported`.
 2. `bash raw-port/tools/disasm.sh --sym <mangled> <FW>` — get the exact body.
