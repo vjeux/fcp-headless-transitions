@@ -24,6 +24,7 @@ invalidation logic: different content is a different key, full stop.
 import json
 import os
 import subprocess
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # raw-port/
 REPO = os.path.dirname(ROOT)
@@ -54,6 +55,17 @@ def iter_src(ref=None):
     trying to avoid).
     """
     ref = ref or DEFAULT_REF
+    # A ref that does not resolve falls back to the working tree — but SILENTLY, which reviewer 1
+    # correctly flagged on #506: the defect this module exists to fix is "silently reconciled a stale
+    # tree", and an unresolvable `origin/main` (a fresh clone with no fetch, a renamed remote) would
+    # reintroduce exactly that, reporting a confident count from whatever the tree happened to hold.
+    # The fallback still happens — a reconcile that refuses to run is worse than one that runs on the
+    # tree — but it now says so, on stderr, naming the ref it wanted.
+    if ref != "WORKTREE" and not ref_exists(ref):
+        print(f"srcsource: WARNING — ref {ref!r} does not resolve; falling back to the WORKING TREE, "
+              f"which during a swarm run is stale (that is the bug this default exists to avoid). "
+              f"Run `git fetch origin` first, or pass FCT_SRC_REF=WORKTREE to mean it.",
+              file=sys.stderr)
     if ref == "WORKTREE" or not ref_exists(ref):
         src = os.path.join(ROOT, "src")
         for dirpath, _dirnames, filenames in os.walk(src):
