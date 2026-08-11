@@ -408,6 +408,25 @@ export class OZScene {
   currentTime: CMTime = { value: 0n, timescale: 0, flags: 0, epoch: 0n };
 
   /**
+   * +0x590 — the scene's 32-bit FLAG WORD (a bitset, not a counter).
+   *
+   * Grounded in the three accessors that share this slot, all reading/writing
+   * it 32 bits wide:
+   *   `setFlag(u32)`   @Ozone 0x4d374  `orl  %esi, 0x590(%rdi)`   — set bits
+   *   `resetFlag(u32)` @Ozone 0x4d386  `andl %esi, 0x590(%rdi)`   — clear bits
+   *                                     (after `notl %esi` @0x4d384)
+   *   `testFlag(u32)`  @Ozone 0x582e0  — the const reader of the same word
+   * plus in-place bit edits elsewhere in the class, e.g. `testb $0x10,
+   * 0x590(%rbx)` @Ozone 0x4d489 and `andb $-0x21, 0x590(%rbx)` @Ozone 0x51ff7,
+   * which is what shows the individual bits are independent flags.
+   *
+   * Declared 0 here because this class's constructor is not yet transcribed, so
+   * the slot's real initial value is not known from any decoded instruction;
+   * only the read-modify-write semantics below are ported.
+   */
+  flagsAt590 = 0;
+
+  /**
    * +0x3d0..+0x3df — allSelSentinel : the internal sentinel node of the
    * scene's "all selected" collection. `end_all_sel()` @0x50cc0 takes the
    * ADDRESS of this slot (`addq $0x3d0,%rsi`) as the past-the-end iterator
@@ -1147,9 +1166,45 @@ export class OZScene {
     throw new Error("OZScene::setFlag unimplemented — @Ozone 0x4d370");
   }
 
-  /** OZScene::resetFlag(u32)  @0x4d380 — frontier. */
-  resetFlag(_v: number): void {
-    throw new Error("OZScene::resetFlag unimplemented — @Ozone 0x4d380");
+  /**
+   * `OZScene::resetFlag(unsigned int)` — @Ozone 0x4d380
+   *   __ZN7OZScene9resetFlagEj
+   *
+   * (Was the frontier throw-stub `OZScene::resetFlag(u32)  @0x4d380`; this
+   * change replaces that stub with the transcribed body. The citation is kept
+   * in both the bare `@0x4d380` and the `@Ozone 0x4d380` forms so the landed
+   * address survives the edit.)
+   *
+   * Clears the given bits in the scene's 32-bit flag word at +0x590.
+   *
+   * FULL DISASM (6 lines — raw-port/re/disasm/__ZN7OZScene9resetFlagEj.s):
+   *
+   *   0x4d380  pushq %rbp                 ; prologue
+   *   0x4d381  movq  %rsp, %rbp
+   *   0x4d384  notl  %esi                 ; esi = ~mask            (32-bit)
+   *   0x4d386  andl  %esi, 0x590(%rdi)    ; this->flags &= ~mask   (read-modify-write)
+   *   0x4d38c  popq  %rbp
+   *   0x4d38d  retq
+   *   0x4d38e  nop                        ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * `notl` then `andl` is clear-these-bits, NOT assign: every other bit of
+   *     +0x590 is preserved. The port therefore does `&= ~mask`, not `= ~mask`.
+   *   * Both instructions are 32-bit (`notl`/`andl`), so the mask and the stored
+   *     word are truncated to 32 bits — reproduced with `>>> 0` on the result.
+   *   * The AT&T operand order `andl %esi, 0x590(%rdi)` means DESTINATION is the
+   *     memory operand: the field is the thing modified, the register is the
+   *     source. (Reading it the other way would silently invert this method.)
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch — the exact mirror of `setFlag` @0x4d370, whose one instruction
+   *     is `orl %esi, 0x590(%rdi)` @0x4d374 (that method remains a frontier stub
+   *     and is a separate ledger unit; it is NOT ported by this change).
+   *
+   * @param v the bit mask to CLEAR — %esi, unsigned 32-bit.
+   */
+  resetFlag(v: number): void {
+    // @0x4d384/@0x4d386  notl %esi ; andl %esi, 0x590(%rdi)
+    this.flagsAt590 = (this.flagsAt590 & ~(v >>> 0)) >>> 0;
   }
 
   /** OZScene::addRootNode(OZSceneNode*)  @0x4d390 — frontier. */

@@ -47,7 +47,18 @@ if [ "${1:-}" = "--sym" ]; then
       echo "  Not the method body. nm -n slice or throw-stub @0xADDR." >&2; : > "$OUT"
     fi
   fi
-  if [ ! -s "$OUT" ]; then echo "0-line disasm for [$SYM] (stub/extern/ICF) — throw-stub @0xADDR, do not guess." >&2; exit 2; fi
+  if [ ! -s "$OUT" ]; then
+    # DELETE the empty artifact. Leaving a 0-byte .s on disk is a correctness hazard, not just
+    # untidy: classify_disasm reads it as `EMPTY instrs=0`, which is INDISTINGUISHABLE from a
+    # genuinely empty function body — so a no-op TS port of a REAL function can be accepted as
+    # faithful. reviewer-03 hit this on #276 via a mistyped framework: `disasm.sh --sym <sym>
+    # <wrongFW>` finds nothing, writes the empty file, and every later reader silently believes the
+    # function has no body. Absence of a disassembly must look like an ERROR, never like evidence.
+    rm -f "$OUT"
+    echo "0-line disasm for [$SYM] in $FW (wrong framework? stub/extern/ICF?) — no .s written." >&2
+    echo "  Do NOT treat this as an empty body: verify the framework with \`nm -n\` before porting." >&2
+    exit 2
+  fi
   echo "wrote $OUT ($(wc -l < "$OUT") lines)  [$SYM]"; exit 0
 fi
 CLS="${1:?usage: disasm.sh <Class> [method] [framework]   OR   disasm.sh --sym <mangled> <FW>}"; METH="${2:-parseElement}"; FW="${3:-Ozone}"

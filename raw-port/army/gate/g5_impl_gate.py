@@ -175,8 +175,12 @@ def check_file(path):
         # else class/name/method-derived keys.
         method = name.split("_", 1)[1] if "_" in name else name
         dpath = None
-        # rank cited symbols by whether they mention this method name
-        ranked = sorted(set(symm), key=lambda s: (0 if method.lower() in s.lower() else 1))
+        # rank cited symbols by whether they mention this method name. The tie-break on the symbol
+        # itself is load-bearing: `sorted(set(...))` with an equal key preserves SET iteration order,
+        # which Python randomizes per process (PYTHONHASHSEED) — so which cited symbol's disasm got
+        # classified for a given export changed from gate run to gate run, and with it the verdict.
+        # A verdict must be reproducible; sort fully.
+        ranked = sorted(set(symm), key=lambda s: (0 if method.lower() in s.lower() else 1, s))
         for s in ranked:
             dpath = find_disasm(s)
             if dpath: break
