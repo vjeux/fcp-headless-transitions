@@ -19,6 +19,7 @@ Exit 0 iff ALL layers pass. This is the gate that MUST pass before any swarm res
 import os, sys, subprocess, json
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TOOLS = os.path.join(os.path.dirname(HERE), "tools")
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 
 def run(cmd):
@@ -87,7 +88,18 @@ def layer2():
     print("LAYER 2f (guards — no status override, no head drift, no dirty slot handover):",
           "PASS" if ok6 else "FAIL")
     if not ok6: print(r6.stdout[-1200:], r6.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6
+    # 2g — pr_land's approval CARRY. It decides whether a reviewer's APPROVE survives the head move
+    # that pr_land's own `update-branch` causes, i.e. it is a guard about a MERGE, and its first
+    # version failed OPEN (two unreadable commits hashed to the same empty digest and compared
+    # equal). It shipped with a suite that NOTHING RAN — OPS_LOG row 44's exact shape, and worse
+    # than no test, because pr_land's comment told the next reader the function was pinned. This is
+    # that caller. 1.4s, and every case is mutation-checked inside the suite.
+    r7 = run(["bash", os.path.join(TOOLS, "test_pr_land_carry.sh")])
+    ok7 = "TEST_PR_LAND_CARRY: PASS" in r7.stdout
+    print("LAYER 2g (pr_land approval carry — tree identity, never fail-open):",
+          "PASS" if ok7 else "FAIL")
+    if not ok7: print(r7.stdout[-1200:], r7.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7
 
 def _reach(spec, expect):
     import tempfile
