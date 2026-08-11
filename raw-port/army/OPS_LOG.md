@@ -623,6 +623,67 @@ cost a WRONG REJECT on a correct PR, which is the expensive direction for a revi
 
 ---
 
+## Open — reported 2026-08-11 by worker 8 (scope decisions, BSS data, forwarder families; new)
+
+- **A `b`-class (BSS) table is ALL ZEROES in the file image — transcribing it from the binary on
+  disk silently ships a table of zeros.** Hit on `MXF::MXFAVCPictureDataDecoder::avcCodec`
+  @Flexo 0x1434bc0, whose whole body is a scan of `__ZL11MXFAVCTable` @0x1c921c0. `nm` reports that
+  symbol as class **`b`**, i.e. `__BSS`: the 453 x 0x20 bytes are written by Flexo's static
+  initialisers at load time and do not exist in the file. `disasm.sh`/`otool` show the code that
+  *reads* the table and nothing about its contents, so the failure is quiet in exactly the way the
+  #13 class of bug is — the port would compile, gate green, and answer with the not-found constant
+  for every input. **Check the nm class before transcribing any table** (`grep <sym>
+  army/inventory/<FW>.syms.txt`: `t`/`T` = code, `b`/`s`/`d` = data, and `b` specifically means
+  "not in the file"). To read one: dlopen the framework (Flexo/Ozone need the depth-first `@rpath`
+  preload from the entry below), take `_dyld_get_image_vmaddr_slide`, and `ctypes.string_at(slide +
+  vmaddr, n)` under `arch -x86_64`. **Ground it the way a literal is grounded**: derive the entry
+  count from the loop bound the code itself uses (here the cursor runs 0x1c -> 0x38bc step 0x20 =
+  453), and prove the bytes are stable by hashing the dump in two independent processes with
+  different ASLR slides (identical sha256 = it is the binary's data, not this run's). Worked
+  example, reusable as a template: `raw-port/re/oracle/
+  MXF__MXFAVCPictureDataDecoder_MXFAVCTable_dump.py`.
+
+- **`dyld_info -arch x86_64 -imports /tmp/<FW>.x86_64 | grep <mangled>` names the dylib that
+  DEFINES a stub callee — one command, and it is the fact that decides drop-vs-port.** Every
+  `callq ## symbol stub for: <sym>` is either an in-scope callee you must import and call, or an
+  out-of-scope extern you may throw at, and the inventories cannot tell you which: they list only
+  DEFINED symbols in the five frameworks, so an import comes back absent with no hint where it
+  lives. Two units this shift turned entirely on this answer:
+  `OZShape::addVertex(CMTime,double,double)`, jumped to from `OZRotoshape::addVertex` @Ozone
+  0x5061d0, prints `(from ProShapes)` -> OUT of scope; and `MXF::MXKLV::getItemSimpleType`,
+  `MXF::MXPictureDescriptor::getDisplayFrameHeight`, `CTMRatioIdentical`, all called from
+  `avcCodec` @Flexo 0x1434bc0, print `(from MXFExportSDK)` -> OUT of scope, which is what made that
+  453-entry unit portable instead of blocked. It costs ~0.3s on the thinned slice `/tmp/<FW>.x86_64`
+  that `disasm.sh` has already produced. (Corollary: an FCP framework outside the five — ProShapes,
+  MXFExportSDK, MIO, ... — is out of scope just like libc; it is not "in-scope but unported".)
+
+- **Whole FORWARDER FAMILIES arrive READY and each costs a worker a claim+disasm cycle.** Three
+  `HGGLContext` units in one shift — `getVirtualScreen` @Helium 0x1b3c50, `isAccelerated`
+  @0x1b3be0, `getRegistryID` @0x1b3c60 — are byte-for-byte the same eight-line shape: load the
+  pimpl at `this+0x10`, load its vtable, `jmpq *<slot>(%rax)`. depgraph cannot see through the
+  vtable, so it hands out every one of them as dependency-free, and every one is then parked
+  against the SAME unported class. This is the vtable sibling of the `call_once`/`dispatch_async`
+  blind spot listed below (I also parked `FFVDT_dispatchDeleteIdleCMMRsInFFVDs` @Flexo 0xe347d0,
+  whose real work is the block invoke at 0xe34ed0). Two things help, and neither needs a depgraph
+  fix: (a) `raw-port/army/tools/vtable.py <FW> <Class>` resolves the slot in one call, so record the
+  RESOLVED target in the drop reason and the next worker re-derives nothing; (b) porting the
+  concrete implementation FIRST unblocks the whole family at once — for this one, the twelve
+  `HGGLContextCGL` slot bodies (0x210e0 0x21110 0x21150 0x216e0 0x21770 0x217c0 0x217e0 0x21840
+  0x21850 0x21860 0x21880 0x219b0 0x219d0) release a dozen base methods.
+
+- **A negative control can be EQUIVALENT rather than caught — say so instead of quietly dropping
+  it.** On `FFAudioSourceScope::DifferentFadeInOrOutInfo` @Flexo 0xe6a090 (four `cmpl`s at +0x80,
+  +0x88, +0x84, +0x8c) the mutant "compare the two 64-bit lanes instead of four dwords" scored
+  0/400: those four dwords exactly tile the same 16 bytes, so it is not a wrong model at all. A
+  0/N control means one of two very different things — the harness is blind, or the mutant is
+  equivalent — and only the author can tell them apart at the time. Report which, in the file, next
+  to the numbers. Same shape as the sensitivity trap for CONSTANT functions: a port that always
+  returns 0 cannot be distinguished from a harness that reads no `%rax` at all, so pair it with a
+  control that calls a DIFFERENT function known to return non-zero through the SAME `CFUNCTYPE`
+  (I used `HGRenderJob::GetUserName` @Helium 0x54820 while oracling a `xorl %eax,%eax` body).
+
+---
+
 ## Open — reported 2026-08-10 by worker 1 (oracle reachability; new)
 
 - **THE ROSETTA WORKAROUND FOR THE ARCHITECTURE BUG IS INCOMPLETE, AND THE INCOMPLETE HALF IS
