@@ -403,23 +403,63 @@ export class HGBMDFilmGen5LinearizationLUTInfo {
 
   /**
    * ~HGBMDFilmGen5LinearizationLUTInfo()  — D1 (in-place) destructor.
-   * @Helium __ZN33HGBMDFilmGen5LinearizationLUTInfoD1Ev (address per symbol map).
+   *   @Helium 0x115ab0 (__ZN33HGBMDFilmGen5LinearizationLUTInfoD1Ev)
    *
-   * Trivial (no derived-class ownership); in TS with GC this is a no-op. Kept as ABI shape.
+   * The address is now RESOLVED (it was "per symbol map" here before) and the
+   * body re-derived from the binary — it is genuinely EMPTY:
+   *
+   *   0x115ab0  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x115ab1  movq  %rsp, %rbp
+   *   0x115ab4  popq  %rbp
+   *   0x115ab5  retq
+   *   0x115ab6  nopw  %cs:(%rax,%rax)      ; padding, not executed
+   *
+   * No member teardown, no callee, no store — the class owns nothing that needs
+   * releasing. Verified on the live function: called on 64 poisoned heap blocks
+   * it modified ZERO bytes (64/64). In TS with GC this is a no-op, and that is
+   * the faithful reading rather than an assumption.
    */
   destruct_D1(): void {
-    // no-op
+    // @0x115ab4/@0x115ab5 — popq %rbp ; retq. The whole body: nothing happens.
   }
 
   /**
    * ~HGBMDFilmGen5LinearizationLUTInfo()  — D0 (deleting) destructor.
-   * @Helium __ZN33HGBMDFilmGen5LinearizationLUTInfoD0Ev.
+   *   @Helium 0x115ac0 (__ZN33HGBMDFilmGen5LinearizationLUTInfoD0Ev)
    *
-   * Standard tail-call to operator delete after in-place teardown. In TS with GC this is a
-   * no-op. Kept as ABI shape.
+   * The address is now RESOLVED and the body re-derived:
+   *
+   *   0x115ac0  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x115ac1  movq  %rsp, %rbp
+   *   0x115ac4  popq  %rbp                 ; frame torn down BEFORE the jump —
+   *                                        ; the mark of a tail call
+   *   0x115ac5  jmp   0x3c4fa0             ## symbol stub for: __ZdlPv
+   *                                        ; = operator delete(void*), %rdi
+   *                                        ; still holding `this`
+   *   0x115aca  nopw  (%rax,%rax)          ; padding, not executed
+   *
+   * Per the Itanium C++ ABI a D0 is "run D1, then operator delete the storage".
+   * Here the D1 half has been optimised away entirely — not omitted by the
+   * disassembler — because D1 @0x115ab0 is empty (see above), so the entire
+   * observable effect is the deallocation. `operator delete` is a libc++ runtime
+   * extern, OUTSIDE the five in-scope frameworks, so per DEP_WORKER_BRIEF it is
+   * modelled as the boundary stub `_operator_delete` below rather than
+   * transcribed.
+   *
+   * ORACLE (raw-port/re/oracle/HGBMDFilmGen5LinearizationLUTInfo_D0_oracle.py):
+   * both symbols are LOCAL (`nm` type `t`), unreachable by dlsym, so they are
+   * called at `dyld slide + vmaddr` through ozone_loader.py under
+   * `arch -x86_64`. Over 64 malloc'd 0xA5-poisoned blocks: D1 changed no byte
+   * (64/64), and after D0 `malloc_size(p)` was 0 in 64/64 while a control block
+   * never passed to D0 still reported a non-zero size. (Allocator address REUSE
+   * is measured by no verdict anywhere in this repo — it is run-dependent; see
+   * OPS_LOG.)
    */
   destruct_D0(): void {
-    // Tail-call operator delete → no-op under GC.
+    // @0x115ac4/@0x115ac5 — popq %rbp ; jmp __ZdlPv : tail-call
+    //   operator delete(this). No member teardown precedes it (D1 @0x115ab0 is
+    //   empty), and the argument is the unmodified `this` from %rdi.
+    _operator_delete(this);
   }
 
   /**
@@ -464,3 +504,17 @@ export class HGBMDFilmGen5LinearizationLUTInfo {
  * @Helium 0x9085ec  (ctor `leaq 0x9085ec(%rip), %rax`)
  */
 export const HGBMDFilmGen5LinearizationLUTInfo_vtable_addr = "@Helium 0x9085ec" as const;
+
+/**
+ * libc++ `void operator delete(void *ptr)` — reached through the mach-o symbol
+ * stub at @Helium 0x3c4fa0; the call site is the tail `jmp` @0x115ac5 in the D0
+ * destructor. A C++ runtime extern, outside the five in-scope frameworks, so it
+ * is modelled as a boundary stub: JS objects are garbage-collected, and the
+ * machine's only guarantee is that the storage is released and must not be
+ * dereferenced again. Kept as a named function so the call site's provenance
+ * survives in the port.
+ */
+function _operator_delete(_ptr: HGBMDFilmGen5LinearizationLUTInfo): void {
+  // @Helium 0x3c4fa0 (symbol stub for: __ZdlPv) — libc++ extern, no-op in JS.
+  void _ptr;
+}

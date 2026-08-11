@@ -215,3 +215,48 @@ export function HGTexturePoolHandleImpl_end(
     elementPtr: { block, byteOffset: Number(offset) },
   };
 }
+
+/**
+ * `HGTexturePoolHandleImpl::empty()` — @Helium 0x0000000000044060
+ *   `__ZN23HGTexturePoolHandleImpl5emptyEv`  (file-local, `nm` class `t`)
+ *
+ * FULL DISASM (the entire function, 0x44060..0x44071):
+ *
+ *   0x44060  pushq %rbp                ; frame prologue
+ *   0x44061  movq  %rsp, %rbp
+ *   0x44064  movq  0x18(%rdi), %rax    ; rax = this->owner            (+0x18)
+ *   0x44068  cmpq  $0x0, 0x78(%rax)    ; AT&T: flags = owner[+0x78] - 0
+ *   0x4406d  sete  %al                 ; al = (owner[+0x78] == 0)
+ *   0x44070  popq  %rbp
+ *   0x44071  retq
+ *   0x44072  nopw  %cs:(%rax,%rax)     ; padding to the 0x44080 boundary where
+ *                                      ; HGTexturePoolHandleImpl::size() begins
+ *
+ * Note what is NOT there: no null check on `this->owner`, and — importantly for
+ * anyone reading the `end()` transcription above — **only +0x78 is consulted**.
+ * The immediate sibling `HGTexturePoolHandleImpl::size()` @0x44080 is
+ * `movq 0x18(%rdi),%rax ; movq 0x78(%rax),%rax ; retq`, i.e. it returns that
+ * same qword and nothing else, so +0x78 IS the container's element count on its
+ * own. (`end()` @0x440e0 additionally reads +0x70, which `begin()` @0x44090
+ * shows being magic-divided by 42 — the libc++ deque start offset — so the two
+ * fields play different roles. This unit does not change `end()`; the
+ * observation is recorded here because the +0x78 doc comment above predates it.)
+ *
+ * `sete` writes only %al, the low byte, which is exactly the C++ `bool` ABI.
+ *
+ * ORACLE: raw-port/re/oracle/HGTexturePoolHandleImpl_empty_oracle.py — the live
+ * Helium symbol is called (it is local, so at dyld slide + 0x44060) on real
+ * poisoned arenas, over a sweep of counts, with the +0x78 offset probed for
+ * sensitivity and its neighbours probed for INsensitivity, so a port reading the
+ * wrong field could not pass.
+ *
+ * @param impl the `this` pointer (%rdi)
+ * @returns `true` when the owner's +0x78 element count is zero
+ */
+export function HGTexturePoolHandleImpl_empty(impl: HGTexturePoolHandleImpl): boolean {
+  // 0x44064: rax = this->owner (+0x18). The binary dereferences it with no null
+  // check, so a null owner faults there; TS raises here for the same reason.
+  const owner: HGTexturePoolHandleImpl_Owner = impl.owner;
+  // 0x44068/0x4406d: sete on `owner[+0x78] == 0`.
+  return owner.countB === 0n;
+}

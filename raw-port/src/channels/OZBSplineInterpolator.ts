@@ -8,8 +8,9 @@
 //   - the vector-math method that only depends on the NURB dot product / RIP-constants:
 //       (none currently — evalBSplineNURB itself calls generateRationalBasisFunctions which is
 //        undecoded here; we transcribe evalBSplineNURB's control flow and stub the callee).
+//   - operator== @0x41bc0 (pure field/vector comparison; no callees at all — see its own header)
 // Everything else (init/interpolate/knot-vector generators/rational-basis/fillTempArrays/adjusted
-// Min/Max U/ctors/dtors/operator=/operator==) currently touches undecoded callees (OZSpline
+// Min/Max U/ctors/dtors/operator=) currently touches undecoded callees (OZSpline
 // virtual vtables, std::vector<double>::push_back, OZFigTimeForChannelSeconds, CMTime helpers,
 // getVertexInputHandles/getValueV vtable slots, OZBezierInterpolator::computeTangents-style
 // spline-neighbor lookups). Per PORTING_SPEC Rule 3, each such method is a stub whose error
@@ -213,11 +214,138 @@ export function operatorAssign(): void {
   );
 }
 
-/** OZBSplineInterpolator::operator==(OZBSplineInterpolator const&)  @ProChannel 0x41bc0. */
-export function operatorEquals(): boolean {
-  throw new Error(
-    "OZBSplineInterpolator::operator==(const&) @ProChannel 0x41bc0 not yet transcribed.",
-  );
+// ────────────────────────────────────────────────────────────────────────────────────────
+// OZBSplineInterpolator::operator==(OZBSplineInterpolator const&)  @ProChannel 0x41bc0
+// ────────────────────────────────────────────────────────────────────────────────────────
+// Faithful transcription of the 96-line body at raw-port/re/disasm/
+//   ProChannel.__ZN21OZBSplineInterpolatoreqERKS_.s   (regenerated from the binary in-worktree)
+//
+// The body is a straight-line chain of five equality tests over the member fields already
+// mapped by this file's other transcriptions. It reads NOTHING but scalars and the
+// begin/end pointer pairs of four std::vector<double>s, and calls nothing at all (no callees,
+// no vtable slots) — the whole function is `cmp`/`ucomisd` and pointer arithmetic.
+//
+// Full disassembly:
+//   0x41bc0  movl 0x70(%rdi), %eax          ; eax = this->order            (u32 @+0x70)
+//   0x41bc3  cmpl 0x70(%rsi), %eax          ; flags <- this.order - rhs.order
+//   0x41bc6  jne  0x41c0d                   ; orders differ -> return 0
+//   0x41bc8  movq 0x40(%rdi), %rax          ; rax = this->knots.begin      (@+0x40)
+//   0x41bcc  movq 0x48(%rdi), %rcx          ; rcx = this->knots.end        (@+0x48)
+//   0x41bd0  movq %rcx, %r8
+//   0x41bd3  subq %rax, %r8                 ; r8  = this->knots byte-size
+//   0x41bd6  movq 0x40(%rsi), %rdx          ; rdx = rhs->knots.begin
+//   0x41bda  movq 0x48(%rsi), %r9           ; r9  = rhs->knots.end
+//   0x41bde  subq %rdx, %r9                 ; r9  = rhs->knots byte-size
+//   0x41be1  cmpq %r9, %r8
+//   0x41be4  jne  0x41c0d                   ; different knot counts -> return 0
+//   0x41be6  pushq %rbp ; movq %rsp,%rbp    ; (frame set up only past the two early exits)
+//   0x41bea  cmpq %rcx, %rax                ; loop head: begin == end ?
+//   0x41bed  je   0x41c10                   ; knots exhausted -> next field
+//   0x41bef  movsd (%rax), %xmm0            ; xmm0 = this->knots[i]
+//   0x41bf3  ucomisd (%rdx), %xmm0          ; flags <- this.knots[i] - rhs.knots[i]
+//   0x41bf7  jne  0x41cf2                   ; ZF=0  (different)     -> return 0
+//   0x41bfd  jp   0x41cf2                   ; PF=1  (unordered/NaN) -> return 0
+//   0x41c03  addq $0x8, %rax ; addq $0x8,%rdx ; jmp 0x41bea
+//   0x41c0d  xorl %eax, %eax ; retq         ; early "false" (no frame to pop)
+//   0x41c10  movq 0x58(%rdi), %rax          ; this->basis.begin            (@+0x58)
+//   0x41c14  movq 0x60(%rdi), %rcx          ; this->basis.end              (@+0x60)
+//   0x41c18..0x41c2c                        ; same byte-size compare vs rhs basis -> 0x41cf2
+//   0x41c32..0x41c53                        ; same element-wise ucomisd loop over basis
+//   0x41c55  movl 0x20(%rdi), %eax          ; eax = this->count            (u32 @+0x20)
+//   0x41c58  cmpl 0x20(%rsi), %eax
+//   0x41c5b  jne  0x41cf2                   ; counts differ -> return 0
+//   0x41c61  movq 0x28(%rdi), %rax          ; this->weights.begin          (@+0x28)
+//   0x41c65  movq 0x30(%rdi), %rcx          ; this->weights.end            (@+0x30)
+//   0x41c69..0x41c7d                        ; byte-size compare vs rhs weights -> 0x41cf2
+//   0x41c7f..0x41c98                        ; element-wise ucomisd loop over weights
+//   0x41c9a  movq 0x08(%rdi), %rdx          ; this->values.begin           (@+0x08)
+//   0x41c9e  movq 0x10(%rdi), %rcx          ; this->values.end             (@+0x10)
+//   0x41ca2..0x41cb6                        ; byte-size compare vs rhs values -> 0x41cf2
+//   0x41cb8  cmpq %rcx, %rdx
+//   0x41cbb  je   0x41cf6                   ; EMPTY values vector -> movb $1,%al -> return TRUE
+//   0x41cbd  addq $0x8, %rdx                ; pre-increment; element read is at -0x8(%rdx)
+//   0x41cc1  movsd -0x8(%rdx), %xmm0        ; xmm0 = this->values[i]
+//   0x41cc6  movsd (%rdi), %xmm1            ; xmm1 = rhs->values[i]
+//   0x41cca  movapd %xmm0, %xmm2
+//   0x41cce  cmpeqsd %xmm1, %xmm2           ; xmm2 = (this==rhs) ? all-ones : 0   (ordered EQ)
+//   0x41cd3  movq %xmm2, %rax
+//   0x41cd8  andl $0x1, %eax                ; eax = 1 when equal, 0 when different/NaN
+//   0x41cdb  ucomisd %xmm1, %xmm0
+//   0x41cdf  jne  0x41cf4                   ; different -> return eax (which cmpeqsd made 0)
+//   0x41ce1  jp   0x41cf4                   ; unordered/NaN -> return eax (0)
+//   0x41ce3  addq $0x8, %rdi
+//   0x41ce7  cmpq %rcx, %rdx ; leaq 0x8(%rdx),%rdx ; jne 0x41cc1   ; loop while not at end
+//   0x41cf0  jmp  0x41cf4                   ; ran to completion -> return eax (last cmpeqsd = 1)
+//   0x41cf2  xorl %eax, %eax                ; "false" past the frame setup
+//   0x41cf4  popq %rbp ; retq
+//   0x41cf6  movb $0x1, %al ; jmp 0x41cf4   ; empty values vector -> true
+//
+// Notes on the decode:
+//  * Compared fields and their ORDER: order(+0x70), knots(+0x40/+0x48), basis(+0x58/+0x60),
+//    count(+0x20), weights(+0x28/+0x30), values(+0x08/+0x10). Nothing else in the object is
+//    looked at (the vtable pointer at +0x00 and the fields past +0x70 are not compared).
+//  * Each vector test is (a) byte-size equality, `(end-begin)` on both sides — for a
+//    vector<double> that is exactly `length * 8`, so it is a length compare — then (b) an
+//    element-wise `ucomisd` walk. This port models each vector as its TS array, so `.length`
+//    IS the (end-begin)/8 the machine computes.
+//  * NaN: every element compare is `ucomisd` + `jne` + `jp`, i.e. "not equal OR unordered =>
+//    return false". JS `!==` has exactly that behaviour (NaN !== NaN is true), and `===`
+//    likewise treats +0.0 and -0.0 as equal, which is what `ucomisd` does. So a plain
+//    `!==` is the faithful transcription of the jne/jp pair, not a simplification.
+//  * The final (values) loop computes its result with `cmpeqsd`+`andl $1` rather than a
+//    constant, but the value is identical: 0 on the mismatch exit, 1 after the last equal
+//    element. The `je 0x41cf6` head-of-loop case returns an explicit 1 for an empty vector.
+//  * The first two exits (order mismatch @0x41bc6, knot-count mismatch @0x41be4) `retq`
+//    BEFORE `pushq %rbp` — they are plain "return false", not a different result.
+//
+// ORACLE (differential vs the live binary, run under Rosetta so dlopen maps the x86_64 slice
+// these addresses come from): raw-port/re/oracle/OZBSplineInterpolator_operatorEquals_oracle.py
+// builds two 0x78-byte objects with real double buffers hung off the six offsets above, calls
+// `_ZN21OZBSplineInterpolatoreqERKS_` in ProChannel via dlsym, and compares to this TS body.
+export function operatorEquals(
+  a: OZBSplineInterpolatorState,
+  b: OZBSplineInterpolatorState,
+): boolean {
+  // order (+0x70, u32)                                        @0x41bc0..0x41bc6
+  if ((a.order | 0) !== (b.order | 0)) return false;           // @0x41bc6 jne -> 0x41c0d (0)
+
+  // knots (+0x40 begin / +0x48 end)                           @0x41bc8..0x41c0b
+  const aKnots = a.knots;
+  const bKnots = b.knots;
+  if (aKnots.length !== bKnots.length) return false;           // @0x41be1/0x41be4 size compare
+  for (let i = 0; i < aKnots.length; i++) {                    // @0x41bea..0x41c0b
+    if (aKnots[i] !== bKnots[i]) return false;                 // @0x41bf3 ucomisd / jne / jp
+  }
+
+  // basis (+0x58 begin / +0x60 end)                           @0x41c10..0x41c53
+  const aBasis = a.basis;
+  const bBasis = b.basis;
+  if (aBasis.length !== bBasis.length) return false;           // @0x41c29/0x41c2c size compare
+  for (let i = 0; i < aBasis.length; i++) {                    // @0x41c32..0x41c53
+    if (aBasis[i] !== bBasis[i]) return false;                 // @0x41c3b ucomisd / jne / jp
+  }
+
+  // count (+0x20, u32)                                        @0x41c55..0x41c5b
+  if ((a.count | 0) !== (b.count | 0)) return false;           // @0x41c5b jne -> 0x41cf2 (0)
+
+  // weights (+0x28 begin / +0x30 end)                         @0x41c61..0x41c98
+  const aWeights = a.weights;
+  const bWeights = b.weights;
+  if (aWeights.length !== bWeights.length) return false;       // @0x41c7a/0x41c7d size compare
+  for (let i = 0; i < aWeights.length; i++) {                  // @0x41c7f..0x41c98
+    if (aWeights[i] !== bWeights[i]) return false;             // @0x41c88 ucomisd / jne / jp
+  }
+
+  // values (+0x08 begin / +0x10 end)                          @0x41c9a..0x41cf6
+  const aValues = a.values;
+  const bValues = b.values;
+  if (aValues.length !== bValues.length) return false;         // @0x41cb3/0x41cb6 size compare
+  if (aValues.length === 0) return true;                       // @0x41cbb je -> 0x41cf6 (movb $1)
+  for (let i = 0; i < aValues.length; i++) {                   // @0x41cc1..0x41cee
+    // cmpeqsd/andl computes the return value; ucomisd+jne/jp exits with it on a mismatch.
+    if (aValues[i] !== bValues[i]) return false;               // @0x41cdb / 0x41cdf / 0x41ce1
+  }
+  return true;                                                 // @0x41cf0: eax = last cmpeqsd = 1
 }
 
 // ────────────────────────────────────────────────────────────────────────────────────────

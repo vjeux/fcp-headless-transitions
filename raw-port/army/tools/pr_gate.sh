@@ -67,7 +67,11 @@ WT="$(bash "$CANON/raw-port/army/tools/wt_pool.sh" acquire-at "$HEAD_SHA")"
 # ("all 16 warm-pool worktrees were leased by other agents for ~10 minutes straight, which makes
 # gating and therefore merging impossible"). The protection is right for a worker's port; a gate
 # checkout has nothing to protect.
-cleanup () { bash "$CANON/raw-port/army/tools/wt_pool.sh" release "$WT" --force >/dev/null 2>&1; }
+# Pass the tag we leased. This trap can fire LATE — after a slow gate, a kill, or a context cut —
+# by which time the slot may already belong to a worker, and a bare --force release would reset
+# THEIR tree and delete their uncommitted port (seen 2026-08-11 on slot 2). With the tag, wt_pool
+# refuses the release when the lease is no longer ours.
+cleanup () { bash "$CANON/raw-port/army/tools/wt_pool.sh" release "$WT" --force "gate/$HEAD_SHA" >/dev/null 2>&1; }
 trap cleanup EXIT
 cd "$WT"
 for d in raw-port/node_modules venv; do ln -sfn "$CANON/$d" "$d" 2>/dev/null || true; done

@@ -16,7 +16,7 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-30T07:25:18Z"
+      "swept": "2026-08-11T07:34:07Z"
     },
     "curve.interp.bezier.eval": {
       "id": "curve.interp.bezier.eval",
@@ -34,7 +34,7 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-29T08:36:20Z"
+      "swept": "2026-08-11T07:34:06Z"
     },
     "curve.interp.bezier.findparam": {
       "id": "curve.interp.bezier.findparam",
@@ -60,7 +60,7 @@
       "n_failures": 0,
       "tol_abs": 1e-06,
       "tol_rel": 1e-06,
-      "swept": "2026-07-29T08:36:20Z"
+      "swept": "2026-08-11T07:34:06Z"
     },
     "filter.PAEBrightness": {
       "id": "filter.PAEBrightness",
@@ -3828,8 +3828,23 @@
       "id": "curve.interp.ease",
       "status": "VERIFIED",
       "at": "2026-07-30T07:25:18Z"
+    },
+    {
+      "id": "curve.interp.bezier.eval",
+      "status": "VERIFIED",
+      "at": "2026-08-11T07:34:06Z"
+    },
+    {
+      "id": "curve.interp.bezier.findparam",
+      "status": "VERIFIED",
+      "at": "2026-08-11T07:34:06Z"
+    },
+    {
+      "id": "curve.interp.ease",
+      "status": "VERIFIED",
+      "at": "2026-08-11T07:34:07Z"
     }
   ],
   "started": "2026-07-22T10:26:26Z",
-  "updated": "2026-07-30T07:25:18Z"
+  "updated": "2026-08-11T07:34:07Z"
 }

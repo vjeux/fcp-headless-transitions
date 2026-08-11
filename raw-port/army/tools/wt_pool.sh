@@ -26,7 +26,12 @@
 set -uo pipefail
 CANON="$HOME/random/final-cut-pro-transitions"
 POOL="$HOME/.fct-pool"; WTDIR="$POOL/wt"; LEASES="$POOL/leases"
-NPOOL="${WT_POOL_SIZE:-16}"; WAIT="${WT_POOL_WAIT:-120}"
+# Pool sized ABOVE the agent count on purpose. HARNESS_LOOP invariant 4 caps concurrency at the pool
+# size, and running N agents against exactly N slots means every reviewer gate run competes with a
+# worker for the last slot — the POOL_FULL stall that halted gating in OPS_LOG #12. Reviewers hold a
+# lease per pr_gate AND per oracle differential, so the real demand is above one slot per agent.
+# 24 slots for 16 agents costs ~440MB of disk (160GB free) and removes the contention entirely.
+NPOOL="${WT_POOL_SIZE:-24}"; WAIT="${WT_POOL_WAIT:-120}"
 mkdir -p "$WTDIR" "$LEASES"
 touch "$POOL/.metadata_never_index" 2>/dev/null
 
@@ -37,6 +42,22 @@ link_deps () {
   for d in raw-port/node_modules venv; do
     [ -e "$CANON/$d" ] && ln -sfn "$CANON/$d" "$wt/$d" 2>/dev/null
   done
+  # The symbol inventory (army/inventory/<FW>.syms.txt) is gitignored regenerable state, so a
+  # worktree gets an EMPTY inventory dir — and the mandated fast path ("grep the cache, never nm the
+  # 78MB framework binary", OPS_LOG #22) then dies with FileNotFoundError right where every agent
+  # works. Agents that hit that fall back to nm, which is the multi-minute core-hog the cache exists
+  # to avoid: the guidance and the filesystem disagreed, and the filesystem won. Symlink the canonical
+  # copies in, per file rather than by directory: a per-directory `ln -sfn` onto an existing real dir
+  # silently nests the link INSIDE it, which is the trap this avoids. Note `ln -sfn` DOES replace a
+  # real file a worktree generated for itself — verified, not assumed — and that is the behaviour we
+  # want: the canonical inventory is the complete 5-framework set, while an ad-hoc local slice is
+  # whatever one agent happened to need.
+  if [ -d "$CANON/raw-port/army/inventory" ]; then
+    mkdir -p "$wt/raw-port/army/inventory" 2>/dev/null
+    for f in "$CANON"/raw-port/army/inventory/*.syms.txt; do
+      [ -e "$f" ] && ln -sfn "$f" "$wt/raw-port/army/inventory/$(basename "$f")" 2>/dev/null
+    done
+  fi
 }
 
 make_wt () { # create pool worktree #N if missing; echo its path
@@ -58,10 +79,26 @@ wt_has_work () {
   # tsgo cache (raw-port/.gate.tsbuildinfo) whenever the leased branch predates the .gitignore entry
   # for it — so release saw "live work", refused, and the slot LEAKED FOREVER (worker-02 had to
   # reset --hard by hand). A build cache is not work; src and re/ are.
-  [ -n "$(git -C "$wt" status --porcelain -- raw-port/src raw-port/re 2>/dev/null)" ] && return 0
-  # HEAD reachable from some origin/* ref => pushed => nothing to lose
-  if [ -n "$(git -C "$wt" rev-list -n1 origin/main..HEAD 2>/dev/null)" ]; then
-    [ -z "$(git -C "$wt" branch -r --contains HEAD 2>/dev/null)" ] && return 0
+  # EXCLUDE the regenerable disasm cache. raw-port/re/disasm/*.s is a gitignored, sub-second-
+  # regenerable artifact — and running an oracle differential (exactly what the reviewer brief asks
+  # for) deletes and rewrites those files. Counting them as "live work" made release refuse, so every
+  # hand-leased reviewer worktree LEAKED its slot: the more reviewers did the highest-value work, the
+  # faster the pool drifted back toward the POOL_FULL deadlock of #12. #258 force-released pr_gate's
+  # lease but not a reviewer's. Real work is source; a cache is not.
+  [ -n "$(git -C "$wt" status --porcelain -- raw-port/src 2>/dev/null)" ] && return 0
+  [ -n "$(git -C "$wt" status --porcelain -- raw-port/re 2>/dev/null | grep -v ' raw-port/re/disasm/')" ] && return 0
+  # HEAD reachable from some origin/* ref => pushed => nothing to lose.
+  # ONLY MEANINGFUL ON A BRANCH. A reviewer's `acquire-at <SHA>` leaves a DETACHED HEAD at a PR head;
+  # once that PR squash-merges and its branch is deleted, the commit stops being contained in any
+  # remote branch — so this test called it "unpushed work" on a tree whose `git status` is empty, and
+  # `release` refused. The slot then leaked, and it leaked HARDER THE BETTER REVIEWERS DID: every
+  # successful merge stranded the worktree that verified it (three times in one shift, reported as
+  # OPS_LOG #401; the same POOL_FULL endgame as #12). A detached HEAD holds no work by construction —
+  # it is a checkout of a commit that already exists on the server. Only an unpushed BRANCH can.
+  if git -C "$wt" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    if [ -n "$(git -C "$wt" rev-list -n1 origin/main..HEAD 2>/dev/null)" ]; then
+      [ -z "$(git -C "$wt" branch -r --contains HEAD 2>/dev/null)" ] && return 0
+    fi
   fi
   return 1
 }
@@ -103,8 +140,41 @@ claim_slot () {
           gate/*) echo "$tag $(date +%s)" > "$lk/holder"; log "wt_pool: reclaimed stale disposable gate slot $i"; echo "$i"; return 0;;
         esac
         if wt_has_work "$WTDIR/$i"; then
-          log "wt_pool: slot $i lease is stale but the worktree has UNCOMMITTED/UNPUSHED work — not stealing it"
-          continue
+          # A DEAD AGENT'S WORK MUST NOT HOLD A SLOT FOREVER. This used to `continue`
+          # unconditionally, so a lease whose holder died mid-unit — leaving a half-written .ts —
+          # was NEVER reclaimed. Not "reclaimed late": never. Agents die routinely (context
+          # exhaustion every 30-60 min; one executor restart killed all 16 at once and left four
+          # such leases), so the pool bled slots permanently, and adding worktrees does not fix it —
+          # they fill too, just more slowly.
+          #
+          # The protection is right: #240 added it after a reviewer's reclaim wiped a worker's
+          # in-progress file. So do not choose between losing work and leaking the slot — RESCUE the
+          # work, then take the slot. After ABANDON_MIN (default 3h, far past any real unit) the
+          # diff and any unpushed commits are written to $POOL/rescue/ and the slot returns.
+          abandon="${WT_POOL_ABANDON_MIN:-180}"
+          if [ -z "$(find "$lk/holder" -mmin +$abandon 2>/dev/null)" ]; then
+            log "wt_pool: slot $i lease is stale but the worktree has UNCOMMITTED/UNPUSHED work — not stealing it"
+            continue
+          fi
+          mkdir -p "$POOL/rescue" 2>/dev/null
+          rescue="$POOL/rescue/slot${i}-$(date +%Y%m%d-%H%M%S)"
+          # `git add -N` FIRST: wt_has_work fires on an untracked file (`?? path`), but `git diff
+          # HEAD` and `format-patch` both IGNORE untracked paths — so for the dominant case, a worker
+          # that died having written a brand-new class .ts, the rescue wrote an EMPTY patch, logged
+          # "rescued", and the caller's `git clean -fdq -- raw-port/src raw-port/re` then DELETED the
+          # file. Strictly worse than the leak it replaced: before, the file survived on disk in the
+          # pinned slot. `add -N` records the intent-to-add so the diff includes new files.
+          # Caught by reviewer-01 (issue #379) — after I self-approved and merged #378 in 33 seconds.
+          git -C "$WTDIR/$i" add -N -- raw-port/src raw-port/re 2>/dev/null
+          git -C "$WTDIR/$i" diff HEAD > "$rescue.uncommitted.patch" 2>/dev/null
+          git -C "$WTDIR/$i" format-patch origin/main --stdout > "$rescue.commits.patch" 2>/dev/null
+          # Never claim a rescue that captured nothing — that is how the empty-patch lie happened.
+          if [ ! -s "$rescue.uncommitted.patch" ] && [ ! -s "$rescue.commits.patch" ]; then
+            rm -f "$rescue.uncommitted.patch" "$rescue.commits.patch" 2>/dev/null
+            log "wt_pool: slot $i has work I could NOT capture — refusing to reclaim (nothing rescued)"
+            continue
+          fi
+          log "wt_pool: slot $i ABANDONED >${abandon}min — rescued $(wc -c < "$rescue.uncommitted.patch" | tr -d ' ') bytes to $rescue.*.patch, reclaiming"
         fi
         echo "$tag $(date +%s)" > "$lk/holder"; log "wt_pool: reclaimed stale slot $i (clean)"; echo "$i"; return 0
       fi
@@ -202,8 +272,9 @@ cmd_acquire_at () { # <SHA> — reviewer: detached checkout at a PR head for gat
 }
 
 cmd_release () {
-  local wt="${1:?usage: wt_pool.sh release <path>}"
+  local wt="${1:?usage: wt_pool.sh release <path> [--force] [expected-tag]}"
   local force="${2:-}"
+  local expect="${3:-}"
   local slot; slot="$(basename "$wt")"
   # OWNERSHIP GUARD. release used to reset_clean() unconditionally, so a caller releasing a path it
   # no longer owned would wipe the CURRENT holder's in-progress work. If the lease is gone, the slot
@@ -212,8 +283,27 @@ cmd_release () {
     log "wt_pool: slot $slot has no active lease — NOT resetting $wt (another holder may own it now)"
     return 0
   fi
+  # ...AND THE LEASE MUST STILL BE *YOURS*. "A lease exists" is not ownership: the slot may have been
+  # released and RE-LEASED to someone else since you took it, and then this call resets THEIR tree.
+  # That is #3 coming back through the --force door #258 opened. Observed 2026-08-11: worker 1 held
+  # slot 2 as port/ROIStatIO__ROITestSet for ~80s when a reviewer's pr_gate cleanup trap — firing
+  # late for a slot it no longer held — ran `release <wt> --force`. --force skips the has-work check,
+  # so reset_clean() wiped the worker's just-written .ts (the gitignored re/disasm files survived,
+  # which is the tell: this is a git reset, not an rm), and the rm -rf freed the lease, after which
+  # the next gate immediately re-leased the slot. The worker saw its file vanish with a clean
+  # `git status` and no error anywhere.
+  # A caller that knows which tag it leased passes it here and gets refused when it no longer holds
+  # it. Callers that pass nothing behave exactly as before, so this is additive.
+  if [ -n "$expect" ]; then
+    local holder_tag; holder_tag="$(cut -d" " -f1 "$LEASES/$slot/holder" 2>/dev/null)"
+    if [ "$holder_tag" != "$expect" ]; then
+      log "wt_pool: slot $slot is held by '$holder_tag', not '$expect' — NOT resetting $wt"
+      log "         (a stale release from a previous holder; the current holder keeps its work)"
+      return 0
+    fi
+  fi
   # Refuse to discard live work unless explicitly forced. A worker that abandons a unit should say so:
-  #   wt_pool.sh release <path> --force
+  #   wt_pool.sh release <path> --force [expected-tag]
   if [ "$force" != "--force" ] && wt_has_work "$wt"; then
     log "wt_pool: $wt has UNCOMMITTED or UNPUSHED work — not discarding it."
     log "         commit+push it (pr_submit.sh), or re-run with --force to abandon it deliberately."

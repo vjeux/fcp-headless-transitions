@@ -39,18 +39,50 @@ cmd_claim () {
     # confirm the failure reason is a regression/rebase (REST has the description; GraphQL doesn't)
     local desc; desc=$(gh api "repos/$SLUG/commits/$sha/statuses" \
       --jq '[.[]|select(.context=="faithfulness-gate")][0].description' 2>/dev/null)
-    echo "$desc" | grep -qiE 'regression|rebase' || continue
-    # attempt cap: past cap => close it, re-queue via append-only claim queue, skip
+    # A stale base caught by G6 (add-only) posts "G0-G5 gate reject", NOT "regression (rebase
+    # needed)" — same condition, different words — so those PRs matched no filter and sat open
+    # forever while a reviewer hand-wrote the status to get them queued. Accept both spellings.
+    echo "$desc" | grep -qiE 'regression|rebase|add-only|G6|gate reject' || continue
     local af="$ATT/$num"; local n; n=$(cat "$af" 2>/dev/null || echo 0)
+
+    # ── THE COUNTER MEASURES PROGRESS, NOT ATTENDANCE ────────────────────────────────────────
+    # This counter is the authority to DESTROY a finished port, so what it counts matters. It was
+    # written on every successful LEASE, before the rebase ran and regardless of the outcome, and
+    # cleared only by the cap branch that closes the PR. So it counted "times this PR needed a
+    # rebase" while the cap and its close comment both asserted "times rebasing FAILED".
+    # Those diverge exactly when a rebase SUCCEEDS and a SIBLING then re-stales the branch — the
+    # normal state of a contended class file, not a pathology. With K open PRs on one class the cap
+    # is consumed in ~K sibling merges no matter how well the rebases work, so it retires the losers
+    # of a race, fastest when the merge rate is healthiest, and most expensively where the work was
+    # best (an oracle-verified, reviewer-approved body is the costliest thing to throw away).
+    # Measured: #387 sat at 3/3 while GREEN and APPROVED; #390 was closed carrying a 1400/1400
+    # differential and had to be reopened by hand; #389's symbol was left claimed-forever, on no
+    # branch and in no PR.
+    # Two changes, either of which alone would have prevented all three:
+    #   1. A NEW HEAD IS PROGRESS. Record the head SHA the attempt was charged against; if the head
+    #      has moved since, the branch produced a new gating head and the count resets.
+    #   2. VERIFIED WORK IS EXEMPT. A PR that already holds an APPROVED review has been paid for by
+    #      a reviewer's differential; a rebase is bookkeeping, not evidence of un-rebasability.
+    local sf="$ATT/$num.sha"; local last; last=$(cat "$sf" 2>/dev/null || echo "")
+    if [ -n "$last" ] && [ "$last" != "$sha" ]; then
+      n=0; echo 0 > "$af"
+      echo "rebase_claim: PR #$num head moved ($last -> $sha) since its last attempt — counter reset (progress, not failure)" >&2
+    fi
     if [ "$n" -ge "$CAP" ]; then
-      gh pr close "$num" --repo "$SLUG" --comment "Closed after $CAP failed rebase attempts (stale-base shared-class conflict that couldn't be auto-rebased). The append-only claim queue re-hands this symbol to a fresh worker cut from current main." >/dev/null 2>&1
-      rm -rf "$LEAS/$num" 2>/dev/null; rm -f "$af" 2>/dev/null
-      continue
+      local approved; approved=$(gh pr view "$num" --repo "$SLUG" --json reviewDecision --jq .reviewDecision 2>/dev/null)
+      if [ "$approved" = "APPROVED" ]; then
+        echo "rebase_claim: PR #$num is at the cap but is APPROVED — NOT closing verified work; it stays queued." >&2
+        n=0; echo 0 > "$af"
+      else
+        gh pr close "$num" --repo "$SLUG" --comment "Closed after $CAP rebase attempts on a stale-base shared-class conflict that could not be auto-rebased. The append-only claim queue re-hands this symbol to a fresh worker cut from current main. NOTE: if this PR carried verified evidence, it is in the comments above — carry it over rather than re-deriving it." >/dev/null 2>&1
+        rm -rf "$LEAS/$num" 2>/dev/null; rm -f "$af" "$sf" 2>/dev/null
+        continue
+      fi
     fi
     # try to lease it
     if lease_free "$num"; then
-      echo "$((n+1))" > "$af"
-      echo "CLAIMED $num $br   (attempt $((n+1))/$CAP)"
+      echo "$((n+1))" > "$af"; echo "$sha" > "$sf"
+      echo "CLAIMED $num $br   (attempt $((n+1))/$CAP on head ${sha:0:8})"
       return 0
     fi
   done <<< "$cand"
