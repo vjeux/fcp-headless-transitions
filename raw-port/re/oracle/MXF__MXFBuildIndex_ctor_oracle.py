@@ -15,6 +15,8 @@ Exit 0 = VERIFIED (port matches on every case AND every mutant is killed), 1 = D
 harness could not run (never read as a pass).
 """
 import ctypes, json, os, platform, struct, subprocess, sys
+# A driver that does not terminate is a mutant that was KILLED, not a pending result (#719).
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 if platform.machine() != "x86_64":
     sys.exit("HARNESS: refusing to run on %s — re-run under `arch -x86_64 /usr/bin/python3`"
@@ -149,7 +151,7 @@ for reader, a, b in CASES:
 # ---------------------------------------------------------------------------------------------
 req = json.dumps({"cases": [[r, a, b] for r, a, b in CASES], "slide": str(slide)})
 proc = subprocess.run(["node", "--experimental-strip-types", DRIVER],
-                      input=req, capture_output=True, text=True)
+                      input=req, capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
 if proc.returncode != 0 or not proc.stdout.strip():
     print("HARNESS: the TypeScript driver did not run\n%s" % proc.stderr[-2000:])
     sys.exit(2)

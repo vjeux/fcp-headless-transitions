@@ -18,6 +18,44 @@ SLUG="vjeux/fcp-headless-transitions"; CANON="$HOME/random/final-cut-pro-transit
 STATE="${FCT_STATE_DIR:-$HOME/.fct-pool}"; LEAS="$STATE/review_leases"; mkdir -p "$LEAS"
 LEASE_MIN="${REVIEW_LEASE_MIN:-45}"
 
+# THE LEASE IS THE ONLY THING STOPPING TWO REVIEWERS FROM GATING ONE HEAD, so freeing it is a
+# privileged act and must be one only its holder can perform. This file's own header says the lease
+# exists "so two reviewer slots never gate the same head at once"; an unguarded `rm -rf` in the
+# release path hands that guarantee to whichever agent's cleanup happens to run — reviewer A's sweep
+# frees the lease reviewer B is holding, the queue re-offers the PR, and two slots gate one head and
+# both call pr_land. Merging is the least reversible thing this swarm does.
+# Measured incident on the sibling queue (2026-08-11): a worker's end-of-run sweep ran
+# `rework_claim.sh release 557` on a lease another agent had taken 39 seconds earlier.
+# The three copies of this rule (here, rework_claim.sh, rebase_claim.sh) are deliberately identical
+# to wt_pool.sh::stamp_holder, and are pinned to agree by test_guards case I and swarm_doctor's
+# `lease-ownership` check.
+LEASE_RECLAIMED=0
+stamp_owner () { # <leasedir> : record the CLAIMANT — or REMOVE a name that is no longer the holder.
+  # The `else rm -f` is the property, not tidiness. lease_take's STALE-RECLAIM branch reuses a
+  # directory that already carries an owner file, so a reclaim by a caller with no FCT_AGENT_ID
+  # would leave the DEAD agent's id on a lease it does not hold. This harness reuses slot ids by
+  # design (HARNESS_LOOP invariant 2), so that agent comes back — and the release guard would then
+  # authorise the returning `reviewer-3` to free someone else's lease while refusing every other
+  # identified agent. A guard whose key names the wrong agent is worse than none, because the
+  # refusals it does emit read as proof that it works.
+  if [ -n "${FCT_AGENT_ID:-}" ]; then echo "$FCT_AGENT_ID" > "$1/owner"; else rm -f "$1/owner"; fi
+}
+
+lease_take () { # <PR> <sha> : 0 if we now hold the lease (fresh or reclaimed), else 1. Prints nothing.
+  # Factored out of cmd_claim so the claim side is reachable OFFLINE: test_guards case I drives the
+  # real stale-reclaim path here to prove the owner file names the CURRENT holder, and cmd_claim
+  # itself cannot be called without gh. The two queues this was copied from expose exactly this
+  # shape (`lease_free`), which is the point — the next queue will be written by copying one of
+  # these files, so they should not differ in how they take and stamp a lease.
+  local lk="$LEAS/pr-$1"
+  LEASE_RECLAIMED=0
+  if mkdir "$lk" 2>/dev/null; then
+    echo "$(date +%s) $2" > "$lk/held"; stamp_owner "$lk"; return 0; fi
+  if [ -n "$(find "$lk/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
+    echo "$(date +%s) $2" > "$lk/held"; stamp_owner "$lk"; LEASE_RECLAIMED=1; return 0; fi
+  return 1
+}
+
 cmd_claim () {
   git fetch -q origin main 2>/dev/null || true
   # all open PRs with head sha + whether the latest faithfulness-gate matches the head.
@@ -151,11 +189,9 @@ cmd_claim () {
         continue
       fi
     fi
-    local lk="$LEAS/pr-${num}"
-    if mkdir "$lk" 2>/dev/null; then
-      echo "$(date +%s) $sha" > "$lk/held"; echo "CLAIMED $num $sha"; return 0; fi
-    if [ -n "$(find "$lk/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
-      echo "$(date +%s) $sha" > "$lk/held"; echo "CLAIMED $num $sha (reclaimed)"; return 0; fi
+    if lease_take "$num" "$sha"; then
+      if [ "$LEASE_RECLAIMED" = 1 ]; then echo "CLAIMED $num $sha (reclaimed)"; else echo "CLAIMED $num $sha"; fi
+      return 0; fi
   done <<< "$rows"
   echo "NONE"; return 1
 }
@@ -164,7 +200,22 @@ case "${1:-claim}" in
   claim)   cmd_claim;;
   # release takes <PR> [sha]; the sha is accepted for call-site compatibility but ignored, since the
   # lease is now keyed by PR number alone (see the race note in pick_and_claim).
-  release) rm -rf "$LEAS/pr-${2:?PR}" "$LEAS/${2}-${3:0:12}" 2>/dev/null; echo "released review lease $2";;
+  release)
+  # OWNERSHIP: a release frees YOUR OWN lease and nobody else's — including the legacy sha-keyed
+  # path below, which an unguarded sweep would delete just as effectively as the PR-keyed one.
+  #
+  # Fails OPEN on an unowned lease (taken before this landed, or by a caller with no FCT_AGENT_ID)
+  # and on the literal `unknown`: a lease no one can free is worse than an occasional double-free,
+  # and the stale reclaim in lease_take still bounds it. Exits 0 on a refusal for the same reason —
+  # a cleanup sweep must not be hard-failed by a lease it does not own — so the observable is the
+  # lease DIRECTORY, never the exit code.
+    _pr="${2:?usage: review_claim.sh release <PR> [sha]}"; _lk="$LEAS/pr-$_pr"
+    _own=$(cat "$_lk/owner" 2>/dev/null || echo "")
+    if [ -n "$_own" ] && [ "$_own" != "unknown" ] && [ -n "${FCT_AGENT_ID:-}" ] && [ "$_own" != "$FCT_AGENT_ID" ]; then
+      echo "review_claim: lease on PR #$_pr is held by $_own, not ${FCT_AGENT_ID}; NOT releasing another agents lease" >&2
+      exit 0
+    fi
+    rm -rf "$_lk" "$LEAS/${_pr}-${3:0:12}" 2>/dev/null; echo "released review lease $_pr";;
   status)  ls -1 "$LEAS" 2>/dev/null | while read -r p; do echo "  $p held $(cat "$LEAS/$p/held" 2>/dev/null)"; done; { [ -z "$(ls -A "$LEAS" 2>/dev/null)" ] && echo "  (no review leases)"; } ; true;;
   *) echo "usage: review_claim.sh {claim|release <PR> <sha>|status}" >&2; exit 2;;
 esac

@@ -40,6 +40,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))          # <repo>/raw-port
 sys.path.insert(0, HERE)
 import ozone_loader as oz  # noqa: E402
+# A driver that does not terminate is a mutant that was KILLED, not a pending result (#719).
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 FW = "Helium"
 SYM = "__ZL3rhoPfPKdd"
@@ -130,7 +132,7 @@ def run_ts(module_path):
     """Run the committed port (or a mutant copy of it) over the corpus. Returns (bits[], source)."""
     req = json.dumps({"module": module_path, "cases": CASES})
     r = subprocess.run(["node", "--experimental-strip-types", DRIVER],
-                       input=req, capture_output=True, text=True, cwd=HERE)
+                       input=req, capture_output=True, text=True, cwd=HERE, timeout=DRIVER_TIMEOUT)
     if r.returncode != 0:
         return None, r.stderr[-800:]
     out = json.loads(r.stdout)

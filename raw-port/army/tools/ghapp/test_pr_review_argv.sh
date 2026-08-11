@@ -50,6 +50,14 @@ esac
 FAKE
 chmod +x "$SB/gh_as.sh"
 
+# PER-CASE TIMEOUT. It is a real assertion — case "expect-head with NO value" exists because
+# a bad argv made the parse loop SPIN FOREVER, and 124 is reported as a HUNG parse loop. But
+# 10s is a property of an idle box: wired into prove_all (LAYER 2j), which every reviewer runs
+# at startup, a case that merely LOSES A RACE on a 16-agent box reads as "the verifier is
+# broken" and stops the swarm — the failure test_guards case E already cost us once. Observed
+# exactly that while wiring it: 23/24 under a concurrent prove_all, 24/24 twice immediately
+# after, no change to anything. A hang is unbounded, so 60s discriminates just as well.
+CASE_TIMEOUT="${ARGV_CASE_TIMEOUT:-60}"
 SHA=aaaaaaaa11111111aaaaaaaa11111111aaaaaaaa
 BODY_TEXT="real body evidence, thirty-plus characters of it"
 pass=0; fail=0
@@ -58,7 +66,7 @@ check () { # <label> <expected-exit> <expected-body-or-NONE> -- <args...>
   local label="$1" want_rc="$2" want_body="$3"; shift 4
   rm -f "$SB/posted.json"
   local out rc got
-  out=$(cd "$SB" && FCT_STATE_DIR="$SB/state" timeout 10 "$SB/pr_review.sh" "$@" 2>&1); rc=$?
+  out=$(cd "$SB" && FCT_STATE_DIR="$SB/state" timeout "$CASE_TIMEOUT" "$SB/pr_review.sh" "$@" 2>&1); rc=$?
   if [ -f "$SB/posted.json" ]; then
     got=$(python3 -c "import json;print(json.load(open('$SB/posted.json'))['body'])" 2>/dev/null)
   else
@@ -113,14 +121,14 @@ echo "-- what the POST is BOUND to, and the read-back (locks the #619 finding) -
 check_bound () { # <label> <expected posted commit_id> -- <args...>
   local label="$1" want="$2"; shift 3
   rm -f "$SB/posted.json"
-  (cd "$SB" && FCT_STATE_DIR="$SB/state" timeout 10 "$SB/pr_review.sh" "$@" >/dev/null 2>&1)
+  (cd "$SB" && FCT_STATE_DIR="$SB/state" timeout "$CASE_TIMEOUT" "$SB/pr_review.sh" "$@" >/dev/null 2>&1)
   local got; got=$(python3 -c "import json;print(json.load(open('$SB/posted.json'))['commit_id'])" 2>/dev/null || echo NONE)
   if [ "$got" = "$want" ]; then pass=$((pass+1)); printf '  ok   %s\n' "$label"
   else fail=$((fail+1)); printf '  FAIL %s -- posted commit_id %s (want %s)\n' "$label" "${got:0:12}" "${want:0:12}"; fi
 }
 check_says () { # <label> <grep-pattern> <want:yes|no> -- <args...>
   local label="$1" pat="$2" want="$3"; shift 4
-  local out; out=$(cd "$SB" && FCT_STATE_DIR="$SB/state" timeout 10 "$SB/pr_review.sh" "$@" 2>&1)
+  local out; out=$(cd "$SB" && FCT_STATE_DIR="$SB/state" timeout "$CASE_TIMEOUT" "$SB/pr_review.sh" "$@" 2>&1)
   local saw=no; printf '%s' "$out" | grep -q "$pat" && saw=yes
   if [ "$saw" = "$want" ]; then pass=$((pass+1)); printf '  ok   %s\n' "$label"
   else fail=$((fail+1)); printf '  FAIL %s -- expected to %s say /%s/\n' "$label" "$want" "$pat"; fi
