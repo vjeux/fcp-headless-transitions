@@ -2202,3 +2202,67 @@ from the PR that suffers it.
   line still looked healthy. Draw the constrained operand LAST (pick the multiplier, then
   bound the value by `MAX/|m|`), and print the per-class counts so a collapsed class is
   visible.
+
+---
+
+## Open — reported 2026-08-11 by worker 6 (two MORE from the rework queue: a landed class hiding in another layer dir, and a self-inflicted near-miss; NEW)
+
+- **A rejected PR often forked a class that is ALREADY LANDED UNDER A DIFFERENT LAYER
+  DIRECTORY, and nothing in the pipeline notices — not `dup_check`, not the gate, and in
+  one of the two cases I hit, not the reviewer either.** Two of eight reworks this session
+  were this:
+  * #178 filed `render/HGTextureManager_PostTextureDeleteEventList.ts` while main held
+    `render/HGTextureManager__PostTextureDeleteEventList.ts` (single vs DOUBLE underscore).
+    The reviewer caught this one.
+  * #44 filed `src/ozone/OZNotificationManager.ts` while main held
+    `src/nodes/OZNotificationManager.ts` — 750 lines, three ported methods, a full
+    `OZObserverRecord` layout. **Different directory, identical class name.** The review
+    was thorough (it re-derived all 34 instructions) and rejected the PR for an unrelated
+    defect without mentioning the fork. Landing it would have put one C++ class in two
+    files with two incompatible models of the same circular list.
+  Nothing mechanical covers it. `dup_check` keys on the lowercased BASENAME and compares
+  paths, so `nodes/X.ts` and `ozone/X.ts` are simply two different files. G6 add-only only
+  inspects the file handed to `gate.sh`, and a brand-new file has no base version to lose
+  anything against.
+  **DO THIS BEFORE EVERY PORT AND EVERY REWORK — it costs 0.2s and is in no brief:**
+
+      git ls-tree origin/main -r --name-only | grep -i <ClassName>
+
+  Note the `-i`: the volume is case-insensitive, so a case-only difference is a silent
+  OVERWRITE rather than a second file (the separate hazard already logged here). If the
+  class exists anywhere, ADD to that file, in ITS model, wherever it lives — do not file a
+  second copy because the layer directory looks wrong to you. (Layer disagreements are
+  real — `HGFreeAlign` did belong in `infra/` beside its allocator half rather than
+  `render/` — but that is MOVING a file that exists in exactly one place, not adding a
+  second one.)
+
+- **`git reset --hard origin/main` DOES NOT REMOVE UNTRACKED FILES, so the standard rework
+  move — "rebuild the branch on current main" — can silently re-publish the very file you
+  are removing.** I nearly did exactly this on #44. Sequence: copy the branch's file into
+  the worktree to gate it (creating `src/ozone/OZNotificationManager.ts`, untracked);
+  discover it duplicates a landed class; `git reset --hard origin/main` intending a clean
+  slate; write the method into the landed file instead; `git add -A`; commit; push. The
+  reset left the untracked copy exactly where it was, `add -A` staged it, and the pushed
+  commit added BOTH files — the duplicate I was in the middle of removing, under a commit
+  message explaining why duplicates are bad.
+  WHAT CAUGHT IT, and it is the only thing that would have: reading
+  `git diff --name-status origin/main...HEAD` before treating the push as done. This is the
+  third distinct incident in this log where THE FILE LIST rather than the content was the
+  thing that mattered, and the first where the unintended path was ADDED rather than
+  deleted — so the `--diff-filter=D` guard would have passed it silently.
+  RULE: after any rework push, read the three-dot file list and confirm every path is one
+  you meant. And when you want a genuinely clean slate in a pool worktree, `reset --hard`
+  is only half of it; `git clean -fd` is the other half. That is exactly why `reset_clean`
+  in `wt_pool.sh` runs both — and why OPS_LOG #3's forensic tell works, since gitignored
+  `.s` files survive a reset but not the clean.
+  SECOND-ORDER, before you reach for it: `rm -rf raw-port/src/<layer>` to undo that also
+  deletes the SEVEN TRACKED files sharing the directory. `git checkout -- <dir>` restores
+  them, and `git status --porcelain` must be EMPTY before you release the slot — a pool
+  worktree released with tracked files missing is a trap for the next lessee.
+
+- **Corroborating the "a transient TLS failure reads as a verdict" entry with a fresh
+  instance, because the fix is a retry loop and costs nothing to adopt:**
+  `pr_comment_once.sh` printed `post failed` on PR #44 and the identical call succeeded on
+  the very next attempt with no change of any kind. Wrap the gh-backed helpers in a
+  3-attempt loop with a short sleep, breaking on `posted|already`, and never treat the
+  first failure as information.
