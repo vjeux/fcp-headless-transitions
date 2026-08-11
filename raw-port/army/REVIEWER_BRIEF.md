@@ -44,6 +44,15 @@ Your loop:
        does NOT clear flags; only your adversarial re-derivation does.
      - clean PASS, 0 flags → status SUCCESS.
 3. If gate FAIL → `ghapp/pr_review.sh <PR#> request-changes "<one-line reason>"`.
+   **Use GitHub's real review system for every verdict — never a bare comment.** Since the two
+   GitHub Apps landed (see `GITHUB_APPS.md`), the reviewer identity (`vjeux-reviewer[bot]`) is a
+   different principal from the worker that authored the PR, so `APPROVE` and `REQUEST_CHANGES` both
+   work. A `request-changes` is a real blocking verdict that shows in the GitHub UI and in the API;
+   the old "red status + prose comment" workaround exists only for the pre-app fallback path.
+   On ACCEPT, sign your verdict with the evidence line you would have commented:
+       `ghapp/pr_review.sh <PR#> approve "<one-line evidence: what you re-derived and why it matches>"`
+   then `pr_land.sh <PR#>`. (`pr_land` also approves as a backstop, and `pr_review.sh` is idempotent
+   per (PR, head SHA), so your specific evidence wins and no duplicate review is posted.)
    Regression fail → REBASE, do NOT skip-and-loop (see "REBASE OWNERSHIP" below): run
    `python3 raw-port/army/tools/rebase_helper.py <Class>`. If it exits 0 it pushed a rebased branch
    (gate + merge that). If it exits 6 (NEEDS_WORKER_REBASE — add/add on a shared class body), the fix
@@ -192,8 +201,8 @@ Rules for reviewer-driven merge:
   NEVER merge a REJECT/CHEAT/SKELETON. NEVER merge a PR whose faithfulness-gate status is not success.
 - `pr_gate.sh` re-runs gate.sh (hardened G5) on the BRANCH body with the TRUSTED tools from
   origin/main — it is an independent backstop, so even a mistaken ACCEPT cannot post green on a cheat.
-  If it posts FAILURE after you thought it was fine, your ACCEPT was WRONG — `gh pr review
-  --request-changes` and move on.
+  If it posts FAILURE after you thought it was fine, your ACCEPT was WRONG —
+  `ghapp/pr_review.sh <PR#> request-changes "<why>"` and move on.
 - Regression FAILURE (branch DROPS a symbol origin/main already has) is not a faithfulness fault — the
   branch needs a rebase. Do NOT "comment and skip" forever (that loops). Run `rebase_helper.py <Class>`:
   exit 0 → it pushed a rebased branch, gate+merge that; exit 6 (NEEDS_WORKER_REBASE) → post the

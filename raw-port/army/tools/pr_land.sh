@@ -32,11 +32,32 @@ for round in 1 2 3 4 5 6; do
   grep -qE 'PR_GATE: (PASS|FAIL|NEEDS-REVIEW)' /tmp/pr_land_gate_$PR.log; tail -1 /tmp/pr_land_gate_$PR.log
   if grep -q 'PR_GATE: FAIL' /tmp/pr_land_gate_$PR.log; then echo "pr_land: gate FAIL — not merging"; exit 1; fi
   if grep -q 'PR_GATE: NEEDS-REVIEW' /tmp/pr_land_gate_$PR.log; then echo "pr_land: needs reviewer --reviewed re-derivation"; exit 2; fi
-  # Sign the verdict in GitHub's review system BEFORE merging, so the merged PR carries a real
-  # APPROVE from the reviewer identity rather than an unreviewed merge. Non-fatal: if the apps are
-  # not configured yet, pr_review.sh exits 3 (self-review refused) and we merge as we always did.
-  bash "$GHAPP/pr_review.sh" "$PR" approve \
-    "Faithfulness gate green on this head; reviewer re-derived the disassembly from the binary independently. Landing." 2>&1 | tail -1
+  # DO NOT auto-approve here. This script used to POST a generic APPROVE ("reviewer re-derived the
+  # disassembly...") on any green head just before merging — which reviewer-01 correctly called out:
+  # #197 carried that APPROVE while actually being a duplicate. An approval minted by the merge tool
+  # is a rubber stamp; it records nothing about whether anyone verified anything, and it quietly
+  # devalues the very review trail the two GitHub Apps exist to create.
+  #
+  # Inverted: the reviewer must APPROVE *before* landing, with their own evidence line, via
+  #   ghapp/pr_review.sh <PR#> approve "<what I re-derived and why it matches>"
+  # and pr_land REQUIRES that approval to exist on the CURRENT head. This also enforces
+  # "verify before merge" client-side: a stale approval on an older SHA does not count.
+  if [ -f "${FCT_STATE_DIR:-$HOME/.fct-pool}/ghapp/reviewer.json" ]; then
+    HEAD_SHA=$(ghr pr view "$PR" --repo "$SLUG" --json headRefOid --jq .headRefOid 2>/dev/null)
+    APPROVED=$(ghr api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null | python3 -c "
+import json,sys
+try: rs=json.load(sys.stdin)
+except Exception: raise SystemExit
+print('yes' if any(r.get('state')=='APPROVED' and r.get('commit_id')=='$HEAD_SHA' for r in rs) else '')
+" 2>/dev/null)
+    if [ -z "$APPROVED" ]; then
+      echo "pr_land: REFUSING to merge PR #$PR — no APPROVED review on the current head ${HEAD_SHA:0:8}."
+      echo "  Verify it, then sign your verdict with your own evidence:"
+      echo "    bash raw-port/army/tools/ghapp/pr_review.sh $PR approve \"<one-line evidence>\""
+      echo "  (A merge tool minting its own approval is a rubber stamp — that is why this refuses.)"
+      exit 4
+    fi
+  fi
   # try the merge (auto = waits for the just-posted status if still settling)
   ghr pr merge "$PR" --repo "$SLUG" --squash --auto --delete-branch >/dev/null 2>&1 || true
   sleep 4
