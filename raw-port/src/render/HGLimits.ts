@@ -190,6 +190,19 @@ export class HGLimits {
   formatCode_at_0x00: number = 0;
 
   /**
+   * @Helium offset +0x14 — a uint16 counter.
+   *
+   * The only decoded access is the free function `tile_hoist` @Helium 0xc78f0,
+   * which INCREMENTS it by two with a 16-bit read-modify-write:
+   * `addw $0x2, 0x14(%rdi)` @0xc79ab. The `w` suffix is what pins the width at
+   * 16 bits — the port therefore wraps the sum at 0xffff, since that is what
+   * the machine's 16-bit add does. What the counter counts is not decodable
+   * from that one instruction, so the field is named for its offset and its
+   * observed use, and nothing further is claimed.
+   */
+  counter_at_0x14: number = 0;
+
+  /**
    * `HGLimits::isfragment() const` — @Helium 0xa7960
    * (__ZNK8HGLimits10isfragmentEv).
    *
