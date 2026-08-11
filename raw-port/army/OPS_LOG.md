@@ -194,6 +194,55 @@ detail to reproduce. That is how this list grows.
 
 
 
+## Open — reported 2026-08-11 by reviewer 5 (three reviewer-side traps; NEW)
+
+Independently hit while reviewing #385/#389/#394/#402/#403/#406/#421/#428/#431/#443. The first one
+cost a WRONG REJECT on a correct PR, which is the expensive direction for a reviewer.
+
+- **`git diff origin/main <branchHead>` IS NOT A MERGE PREVIEW, and reading it as one makes every
+  stale-base PR look like it deletes landed work.** Reviewing #403 I checked "does this branch drop
+  content main already has" with a two-ref diff. It showed 40 lines of worker 2's
+  differential-harness-traps section (landed minutes earlier as #417) on the `-` side, so I filed a
+  blocking REQUEST_CHANGES for a regression that does not exist: a two-ref diff renders *the branch
+  is behind* as deletions. The real three-way result keeps everything —
+
+      git merge-tree --write-tree origin/main <branchHead>   # prints the merged TREE sha
+      git show <tree>:<path>                                 # inspect the ACTUAL merge result
+
+  354 lines = main's 324 + the PR's 30, with all 6 keyword hits of the "deleted" section intact. I
+  dismissed my own review with the reason and landed the PR. Stale-base is the NORMAL state in this
+  swarm, so this false-rejects almost everything if a reviewer adopts it as a habit. Note
+  `regression_check` already gets this right with a 3-dot `-`-side check; the briefs never say out
+  loud that the two-ref form is the wrong tool.
+  **RULE: `git diff origin/main...<branchHead>` (three dots, against the merge base) or
+  `git merge-tree --write-tree`. NEVER `git diff origin/main <branchHead>`.**
+  (Smaller, related, and NOT what bit me: `pr_gate.sh` skips regression_check entirely when a PR
+  touches no `raw-port/src` file — it prints "no raw-port/src ports to gate (infra/tooling PR)" and
+  posts SUCCESS. Harmless for a non-conflicting doc edit because git unions it; it would only
+  matter for an infra PR that rewrites a shared file wholesale, the #9 shape.)
+
+- **Backticks inside the double-quoted evidence string of `ghapp/pr_review.sh` are
+  command-substituted, silently deleting text from the durable review body.** Approving #389 with
+  ``... so `?? ''` models the cmov ...`` posted an APPROVED review reading "so  models the cmov",
+  and printed `/bin/sh: ??: command not found` AFTER the success line where it is easy to miss.
+  Reviewer evidence is quoted CODE (`movl 0x44(%rdi),%eax`, `!== -1n`, `?? ''`), so backticks are
+  the natural way to write it, and in a double-quoted shell argument they are substitution — which
+  also EXECUTES whatever is inside them. The verdict still posts, so nothing fails loudly; the
+  evidence of record just quietly loses a token.
+  FIX: give `pr_review.sh` a `--body-file`/stdin path. WORKAROUND: single-quote the evidence
+  string (or heredoc it); never double quotes.
+
+- **A reviewer's own `wt_pool.sh acquire-at` lease cannot be released without `--force`, so manual
+  oracle work still leaks pool slots (the #12/#372 family, through a third door).** `acquire-at`
+  leaves the worktree detached at the PR head, which is BY DEFINITION a commit not on origin/main,
+  so `release` reads it as unfinished work and refuses with "commit+push it (pr_submit.sh), or
+  re-run with --force to abandon it deliberately". #258/#372 fixed exactly this for `pr_gate.sh`
+  (it releases `--force`); a reviewer who leases a worktree by hand to drive a TS differential —
+  which REVIEWER_BRIEF asks for — hits it every time, and one who does not read the refusal leaks
+  the slot. That is the failure that stopped the swarm in #12.
+  FIX: `release` should treat a detached `acquire-at` lease as disposable, the same self-healing
+  rule as the `gate/<sha>` leases, since it can never hold authored work.
+
 ## Open — reported 2026-08-11 by reviewer 8 (rebase_helper targets the wrong branch; NEW)
 
 - **`rebase_helper.py <Class>` REBASES A DIFFERENT AGENT'S BRANCH AND REPORTS SUCCESS, and both
@@ -463,6 +512,23 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   the interesting cases a good corpus adds. Index by code unit instead:
   `for (let i = 0; i < s.length; i++) out.push(s.charCodeAt(i))`. Related to the existing JSON/NaN
   note above: **exchange code units, never JS strings, on an oracle wire.**
+
+- **A THIRD input-mangling trap: `ctypes.c_float(python_float)` QUIETS A SIGNALLING NaN.** Building a
+  float argument from Python goes through a C double, so 0x7f800001 arrives at the callee as
+  0x7fc00001. Measured on `HGMultiTexBlend<5>::setWeight` @Helium 0x110bc0: 10 of 120 cases reported
+  a divergence against a port that was byte-for-byte correct, and the "wrong" value was wrong before
+  the call, not after it. Same family as the two above — the harness corrupted the case, then blamed
+  the port. Fix: build the argument bit-exactly —
+  `cf = ctypes.c_float(); ctypes.memmove(ctypes.byref(cf), struct.pack('<I', bits), 4)` — and pass
+  `cf`. General rule now confirmed three different ways: **on an oracle boundary, move BIT PATTERNS,
+  never language-level floats** — into the callee, out of the callee, and across the TS wire.
+
+- **Do not put an allocator-reuse check in an oracle's VERDICT.** For a dtor/free unit the obvious
+  second signal — "the next same-size malloc returns the same address" — is RUN-DEPENDENT: the same
+  unmodified harness measured 0, 12, 57 and 64 of 64 across four consecutive runs
+  (`HeapAllocator_anon_D0_oracle.py`). `malloc_size(p) == 0` is stable (64/64 every run, and False
+  for a live block, so it still discriminates). Report reuse if you like, but a verdict that includes
+  it fails correct code about half the time.
 
 - **The two OPEN Ozone/`nm` items above now have a drop-in fix: `raw-port/re/oracle/ozone_loader.py`**
   (landed with the OZLightingFolder_Factory port). `load_framework(fw)` preloads the `@rpath` chain
