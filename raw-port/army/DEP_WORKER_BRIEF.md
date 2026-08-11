@@ -87,6 +87,14 @@ union it — re-applying methods into a class body is AUTHOR work). Do EXACTLY t
    `/tmp/rebase_pr_<PR>_theirs/<file>` (the branch's version). With the edit tool, ADD ONLY the
    branch's net-new methods into main's class body. NEVER delete main's methods. Keep every @0xADDR.
 3. `bash raw-port/army/gate/gate.sh <file>` in $WT — must print GATE: PASS.
+3b. **`git -C "$WT" diff origin/main --stat` — the ONLY paths listed must be the ones you edited.**
+   rebase_pr.sh prepared $WT from origin/main as it was AT THAT MOMENT; on a busy swarm main moves
+   while you are merging, and then your force-push DELETES every file that landed in between. Seen
+   for real on PR #478: three ports, their oracles and an OPS_LOG section were queued for deletion
+   by a merge that gated clean — `gate.sh` only inspects the file you hand it, so G6 add-only says
+   nothing about the others. If anything unexpected appears:
+       `git -C "$WT" fetch origin main && git -C "$WT" reset --hard origin/main`
+   then re-apply your merge on top (copy your edited files aside first), re-gate, and re-check.
 4. `git -C "$WT" add -A && git -C "$WT" commit -q -m "rebase <branch> onto origin/main (re-apply net-new methods)"`
 5. `git -C "$WT" push -f origin "HEAD:<branch>"` — force-pushes the SAME branch; PR #N updates IN
    PLACE (do NOT open a new PR). Then `bash raw-port/army/tools/wt_pool.sh release "$WT"`.
