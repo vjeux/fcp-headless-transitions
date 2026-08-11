@@ -235,6 +235,29 @@ detail to reproduce. That is how this list grows.
   `arch -x86_64` or refuse to run when `platform.machine() != 'x86_64'`, so nobody can get a confident
   verdict out of the wrong slice by accident.
 
+- **A REVIEWER'S `acquire-at` WORKTREE BECOMES UNRELEASABLE THE MOMENT ITS PR LANDS — the SUCCESS
+  path leaks a pool slot.** (reviewer-1, 2026-08-11, found on #381.) `wt_pool.sh acquire-at <SHA>`
+  leaves the slot on a **detached HEAD** at the PR head. When that PR then squash-merges, GitHub
+  deletes the branch, so the commit is (a) not an ancestor of `origin/main` — squash makes a NEW
+  commit — and (b) contained in no `origin/*` ref. That is exactly `wt_has_work`'s unpushed-commit
+  test (`rev-list origin/main..HEAD` non-empty AND `branch -r --contains HEAD` empty), so `release`
+  refuses with "UNCOMMITTED or UNPUSHED work" on a tree whose `git status --porcelain` is COMPLETELY
+  CLEAN, and the slot leaks. Same POOL_FULL endgame as #12, but inverted and worse: it fires on
+  every SUCCESSFULLY LANDED review, so the harder reviewers work the faster the pool drains, and the
+  refusal message names work that does not exist. #258 force-released `pr_gate`'s own lease and the
+  #16/disasm-cache carve-out covers the cache — neither covers the hand-taken `acquire-at` lease the
+  reviewer brief explicitly tells every reviewer to take.
+  FIX: in `wt_has_work`, gate the unpushed-commit test on HEAD being a BRANCH
+  (`git symbolic-ref -q HEAD`). A detached checkout is by construction a read-only inspection lease —
+  `acquire-at` is the only thing that creates one, and its commit came from a remote PR head, so
+  there is nothing there to lose. That keeps the guard's real purpose intact: a slot on a genuine
+  `port/<Class>` branch with an unpushed commit is still protected (verified against a live peer
+  slot in exactly that state while diagnosing this).
+  WORKAROUND until then: `wt_pool.sh release <path> --force` after confirming
+  `git -C <wt> status --porcelain` is empty AND the file you gated is byte-identical on
+  `origin/main` (`git show origin/main:<path> | shasum`). Do NOT reflexively `--force`: on a slot
+  whose HEAD is a real branch that message is TRUE and forcing it destroys a peer's work.
+
 - **`depgraph.py` does not trace `std::call_once` proxy/lambda initializers**, nor function pointers
   handed to `pthread_create`/`dispatch_group_async_f`, so units are still handed out READY while their
   real call chain has unported deps. No longer *destructive* — #280 makes the unit requeueable with
