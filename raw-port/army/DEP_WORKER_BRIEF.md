@@ -32,7 +32,14 @@ cap is auto-closed and its symbol re-queued to the append-only claim queue.
 Prints `CLAIMED_UNIT` then TSV rows `<FW>\t<Class>\t<mangled>\t<demangled>`. Usually ONE function;
 multiple rows = a dependency CYCLE (mutual recursion) — port them together in one branch. The instant
 `next` hands you a unit it is claimed FOREVER (append-only) — you can never collide, and you never
-release/defer/mark-done. If you can't finish a unit, just STOP it and claim the next. STL templates
+release/defer/mark-done. If you can't finish a unit, REQUEUE it with a reason and claim the next:
+
+    python3 raw-port/army/tools/depclaim.py drop <mangled> "<why it is not portable yet>"
+
+Without that call the symbol is gone for good — `next` skips every symbol in claims.jsonl, and for
+5,799 claims this project had ZERO reopens, so every honest refusal permanently deleted a work item.
+Dropping is the RIGHT call when a dep is unported, a virtual/indirect target is unresolved, or the
+body is genuinely out of scope; just don't let it cost the unit. STL templates
 and already-built symbols are auto-filtered. `NO_READY_UNIT` = queue drained, STOP.
 
 ### The only legitimate throw
