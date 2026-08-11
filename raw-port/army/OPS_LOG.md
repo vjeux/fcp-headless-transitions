@@ -5111,6 +5111,52 @@ same mechanical job, which is the finding.
   survive the edit. My replacement did splice, but against the file as I had ALREADY edited it in an
   earlier pass, then re-applied to the freshly merged file where the original was still present.
   Same root as the entry above it: an edit is only as good as the copy it was computed against.
+
+
+---
+
+## Fixed 2026-08-11 by worker 1 (the reviewer out-ranks the gate, and there was no way to say so)
+
+Reworked from #557 after two rejections. The PR that carried this originally also carried a
+`rebase_claim.sh` change; that half is NOT here, and why is the second half of this entry.
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 45 | **A reviewer who DISPROVED a mechanical gate failure had no sanctioned way to land the PR.** `pr_land` re-runs `pr_gate` every round, overwriting the status the reviewer posted; `--reviewed` covers G5 flags only. The only recourse was to hand-post a status and race `pr_land` to the merge | Re-gating is right when the gate is the authority, and wrong in the one case where a person out-ranks it — a regex artefact reported as a dropped symbol, or a gate that never ran regression at all | `pr_land <PR#> --keep-status "<why>"`: land on the head's existing status without re-gating. The reason is REQUIRED and echoed, so skipping the gate can never be silent; it refuses unless that status is `success`; the check runs BEFORE `update-branch`, because that mints a new SHA and statuses are per-SHA, so a check afterwards reads a head nobody verified; and it refuses a BEHIND branch rather than updating it, since the update would discard the very verdict being preserved. Options are parsed as a LOOP — reading `$2` alone made `--reviewed --keep-status "why"` ignore the second flag silently |
+
+Locked by `test_guards.py` case **J**, END-TO-END on purpose: the first version of it tested for the
+string `--keep-status` and for the missing-reason error, and **survived a mutant with the refusal
+itself deleted** — a mutant that lands any PR on any status through the one path in the swarm that
+merges without re-gating. Case J now drives the real script against a real non-green, non-BEHIND
+head and asserts exit 1.
+
+**Three things this rework is the evidence for. All of them cost a review round.**
+
+- **A guard that greps the program text survives the mutation that matters.** Two cases in the
+  original change did that and two of the four mutations walked straight through them. If you are
+  locking a behaviour, EXECUTE the thing and assert the behaviour; if you cannot, say the case is
+  incomplete rather than shipping a green one.
+- **A case that needs the live repo must WITHHOLD when `gh` does not answer, never accuse the code.**
+  The rejected version's other new case went red on 2 of 8 identical runs because a `gh` call under
+  load returned nothing and it read that as "the feature is dead code". `test_guards` already had
+  `gh_did_not_answer()` for exactly this, thirty lines above. Case J routes every doubt — no victim,
+  no answer, or a victim that went green mid-probe (a 19-second race a reviewer measured on #606) —
+  into `skipped`, which prints on the result line, so a run where a case never executed still does
+  not read like a full pass.
+- **Two open PRs must not edit one function.** #557 and #643 both added the `mergeStateStatus ==
+  "DIRTY"` clause to `rebase_claim.sh`'s selector, neither able to see the other's version, and one
+  of them would have had to resolve a conflict inside the region the other rewrote. Worse, #557's
+  spelling renamed the `cand=` assignment to `rows=`, and `swarm_doctor.check_queue_coverage` does
+  not model the queues — **it lifts each queue's own selector out of the script by that name**, so
+  the rename would have switched off the only check that reports orphaned PRs *in the same commit
+  that fixed orphaned PRs*. **So this rework DROPS `rebase_claim.sh` from the branch entirely** and
+  leaves that fix to #643, which is 32 lines, unconflicted, and keeps the `cand=` name. The one
+  thing #557 had that #643 does not — `mergeStateStatus` is computed LAZILY, so a cold `gh pr list`
+  returns `UNKNOWN` for half the queue and a single-query claim silently skips those PRs (measured:
+  3 DIRTY/9 UNKNOWN → 9 DIRTY/1 UNKNOWN → 9 DIRTY/0 UNKNOWN over 11 seconds, no repo change) — is
+  handed to #643 as a comment carrying the patch, rather than dropped. **If you rename a variable a
+  tool greps for, the tool's read has to move in the same PR; `swarm_doctor` reporting UNKNOWN is
+  not a pass.**
 ---
 
 ## Open — reported 2026-08-11 by reviewer 2 (a class forked across EIGHT files under the guard's nose; a merge preview that lies when your main is a minute old; and dismissing the wrong person's review; NEW)
