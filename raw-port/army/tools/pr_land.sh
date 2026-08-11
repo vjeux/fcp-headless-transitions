@@ -23,6 +23,22 @@ for round in 1 2 3 4 5 6; do
   ms=$(ghr pr view "$PR" --repo "$SLUG" --json mergeStateStatus --jq .mergeStateStatus 2>/dev/null)
   echo "pr_land round $round: state=$st mergeState=$ms"
   if [ "$ms" = "BEHIND" ]; then
+    # REMEMBER WHAT WAS APPROVED BEFORE WE MOVE THE HEAD.
+    # This loop's own update-branch invalidates the approval it is about to require: the head moves,
+    # the reviewer's APPROVE stays pinned to the old SHA, and the check below then refuses with "no
+    # APPROVED review on the current head". The tool creates the condition it rejects, so an APPROVED
+    # PR that happens to be BEHIND can NEVER land without a human re-approving a merge commit they
+    # did not write. Four approved PRs (#594, #568, #554, #523) were deadlocked exactly this way.
+    # We record the approved SHA here; after the update, the check below carries the approval forward
+    # ONLY IF the PR's own contribution is byte-identical (see CARRY note there).
+    APPROVED_BEFORE=$(ghr api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null \
+      | python3 -c "
+import json,sys
+try: rs=json.load(sys.stdin)
+except Exception: raise SystemExit
+a=[r for r in rs if r.get('state')=='APPROVED']
+print(a[-1]['commit_id'] if a else '')
+" 2>/dev/null)
     ghr api -X PUT "repos/$SLUG/pulls/$PR/update-branch" >/dev/null 2>&1 || true
     # wait for head SHA to change / mergeState to leave BEHIND
     for _ in 1 2 3 4 5 6 7 8; do sleep 3; nms=$(ghr pr view "$PR" --repo "$SLUG" --json mergeStateStatus --jq .mergeStateStatus 2>/dev/null); [ "$nms" != "BEHIND" ] && break; done
@@ -90,11 +106,31 @@ except Exception: raise SystemExit
 print('yes' if any(r.get('state')=='APPROVED' and r.get('commit_id')=='$HEAD_SHA' for r in rs) else '')
 " 2>/dev/null)
     if [ -z "$APPROVED" ]; then
+    # CARRY THE APPROVAL ACROSS OUR OWN UPDATE — but only when the author's content is unchanged.
+    # If update-branch moved the head, the difference between the approved SHA and the new head is
+    # main being merged in, NOT anything the author wrote. So compare the PR's own CONTRIBUTION —
+    # `git diff origin/main...<sha>` — at both SHAs. Byte-identical means the reviewer's evidence
+    # still describes exactly this content, and their verdict stands. Any difference at all means a
+    # real re-review, and we refuse as before. This is deliberately narrow: it carries an approval
+    # over a merge WE performed, and never over a push the author made.
+    if [ -n "${APPROVED_BEFORE:-}" ] && [ "$APPROVED_BEFORE" != "$HEAD_SHA" ]; then
+      git fetch -q origin main "+refs/pull/$PR/head:refs/prland/$PR" >/dev/null 2>&1 || true
+      git fetch -q origin "$APPROVED_BEFORE" >/dev/null 2>&1 || true
+      A=$(git diff "origin/main...$APPROVED_BEFORE" 2>/dev/null | shasum | cut -d" " -f1)
+      B=$(git diff "origin/main...$HEAD_SHA" 2>/dev/null | shasum | cut -d" " -f1)
+      if [ -n "$A" ] && [ "$A" = "$B" ]; then
+        echo "pr_land: carrying the approval on ${APPROVED_BEFORE:0:8} forward to ${HEAD_SHA:0:8}"
+        echo "  (our own update-branch moved the head; the PR's contribution vs main is byte-identical)"
+        APPROVED=1
+      fi
+    fi
+    if [ "${APPROVED:-0}" = "1" ]; then :; else
       echo "pr_land: REFUSING to merge PR #$PR — no APPROVED review on the current head ${HEAD_SHA:0:8}."
       echo "  Verify it, then sign your verdict with your own evidence:"
       echo "    bash raw-port/army/tools/ghapp/pr_review.sh $PR approve \"<one-line evidence>\""
       echo "  (A merge tool minting its own approval is a rubber stamp — that is why this refuses.)"
       exit 4
+    fi
     fi
   fi
   # try the merge (auto = waits for the just-posted status if still settling)
