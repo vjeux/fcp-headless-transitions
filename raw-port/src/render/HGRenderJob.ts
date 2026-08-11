@@ -5,6 +5,7 @@
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob10SetUserTagEy.s          (SetUserTag)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetUserNameEPKc.s       (SetUserName)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob7SetTypeENS_4TypeE.s      (SetType)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob8SetStateENS_5StateE.s    (SetState)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetPriorityENS_8PriorityE.s (SetPriority)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetResourceENS_8ResourceE.s (SetResource)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob11SetResourceENS_8ResourceE.s (SetResource)
@@ -43,7 +44,13 @@
 //   uint32_t type;      // offset 0x0c — HGRenderJob::Type enum tag.
 //                       // SetType @0x54514 writes it via `movl %esi, 0xc(%rdi)`.
 //                       // Values not enumerated here; opaque u32.
-//   ...                          // fields 0x10..0x6f not yet decoded
+//   ...                          // fields 0x10..0x6b not yet decoded
+//   uint32_t state;     // offset 0x6c — HGRenderJob::State enum tag.
+//                       // SetState @0x54644 writes it via `movl %esi, 0x6c(%rdi)`
+//                       // and GetState @0x54744 reads it back via
+//                       // `movl 0x6c(%rdi), %eax` — a matched 32-bit store/load
+//                       // pair, which pins both the offset and the width.
+//                       // Values not enumerated here; opaque u32.
 //   uint32_t renderThreadPriority; // offset 0x70 — HGRenderJob::RenderThreadPriority
 //                       // enum tag. SetRenderThreadPriority @0x544b4 writes it
 //                       // via `movl %esi, 0x70(%rdi)`. Values not enumerated
@@ -80,6 +87,7 @@
 //   SetGPUGraphicsAPI       — none.
 //   UsesOnlyGPUResource     — none.
 //   GetType                 — none (5-instruction leaf load of this+0x0c).
+//   SetState                — none.
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -104,6 +112,8 @@
 //       — HGRenderJob::GetType() @Helium 0x54730
 //   * __ZN11HGRenderJob24IsRequestedVirtualScreenEi
 //       — HGRenderJob::IsRequestedVirtualScreen(int) @Helium 0x54ad0
+//   * __ZN11HGRenderJob8SetStateENS_5StateE
+//       — HGRenderJob::SetState(HGRenderJob::State) @Helium 0x54640
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — IsRequestedVirtualScreen @0x54ad0
@@ -266,6 +276,18 @@ export type HGRenderJobMetalShaderPrecision = number;
 export type HGRenderJobGPUGraphicsAPI = number;
 
 /**
+ * HGRenderJob::State — enum tag stored at +0x6c. Values are not yet enumerated
+ * here: `SetState` @Helium 0x54644 passes `esi` (an unsigned 32-bit int) straight
+ * into the slot with no validation, masking or branching, and its reader
+ * `GetState` @Helium 0x54744 hands the same 32 bits back
+ * (`movl 0x6c(%rdi), %eax`), so no decoded instruction pins a single enumerator.
+ * That matched 32-bit store/load pair is what fixes both the offset and the
+ * width. Model as an opaque u32 alias until a ctor or a comparison site reveals
+ * the values — same treatment as `HGRenderJobGPUGraphicsAPI` above.
+ */
+export type HGRenderJobState = number;
+
+/**
  * The pointee shape that `UsesOnlyGPUResource` @Helium 0x54b20 dereferences — both at
  * `this+0x18` (`cmpl $0x1, 0x8(%rcx)` @0x54b40) and for every entry of the vector at
  * `this+0x28..+0x30` (`cmpl $0x0, 0x8(%rax)` @0x54b74). Only the u32 at +0x08 is read by
@@ -293,6 +315,15 @@ export class HGRenderJob {
    *  Written by SetPriority @0x544a4 via `movl %esi, 0x68(%rdi)`. Zero-
    *  initialised until a ctor pins the true default. */
   _priority: HGRenderJobPriority = 0; // @Helium HGRenderJob@0x68
+
+  /** @Helium HGRenderJob@0x6c — the u32 HGRenderJob::State enum tag.
+   *  Written by SetState @0x54644 via a single `movl %esi, 0x6c(%rdi)`, and read
+   *  back by GetState @0x54744 via `movl 0x6c(%rdi), %eax` — a matched 32-bit
+   *  store/load pair, which is what fixes both the offset and the width.
+   *  Confirmed by calling the live pair on a 0xAA-filled buffer under
+   *  `arch -x86_64`: only the four bytes at +0x6c change. Zero-initialised to a
+   *  neutral tag until a ctor is transcribed to reveal the true default. */
+  state: HGRenderJobState = 0; // @Helium HGRenderJob@0x6c
 
   /** @Helium HGRenderJob@0x10 — the u32 HGRenderJob::Resource enum tag.
    *  Written by SetResource @0x54384 via `movl %esi, 0x10(%rdi)`. Zero-
@@ -735,6 +766,52 @@ export class HGRenderJob {
     // @0x5450a..0x5450b — epilogue + retq.
     // ------------------------------------------------------------
     this.metalShaderPrecision = precision >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::SetState(HGRenderJob::State)` @Helium 0x54640
+   *   (__ZN11HGRenderJob8SetStateENS_5StateE)
+   *
+   * Faithful line-for-line transcription of the whole 6-line function: one u32
+   * store into the `state` slot at `this+0x6c`. Structural twin of
+   * `SetGPUGraphicsAPI` / `SetRenderThreadPriority` above, a different slot.
+   * No callees, no validation, no branches. From raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob8SetStateENS_5StateE.s:
+   *
+   *   0x54640  pushq %rbp                    ; frame prologue
+   *   0x54641  movq  %rsp, %rbp
+   *   0x54644  movl  %esi, 0x6c(%rdi)        ; this->state (u32) = esi
+   *   0x54647  popq  %rbp                    ; epilogue
+   *   0x54648  retq
+   *   0x54649  nopl  (%rax)                  ; padding
+   *
+   * The offset and width are pinned by the matching reader `GetState`
+   * @Helium 0x54740 (`movl 0x6c(%rdi), %eax` @0x54744), and confirmed by
+   * DIFFERENTIAL against the live binary: both symbols are exported (`nm` class
+   * T), so calling the pair through dlsym on a 0x200-byte buffer pre-filled with
+   * 0xAA, under `arch -x86_64` (the port's addresses are x86_64 offsets, and the
+   * arm64 slice can differ — a wrong-slice oracle fails silently toward
+   * VERIFIED), gives across 513 cases (0, 1, 2, 3, 7, 0xaaaaaaaa, 0xffffffff,
+   * 0x12345678, 0x80000000, 0xdeadbeef, 0x100000000, 0x1ffffffff,
+   * 0xffffffffffffffff and 500 random 64-bit words): the four bytes at +0x6c
+   * hold the LOW 32 bits little-endian, `GetState` returns exactly those 32 bits,
+   * and EVERY other byte of the buffer is still 0xAA — i.e. the setter really is
+   * this single 32-bit store, it truncates rather than widening, and it touches
+   * nothing else. A second store overwrites the slot outright (Set(0xffffffff)
+   * then Set(1) leaves `01000000`), confirming a plain `movl` and not a
+   * read-modify-write.
+   *
+   * @param state — HGRenderJob::State enum value (SysV %esi, u32).
+   */
+  SetState(state: HGRenderJobState): void {
+    // ------------------------------------------------------------
+    // @0x54640..0x54641 — prologue (no TS-visible effect).
+    // @0x54644 — movl %esi, 0x6c(%rdi) : store u32 at offset +0x6c.
+    //   Model 32-bit truncation with `>>> 0` so a negative / oversized
+    //   JS number stores the same bit-pattern the machine would.
+    // @0x54647..0x54648 — epilogue + retq.
+    // ------------------------------------------------------------
+    this.state = state >>> 0;
   }
 
   /**
