@@ -79,6 +79,42 @@
 // Symbols ported here (mangled -> address):
 //   * __ZN12OZChannelRefD1Ev  —  OZChannelRef::~OZChannelRef()  @ProChannel 0x4abb4
 //     (Itanium ABI D1 — complete-object dtor; ordinary destructor).
+//   * __ZN12OZChannelRefC1Ev  —  OZChannelRef::OZChannelRef()   @ProChannel 0x4c60a
+//     (Itanium ABI C1 — complete-object DEFAULT ctor.)
+//
+// ---------------------------------------------------------------------------
+// DEFAULT CTOR (C1) @0x4c60a — full 7-line disassembly (verbatim), from
+// raw-port/re/disasm/ProChannel.__ZN12OZChannelRefC1Ev.s:
+//
+//   __ZN12OZChannelRefC1Ev:
+//   0x4c60a  pushq   %rbp
+//   0x4c60b  movq    %rsp, %rbp
+//   0x4c60e  xorps   %xmm0, %xmm0            ; xmm0 = 16 zero bytes
+//   0x4c611  movups  %xmm0, (%rdi)           ; zero instance +0x00..+0x0f
+//   0x4c614  movq    $0x0, 0x10(%rdi)        ; zero instance +0x10..+0x17
+//   0x4c61c  popq    %rbp
+//   0x4c61d  retq
+//
+// Two stores, 0x18 bytes total — exactly the libc++ std::string body this
+// class already models (see the `ownsCopy`/`longSize`/`shortSize`/`owned`/
+// `shortData` fields, decoded by the D1 dtor and operator== ports above). The
+// resulting state is the canonical EMPTY SHORT-MODE string:
+//   +0x00 byte0 = 0  -> SSO tag bit 0 CLEAR (short mode) and short size
+//                       (byte0 >> 1) = 0
+//   +0x01..+0x17     -> the 23-byte inline character buffer, all zero
+//   +0x08            -> 0 (only read as the long-mode size, which this state
+//                       never selects)
+//   +0x10            -> 0 (the long-mode data pointer / the dtor's `owned`,
+//                       so a default-constructed ref is NON-OWNING and its
+//                       D1 dtor @0x4abb8 takes the no-op path)
+// There is NO call of any kind in the body: zero in-scope callees, zero
+// externs, no allocation (`__Znwm` is absent — an empty libc++ string never
+// allocates), no indirect or virtual dispatch.
+//
+// `OZChannelRef::OZChannelRef()` [C2] @0x4c5f6 is a SEPARATE symbol with a
+// byte-identical body (`xorps` @0x4c5fa, `movups %xmm0,(%rdi)` @0x4c5fd,
+// `movq $0x0,0x10(%rdi)` @0x4c600). It is its own ledger unit and is NOT
+// ported here; it is cited only as corroboration of the 0x18-byte body size.
 
 /**
  * `operator delete(void*)` — the C++ deallocator. Imported by ProChannel
@@ -191,6 +227,55 @@ export class OZChannelRef implements OZChannelRefHeader {
    * against the peer's short-mode buffer. Null when the ref is
    * long-mode. */
   shortData: Uint8Array | null = null;
+
+  /**
+   * `OZChannelRef::OZChannelRef()` @ProChannel 0x4c60a
+   * (__ZN12OZChannelRefC1Ev). Itanium ABI C1 (complete-object ctor) —
+   * the DEFAULT constructor.
+   *
+   * Faithful transcription of the 7-line disasm quoted in the file
+   * header. The whole body is two stores that zero the 0x18-byte
+   * libc++ std::string instance, leaving the canonical EMPTY
+   * SHORT-MODE string:
+   *
+   *   0x4c60a  pushq  %rbp                 ; frame setup (no TS counterpart)
+   *   0x4c60b  movq   %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x4c60e  xorps  %xmm0, %xmm0         ; xmm0 = 16 zero bytes
+   *   0x4c611  movups %xmm0, (%rdi)        ; zero +0x00..+0x0f
+   *   0x4c614  movq   $0x0, 0x10(%rdi)     ; zero +0x10..+0x17
+   *   0x4c61c  popq   %rbp                 ; frame teardown (no TS counterpart)
+   *   0x4c61d  retq
+   *
+   * Field-by-field, the two stores land on exactly the slots this class
+   * already models (nothing else is touched, and no field is removed):
+   *   +0x00 bit 0     -> `ownsCopy = false`  (short mode; the D1 dtor's
+   *                      `testb $0x1,(%rdi)` @0x4abb8 then takes the
+   *                      no-op path, so a default ref owns nothing)
+   *   +0x00 bits 1..7 -> `shortSize = 0`
+   *   +0x08           -> `longSize = 0n`     (same 16-byte store)
+   *   +0x10           -> `owned = null`      (the 8-byte store @0x4c614)
+   *   +0x01..+0x17    -> `shortData` = 23 zero bytes; in short mode
+   *                      those are the inline character bytes, and both
+   *                      stores together cover all of them.
+   *
+   * No callee of any kind: no in-scope call, no extern, no allocation
+   * (`__Znwm` does not appear — an empty libc++ string never
+   * allocates), no indirect or virtual dispatch.
+   */
+  constructor() {
+    // @0x4c60e / @0x4c611  xorps %xmm0,%xmm0 ; movups %xmm0,(%rdi)
+    //   — one 16-byte zero store covering +0x00..+0x0f.
+    this.ownsCopy = false; // +0x00 bit 0 (SSO tag: 0 => short mode)
+    this.shortSize = 0; // +0x00 bits 1..7 (short size = byte0 >> 1)
+    this.longSize = 0n; // +0x08 (long-mode size word)
+
+    // @0x4c614  movq $0x0,0x10(%rdi) — the second store, +0x10..+0x17.
+    this.owned = null; // +0x10 (long-mode data pointer / owned block)
+
+    // +0x01..+0x17 — the 23-byte inline buffer covered by the two stores
+    // above; zeroed here so the short-mode representation is complete.
+    this.shortData = new Uint8Array(23);
+  }
 
   /**
    * `OZChannelRef::~OZChannelRef()` @ProChannel 0x4abb4
