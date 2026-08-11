@@ -7,6 +7,9 @@
 // The rest of the class (the ctors @0x4e5150/@0x4e5170, needsSwap @0x4e51a0, the
 // two remaining setters setSourceWidth @0x4e51b0 / setSourceHeight @0x4e51d0,
 // setFieldMode @0x4e5250, setResolution @0x4e5220, vectorsHeight @0x4e52a0,
+// @0x4e52d0 fills). FIVE accessors are transcribed in this file. The rest of the
+// class (the ctors @0x4e5150/@0x4e5170, setSwap/needsSwap, the remaining two setters,
+// fieldMode/setFieldMode, setResolution, vectorsHeight @0x4e52a0,
 // hasMaxDisplacements @0x4e52c0) are SEPARATE ledger units and are NOT ported
 // here; do not add them without their own disassembly and address citations.
 //
@@ -18,6 +21,7 @@
 //   /Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/Versions/A/Ozone
 //
 // Symbols ported in this file (the `const` accessors, plus one setter):
+// Symbols ported in this file (the six `const` accessors, plus one setter):
 //   @0x4e51c0  CacheFileHeader::sourceWidth()   __ZNK13OZOpticalFlow7Private15CacheFileHeader11sourceWidthEv
 //   @0x4e51e0  CacheFileHeader::sourceHeight()  __ZNK13OZOpticalFlow7Private15CacheFileHeader12sourceHeightEv
 //   @0x4e5200  CacheFileHeader::totalFields()   __ZNK13OZOpticalFlow7Private15CacheFileHeader11totalFieldsEv
@@ -27,6 +31,8 @@
 //   @0x4e51f0  CacheFileHeader::setTotalFields(unsigned int)
 //                                               __ZN13OZOpticalFlow7Private15CacheFileHeader14setTotalFieldsEj
 //   @0x4e5190  CacheFileHeader::setSwap(bool)   __ZN13OZOpticalFlow7Private15CacheFileHeader7setSwapEb
+//   @0x4e51d0  CacheFileHeader::setSourceHeight(unsigned int)  (the one non-const member here)
+//              __ZN13OZOpticalFlow7Private15CacheFileHeader15setSourceHeightEj
 //
 // Source disassembly (re-derived from the binary with
 // `raw-port/tools/disasm.sh --sym <mangled> Ozone`):
@@ -38,6 +44,7 @@
 //   raw-port/re/disasm/__ZNK13OZOpticalFlow7Private15CacheFileHeader9fieldModeEv.s     (9 lines)
 //   raw-port/re/disasm/__ZN13OZOpticalFlow7Private15CacheFileHeader14setTotalFieldsEj.s (7 lines)
 //   raw-port/re/disasm/__ZN13OZOpticalFlow7Private15CacheFileHeader7setSwapEb.s        (7 lines)
+//   raw-port/re/disasm/__ZN13OZOpticalFlow7Private15CacheFileHeader15setSourceHeightEj.s (6 lines)
 //
 // ---------------------------------------------------------------------------
 // LAYOUT (offsets from the bodies below, corroborated by the sibling
@@ -376,4 +383,40 @@ export class OZOpticalFlow__Private__CacheFileHeader {
     this.needsSwapAt1 = swap ? 1 : 0;
   }
 
+  /**
+   * `CacheFileHeader::setSourceHeight(unsigned int)` — @Ozone 0x4e51d0
+   *   __ZN13OZOpticalFlow7Private15CacheFileHeader15setSourceHeightEj
+   *
+   * FULL DISASM (6 lines — raw-port/re/disasm/
+   * __ZN13OZOpticalFlow7Private15CacheFileHeader15setSourceHeightEj.s):
+   *
+   *   0x4e51d0  pushq %rbp                  ; prologue
+   *   0x4e51d1  movq  %rsp, %rbp
+   *   0x4e51d4  movl  %esi, 0x8(%rdi)       ; this->sourceHeight = value  (32-bit store)
+   *   0x4e51d7  popq  %rbp
+   *   0x4e51d8  retq
+   *   0x4e51d9  nopl  (%rax)                ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * The store is `movl`, so it writes exactly the 4 bytes at +0x08 — the
+   *     same slot `sourceHeight()` @0x4e51e4 reads back with `movl 0x8(%rdi),
+   *     %eax`. Writer and reader agree on both offset and width, which is what
+   *     ties this setter to the existing `sourceHeightAt8` field rather than
+   *     introducing a new one.
+   *   * The parameter is `unsigned int` (mangled suffix `Ej`) arriving in %esi;
+   *     the port masks with `>>> 0` to reproduce the 32-bit unsigned store
+   *     width, matching how `sourceHeight()` returns the field.
+   *   * No validation, no flag update, no side effect of any kind: the body is
+   *     one store between an untouched prologue and epilogue. In particular it
+   *     does NOT touch the +0x10 flags byte, so a caller changing the height
+   *     does not change `resolution()` / `fieldMode()` / `vectorsWidth()`.
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps` lists nothing).
+   *
+   * @param value the new source height — %esi, an unsigned 32-bit value.
+   */
+  setSourceHeight(value: number): void {
+    // @0x4e51d4  movl %esi, 0x8(%rdi)
+    this.sourceHeightAt8 = value >>> 0;
+  }
 }
