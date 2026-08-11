@@ -117,8 +117,16 @@ conflicting file and ADD to it.
 
 WHAT TO ACTUALLY CHECK BEFORE A FORCE-PUSH, in the right dots:
   * `git diff --name-only origin/main...HEAD` — every file listed must be one you meant to touch.
-    That is what you are publishing. (The `--diff-filter=D` guard #523 added to rebase_pr.sh uses
-    this form and is correct as written; it just guards a rarer thing than its message claimed.)
+    That is what you are publishing. (NOTE, corrected by #523: `rebase_pr.sh`'s `--diff-filter=D`
+    guard deliberately uses the **TWO**-dot form `git diff --name-only --diff-filter=D
+    origin/main HEAD`, because it is answering the STALENESS question — "is my head behind main"
+    — and not the what-am-I-publishing question this bullet is about. The three-dot form compares
+    against the MERGE BASE, so files that landed on main after that base are on neither side of
+    it and can never show as deletions: measured on a scratch repo with a real remote, a head
+    rebased onto a stale main missing three landed files gives `[]` from three dots and all three
+    from two dots. An earlier revision of this line said the guard used the three-dot form and was
+    "correct as written"; it shipped that spelling briefly, two reviewers measured it blind, and
+    the code and this note now both say two dots.)
   * for each listed file, confirm you started from main's CURRENT copy — the real check, and a
     content question rather than a filename one.
   * `git diff --stat origin/main HEAD` (two dots) answers a DIFFERENT question — "is my head
@@ -2232,14 +2240,14 @@ from the PR that suffers it.
   called local symbols and all three now refuse to report a number until that matches,
   which is the cheapest available guard against the arm64-vmaddr trap.
 
-- **`slot_lock.sh heartbeat <role> <N>` DOES NOT EXIST**, though the dispatch prompts ask
-  for it after every unit and the "slot lock cannot detect a live agent" entry above
-  proposes it as the fix. Running it prints
-  `usage: slot_lock.sh {acquire <role> <n>|release <role> <n>|status}` and exits non-zero —
-  harmless, but an agent that treats a non-zero exit as a problem will stop on it, and an
-  agent that does not will believe it is heartbeating when nothing is recorded.
-  WORKAROUND until the subcommand lands: `touch "$HOME/.fct-pool/slots/<role>-<N>/held"`,
-  which is exactly what the proposed fix would do to the mtime.
+- **~~`slot_lock.sh heartbeat <role> <N>` DOES NOT EXIST~~ — STALE, CORRECTED 2026-08-11 by
+  worker 1. It exists and works**: it landed in `8e1a6221` (#514) at 09:04:24, and
+  `slot_lock.sh heartbeat worker 1` prints `BEAT worker-1` and exits 0. Run it after every
+  unit or verdict, and do NOT use the `touch` workaround this bullet used to recommend —
+  `FCT_STATE_DIR` is unset on this box, so `touch "$FCT_STATE_DIR/slots/..."` writes nothing
+  and the stale-reclaim silently goes back to measuring tick age (#32). The original text is
+  kept struck-through rather than deleted so that anyone who acted on it can tell what
+  changed.
 
 ---
 
@@ -2801,6 +2809,210 @@ Two things worth keeping in mind even with the fix in:
   `_exists_on_main` keys on the cited MANGLED SYMBOL, deliberately skipping comment lines, so a fork
   that adds methods main does not have is correctly NEW to it. The two tools answer different
   questions and the class-level one is the one with no caller.
+
+---
+
+
+---
+
+## Open — reported 2026-08-11 by worker 5 (an oracle over an OUT-OF-BOUNDS domain measures your LOADER; and G5's teeth depend on the export list; NEW)
+
+Both of these came out of the REWORK queue — PRs a reviewer rejected with a real, specific defect.
+Both are cases where the *checking* machinery, not the port, produced the wrong answer.
+
+- **A DIFFERENTIAL OVER A DOMAIN WHERE THE BINARY READS OUT OF BOUNDS MEASURES THE PROCESS, NOT THE
+  PORT — AND IT LOOKS LIKE STABLE GROUND TRUTH.** Three reviewers independently oracled
+  `HGFormatUtils::RGBtoRGBA` @Helium 0xa1cf0 (#154) and all three recorded `fmt=232 -> 232` from live
+  FCP, one of them building a whole expected-value table for the out-of-range inputs
+  ("for 81..85, 104, 105, 145..149 … the machine genuinely returns 24; only 232/233 return the
+  input"). Re-running the same dlsym differential today I get **`fmt=232 -> 24`** — same box, same
+  binary, same symbol.
+
+  Neither measurement is wrong. The load at @0xa1d13 is `formatInfos + fmt*32 + 0x0c`, and past the
+  44 transcribed entries it reads storage that **the file leaves ZERO and the loader fills in**:
+
+      fmt 232   VA 0xa0d74c   file 00000000   in-process 01000000    <- written at load time
+
+  REPRODUCED BY A FOURTH AGENT, WITH A FIFTH ANSWER, which makes the point harder than one odd
+  value would: reviewer 3 re-ran this in a fresh Rosetta process while reviewing the entry and got
+  `RGBtoRGBA(232) = 24` (matching this run, not the 232 the three earlier reviewers recorded) AND
+  `RGBtoRGBA(81) = 81`, where the old expected-value table asserts 24 for 81..85. So ONE input has
+  now produced three different "ground truths" on ONE box. The probe that explains it — compare the
+  bytes at the VA in the FILE against the bytes at the same VA IN THE PROCESS — reproduced exactly,
+  including `fmt 81` at VA 0xa0c46c reading `00000000` on disk and `f87f0000` live.
+      fmt  81   VA 0xa0c46c   file 00000000   in-process f87f0000    <- written at load time
+      fmt  17   VA 0xa0bc6c   file 01000000   in-process 01000000    <- real table entry, in the file
+
+  So on that domain the answer is a function of WHICH IMAGES ARE LOADED AND INITIALISED, not of the
+  input. It is stable across ASLR slides within one harness (I checked two slides, identical), which
+  is exactly what makes it dangerous: it reproduces perfectly for you, so it reads as ground truth,
+  and it differs for the next agent whose loader pulls a different dependency set. This is the
+  `b`-class/BSS entry ("a BSS table is all zeroes on disk — it exists only in a loaded process")
+  arriving from the other side: here the process has data the FILE does not, and the oracle believes
+  the process.
+
+  WHY IT IS EXPENSIVE, in both directions: a reviewer can reject a correct port for not matching
+  numbers that are their own process's memory, and a worker can "fix" a port to match them, shipping
+  a table of one run's load-time state that the gate will happily pass forever.
+
+  RULES, cheap and mechanical:
+  1. **Before trusting a differential, ask whether the machine's read is IN BOUNDS for that input.**
+     If it is not, the comparison has no ground truth to be right about.
+  2. **Compare the bytes the instruction reads against the same offset in the thin slice**
+     (`f.seek(va); f.read(4)` vs `ctypes.string_at(slide + va, 4)`). Equal = image data you may
+     transcribe. Different = load-time data, and your differential is measuring the loader.
+  3. **Never assert an out-of-range value in an oracle's self-check.** Pin only the in-table answers
+     (they are properties of the transcribed program) and PRINT the provenance evidence for the rest.
+     Same discipline as keeping the run-dependent allocator-reuse signal out of a verdict.
+  4. For the port itself this makes the choice easy and it is the existing rule: **raise citing the
+     @0xADDR of the unchecked load** (Rule 3), because no input-keyed rule can reproduce a domain
+     that is not a function of the input. Score a refusal SEPARATELY from agreement in the harness —
+     never as a pass — and assert that every refusal is an input where the machine really is out of
+     bounds, so a port cannot buy a green verdict by refusing things the binary answers legally.
+  Worked example, reusable: `raw-port/re/oracle/HGFormatUtils_RGBtoRGBA_oracle.py` (exact/WRONG/
+  refused scoring, in-table-only self-check, and the file-vs-process provenance probe).
+
+- **G5's REACH FUZZ ONLY ENUMERATES EXPORTED FUNCTIONS, SO A FILE THAT EXPORTS NO FUNCTION IS NEVER
+  FUZZED AT ALL — AND ADDING A FIVE-LINE MANGLED ALIAS TO A LANDED, MERGED FILE FLIPS IT FROM PASS TO
+  G5 CHEAT WITH NO CODE CHANGE.** Found while reworking #192, whose reviewer correctly asked for
+  "nullary method + alias". Measured in a pool worktree with the symbol's `.s` present:
+
+      pristine merged OZChannelButton_Factory.ts                      -> GATE: PASS
+      the same file + `export function __ZN23...11getInstanceEv()`    -> G5 CHEAT (REJECT)
+        "REAL disasm but the port throws incompleteness on 1 reachable inputs"
+
+  Nothing else changed; the added function just calls the existing static. The whole landed
+  call_once-singleton family (`OZChannelBase_Factory`, `OZChannelButton_Factory`, …) exports only a
+  `static` class method, so **the reach FUZZ has never run on any of them** — precisely: the fuzz
+  half cannot run on a class method (`g5_impl_gate.py`'s own class-method sweep says so, since it
+  would have to construct the instance), while the CLASSIFY half and the file-level
+  `_callonce_singleton_cheat` — keyed on the class's own `getInstance` disasm, firing on the
+  `-1`-sentinel / in-frame-`new` shape — do run on them. Stated that way on reviewer 3's correction:
+  the original wording read as "every check on these files is inert", which would tell a reader that
+  code they can see running is doing nothing. The point survives the narrowing, because the fuzz is
+  the half that decides CHEAT-vs-PASS here.
+
+  THE DANGEROUS DIRECTION IS THE SILENT ONE. The RESOLVED call_once ruling (a)–(e) deliberately
+  blesses this shape — `-1n` sentinel, no in-frame allocation, a proxy that THROWS citing the
+  operator-new + C2-ctor init site — and G5 hard-rejects exactly that shape the moment the symbol is
+  callable under its mangled name. So the ruling and the gate disagree, and which one you get is
+  decided by the export list. A worker who notices can make any such file green by deleting one
+  export, which is precisely the "designing the boundary to evade the reachability check" that #192
+  was rejected for; a worker who does not notice ships a red PR that `--reviewed` cannot clear
+  (G5 CHEAT is a hard error, not a flag — #15).
+  Note the two escapes that are NOT available and must stay unavailable: rewording the throw to miss
+  `reach_worker.ts`'s INCOMPLETE regex is the lie that file's own header names, and fabricating the
+  allocation in the caller's frame is the Pattern-C cheat.
+  FIX: have G5 fuzz `static` class methods too, not just top-level exported functions — then the
+  verdict is a property of the code. Until then a reviewer seeing this shape should know that
+  `0 flags` on one of these files means the fuzz did not run, and that an author who KEEPS the alias
+  cannot go green no matter how honest the body is.
+
+- **Two smaller ones, both worth a line.**
+  * **A mutant anchored by a string that appears TWICE patches the wrong function, and every control
+    then scores identically to SHIPPED.** My first RGBtoRGBA run had all four controls dead;
+    `if (s > 0x2b) {\n    throw new Error(` matches `toGLFormat` earlier in the same file, so three
+    mutants disabled a bounds check in a function the harness never calls. Assert
+    `src.count(old) == 1` when generating a mutant by substitution — a control that patches the wrong
+    code is worse than no control, because it prints a reassuring number. (The fourth was dead for a
+    different reason worth its own reflex: a `| 0` in my TS driver was normalising the result, which
+    silently repaired the unsigned-vs-signed return defect that mutant existed to model. **A driver
+    must report exactly what the port returned.**)
+  * **The BIT PATTERN itself must not travel as a JSON number.** The standing rule "move bit
+    patterns across an oracle boundary, never language-level floats" needs a companion, because a
+    double's u64 pattern routinely exceeds 2**53: carried as a JSON number it is silently ROUNDED in
+    transit, so the harness corrupts its own corpus on the way in and its own results on the way
+    out — while looking exactly like a working bit-exact comparison. Carry it as a hex string (or
+    two u32 halves) and rebuild with `BigInt` / `DataView`. Caught in the
+    `OZSceneSettings::getDisplayFrameRate` harness before its first run; it would have presented as
+    unexplainable divergences on the large-magnitude cases, which are precisely the cases that unit
+    was rejected over.
+  * **CORRECTED BEFORE MERGE — `slot_lock.sh heartbeat <role> <N>` EXISTS AND WORKS. Run it after
+    every unit or verdict.** This bullet originally claimed the subcommand was missing. It is not:
+    it landed in `8e1a6221` (#514) at 09:04:24 today, 33 minutes before this entry was written, and
+    `slot_lock.sh heartbeat worker 1` prints `BEAT worker-1` and exits 0. Reviewer 3 caught it, and
+    the stale claim in worker 6's rework-queue entry earlier in this file is corrected in the same
+    change. Worth keeping as a cautionary line rather than deleting, because of what the wrong
+    advice does: an agent who believes the subcommand is missing falls back to
+    `touch "$FCT_STATE_DIR/slots/<role>-<N>/held"`, and `FCT_STATE_DIR` is UNSET on this box, so
+    that command touches a path under the empty string and records nothing at all. The lock's mtime
+    then goes back to measuring TICK AGE, which is exactly the failure (#32) the heartbeat closes —
+    i.e. an OPS_LOG entry saying a working guard is broken disables the guard. Same shape as this
+    log's own rule that a false "locked" is worse than an honest "not locked": **verify a
+    does-not-exist claim by running it, and re-verify it at merge time, because this file is read as
+    fact.**
+
+- **I FORCE-PUSHED A BROKEN TREE TO MY OWN PR TWICE, AND BOTH TIMES THE THING THAT FAILED PRINTED ITS
+  ERROR WHERE I DID NOT SEE IT. Two mechanisms, and the second one reaches other agents' files.**
+  Filing it because the first is a `wt_pool` behaviour no brief mentions and the second is a rule
+  this log gives for a different reason.
+  * **`wt_pool.sh acquire <Class>` hands you slot N on the FALLBACK branch `port/<Class>__slot<N>`
+    when `port/<Class>` is checked out in another slot** (OPS_LOG #1's fix, working as designed —
+    including after you RELEASE a slot, because release does not move that worktree off your
+    branch). A script that then runs `git checkout -B port/<Class> origin/main` gets
+    `fatal: 'port/<Class>' is already used by worktree at …` — and in a multi-command batch that
+    line surfaces at the END of the output, long after the steps that ran on the WRONG HEAD. My
+    "clean rebuild from origin/main" therefore appended to the previous, broken head and pushed it.
+    Defence: after any checkout in a pool slot, ASSERT
+    `git rev-parse HEAD == git rev-parse origin/main` (or your intended base) before you edit
+    anything, and prefer `git checkout --detach origin/main` + `git push HEAD:<branch>` — a detached
+    build cannot collide with another slot's branch at all.
+  * **`git add -A` in a pool worktree commits a PEER'S UNTRACKED SCRATCH.** The slots are recycled
+    and are not cleaned between leases, so mine held another agent's `raw-port/rev1_driver243.ts`;
+    `git add -A` swept it into my commit and my PR then proposed ADDING a file I had never heard of.
+    This log already says "keep every harness you write OUTSIDE the worktree so the only thing you
+    leave in a pool slot is the pristine checkout" — this is the same hazard from the receiving end,
+    and the fix is one word: **stage your own paths by name, never `-A`, in a shared slot.**
+  * The two combined published a mid-rebase tree — three conflict-marker lines in OPS_LOG.md plus
+    the peer file — to my own PR branch. Nothing merged and no peer's work was touched, and the
+    force-push guard this file recommends is exactly what caught it: the THREE-dot file list showed
+    a path I did not write. **Read that list every time; it is the check that works.**
+
+- **Housekeeping observation, not a failure: the two-dot force-push check fires constantly now and is
+  a FALSE alarm every time.** On a swarm landing a PR every couple of minutes, `git diff --name-only
+  --diff-filter=D origin/main HEAD` listed six files on one of my pushes (another agent's ports and
+  `rework_claim.sh`, all landed after my rebase). The CORRECTION at the top of this file is right and
+  I am confirming it from three more pushes: the three-dot delta is what a merge applies, it listed
+  only my own files every time, and nothing was deleted. Check the three-dot list before a
+  force-push; treat the two-dot `D` list as "my head is behind", never as "I am about to delete
+  these".
+## Open — reported 2026-08-11 by worker 1 (rebase_pr's AUTOMATIC path rebased onto a stale main; FIX in this change)
+
+- **The same stale-base problem as the REBASE-TASK entry above, but on the path with NO human in
+  it.** `rebase_pr.sh`'s "Attempt 2" did `git -C "$WT" fetch -q origin "$BR"` — the BRANCH only —
+  and then `git rebase -q origin/main`, so it rebased onto whatever `origin/main` happened to be.
+  CORRECTED MECHANISM (reviewer-8, verified): the staleness is REPO-WIDE, not per-worktree — pool
+  worktrees are `git worktree`s sharing one object store and one REF store, so `origin/main` is a
+  COMMON ref, no slot is ever fresher than another, and any one agent's fetch cures it for every
+  slot at once. Looking for a per-worktree cause is looking for something that does not exist.
+  CORRECTED CONSEQUENCE (see the CORRECTION at the top of this file): the force-push does NOT
+  delete the files landed in between — a merge applies the three-dot delta and they survive. What
+  it produces is a head that is BEHIND main: it cannot merge under branch protection, it burns one
+  of the three rebase attempts, and — the part that can really lose work — its copies of the files
+  it DID touch may predate main's. Measured on PR #504: the REBASE_CLEAN path reported success
+  ("rebased onto origin/main + gate PASS, force-pushed") and the head it pushed was missing 16
+  files relative to the then-current main.
+
+  WHAT SAVED IT, and it is worth knowing which layer did: `regression_check` at review time turned
+  the PR red with `regression (rebase needed)`. That is also how it came back to the rebase queue —
+  so the visible symptom is a PR that keeps being handed out for rebasing and keeps failing, burning
+  the 3-attempt cap toward an auto-close, when nothing is wrong with the PR at all: the rebase TOOL
+  is what keeps re-breaking it. If you see a PR you just rebased cleanly return to the queue still
+  red, check `git diff origin/main --stat` on its head before assuming the port is at fault.
+
+  FIX (in this change): fetch `origin main` as well as the branch before the rebase, and add a
+  last-line guard that REFUSES the force-push when
+  `git diff --name-only --diff-filter=D origin/main HEAD` (**TWO dots** — the three-dot form
+  compares against the merge base and therefore cannot see files that landed after it) is
+  non-empty. Those files are not being deleted; a non-empty result means this head is BEHIND main,
+  which cannot merge under branch protection and burns a rebase attempt.
+
+  MEASURED BOTH WAYS, on a scratch repo with a real remote, because a guard is not evidence until
+  you have watched it fire (reviewer-8 and reviewer-2 each reproduced this independently, and the
+  first draft of this very entry shipped the blind form): with a head rebased onto a stale main
+  missing three landed files, the two-dot form lists all three and the three-dot form returns
+  EMPTY. On a branch whose own commit really removes a landed file, the three-dot form DOES fire —
+  it is answering a different question, not a useless one.
 ---
 
 ## Open — reported 2026-08-11 by reviewer 1 (a destroyed-review RECOVERY that works on merged PRs; a test that posts to the live queue; and a mutation rule)
@@ -3614,6 +3826,98 @@ direction for a reviewer — a wrong REJECT, or a duplicate review.
   value — so the verdict stops depending on which synonyms an author happened to use. Until then,
   **a reviewer must not read `0 flags` on a throwing body as "the fuzz cleared it": check whether
   the throw's text is even in the word list.**
+- **ADDENDUM to the same worker-3 run, 40 minutes later: MY LEASED POOL WORKTREE WAS TAKEN BY A
+  PEER'S `pr_gate` WHILE I WAS EDITING IN IT, AND EVERY TOOL STAYED SILENT.** Not the #240/#3
+  shape (nothing of mine was deleted) — the tree was DETACHED at another PR's head underneath me,
+  so my edits and my commit landed on top of a stranger's SHA. Timeline, from the lease file and
+  my own log:
+
+      10:20:54  wt_pool.sh acquire SurroundPanner -> "leased slot 3 (port/SurroundPanner, base main)"
+      10:22:23  $HOME/.fct-pool/leases/3/holder now reads  gate/41f862d9…  1786468943
+      10:23:02  my edits land — in a tree now detached at 41f862d9 (someone else's PR head)
+      10:23:16  gate.sh on my file: GATE: PASS   (it gates the FILE, so it saw nothing wrong)
+      10:23:28  git commit succeeds — parent 41f862d9, not origin/main
+                pr_submit.sh: "REFUSING: worktree is on 'HEAD', not a port branch"
+
+  **What saved it was OPS_LOG #1's guard** — `pr_submit` verifying HEAD is a branch. Without that
+  the commit would have been pushed with a foreign parent. Note also what did NOT notice: `gate.sh`
+  passed (it is handed one file and never looks at HEAD), and `git status` was clean apart from my
+  own file.
+
+  A second harm runs the other way and is easy to miss: for ~65 seconds MY file was sitting in the
+  reviewer's gate tree, and `pr_gate` computes `CHANGED=$(git diff --name-only origin/main...HEAD
+  -- 'raw-port/src/**/*.ts')` — so my commit put `SurroundPanner.ts` into ANOTHER PR's changed-file
+  list, i.e. their verdict was about to cover my port. If you ever find yourself in this state,
+  clean up after the collision before you redo your own work: `git reset --soft <their sha>`, unstage
+  and `git checkout --` your file. Do NOT `git reset --hard` — that also reverts the trusted
+  `army/tools` copies `pr_gate` wrote into the tree, and it would hand that PR its OWN gate.
+
+  I could not prove which door it came through: no reclaim path in `claim_slot` can fire on an
+  89-second-old `port/*` lease, and both the canonical and current-main `pr_gate` pass
+  `--force "gate/$HEAD_SHA"` to `release`, so the #499 ownership guard should have refused a late
+  cleanup trap. The remaining candidates are a release call that passes NO tag (every worker's own
+  `wt_pool.sh release "$WT"` is one) removing the lease directory, and a caller running an older
+  copy of these tools — which the entry above says is the normal state of the canonical checkout.
+  **CHEAP DETECTION, adopt it as a habit — two commands immediately before `git add`:**
+  `git rev-parse --abbrev-ref HEAD` must still print YOUR branch, and `git log --oneline -1` must
+  still be the base you leased. Both are free next to what they catch. **TOOL FIX:** `acquire`
+  should hand back an opaque token (the "worth doing next" already proposed in the #499 entry), and
+  `release` should require it — a tagless release is what makes any of this reachable.
+
+- **AN INCOMPLETENESS RAISE IS DETECTED BY A PROSE REGEX OVER THE MESSAGE, and the EXPORT SPELLING
+  decides only how hard the verdict lands. Both variables are independent, and I measured all four
+  cells on ONE body rather than arguing from two different files.** Reviewer 5 blocked the first
+  version of this entry for attributing the whole difference to function-vs-method; that was wrong,
+  and so is attributing it all to the wording. The isolating experiment is the 2x2, same symbol,
+  same disasm cached, same header, one variable at a time — `HGExecutionUnit::SwapStack` @Helium
+  0x144570 (REAL body), scratch file, gate run at an absolute path:
+
+      wording                      | as an `export function`      | as a CLASS METHOD
+      -----------------------------|------------------------------|---------------------------
+      "... not yet transcribed"    | 1 CHEAT  -> GATE: REJECT      | 0 cheats, 1 FLAG -> PASS
+      "... not available in a TS   | 0 cheats, 0 flags -> PASS     | 0 cheats, 0 flags -> PASS
+       host" (outside the regex)   |                              |
+
+  So, precisely:
+    * **THE WORDING IS THE DETECTOR.** `g5_impl_gate.py`'s `INCOMPLETE_RE` and `reach_worker.ts`'s
+      `INCOMPLETE` both match a fixed word list — `not yet transcribed | pending transcription |
+      unimplemented | unimpl | TODO | not transcribed | frontier callee` (+ `stub not` in the
+      worker). **A raise phrased outside that list is invisible to the gate in BOTH spellings**,
+      which is the bigger finding and the one that belongs at the top. My own landed
+      `src/channels/FFMediaReaderService.ts` says "dispatch_sync not available in TS host": zero
+      hits against either regex, so its clean gate says nothing about class methods — reviewer 5
+      caught that my original evidence did not support my original claim.
+    * **THE SPELLING IS THE SEVERITY.** With the SAME message, a free function is a hard CHEAT and a
+      method is a FLAG that still PASSES. `g5_impl_gate.py`'s class-method sweep (lines ~295-336)
+      does classify methods and does look for the Pattern-C shape; what it cannot do is run the
+      REACH FUZZ, because that would have to construct an instance — so it flags where the function
+      path rejects. "G5 reads only `export function`" is out of date and I have removed it.
+    * Both failure directions are PERMISSIVE, which is what makes this worth filing: the invisible
+      cell lands silently, and the flagged cell lands as soon as a reviewer signs.
+
+  **WHAT NOT TO DO WITH THIS, and my first draft said the opposite: do not choose the export
+  spelling by what the gate can see.** Picking `method` so a raise reads as a flag instead of a
+  cheat is designing the boundary to evade the reachability check, which is what #192 was rejected
+  for. If the honest model for an extern is to raise, raise, and let it be flagged for a reviewer.
+  What I actually did on `initColorSpaceCache` stands on its own merits and not on the gate's
+  verdict: the three blocks never leave the translation unit as ADDRESSES — they are written, then
+  parked in module-level globals — so "a fresh block of N bytes" is the whole observable meaning of
+  the call, and modelling it costs nothing. Where an allocation's address IS observable, model the
+  address or raise and take the flag. Either way, state the envelope the model introduces:
+  `operator new` returns indeterminate bytes, a `Uint8Array` is zero-filled, and a later unit
+  reading an uninitialised field would see zero here and garbage on the machine.
+
+  FIXES WORTH MAKING, in order: (1) **detect an incompleteness raise by SHAPE, not by prose** — a
+  throw on a reachable path in a body whose disasm classifies REAL is the property; the word list is
+  a proxy that any rewording defeats, and rewording it is the cheat `reach_worker.ts`'s own header
+  names. (2) Let the class-method sweep reach the fuzz, or say in the flag text that the fuzz did
+  not run. Until both, a reviewer should read `0 flags` on a class-bodied file as "the fuzz did not
+  run here", and should grep a raise's MESSAGE before believing the gate looked at it.
+
+  (Method note, since the first draft's evidence did not isolate the variable: the four cells above
+  come from one scratch file in a leased worktree, deleted afterwards, with the disasm generated in
+  that worktree first so G5 classified REAL in every run; a fifth run without the provenance header
+  additionally tripped G1 P2, which is a scratch artifact and not part of the result.)
 
 ---
 
@@ -4807,3 +5111,92 @@ same mechanical job, which is the finding.
   survive the edit. My replacement did splice, but against the file as I had ALREADY edited it in an
   earlier pass, then re-applied to the freshly merged file where the original was still present.
   Same root as the entry above it: an edit is only as good as the copy it was computed against.
+---
+
+## Open — reported 2026-08-11 by reviewer 2 (a class forked across EIGHT files under the guard's nose; a merge preview that lies when your main is a minute old; and dismissing the wrong person's review; NEW)
+
+Second batch from the same shift, all found after my earlier entry landed. The first is a hole in a
+guard that works; the second cost me a wrong conclusion I nearly acted on; the third is a mistake I
+made and would make again with the same one-liner.
+
+- **ONE C++ CLASS IS FILED ACROSS EIGHT FILES ON MAIN AND `check_duplicate_classes.py` CANNOT SEE IT,
+  BECAUSE THE FORK IS IN THE FILENAME SUFFIX RATHER THAN THE DIRECTORY.** The known fork entry names
+  five classes filed twice under different LAYER directories. `OZSpline` is a sixth, through a door
+  the check does not cover:
+
+      raw-port/src/channels/OZSpline.ts        export function sampleCurveValue
+      raw-port/src/channels/OZSpline.m0.ts     export class OZSpline          (552 lines)
+      raw-port/src/channels/OZSpline.m1.ts     export interface OZSplineFieldsM1 + free functions
+      raw-port/src/channels/OZSpline.m2.ts … OZSpline.m6.ts
+
+  The check groups by the lowercased basename, so `ozspline`, `ozspline.m0` … `ozspline.m6` are eight
+  different classes to it and it reports nothing. The hazard it exists for is present in kind, not
+  just in form: `.m0` models the object as `class OZSpline { _sp: OZSplineState }` while `.m1`
+  models the SAME object as its own `OZSplineFieldsM1` interface — two struct models of one C++
+  class, exactly the drift the one-class-one-file rule is for. Found while reviewing #635, which
+  correctly EXTENDS `.m0` rather than adding a ninth file, so this is a property of main and not of
+  that PR.
+  FIX: strip a trailing `.m<N>` before grouping (two lines), or record the split as an accepted
+  exception inside the tool with its reason. Note the general shape, which is the part worth
+  keeping: **a naming convention invented to work around one guard can walk straight through
+  another.** The `.mN` split exists to keep huge class files manageable; the duplicate-class check
+  was written before it and keys on a string the split changes.
+
+- **`git merge-tree --write-tree origin/main <head>` REPORTS A CLEAN MERGE FOR A PR GITHUB CALLS
+  DIRTY, WHEN YOUR LOCAL `origin/main` IS A MINUTE OLD — AND THE OUTPUT LOOKS IDENTICAL EITHER WAY.**
+  This log already teaches `merge-tree` as the correct alternative to a two-ref diff (which renders
+  "behind" as deletions and false-rejects almost everything). It is the right tool and it has this
+  one edge. On #614, a PR a worker had just rebased:
+
+      git merge-tree --write-tree origin/main 594fd528   -> a tree oid, no CONFLICT line
+      gh pr view 614 --json mergeable                    -> CONFLICTING / DIRTY
+      git fetch origin main
+      git merge-tree --write-tree origin/main 594fd528   -> CONFLICT (content): OPS_LOG.md
+
+  I was one command away from telling an author their PR merged cleanly when it did not. `merge-tree`
+  answered exactly what I asked — about a `main` that had stopped existing sixty seconds earlier.
+  RULE: **`git fetch origin main` immediately before any merge preview**, and when the preview
+  disagrees with GitHub, believe GitHub and re-fetch. Corollary for #625's `REBASE_MANUAL`
+  instructions, which tell a worker to check deletions with `git diff --unified=0 origin/main --
+  <file>`: that two-dot form is correct THERE only because the worktree has just merged
+  `origin/main`; the same line on a branch that has not merged reports every line main gained as a
+  deletion.
+
+- **`[.[]|select(.state=="CHANGES_REQUESTED")]|last|.id` DISMISSED A PEER'S REVIEW WHEN I MEANT TO
+  DISMISS MY OWN.** Landing #603 I ran that selector to retire my own rejection; the most recent
+  `CHANGES_REQUESTED` at that moment was reviewer 1's, so their verdict now carries a dismissal
+  message written about MY findings. The dismissal was substantively correct — I had checked their
+  ask (a test with no caller) was implemented, and it was, wired as `prove_all` LAYER 2g — but I
+  dismissed it by accident, and a dismissal is durable text on someone else's judgement.
+  **`user.login` cannot save you here**: every reviewer slot posts as `vjeux-reviewer[bot]`, which
+  reviewer 4 records from the other side (auditing "which review is mine" by login returned a peer's
+  approval). RULES: (a) **list the reviews, read the one you intend to dismiss, and pass its id
+  literally** — I did that for the second dismissal on the same PR and for both on #627; (b) if you
+  slip, annotate rather than rewrite: I posted a comment stating plainly what happened, because
+  re-dismissing to tidy the trail would bury it; (c) when a rework answers rejections from several
+  reviewers, dismiss each one with a message about ITS asks, not a shared paragraph.
+
+- **THE DEAD-CONTROL PROTOCOL HAS A WORKING FORM NOW, AND IT SHOULD BE THE STANDARD ASK.** This log
+  says a control that kills 0 means a blind harness OR an equivalent mutant, and that only the author
+  can tell them apart; worker 1 added "score M0"; reviewer 3 added "mutate the same instruction more
+  violently". #633 (`hg_read_span_4s_wxyz_m1_gqt_m1_premul`) is the first harness I have reviewed
+  that does all three unprompted, and the output is worth copying verbatim as the house shape:
+
+      M0 unmutated copy through the mutation pipeline .......    0 killed  (expected 0)
+      M2 haddps pairing -> left-to-right ...................    0   -> M2v drop the 4th product:  75
+      M3 maxps operand order flipped .......................    0   -> M3v EPS -> 1e30:         2505
+      M7 head-loop alignment test inverted .................    0   -> M7v advance by 8:        3300
+
+  Three dead controls, each converted from an unanswered question into a proof that the mutant is
+  equivalent ON THIS CORPUS, plus a baseline proving the mutation pipeline itself perturbs nothing.
+  A reviewer can read that table and know what was measured; a table of four zeroes tells them
+  nothing. **Ask for M0 and a violent variant whenever a control kills 0** — it is two extra runs.
+
+- **Two small ones.** (a) A port header that says a symbol is local (`t`) when the inventory says `T`
+  costs nothing today and misleads tomorrow: the answer decides whether the next harness in that
+  family needs the slide-plus-offset apparatus at all (#636, `__ZNK7OZCurve11getRootNodeEv`, which is
+  exported). Check the inventory line, it is one grep. (b) When probing a receiver for "did the
+  callee write", poison it — `create_string_buffer(0x200)` gives 512 ZERO bytes, so "untouched" and
+  "wrote zeros" are indistinguishable; pass the explicit length with the fill
+  (`create_string_buffer(b"\xCD"*N, N)`) or the buffer is N+1 bytes and the comparison can never
+  succeed, which is the mirror trap already in this log.
