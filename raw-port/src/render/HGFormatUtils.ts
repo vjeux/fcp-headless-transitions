@@ -1068,15 +1068,58 @@ export function HGFormatUtils_RGBtoRGBA(fmt: number): number {
   //   entries. There is no bounds check at 0xa1d13: the machine reads
   //   whatever follows the table (C++ undefined behaviour; the bytes are not
   //   part of the transcribed program), so raise and never approximate it —
-  //   Rule 3, and the identical treatment `toGLFormat` @0xa1c61 and
-  //   `bytesPerPixel` already apply to the same unchecked-index shape in this
-  //   file.
+  //   Rule 3.
   //
-  //   Measured against live Helium, both plausible "cheap fixes" are WRONG:
-  //   returning fmt unchanged matches 232/233 but not 81/104/145/…, which
-  //   really do return 24; returning 24 matches those but not 232/233. The
-  //   machine's answer there is a function of bytes past the table, so no
-  //   in-table rule reproduces it.
+  //   THE SIBLING METHODS SPLIT ON EXACTLY THIS POINT, and the contrast is the
+  //   argument for raising here rather than returning something:
+  //     * `toGLFormat` @0xa1c50 has the SAME unchecked shape — `leaq
+  //       (%rax,%rax,2),%rax` then `movl 0x4(%rcx,%rax,4),%eax` @0xa1c61, with
+  //       no compare anywhere in the body — and is treated the same way here.
+  //     * `bytesPerPixel` @0xa1d60 is the OPPOSITE case: the MACHINE bounds-
+  //       checks it, `xorl %eax,%eax` @0xa1d64 then `cmpl $0x2b,%edi ; jg
+  //       0xa1d7c` @0xa1d66, so an out-of-range fmt provably returns 0 and
+  //       transcribing that 0 is faithful. No raise is needed there because
+  //       the binary itself defines the answer. RGBtoRGBA has no such compare,
+  //       which is precisely why there is nothing to transcribe on this path.
+  //
+  //   WHEN THIS RAISE CAN FIRE: only when (fmt & 63) is in the bitmap AND
+  //   fmt > 0x2b. Every well-formed `HGFormat` is in [0, 0x2b], so no valid
+  //   enum value can reach it — the 44 in-domain inputs all return through one
+  //   of the two paths below. This is not a reachable incompleteness throw; it
+  //   is the boundary of the domain in which the machine has a defined answer.
+  //
+  //   Measured against live Helium on BOTH slices, no returned value can be
+  //   faithful, because the two slices do not agree. Out-of-table inputs read
+  //   whatever bytes follow the 44-entry table, and those differ between the
+  //   x86_64 and arm64 images: on x86_64 (the slice this file transcribes)
+  //   fmt 232 and 233 return 24 while 81..84 and 616 return themselves; on
+  //   arm64 it is exactly the reverse. Both "cheap fixes" — return fmt
+  //   unchanged, or return 24 — are therefore wrong on at least one slice, and
+  //   a negative fmt whose low 6 bits hit the bitmap (-47, -24, …) faults with
+  //   SIGBUS rather than returning anything at all. There is no value to
+  //   transcribe here; raise.
+  //
+  //   (The earlier revision of this comment quoted those two groups the wrong
+  //   way round — it said 232/233 return themselves and 81/104/145 return 24.
+  //   Those were arm64 numbers, and this file is an x86_64 transcription: every
+  //   @0xADDR in it is an x86_64 offset and `disasm.sh` thins to that slice.
+  //   Corrected above from measurements on both slices, so that a reader who
+  //   re-runs the check on the slice the file names finds the numbers it
+  //   states. The conclusion is unchanged and is strengthened: it is the
+  //   DISAGREEMENT between the slices that proves no returned value can be
+  //   faithful.)
+  //
+  //   RE-MEASURED on the x86_64 slice when this comment was corrected, so the
+  //   file does not repeat the mistake it is fixing. `arch -x86_64
+  //   /usr/bin/python3`, Helium loaded through the depth-first @rpath preload,
+  //   `dlsym` resolving to exactly `slide + 0xa1cf0` and the prologue bytes
+  //   there reading `55 48 89 e5 89 f8` before any number was believed; each
+  //   call made in a forked child because the faulting inputs kill the process:
+  //
+  //     in-domain   17->24  18->24  19->25  20->27  21->28  40->24  41->24
+  //                 0->0  1->1  43->43
+  //     past table  81->81  82->82  83->83  84->84  616->616  65576->65576
+  //                 232->24  233->24  913->24
   if (s > 0x2b) {
     throw new Error(
       "HGFormatUtils::RGBtoRGBA(fmt=" +
