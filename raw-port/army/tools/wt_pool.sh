@@ -213,7 +213,45 @@ reset_clean () { # bring a worktree back to a pristine origin/main
   fi
   git -C "$wt" checkout -q --detach 2>/dev/null || true
   git -C "$wt" reset -q --hard origin/main 2>/dev/null || true
-  git -C "$wt" clean -fdq -- raw-port/src raw-port/re 2>/dev/null || true
+  # ARCHIVE WHAT THE CLEAN IS ABOUT TO REMOVE, then clean the WHOLE tree.
+  #
+  # The clean used to be scoped `-- raw-port/src raw-port/re`, so an untracked file ANYWHERE else
+  # survived a release and was handed to the next holder of the slot — and the standard next move,
+  # `git add -A && commit`, publishes it inside an unrelated PR. Measured 2026-08-11 in slot 2: a
+  # peer's abandoned `raw-port/army/ops/<entry>.md`, left when their shift ended, rode into a rework
+  # of PR #600 and showed up in its three-dot file list under a commit message about something else.
+  # Nothing else catches that: the file is an ADD, so every `--diff-filter=D` guard is silent,
+  # `gate.sh` only inspects the .ts files it is handed, and `wt_has_work` does not look outside
+  # src/re. OPS_LOG already carries the rule for the human version of this ("`reset --hard` does not
+  # remove untracked files; `git clean -fd` is the other half — which is exactly why reset_clean
+  # runs both"), and that sentence was true for two directories out of the repo.
+  #
+  # WIDENING A DELETE IS THE DANGEROUS DIRECTION, so it archives first. The stale-slot RESCUE above
+  # only captures `raw-port/src raw-port/re` (its `add -N` is scoped), so a wider clean on its own
+  # would DELETE a dead peer's untracked ops entry or new tool where the narrow one left it on disk
+  # — the fix becoming the next outage (standing rule 8). Everything the clean would remove is
+  # tarred into $POOL/rescue/ first, so the slot ends pristine and nothing is destroyed. Normal
+  # releases archive nothing, because there is nothing to archive.
+  #
+  # NO `-x`, deliberately: gitignored state is the warm cache this pool exists to keep —
+  # node_modules and venv (symlinks into the canonical checkout), raw-port/.gate.tsbuildinfo (the
+  # tsgo cache that takes typecheck from ~1.2s to ~0.2s) and army/inventory/*.syms.txt (the symbol
+  # cache whose absence sends agents back to a 78MB `nm`). `-fd` removes untracked-but-not-ignored
+  # files only, so the stray goes and every one of those stays. Pinned by test_wt_pool_clean.sh.
+  local strays; strays="$(git -C "$wt" clean -nd 2>/dev/null | sed 's/^Would remove //')"
+  if [ -n "$strays" ]; then
+    mkdir -p "$POOL/rescue" 2>/dev/null
+    local arch="$POOL/rescue/strays-$(basename "$wt")-$(date +%Y%m%d-%H%M%S).tar"
+    if (cd "$wt" && printf '%s\n' "$strays" | tar -cf "$arch" -T - 2>/dev/null); then
+      log "wt_pool: archived $(printf '%s\n' "$strays" | grep -c '') untracked path(s) left in $wt -> $arch"
+    else
+      log "wt_pool: WARNING could not archive the untracked paths in $wt; NOT cleaning them"
+      git -C "$wt" clean -fdq -- raw-port/src raw-port/re 2>/dev/null || true
+      rm -f "$wt"/raw-port/re/disasm/*.s 2>/dev/null || true
+      return 0
+    fi
+  fi
+  git -C "$wt" clean -fdq 2>/dev/null || true
   # PURGE THE DISASM SCRATCH. re/disasm/*.s is gitignored, per-worktree, and never cleared — so a
   # leftover .s from the PREVIOUS holder decides the next PR's G5 verdict in this slot. Measured:
   # one PR gated `0 flags / SUCCESS` in a slot holding a stale .s for its symbol and

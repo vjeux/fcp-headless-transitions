@@ -236,6 +236,16 @@ LAYER2 = [
      "a queue may only offer PRs that can reach main",
      ["bash", os.path.join(TOOLS, "test_queue_base_main.sh")],
      "test_queue_base_main: PASS"),
+    # 2x — a released pool slot carries nothing of the previous holder's, and still carries the warm
+    # cache. Those are opposite failures and only the end-to-end path exercises both: too narrow and
+    # a stray file lands in a stranger's PR (measured — a peer's untracked ops/ entry rode into PR
+    # #600's file list); too wide (`clean -fdx`) and node_modules, the tsgo cache and the symbol
+    # inventory go, which shows up as everyone's gate getting slower rather than as a failure.
+    # Offline against a throwaway $HOME, so it touches no live slot or lease. ~3s.
+    ("2x",
+     "pool hygiene — a released slot keeps the warm cache and none of the last holder's files",
+     ["bash", os.path.join(TOOLS, "test_wt_pool_clean.sh")],
+     "TEST_WT_POOL_CLEAN: PASS"),
 ]
 
 def check_layer_labels():
