@@ -290,7 +290,7 @@ def check_lease_ownership():
         "raw-port/army/tools/rebase_claim.sh": "rebase queue",
         "raw-port/army/tools/wt_pool.sh": "worktree pool",
     }
-    unguarded, unread = [], []
+    unguarded, unread, drifted = [], [], []
     for rel, what in releasers.items():
         src = from_main(rel)
         if not src:
@@ -304,6 +304,16 @@ def check_lease_ownership():
         code = "\n".join(l for l in src.split("\n") if not l.strip().startswith("#"))
         if "FCT_AGENT_ID" not in code or "owner" not in code:
             unguarded.append(what)
+            continue
+        # ...AND THE THREE STAMPS MUST AGREE, not merely all exist. Reviewer 2 caught the first cut
+        # of this fix shipping two of them as `[ -n "$FCT_AGENT_ID" ] && echo … > owner` with no
+        # else: on the STALE-RECLAIM path — which reuses a directory that already has an owner file
+        # — an ID-less reclaim then leaves the DEAD agent's id naming a lease it does not hold. Slot
+        # ids are reused by design here, so that agent returns and the guard authorises exactly the
+        # release it exists to refuse while refusing everyone else. Presence was never the property;
+        # "the file names the CURRENT holder or nothing" is, and its whole weight rests on a clear.
+        if not re.search(r"rm -f [^\n]*owner", code):
+            drifted.append(what)
     if unread:
         return record("lease-ownership", UNKNOWN,
                       f"could not read {', '.join(unread)} from origin/main — cannot tell a guarded "
@@ -313,6 +323,12 @@ def check_lease_ownership():
                       f"release path frees a lease without checking who owns it: "
                       f"{', '.join(unguarded)} — any agent's cleanup can free any other's lease "
                       f"[origin/main {MAIN_SHA}]", "#45")
+    if drifted:
+        return record("lease-ownership", FAIL,
+                      f"the claim path never CLEARS a stale owner in: {', '.join(drifted)} — an "
+                      "ID-less reclaim of a stale lease leaves the previous holder named on it, so "
+                      "the guard authorises that agent when its slot restarts and refuses the agent "
+                      f"actually holding it [origin/main {MAIN_SHA}]", "#45")
     # Live state, second half: after the guard lands, a lease with no owner is one taken by a caller
     # with no FCT_AGENT_ID. Those are releasable by anyone by design (fail-open), so they are not a
     # fault — but they are the population the guard does not cover, and if it is ALL of them the

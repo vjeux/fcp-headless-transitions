@@ -36,11 +36,26 @@ STATE="${FCT_STATE_DIR:-$HOME/.fct-pool}"; LEAS="$STATE/rework_leases"; ATT="$ST
 mkdir -p "$LEAS" "$ATT"
 CAP="${REWORK_ATTEMPT_CAP:-3}"; LEASE_MIN="${REWORK_LEASE_MIN:-90}"
 
+stamp_owner () { # <leasedir> : record the CLAIMANT — or REMOVE a name that is no longer the holder.
+  # The `else rm -f` is the whole point, and the first cut of this patch did not have it. The
+  # STALE-RECLAIM branch below reuses a directory that already carries an owner file, so a reclaim
+  # by a caller with no FCT_AGENT_ID would leave the DEAD agent's id sitting on a lease it does not
+  # hold. This harness reuses slot ids by design (HARNESS_LOOP invariant 2: one fixed slot per
+  # process, and the only thing that creates an agent is the harness restarting a dead slot), so
+  # that agent comes back — and the release guard would then authorise the returning `worker-9` to
+  # free a lease held by someone else while refusing every other identified agent. A guard whose key
+  # names the wrong agent is worse than none, because the refusals it does emit read as proof that
+  # it works. So the file always names the CURRENT holder, or nothing at all.
+  # Identical rule to `wt_pool.sh::stamp_holder`; the three copies are pinned to agree by
+  # test_guards case I (behaviour) and swarm_doctor's `lease-ownership` check (all three paths).
+  if [ -n "${FCT_AGENT_ID:-}" ]; then echo "$FCT_AGENT_ID" > "$1/owner"; else rm -f "$1/owner"; fi
+}
+
 lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
   local lk="$LEAS/$1"
-  mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; [ -n "${FCT_AGENT_ID:-}" ] && echo "$FCT_AGENT_ID" > "$lk/owner"; return 0; }
+  mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; stamp_owner "$lk"; return 0; }
   if [ -n "$(find "$lk/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
-    echo "$(date +%s)" > "$lk/held"; [ -n "${FCT_AGENT_ID:-}" ] && echo "$FCT_AGENT_ID" > "$lk/owner"; return 0; fi
+    echo "$(date +%s)" > "$lk/held"; stamp_owner "$lk"; return 0; fi
   return 1
 }
 

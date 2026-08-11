@@ -444,10 +444,54 @@ def _lease_release_case(script, subdir, mutate=None):
         if os.path.isdir(d):
             out.append(f"I. {script}: with FCT_AGENT_ID unset the release must fail OPEN — a "
                        "cleanup path that cannot name itself must still be able to free a lease")
-        # 6. and the claim side must actually RECORD an owner, or every check above is vacuous
+        # 6. and the claim side must actually RECORD an owner, or every check above is vacuous.
+        #    This one is a TEXT check and it is weak on purpose-built text: it passed against a
+        #    stamp that wrote the owner only sometimes, which is what 7 below exists to catch.
         if "owner" not in src.split("lease_free", 1)[-1].split("\n}", 1)[0]:
             out.append(f"I. {script}: lease_free() does not write an owner file — the release "
                        "guard can never fire, which reads as protection while providing none")
+        # 7. A STALE RECLAIM BY AN ID-LESS AGENT MUST NOT LEAVE THE DEAD AGENT'S NAME ON THE LEASE.
+        #    The stale branch of lease_free() reuses a directory that ALREADY has an owner file, so
+        #    a stamp written as `[ -n "$FCT_AGENT_ID" ] && echo …` (no else) leaves the previous
+        #    holder's id on a lease it no longer holds. That is not untidiness: this harness reuses
+        #    slot ids by design — HARNESS_LOOP invariant 2 is one fixed slot per process and the
+        #    only thing that creates an agent is the harness restarting a dead slot — so `worker-9`
+        #    comes back, and the release guard then AUTHORISES the returning worker-9 to free a
+        #    lease held by the ID-less reclaimer while REFUSING every other identified agent. The
+        #    guard's key names the wrong agent, and the refusals it emits read as proof it works.
+        #    Drives the real claim path: source the script (its `status` branch is offline and
+        #    read-only) and call lease_free() with the held file aged past LEASE_MIN.
+        d = lease(106, "worker-9")
+        os.utime(os.path.join(d, "held"), (1000000000, 1000000000))   # 2001 — past any LEASE_MIN
+        probe = (f"export FCT_STATE_DIR='{state}'\n"
+                 f"unset FCT_AGENT_ID\n"
+                 f"source '{path}' status >/dev/null 2>&1\n"
+                 f"lease_free 106\n")
+        sh(probe)
+        if os.path.exists(os.path.join(d, "owner")):
+            who = open(os.path.join(d, "owner")).read().strip()
+            out.append(f"I. {script}: an ID-less STALE RECLAIM left '{who}' — the previous, dead "
+                       "holder — named as the owner of a lease it does not hold, so the release "
+                       "guard now authorises that agent when its slot restarts and refuses "
+                       "everyone else (wt_pool's stamp_holder removes the file; these must match)")
+        # ...and the consequence, measured rather than asserted about the file: after that reclaim
+        #    the lease is unowned, so ANY agent may free it (fail-open, cases 3 and 5). Under the
+        #    bug this next release is REFUSED, because the file still says worker-9.
+        release(106, "worker-5")
+        if os.path.isdir(d):
+            out.append(f"I. {script}: after an ID-less stale reclaim the lease could not be "
+                       "released by an identified agent — a name left over from the previous "
+                       "holder is now locking out the agents that actually hold it")
+        # 8. the mirror of 7: the DEAD agent must get no privilege from its leftover name either.
+        #    Same outcome as 7's releaser is the property — no discrimination survives the reclaim.
+        d = lease(107, "worker-9")
+        os.utime(os.path.join(d, "held"), (1000000000, 1000000000))
+        sh(probe.replace(" 106", " 107"))
+        release(107, "worker-9")
+        if os.path.isdir(d):
+            out.append(f"I. {script}: the reclaimed lease treats the dead holder differently from "
+                       "any other agent — after a reclaim the owner file must name the CURRENT "
+                       "holder or nothing")
     return out
 
 
@@ -462,6 +506,20 @@ for _script, _subdir in (("rework_claim.sh", "rework_leases"), ("rebase_claim.sh
     if not any("released a lease owned by ANOTHER agent" in m for m in _mutated):
         fails.append(f"I. {_script}: the mutation check did not go red — removing the ownership "
                      "test from the release branch left this case passing, so it is not evidence")
+    # MUTATION 2: put back the stamp AS IT WAS REVIEWED AND REJECTED — write the owner only when we
+    # have an id, never clear it — and case 7 must go red. The first cut of this fix shipped exactly
+    # this text and every one of cases 1-6 passed against it, which is the whole reason 7 exists:
+    # the hole was not in the release guard but in the KEY it reads.
+    _stamped = _lease_release_case(
+        _script, _subdir,
+        mutate=lambda s: s.replace(
+            'if [ -n "${FCT_AGENT_ID:-}" ]; then echo "$FCT_AGENT_ID" > "$1/owner"; '
+            'else rm -f "$1/owner"; fi',
+            '[ -n "${FCT_AGENT_ID:-}" ] && echo "$FCT_AGENT_ID" > "$1/owner"'))
+    if not any("STALE RECLAIM left" in m for m in _stamped):
+        fails.append(f"I. {_script}: the stale-reclaim mutation did not go red — a stamp that never "
+                     "clears a dead holder's id left this case passing, so it is not evidence that "
+                     "the owner file names the CURRENT holder")
 
 
 # A run in which cases never executed must not read like a full pass — prove_all prints a child's
