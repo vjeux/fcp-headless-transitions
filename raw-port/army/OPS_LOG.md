@@ -3143,6 +3143,174 @@ wrong reported confidently and falsely.
   repo keeps relearning in new places: **an unparseable SUCCESS is not an empty result, and "I could
   not read this" must never be folded into a data value.** Fetch text as text, and on a genuine
   failure fail toward NOT accusing.
+## Open — reported 2026-08-11 by reviewer 2 (a landed fix cannot reach the agents; the canonical tree is deadlocked dirty; a reviewer's own PR is unreviewable; NEW)
+
+- **THE #596 FIX LANDED ON MAIN AND THEN DESTROYED MY REVIEW BODY ANYWAY, TWENTY MINUTES LATER,
+  BECAUSE AGENTS RUN THE TOOL FROM THE CANONICAL CHECKOUT AND THAT TREE CANNOT FAST-FORWARD.** This
+  is the composition of two open entries into an outage that neither predicts, and it is the most
+  expensive thing I hit today. Sequence, all measured:
+
+      11:19  #596 merges as f926ee91. I run its acceptance test against origin/main's copy:
+             all four bad argv shapes refuse (exit 2, no POST), both good paths post intact.
+             I write in the PR comment: "--expect-head is safe to pass on this host from now on".
+      11:22  I sign PR #595 with `pr_review.sh 595 approve --expect-head <sha> --body-file <path>`
+             — invoked as `raw-port/army/tools/ghapp/pr_review.sh`, i.e. THE CANONICAL TREE'S COPY.
+             Success line, exit 0, APPROVED. The posted body is 92 characters:
+             "--expect-head 02bd53c8… --body-file /tmp/rev2/t595/verdict.md".
+             4,098 bytes of differential — a live-binary null-path measurement and a `node
+             --experimental-strip-types` run of the port — gone.
+
+      $ grep -c expect-head raw-port/army/tools/ghapp/pr_review.sh          # canonical tree
+      0
+      $ git show origin/main:raw-port/army/tools/ghapp/pr_review.sh | grep -c expect-head
+      14
+      $ git rev-list --count HEAD..origin/main                              # canonical tree
+      49
+
+  **The shape worth naming: verifying a fix ON MAIN is what convinced me the flag was safe, and the
+  copy I then invoked was not the copy I verified.** Every agent invokes `raw-port/army/tools/*` from
+  the canonical tree, so "it landed" and "it is running" are different facts, and the gap is 49
+  commits wide right now.
+  RECOVERY (worked, and is the documented one): dismiss YOUR OWN review — only ever removes an
+  approval — then re-post with a current tool.
+  `gh_as.sh reviewer api -X PUT repos/<slug>/pulls/<PR>/reviews/<id>/dismissals -f message='…'`
+  then re-submit; the new tool's success line prints `body 4608 chars`, which is the confirmation the
+  old one could not give you.
+  WHAT TO DO UNTIL THE TREE ADVANCES — one command, and it is the same trick `pr_gate` already uses
+  for the gate tools:
+
+      git archive origin/main raw-port/army/tools raw-port/army/gate raw-port/army/verifier \
+        | tar -x -C /tmp/goodtool
+      bash /tmp/goodtool/raw-port/army/tools/ghapp/pr_review.sh …     # the copy you verified
+
+  (`pr_land.sh` happened to be byte-identical between the two, `md5 7e957270…` both sides — so this is
+  per-tool, not a blanket "everything is stale". Check the one you are about to trust.)
+  AND STILL READ THE BODY BACK. `gh pr view <PR> --json reviews --jq '.reviews[-1].body|length'`
+  against the length of your file is two seconds and is the only check that covers every way a body
+  has been lost, including ways nobody has invented yet.
+
+- **THE CANONICAL TREE'S TWO MAINTENANCE PATHS WERE EACH BLOCKED BY THE OTHER'S PRECONDITION, AND
+  THE THING HOLDING ONE OF THEM SHUT WAS A TRACKED, MACHINE-GENERATED CACHE. FIXED in #598
+  (`71f6f1f4`), which merged at 11:25 — before this entry was written.** Recorded anyway, for two
+  reasons: the mechanism is the clearest deadlock this log has, and the way I diagnosed it is an
+  instance of the bullet directly above.
+
+  THE DEADLOCK AS IT STOOD BEFORE 11:25. #598 is right that the fast-forward's `-z "$gatebusy"`
+  never opens (I sampled the predicate 12 times over 120 s: 0/12 windows open, and `pgrep -f`
+  matches any process whose ARGV merely contains `pr_gate.sh`, including the reviewer that is
+  gating and a `grep` for it). But dropping that condition alone was not sufficient, because the
+  tree was also permanently DIRTY:
+
+      $ git status --porcelain | grep -vE 'ledger/|\.gate\.tsbuildinfo|depgraph/'
+       M raw-port/army/cache/stubscan_cites.v1.json      # tracked, 1.5 MB, written by stubscan.py:119
+
+      path                     condition               live value            fires?
+      reset --hard (cleans)    -n dirty && -z gatebusy  dirty=1, gatebusy=1   NO  (gatebusy)
+      fast-forward (post-#598) -z dirty                 dirty=1               NO  (dirty)
+
+  So the only thing that would clean the cache file was blocked by the guard #598 removes from the
+  OTHER branch, and the fast-forward was blocked by the file.
+
+  IT IS FIXED, AND THE FIX IS BOTH HALVES. `git log -S'raw-port/army/cache/' origin/main --
+  raw-port/army/tools/swarm_maint.sh` returns exactly one commit — `71f6f1f4`, i.e. #598 — and that
+  tree carries the string four times: `raw-port/army/cache/` is now inside `MACHINE_STATE` (line 34),
+  so the cache no longer counts as dirty, plus a belt-and-braces fallback (lines 69-76) that checks
+  the cache out and retries the `--ff-only` after a genuine refusal. The evidence that a DIRTY tree
+  now moves is the canonical tree's own reflog:
+
+      7a53a2be HEAD@{11:29:25}: merge origin/main: Fast-forward     # #598 merged 11:25:33
+      1e7678fa HEAD@{09:50:04}: merge origin/main: Fast-forward
+
+  — four minutes after #598, with `stubscan_cites.v1.json` still modified. It is modified right now
+  (mtime 12:00:38; `stubscan.py` rewrites it every few minutes) and the tree still advanced.
+
+  WHY THE DIAGNOSIS OUTRAN THE FIX — THIS BULLET IS AN INSTANCE OF THE ONE ABOVE. At the time of the
+  measurement the canonical tree was at `1e7678fa`, and
+  `git show 1e7678fa:raw-port/army/tools/swarm_maint.sh | grep -c 'raw-port/army/cache/'` is **0**:
+  `71f6f1f4` is not an ancestor of `1e7678fa`. The copy of `swarm_maint.sh` I read genuinely lacked
+  the exclusion — for exactly the reason `pr_review.sh` lacked `--expect-head` twenty minutes
+  earlier, in the same tree, in the same run. The remedy in the bullet above (`git archive
+  origin/main … | tar -x -C /tmp/goodtool`, then read THAT copy) is what would have caught it, and
+  it is the lesson worth carrying out of this entry: **a landed fix and a reachable fix are
+  different facts, and that is true of the tool you are diagnosing WITH as well as the one you are
+  diagnosing.**
+  The fix bounds the drift; it does not remove it. Measured 33 minutes after that fast-forward, at
+  12:02 today, the canonical tree is already **14 commits behind** origin/main again. Anything you
+  read out of it is as old as the last maintenance run.
+
+  ONE CLAUSE ON THE `0/12` SAMPLE, because a non-reproduction will otherwise read as a refutation:
+  that number is a property of the LOAD, not of the predicate. The same 12-sample/2-second probe run
+  twice since — by reviewer 4, and again at 12:03 by worker 2 — came back **9/12 open both times**.
+  The `pgrep -f` self-match argument holds regardless, and #598 removed the condition from the FF
+  path anyway, so the entry stands; just do not expect the count to reproduce.
+
+  WHAT THE FIX DOES NOT COVER, and is still worth doing: a 1.5 MB regenerable cache should not be
+  TRACKED. Everything above is machinery for tolerating a file that has no business being in the
+  index.
+  (Also verified while reviewing #598, since it is the claim the whole change rests on: **no tool
+  checks out into the canonical tree.** `pr_gate`/`pr_submit`/`pr_land`/`rebase_pr` are all
+  `git -C "$WT"` against a pool worktree, `pr_gate` takes its trusted tools from
+  `git --git-dir="$CANON/.git" archive`, and a `grep 'git checkout|reset --hard|stash'` over
+  `army/tools/*` excluding `-C "$wt"` forms returns only two comments and `swarm_maint` itself. And
+  the classic fear behind the guard does not apply: git REPLACES the inode on checkout — measured
+  472017181 -> 472017224 — so a bash script already executing from that path runs to completion on
+  its old content.)
+
+- **THE REVIEWER APP CAN OPEN PRs THAT NO REVIEWER CAN APPROVE, SO A REVIEWER'S OPS_LOG ENTRY IS
+  UNLANDABLE BY THE SWARM.** PR #601 is authored by `vjeux-reviewer[bot]`, which is the identity every
+  reviewer slot signs with, so `pr_review.sh 601 approve` returns **exit 3** ("GitHub says this
+  identity authored PR #601, so it cannot review it") — correctly, it is a self-review. `pr_land`
+  then refuses for want of an approval on the head. The verdict is not wrong and the guards are not
+  wrong; there is simply no one left who can sign. I recorded my verification as a comment instead,
+  which is the pre-app fallback and does not unblock the merge. Note this entry is in the same
+  position. FIX: either reviewers file their findings through the worker identity (the way #594 and
+  #578 reach main), or a third identity exists for ops/doc PRs, or `pr_land` accepts a human's
+  approval as the escape hatch for this one class. Right now the swarm's most experienced observers
+  are the only agents whose reports cannot land.
+
+- **A NEGATIVE CONTROL CAN BE NEITHER DEAD NOR INFLATED BUT *IMPLIED* — a restatement of the
+  measurement standing beside it, which prints "correctly differs" no matter what happens.** Third
+  variant of the control rule in this log, after "kills 0 = blind" and worker 1's "inflated by a
+  shared base-model bug". On #582 the harness called the LIVE symbol and asked whether the binary had
+  written arg6 into `+0x18`; the main loop had already asserted `+0x18 == 0` over all 64 cases, so the
+  control could not fire while the run passed. Proof that it is decorative rather than diagnostic: I
+  mutated the port's CLAIM (the expectation dict) to the in-order mis-transcription, the run went
+  `1/64 agree … DIVERGED`, and the control still printed **"correctly differs"** on the same line it
+  always does.
+  TEST: ask "what would have to be true for this control to print the other thing?" If the answer is
+  "the measurement three lines up would have failed", it is not a control. A real one mutates the
+  PORT'S CLAIM and re-measures — four lines away in every case I met today, and it killed 63/64.
+
+  FOURTH VARIANT, contributed by reviewer 4 from #585 and folded in here because it is the same
+  failure wearing a different mask: the control was neither dead, inflated, nor implied — **the
+  DRIVER NORMALISED THE PORT'S OUTPUT WITH THE VERY OPERATION UNDER TEST.**
+  `HGExecutionUnit_CommitStack_vec4_driver.mts` reports `hex(chosen.at10)` where
+  `hex = (v) => BigInt.asUintN(64, v)…`, so a mutant that DELETES the port's own `BigInt.asUintN` at
+  the store scores **9/9 and prints VERIFIED**, and the case written for exactly that property
+  (`count = 2^64-1, store wraps`) cannot fail. Phrase it as a rule: *an instrument that normalises
+  its subject's output with the operation under test measures nothing there, and it hides inside a
+  healthy per-class count.* The TEST above catches this one too, which is some evidence the test
+  generalises rather than enumerating the four cases we happen to have met.
+
+- **Two cheap habits that each cost me something, both worth copying.**
+  * **Re-read the PR's STATE immediately before you sign, not just its SHA.** I hand-picked #570 from
+    a `gh pr list` that was seven minutes old and reviewed it in full — re-derived the constructor,
+    read 16 bytes of the constant out of the mapped image, confirmed all eight vtable slots against
+    the inventory — and it had MERGED four minutes before I claimed it. `review_claim.sh claim` would
+    never have offered it (it lists `--state open`); hand-picking is what did it. My later verdicts
+    all ran a one-line `PRE-SIGN` check (`gh pr view <PR> --json state,headRefOid`) against the head
+    I verified, which costs nothing.
+  * **A staleness guard must be expressed as DELETIONS IN THE THREE-DOT DELTA.** Filing this as a
+    standing rule because it has now appeared three times in one day (the #499/#523 correction,
+    reviewer 8's `--diff-filter=D` note, and a proposed gate I rejected today that would have
+    red-gated 10 of 15 open non-src PRs, including two that add 119 and 596 lines and delete nothing).
+    "My branch does not contain main's newer lines" is a TWO-dot fact about staleness and says nothing
+    about deletion: a line main gained after the fork point is on neither side of the merge base, so
+    the branch cannot delete it — I merged such a branch in a scratch repo and watched the line
+    survive. What a merge removes is exactly the `-` lines of `git diff --unified=0 origin/main...HEAD`.
+    The mirror error is just as common: a guard keyed on "main moved on this file since I forked" is
+    BLIND to the real incident, because a branch cut from a main that already contains the peer's fix
+    has that commit behind its merge base — which is the normal, fresh-branch case.
 
 ---
 
@@ -3417,3 +3585,147 @@ one, because the advice that causes it is advice several dispatch prompts are gi
   a `--peek` that reports without leasing. (b) `slot_lock.sh heartbeat <role> <n>` DOES exist and
   prints `BEAT worker-2`; the entry above saying it does not is describing the stale canonical
   copy, which is the first bullet of this entry wearing a different hat.
+---
+
+## Open — reported 2026-08-11 by reviewer 3 (a signing flag that DELETES your evidence; a stale rework diff; and how to answer a dead control)
+
+Ten PRs this run (#46, #105, #149, #352, #554, #143, #538, #335, #564, #154, #563 — nine landed, one
+rejected). Everything below was hit live and every number is measured on this box today.
+
+- **A FORCE-PUSHED REWORK LEAVES YOUR LOCAL PR REF POINTING AT THE HEAD THAT WAS ALREADY REJECTED,
+  AND THE FETCH THAT FAILS TO UPDATE IT SAYS NOTHING YOU WILL NOTICE.** `git fetch origin
+  pull/<N>/head:refs/remotes/pr/<N>` cannot fast-forward when the author rewrote the branch, so git
+  declines the update — no error the eye catches in a batch, exit 0 in a chain. On #352 I read the
+  *previous, rejected* content for a minute believing it was the rework; the tell was that the diff
+  still contained the entry the last review had blocked on, which is a subtle thing to notice and a
+  worse thing to miss in the other direction (approving a head whose defect you think was fixed).
+  **This is not an edge case for a reviewer: the rework queue force-pushes by construction, so EVERY
+  re-review is exposed.** FIX for the agent, one character: `git fetch origin
+  +refs/pull/<N>/head:refs/remotes/pr/<N>`. Better, and what I now do before reading a single line of
+  any re-review diff: `git rev-parse refs/remotes/pr/<N>` and compare it against the SHA
+  `review_claim.sh` leased you.
+
+- **THE DISPATCH PROMPTS ARE TELLING REVIEWERS TO SIGN WITH `--expect-head <sha>`, THAT FLAG DOES NOT
+  EXIST, AND PASSING IT SILENTLY REPLACES YOUR ENTIRE EVIDENCE BODY WITH THE FLAG TEXT.**
+
+  **FIXED the same day by #596 (`f926ee91`): `--expect-head` now exists and refuses on drift
+  (exit 5), an unrecognised or empty-valued flag exits 2 instead of becoming the body, and the
+  posted body length is read back and compared. The workaround below is no longer needed on a
+  current checkout — but note that the canonical tree runs stale tools (measured at 46 commits
+  behind `origin/main` at the start of this session), so `grep -c expect-head
+  raw-port/army/tools/ghapp/pr_review.sh` in the copy you are about to RUN, not on main, before
+  relying on it. "The flag exists on main" and "the flag exists in the tree I am running" are
+  different statements, and the disaster below is still live on any box that has not advanced.**
+
+  My prompt
+  said, in bold, "Sign with `--expect-head <the sha you verified>`:
+  `ghapp/pr_review.sh <PR#> approve --expect-head <sha> --body-file <path>`". On current main
+  `grep -c expect-head raw-port/army/tools/ghapp/pr_review.sh` is **0**. Read what happens if you
+  obey the instruction: the script takes the body-file path only when `$1` is *exactly*
+  `--body-file`, and otherwise falls through to `BODY="${*:-}"`. With `--expect-head` first, `$1` is
+  not `--body-file`, so the review is posted with the literal body
+
+      --expect-head 450ec2f0… --body-file /tmp/my_evidence.md
+
+  and the file — the entire differential, the mutant table, the addresses — is never read. `gh`
+  accepts it, the script prints `-> APPROVED`, and exits 0. The permanent record then carries a
+  verdict whose stated evidence is two shell flags.
+  This is OPS_LOG #30 (evidence silently deleted from the record) arriving through a new door, and it
+  is worse than the backtick case for two reasons: the loss is total rather than partial, and the
+  agent believes it is executing the *fix* for a different known hazard.
+  THE HAZARD THE FLAG WAS INVENTED FOR IS REAL — `pr_review.sh` resolves the head at call time, so an
+  approve can land on code you never read (the "approval binds to the LIVE head" entry above,
+  3 times in 6 PRs). It just was never implemented. **WORKAROUND, which is what I did for all ten
+  PRs**: re-read the head immediately before signing and refuse if it moved, then verify the posted
+  review afterwards —
+
+      H=$(gh pr view <PR> --json headRefOid -q .headRefOid)
+      [ "$H" = "<leased sha>" ] || { echo "HEAD MOVED — do not sign"; exit 1; }
+      ghapp/pr_review.sh <PR> approve --body-file /tmp/evidence.md      # --body-file FIRST
+      gh api repos/<slug>/pulls/<PR>/reviews --jq '.[-1]|"\(.state) \(.commit_id) \(.body|length)"'
+
+  That last line costs nothing and catches both failure modes at once: a wrong `commit_id` means the
+  head moved under you, and a `body|length` of ~40 instead of ~5000 means your evidence was eaten.
+  FIX, in order: (a) implement `--expect-head <sha>` — resolve the live head, refuse non-zero and
+  loudly when it differs, exactly as `pr_land` refuses to mint an approval; (b) make the argument
+  parser REJECT any unrecognised leading `--flag` instead of silently treating it as prose — an
+  option-shaped body is never intentional; (c) fix the dispatch prompts, which are the only reason
+  anyone types it.
+
+
+- **A NEGATIVE CONTROL THAT KILLS 0 IS ANSWERABLE IN ONE MORE RUN — DO THAT INSTEAD OF REPORTING THE
+  ZERO.** The standing rule says a dead control means either a blind harness or an equivalent mutant,
+  and that only the author can tell them apart. There is a mechanical way to tell, and it is cheap:
+  **mutate the SAME instruction more violently.** Measured on #335 (`HgcToneParamCurve2::RenderTile_AVX`,
+  128 lanes against the live kernel):
+
+      my mutant: drop the vmaxps clamp @0x376612                 killed   0/128
+      my mutant: force that clamp's bound to 1e30                killed  42/128
+      => the harness DOES observe that instruction, so the first mutant is EQUIVALENT ON THIS
+         CORPUS (no lane ever reaches the clamp). A corpus gap, not a blind harness.
+
+  If the violent version had also scored 0, the harness could not see that instruction at all and the
+  whole run would be suspect. Two lines of extra work turn "one of my controls is dead" into a
+  precise statement about coverage. (For contrast, on the same file rotating the P0 lane index to
+  `(c+1)&3` killed 47/128, which is what told me the 128/128 was not a both-sides-compute-nothing
+  result.)
+
+- **DO NOT RESOLVE A G5 NO-DISASM FLAG BY THE ADDRESS IT NAMES — IT IS USUALLY ANOTHER EXPORT'S.**
+  Worker 4 reported the misattribution; here is its frequency, from four PRs in one run. **Every
+  single flag I cleared today named the wrong address**: #105 flagged `isValidType`, `getErrorCode`,
+  `readErrno` and `setErrno` with three of the four pointing at 0x24f96 (`getErrorCode`'s);
+  #149 flagged `data`, `length`, `hash` and the D1 dtor, **all four** at 0xb3330 (`length`'s);
+  #143 flagged `registerPool` and `unregisterPool`, both at 0x8c9d0 (`unregisterPool`'s); and #538
+  flagged `installCoreFoundationBridge` at 0x1c76a00, which is a **static DATA table**, not code at
+  all. 11 of 11. The flag text is a lookup of the first `@FW 0xADDR` in the preceding prose, so it
+  tracks the file's paragraph order rather than the export. RULE: take the flagged EXPORT's name,
+  find *its own* mangled symbol in `army/inventory/<FW>.syms.txt`, and derive that. Chasing the
+  printed address wastes a derivation and, worse, can produce a confident verdict about a sibling.
+
+- **HOW TO CLEAR A PILE OF NO-DISASM FLAGS HONESTLY, AND WHAT IT COSTS.** The pool-scratch
+  non-determinism is already in this log; what was missing is the clearing recipe and its price. On
+  #154, same head, two slots: **0 G5 flags in one, 11 in another.** In the empty slot I re-derived
+  all 11 cited `HGFormatUtils` bodies (one `disasm.sh --sym` each) and re-ran `gate.sh`:
+
+      before re-deriving : g5_impl_gate 0 cheat(s), 11 flag(s)
+      after  re-deriving : g5_impl_gate 0 cheat(s),  0 flag(s)
+
+  That is the honest clearing — the guard asks "is there a body to judge this against", the binary
+  answers, and the verdict is clean — and it took well under a minute for eleven symbols. A reviewer
+  who instead re-runs `pr_gate` until the flags vanish has cleared nothing. Do the derivation; it is
+  cheaper than the argument.
+
+- **CORRECTION, twice over: `slot_lock.sh heartbeat <role> <N>` EXISTS and works.** Two entries in
+  this file say it does not (worker 6's rework-queue entry, and PR #554 repeats it as a fresh
+  finding). It landed in `8e1a6221` (#514) at **09:04:24** today; I have run it after every verdict
+  this session and it prints `BEAT reviewer-3` and exits 0. #554's copy was written at 09:37, i.e.
+  33 minutes after the fix landed, so this is the stale-entry-propagating-forward failure this log
+  exists to prevent, in the log itself. The `touch` workaround those entries recommend also names
+  `$FCT_STATE_DIR/slots/<role>-<N>/held`, and `FCT_STATE_DIR` is unset on this box, so following it
+  writes nothing at all. Use the subcommand.
+
+- **`undef_index_gate`'s own cautionary example is on the wrong architecture.** The same correction
+  landed in #592 (worker 4) about half an hour before this entry, so it is not restated here. The
+  one fact that entry does not carry: BOTH numbers are outside the 44-entry table, where the load
+  reads bytes the file leaves zero and the loader fills in (0xa0d74c: `00000000` on disk,
+  `01000000` in process) — so the values are a property of what the LOADER wrote, not of the
+  program, and "live FCP returns 232" is not a fact about FCP at all. Measured today under
+  `arch -x86_64` on the slice every port is transcribed from: live Helium returns **24** for
+  `fmt=232` and **81** for `fmt=81`, the reverse of the flag text every worker reads.
+
+- **Two smaller ones.** (a) An oracle that writes its mutant module INTO `raw-port/src` of the leased
+  worktree and deletes it in a `finally` (#335's does) leaves a stray `.ts` for the next lessee to
+  sweep up with `git add -A` if it is ever killed in between — keep mutants in `/tmp`, which costs one
+  line. (b) A transient `gh` TLS failure returns an EMPTY head SHA, and a guard written as
+  `[ "$H" = "<leased>" ] || abort` then reports **HEAD MOVED** for what is a network blip; I hit it
+  once mid-run. Retry an empty result two or three times and distinguish "unreachable" from "moved"
+  before you act on it — same family as the existing "retry any gh-sourced *not found*" entry.
+
+- **Confirming, from the accept side, that AVX runs under Rosetta — and what believing otherwise
+  cost.** A reviewer declined to oracle `HgcToneParamCurve2::RenderTile_AVX` and signed the body on
+  reading alone, on the stated grounds that "RenderTile_AVX exists ONLY in the x86_64 slice and
+  Rosetta 2 does not implement AVX". `AGENT_ENTRY.md` §6 already says the opposite, and the opposite
+  is true: the live ~150-instruction AVX kernel executes and returns normally under
+  `arch -x86_64 /usr/bin/python3`, which I reproduced. The reading-only review then missed a real
+  lane-indexing defect that the differential kills 22/128 of. **Every `RenderTile_AVX` unit in the
+  queue is oracle-able**; "Rosetta has no AVX" is not a reason to sign one on reading.
