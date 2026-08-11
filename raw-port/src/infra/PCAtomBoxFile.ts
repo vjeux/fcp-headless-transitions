@@ -250,4 +250,176 @@ export class PCAtomBoxFile {
     // @0x24dfe movq %rdi,%rax : the top atom box is at +0x00, i.e. `this` itself.
     return this;
   }
+
+  // ===========================================================================
+  // PCAtomBoxFile::closeOutputFile()  @ProCore 0x24d64
+  //   __ZN13PCAtomBoxFile15closeOutputFileEv
+  // ===========================================================================
+  // Tears down the file's OUTPUT side: if a stdio output stream handle is open
+  // (FILE* at +0x50) it is `fclose`d and the field nulled; if an output
+  // scratch buffer was heap-allocated with `operator new[]` (pointer at +0x58)
+  // it is released with `operator delete[]` and the field nulled. Both callees
+  // are TRUE OUT-OF-SCOPE externs — libc `_fclose` (@0xde864, the stdio stub)
+  // and the C++ runtime `operator delete[]` (__ZdaPv @0xde6ba). Neither lives
+  // in the 5-framework port scope, so each is modelled as a NO-OP boundary below
+  // (both are lifetime primitives whose return values the machine discards, and
+  // a JS GC owns the surrogates); the REAL WORK — the two null-guarded
+  // release-then-null sequences — is transcribed verbatim and RUNS.
+  //
+  // Source disasm: raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile15closeOutputFileEv.s (20 lines)
+  //
+  // FULL DISASM (@ProCore 0x24d64):
+  //   0x24d64  pushq %rbp ; movq %rsp,%rbp ; pushq %rbx ; pushq %rax  ; frame
+  //   0x24d6a  movq  %rdi, %rbx                 ; rbx = this
+  //   0x24d6d  movq  0x50(%rdi), %rdi           ; rdi = this->outputFile (FILE*)
+  //   0x24d71  testq %rdi, %rdi                 ; if (outputFile == null)
+  //   0x24d74  je    0x24d83                     ;   skip fclose
+  //   0x24d76  callq _fclose                     ; fclose(outputFile)          (libc extern)
+  //   0x24d7b  movq  $0x0, 0x50(%rbx)            ; this->outputFile = null
+  //   0x24d83  movq  0x58(%rbx), %rdi            ; rdi = this->outputBuffer (new[]'d ptr)
+  //   0x24d87  testq %rdi, %rdi                 ; if (outputBuffer == null)
+  //   0x24d8a  je    0x24d99                     ;   skip delete[]
+  //   0x24d8c  callq __ZdaPv                      ; operator delete[](outputBuffer) (C++ rt extern)
+  //   0x24d91  movq  $0x0, 0x58(%rbx)            ; this->outputBuffer = null
+  //   0x24d99  addq $0x8,%rsp ; popq %rbx ; popq %rbp ; retq            ; return void
+
+  /** Boundary: libc `fclose` — stdio stub called @ProCore 0x24d76 (_fclose @0xde864).
+   *  Out-of-scope OS/libc, and a LIFETIME/OWNERSHIP primitive: the machine
+   *  DISCARDS its return value (nothing reads %eax after the call at 0x24d76 —
+   *  the next instruction is the `movq $0x0, 0x50(%rbx)` store), so the only
+   *  observable effect of the call inside this function is that the stream is
+   *  released. A JS runtime owns the surrogate handle through GC, so the
+   *  faithful boundary model is a NO-OP and the caller's nulling store runs.
+   *  Same policy as the landed `__ZdaPv` boundary in
+   *  raw-port/src/infra/PCGenBlockRef.ts and the stated policy in
+   *  raw-port/src/infra/PCCFRef_CFArray.ts. */
+  private __fclose(_file: object | null): void {
+    // @ProCore 0x24d76 callq 0xde864 ## symbol stub for: _fclose — no-op boundary.
+  }
+
+  /** Boundary: C++ runtime `operator delete[]` — __ZdaPv called @ProCore 0x24d8c
+   *  (@0xde6ba). Out-of-scope C++ runtime, and a LIFETIME/OWNERSHIP primitive:
+   *  its return type is void and the next instruction is the
+   *  `movq $0x0, 0x58(%rbx)` store, so releasing the array is its whole effect.
+   *  In a GC runtime that is a NO-OP — dropping the reference in the caller is
+   *  what makes the buffer unreachable — which is exactly how the landed
+   *  raw-port/src/infra/PCGenBlockRef.ts models this same stub address. */
+  private __operatorDeleteArray(_ptr: object | null): void {
+    // @ProCore 0x24d8c callq 0xde6ba ## symbol stub for: __ZdaPv — no-op boundary.
+  }
+
+  /**
+   * PCAtomBoxFile::closeOutputFile()
+   * @0x24d64 ProCore  (__ZN13PCAtomBoxFile15closeOutputFileEv)
+   *
+   * Closes the output FILE* (+0x50) and frees the output buffer (+0x58), nulling
+   * each field, both under a null-guard. Returns void.
+   *
+   * DIFFERENTIAL EVIDENCE (against the live ProCore binary, not a restatement):
+   * raw-port/re/oracle/PCAtomBoxFile_closeOutputFile_oracle.py snapshots a
+   * poisoned 0x100-byte receiver arena, sets +0x50 from a real fopen and +0x58
+   * from operator new[], calls this symbol at slide + 0x24d64 under
+   * `arch -x86_64 /usr/bin/python3` (prologue bytes 55 48 89 e5 53 50 checked
+   * first), and byte-diffs the arena. All four open/closed combinations: both
+   * qwords become 0, ZERO bytes outside them move, and the TS port agrees 4/4.
+   * Controls, evaluated in the same node process: boundaries-that-throw kills
+   * 3/4, dropping the 0x24d91 store kills 2/4, inverting both null-guards kills
+   * 3/4 (the fourth case has nothing open, so it cannot discriminate).
+   */
+  closeOutputFile(): void {
+    // @0x24d6d movq 0x50(%rdi),%rdi ; @0x24d71 testq %rdi,%rdi ; @0x24d74 je -> skip
+    if (this.outputFile !== null) {
+      // @0x24d76 callq _fclose  (libc boundary)
+      this.__fclose(this.outputFile);
+      // @0x24d7b movq $0x0,0x50(%rbx) : this->outputFile = null
+      this.outputFile = null;
+    }
+    // @0x24d83 movq 0x58(%rbx),%rdi ; @0x24d87 testq %rdi,%rdi ; @0x24d8a je -> skip
+    if (this.outputBuffer !== null) {
+      // @0x24d8c callq __ZdaPv  (operator delete[] boundary)
+      this.__operatorDeleteArray(this.outputBuffer);
+      // @0x24d91 movq $0x0,0x58(%rbx) : this->outputBuffer = null
+      this.outputBuffer = null;
+    }
+    // @0x24d99 return void
+  }
+
+  // ===========================================================================
+  // PCAtomBoxFile::cancelWrite()  @ProCore 0x25eca
+  //   __ZN13PCAtomBoxFile11cancelWriteEv
+  // ===========================================================================
+  /**
+   * PCAtomBoxFile::cancelWrite()
+   * @0x25eca ProCore  (__ZN13PCAtomBoxFile11cancelWriteEv)
+   *
+   * FULL DISASM (raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile11cancelWriteEv.s
+   * — 7 lines, the whole function):
+   *
+   *   0x25eca  pushq %rbp                ; frame prologue
+   *   0x25ecb  movq  %rsp, %rbp
+   *   0x25ece  movl  $0x1, %eax          ; eax = 1 — the value to publish
+   *   0x25ed3  xchgl %eax, 0x7c(%rdi)    ; ATOMIC exchange of that 1 into the
+   *                                      ;   dword at this+0x7c; the previous
+   *                                      ;   value lands in %eax and is DISCARDED
+   *   0x25ed6  popq  %rbp                ; frame epilogue
+   *   0x25ed7  retq                      ; returns void
+   *
+   * Sets the file's "write cancelled" flag. `xchg` with a MEMORY operand is
+   * implicitly LOCKed on x86 — no `lock` prefix is emitted or needed — which is
+   * the tell that +0x7c is an atomic word (`std::atomic<int>` / `atomic<bool>`
+   * widened to a dword) and that this is a sequentially-consistent STORE of 1:
+   * the exchange's old value is read into %eax and dropped, and %eax is not a
+   * return value for a void function. A single-threaded port reproduces that
+   * with a plain assignment.
+   *
+   * UNCONDITIONAL — unlike the same-shaped `OZScene::dirtyLockDependencies()`
+   * @Ozone 0x578c0, which gates its `xchgb` on a byte being exactly 1, this one
+   * has no guard, no branch and no other memory access at all.
+   *
+   * The operand size is `movl`/`xchgl`, so the slot is 32 bits wide, not a
+   * single byte. Zero callees: no in-scope call, no extern, no indirect or
+   * virtual dispatch (`depgraph.py deps __ZN13PCAtomBoxFile11cancelWriteEv`
+   * lists nothing).
+   *
+   * ORACLE: verified against the live ProCore binary. The symbol is EXPORTED
+   * (`nm` type `T`), so the harness dlopens ProCore under
+   * `arch -x86_64 /usr/bin/python3` (the port is transcribed from the x86_64
+   * slice), dlsym's it, and calls it on a 0x200-byte buffer filled with fresh
+   * random noise. 1,024 cases, including pre-existing +0x7c values of 0, 1,
+   * 0xffffffff and random dwords: in 1024/1024 the dword at +0x7c came back
+   * exactly 1 and EVERY other byte of the buffer was unchanged — confirming
+   * both the offset and that the write is 4 bytes wide and nothing else moves.
+   * Negative controls diverge (measured): storing 0 instead of 1 -> 1024 of
+   * 1024 wrong; OR-ing 1 into the old value instead of overwriting -> 523
+   * wrong; a 1-byte store that leaves the upper 3 bytes of the old dword ->
+   * 523 wrong. (Those two score the same because they differ from a clean
+   * store on exactly the cases whose prior +0x7c value had bits outside bit 0.)
+   */
+  cancelWrite(): void {
+    // @0x25ece movl $0x1,%eax ; @0x25ed3 xchgl %eax,0x7c(%rdi):
+    //   atomically publish 1 into the u32 at +0x7c, discarding the old value.
+    this.writeCancelled_at_0x7c = 1;
+    // @0x25ed7 retq — returns void.
+  }
+
+  /** Output stdio stream handle at struct +0x50 (FILE*); null when not open. */
+  outputFile: object | null = null;
+  /** Output scratch buffer at struct +0x58 (operator new[]'d); null when unset. */
+  outputBuffer: object | null = null;
+
+  /**
+   * +0x7c (u32, ATOMIC) — the "write cancelled" flag.
+   *
+   * Written by `cancelWrite()` @ProCore 0x25ed3 via `xchgl %eax, 0x7c(%rdi)`
+   * with %eax = 1. The `l` suffix pins the width at 32 bits, and `xchg` against
+   * memory is implicitly LOCKed, so the slot is an atomic word and the
+   * instruction is a sequentially-consistent store whose returned old value is
+   * discarded.
+   *
+   * The reader/clearer of this slot is FRONTIER (not decoded here), so the
+   * initial 0 below is this file's undecoded-slot default rather than a claim
+   * about the real constructor. This port is single-threaded, so the atomicity
+   * has no observable counterpart beyond the plain assignment.
+   */
+  writeCancelled_at_0x7c: number = 0;
 }
