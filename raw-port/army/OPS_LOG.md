@@ -1442,6 +1442,42 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   the commit as "the TS  models the cmov" plus a `/bin/sh: ??: command not found` on stderr that is
   easy to miss in a long submit log. Write the message to a file and use `git commit -F`.
 
+
+## Open — reported 2026-08-11 by worker 3 (symbol-cache availability + CoreGraphics semantics; new)
+
+- **The symbol cache the perf directive mandates does not exist where agents work.** (worker 3,
+  2026-08-11.) The 2026-08-11 directive says: never run `nm` on a framework under
+  `/Applications/Final Cut Pro.app/...` (78 MB fat file, 60-120s, a full core, and the security
+  stack rescans it), use `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` instead (~0.08s).
+  But `raw-port/army/.gitignore` line 2 ignores `inventory/*.syms.txt`, so the cache exists ONLY
+  in the canonical checkout — and every worker is required to work in a **pool worktree**, where
+  the file is absent. An oracle that follows the directive dies with `FileNotFoundError` at the
+  point where it resolves an address. This is the same shape as #16 (Layer-3 fixtures gitignored,
+  so `prove_all` could not pass in a pool worktree), one directory over. Workaround in the
+  meantime, used by `raw-port/re/oracle/box_t_dist_oracle.py`: look in this tree, then
+  `~/random/final-cut-pro-transitions`, then fall back to `nm -n /tmp/<FW>.x86_64` — the THIN
+  slice disasm.sh already extracted, never the fat original. Real fix: have `ensure_ledger.sh`
+  (which already restores 6 gitignored ledgers into a fresh checkout) restore or symlink the 5
+  `inventory/*.syms.txt` files too, so the fast path is available where the work happens.
+
+- **CoreGraphics' `CGRect` accessors are not the obvious formulas, and the difference is 1 ulp.**
+  (worker 3, 2026-08-11, found on `videoanalysis::collation::box_t::dist`.) Any port that reaches
+  `CGRectGetMaxX/MaxY` needs these two, both measured against the live framework:
+  (a) for a NEGATIVE extent, standardization is two steps and the second one rounds again —
+  `MaxX = (x + width) - width`, which is a DIFFERENT double from both `x` and `max(x, x+width)`
+  (50 of 8,198 corpus rects differ, always by exactly 1 ulp, and the error then propagates
+  through a multiply and a sqrt into the result);
+  (b) `CGRectIntersectsRect` does NOT implement the documented "an empty rect never intersects"
+  rule. Each axis behaves as the half-open interval `[min, max)`, except that a ZERO-extent axis
+  behaves as the single point `{min}`: two proper rects sharing an edge do not intersect, a
+  zero-width rect on the other's MIN edge does, on its MAX edge does not, and two zero-width
+  rects intersect iff their coordinate is equal. Verified 0 mismatches on 16,000 pairs; the
+  documented rule was wrong on 10 of one port's 4,096 pairs, plain strict overlap on 244 of an
+  8,000-case grid, closed-interval overlap on 1,115. NaN components are NOT modellable by any
+  simple rule (the live function answered 104 true / 296 false over 400 random single-NaN pairs)
+  — state that envelope rather than guessing. A reusable TS copy of all of this lives in
+  `raw-port/src/infra/videoanalysis__collation__box_t.ts`; copy it rather than re-deriving it.
+
 ---
 
 ## Open — reported 2026-08-11 by reviewer 3 (the approval binds to the LIVE head, not the reviewed one; NEW)
@@ -1908,6 +1944,19 @@ change these tools.
 | # | Symptom | Root cause | Fix |
 |---|---|---|---|
 | 33 | **31 of 32 open PRs sat CHANGES_REQUESTED, the oldest 16 hours untouched, while every reviewer slot polled `NONE`.** The review backlog had not been drained so much as MOVED somewhere no queue could see | Three pull queues existed and none of them covered a rejection, each for a defensible reason: `review_claim.sh` deliberately SKIPS a CHANGES_REQUESTED head (it is the author's turn; re-reviewing is the #7/#224 duplicate-review race), `rebase_claim.sh` only matches a gate FAILURE described as regression/rebase (a rejected PR is usually gate-GREEN — the defect is semantic), and `depclaim.py next` only hands out fresh symbols. Every component behaved correctly and the work still stranded. A rejection is the most evidence-dense object the swarm produces — a reviewer has already run the differential and named the defect — so leaving it unrouted wastes the port AND the review | `rework_claim.sh` — a WORKER-side pull queue over CHANGES_REQUESTED PRs, oldest first (the longest-sitting rejection is the one most at risk of being re-derived from scratch). Worker priority is now **rework → rebase → fresh**, in order of decreasing evidence already spent. Its attempt counter is keyed to the head SHA from the start, so a new head is progress rather than a strike (#28, applied before it could bite), and past the cap it **stops offering** the PR instead of closing it — auto-closing an author's work is what discarded oracle-verified bodies today, and it is a human's decision |
+
+---
+
+## Fixed 2026-08-11 — two more, both "the tool worked and nobody ran it"
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 43 | **An unrecognised flag was posted AS THE REVIEW BODY**, destroying 11 KB of differential at exit 0 behind a correct-looking success line. The reviewer found it only by reading the body back | `pr_review.sh` ended with `BODY="$*"`, so any flag it did not know became the body. Adding `--expect-head` therefore OPENED this on every host still running the older copy: **following the current advice is what destroys the record** | Unknown `--*` exits 2, naming the risk and the likely cause. After posting, the stored body length is read back and a mismatch warns — every way a body has been lost here (caller-shell backtick expansion, a flag captured as the body) exits 0 with a plausible success line. Locked as `test_guards` case H, which compares the review COUNT before and after, since the property is "refused BEFORE posting", not "printed a refusal" |
+| 44 | **`check_duplicate_classes.py` works perfectly and has never once been invoked.** 7 duplicates on main; 5 classes filed twice across LAYER directories (`ozone/` vs `channels/`, `nodes/` vs `channels/`) — OPS_LOG had recorded only one | Its docstring and PORTING_SPEC both call it a CI guard, but no gate, no `pr_gate`, no `prove_all` ran it, so it reported into the void. `dup_check` cannot see these (it compares ledger SYMBOLS, not filenames) and neither can G6 (each file is add-only in isolation). Two files modelling one C++ class = two struct layouts that silently drift | Wired into `pr_gate` — but on the DELTA (`--new-only origin/main`), because gating absolutely would red-gate every PR in the repo for a mess none of them created, which is presumably why nobody ever wired it. A PR adding no new duplicate passes while main is dirty; plain mode still reports the existing 7 for someone to merge deliberately (**never blindly — each copy may hold addresses the other lacks**) |
+
+**The pattern across both, and worth naming**: a guard that exists, works, and is never called is
+indistinguishable from no guard at all — and reads as *reassurance*, which is worse. When you add a
+check, add the caller in the same change, and watch it fail once.
 
 ---
 
