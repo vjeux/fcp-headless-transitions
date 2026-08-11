@@ -146,19 +146,36 @@ def layer2():
     print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
           "PASS" if ok11 else "FAIL")
     if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
-    # 2n — the two refusals that stand between a rebase tool and a PR's content. Wired in the same
+    # 2l — the cross-queue lease guard. A PR that is CHANGES_REQUESTED *and* CONFLICTING sits in
+    # BOTH worker queues, and until #643 taught rebase_claim to see DIRTY branches that combination
+    # was rare. It is not rare now: measured the same hour, two workers held the two leases on #656
+    # 66 seconds apart and both began reconciling the same 936-line PR. Offline, ~0.2s, and each
+    # case is mutation-checked inside the suite.
+    r12 = run(["bash", os.path.join(TOOLS, "test_cross_queue_lease.sh")])
+    ok12 = "TEST_CROSS_QUEUE_LEASE: PASS" in r12.stdout
+    print("LAYER 2l (cross-queue lease — one PR is never handed to two workers):",
+          "PASS" if ok12 else "FAIL")
+    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
+    # 2p — the two refusals that stand between a rebase tool and a PR's content. Wired in the same
     # change that adds them (row 44: a guard nothing runs is indistinguishable from no guard). It
     # exists because on 2026-08-11 rebase_pr.sh force-pushed a branch it had accidentally cut from
     # main over PR #690, emptying it behind a `REBASE_CLEAN … gate PASS` line. Offline: scratch
     # repos with a real bare origin, no gh, ~2s. Its suite carries an M0 control, so a mutant that
     # dies of a broken harness cannot read as a catch.
+    #
+    # LETTER: this branch held 2n; main has since taken 2l (above), and the same worker is holding
+    # merges of #656 (2m/2n/2o) and #715 (2m) on this same tail right now. 2p is chosen because it
+    # collides with NONE of them, so whichever of the four lands first, the others' label lines
+    # merge cleanly and nobody is offered the "take mine" resolution that silently reverts a peer's
+    # layer. The `return` line below still collides with every sibling — that one is unavoidable
+    # and is a pure union; the LABEL line is where the silent revert happens, and this removes it.
     r14 = run(["bash", os.path.join(TOOLS, "test_publish_guard.sh")])
     ok14 = "TEST_PUBLISH_GUARD: PASS" in r14.stdout
-    print("LAYER 2n (publish guard — a force-push cannot empty a PR or drop its files):",
+    print("LAYER 2p (publish guard — a force-push cannot empty a PR or drop its files):",
           "PASS" if ok14 else "FAIL")
     if not ok14: print(r14.stdout[-1200:], r14.stderr[-400:])
-
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11 and ok14
+    return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11
+            and ok12 and ok14)
 
 def _reach(spec, expect):
     import tempfile
