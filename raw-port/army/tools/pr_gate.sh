@@ -39,7 +39,18 @@ git fetch -q origin main "+refs/pull/$PR/head:refs/prgate/$PR" 2>/dev/null || gi
 # The pool reuses the checkout + a warm tsgo cache; release resets it to origin/main for the next PR.
 WT="$(bash "$CANON/raw-port/army/tools/wt_pool.sh" acquire-at "$HEAD_SHA")"
 [ -z "$WT" ] && { post_status pending "pool busy — retry"; echo "PR_GATE: POOL_BUSY (#$PR) — no free worktree, retry"; exit 3; }
-cleanup () { bash "$CANON/raw-port/army/tools/wt_pool.sh" release "$WT" >/dev/null 2>&1; }
+# A gate worktree is DISPOSABLE by construction: we detach it at the PR head and then deliberately
+# overwrite raw-port/army/{gate,tools} with the TRUSTED copies from origin/main, which leaves the tree
+# dirty on purpose. So it must be released with --force.
+#
+# This is not a detail. wt_pool's release guard (added to stop a reviewer's stale-lease reclaim from
+# wiping a WORKER's in-progress port) refuses to reset a dirty tree — so without --force every single
+# pr_gate run LEAKED its lease. All 16 pool slots filled with `gate/<sha>` leases, `acquire` then
+# blocked 120s and returned POOL_FULL, and the swarm deadlocked: reviewer-03 stopped entirely
+# ("all 16 warm-pool worktrees were leased by other agents for ~10 minutes straight, which makes
+# gating and therefore merging impossible"). The protection is right for a worker's port; a gate
+# checkout has nothing to protect.
+cleanup () { bash "$CANON/raw-port/army/tools/wt_pool.sh" release "$WT" --force >/dev/null 2>&1; }
 trap cleanup EXIT
 cd "$WT"
 for d in raw-port/node_modules venv; do ln -sfn "$CANON/$d" "$d" 2>/dev/null || true; done
