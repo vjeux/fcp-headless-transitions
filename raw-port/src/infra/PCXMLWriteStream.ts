@@ -373,6 +373,136 @@ export class PCXMLWriteStream {
   }
 }
 
+
+/**
+ * `__dynamic_cast(void* src, std::type_info const* srcType, std::type_info const* dstType,
+ *  ptrdiff_t hint)` — the Itanium C++ ABI RTTI helper (mangled `___dynamic_cast`), reached
+ * through **ProCore symbol stub 0xde720**, called once from
+ * `PCXMLWriteStream::getURL() const` @ProCore 0x2d81d with
+ * `srcType = typeinfo(PCStream)` (`leaq` @0x2d80d), `dstType = typeinfo(PCFileWriteStream)`
+ * (`leaq` @0x2d814) and `hint = 0` (`xorl %ecx,%ecx` @0x2d81b — the fully general form).
+ *
+ * A TRUE OUT-OF-SCOPE EXTERN: it is libc++abi runtime machinery walking C++ RTTI tables that
+ * exist only in the Mach-O image, so there is nothing in this repo for it to consult. It
+ * therefore throws with the call site cited, exactly as the landed
+ * `cxx_dynamic_cast_stub` in `nodes/OZExposeDrillingNodeValidator.ts` does for the same
+ * helper. Note what this does NOT excuse: the SHAPE of `getURL` below is fully transcribed —
+ * the deferral is one callee, not the method.
+ */
+function cxx_dynamic_cast_PCStream_to_PCFileWriteStream(
+  _src: PCStreamPtr | null,
+): PCFileWriteStreamPtr | null {
+  throw new Error(
+    "__dynamic_cast(PCStream -> PCFileWriteStream, hint 0) @ProCore stub 0xde720 " +
+      "(___dynamic_cast — libc++abi RTTI helper, out of scope) — invoked by " +
+      "PCXMLWriteStream::getURL() const @ProCore 0x2d81d",
+  );
+}
+
+/** Opaque `PCStream*` — the underlying byte stream this XML writer wraps (`this+0x50`). */
+export type PCStreamPtr = object;
+
+/**
+ * Opaque `PCFileWriteStream*` — what the underlying stream turns out to be on the file
+ * branch of `getURL`. Only its `+0x8` sub-object is observable from the body transcribed
+ * here (`leaq 0x8(%rax),%rcx` @0x2d822), so only that is modelled.
+ */
+export type PCFileWriteStreamPtr = { urlAt8: PCURL };
+
+/**
+ * `PCXMLWriteStream::getURL() const`
+ *   — @ProCore 0x000000000002d800
+ *   — __ZNK16PCXMLWriteStream6getURLEv   (exported `T`)
+ *
+ * WHICH BINARY, because everything above this point in the file cites ProChannel: the class
+ * is emitted into BOTH images. ProChannel carries the D1 destructor transcribed above;
+ * ProCore carries this accessor, at its own address, and the inventory has no
+ * `__ZNK16PCXMLWriteStream6getURLEv` in ProChannel at all. One C++ class, one file (the
+ * repo rule), with each method citing the image it was read from — the same situation the
+ * landed `OZChannelUint16.ts` documents for its Ozone/ProChannel split.
+ *
+ * FULL TRANSCRIPTION — every instruction, in order:
+ *
+ *   0x2d800  55                    pushq   %rbp
+ *   0x2d801  48 89 e5              movq    %rsp, %rbp
+ *   0x2d804  53                    pushq   %rbx
+ *   0x2d805  50                    pushq   %rax                ; frame padding
+ *   0x2d806  48 89 fb              movq    %rdi, %rbx          ; rbx = this
+ *   0x2d809  48 8b 7f 50           movq    0x50(%rdi), %rdi    ; arg1 = this->stream (+0x50)
+ *   0x2d80d  48 8d 35 ...          leaq    __ZTI8PCStream(%rip), %rsi          ; arg2 srcType
+ *   0x2d814  48 8d 15 ...          leaq    __ZTI17PCFileWriteStream(%rip), %rdx ; arg3 dstType
+ *   0x2d81b  31 c9                 xorl    %ecx, %ecx          ; arg4 hint = 0
+ *   0x2d81d  e8 ...                callq   ___dynamic_cast     ; rax = casted or NULL
+ *   0x2d822  48 8d 48 08           leaq    0x8(%rax), %rcx     ; rcx = casted + 8
+ *   0x2d826  48 81 c3 60 04 00 00  addq    $0x460, %rbx        ; rbx = this + 0x460
+ *   0x2d82d  48 85 c0              testq   %rax, %rax
+ *   0x2d830  48 0f 45 d9           cmovneq %rcx, %rbx          ; select, BRANCHLESS
+ *   0x2d834  48 89 d8              movq    %rbx, %rax          ; return rbx
+ *   0x2d837  48 83 c4 08           addq    $0x8, %rsp
+ *   0x2d83b  5b                    popq    %rbx
+ *   0x2d83c  5d                    popq    %rbp
+ *   0x2d83d  c3                    retq
+ *
+ * SO THE METHOD IS: `return dynamic_cast<PCFileWriteStream*>(this->stream) ? &that->url_at_8
+ * : &this->url_at_0x460;` — the URL of the file the stream is writing to, or this object's
+ * own embedded PCURL when the sink is not a file.
+ *
+ * TWO DECODE DETAILS WORTH KEEPING:
+ *   * `cmovneq` is BRANCHLESS, so BOTH candidates are computed before the test — including
+ *     `leaq 0x8(%rax)` when `%rax` is NULL, which harmlessly produces 8 and is then
+ *     discarded. The TS mirrors that ordering (compute the fallback, then select) rather
+ *     than short-circuiting, so the structure matches the instruction stream.
+ *   * both results are ADDRESSES of embedded sub-objects (`leaq`/`addq`, not a load): the
+ *     method hands back a pointer INTO an object, and dereferences nothing.
+ *
+ * The sibling `PCBinaryXMLReadStream::getURL()` @ProCore 0x65290 is the same body against
+ * `PCFileReadStream` at `this+0xa8`.
+ *
+ * MEASURED AGAINST THE LIVE BINARY
+ * (raw-port/re/oracle/PCXMLWriteStream_getURL_oracle.py, `arch -x86_64 /usr/bin/python3`;
+ * the symbol is exported, so dlsym reaches it). What is measurable here is narrower than
+ * usual, and the harness says so rather than dressing it up:
+ *   - the dlsym'd address is slide+0x2d800, and the mapped prologue bytes equal both the
+ *     transcription and the on-disk thin slice
+ *   - BOTH displacements this port turns on are read out of the MACHINE CODE rather than
+ *     from the disassembler's operand column: `addq $0x460,%rbx` is `48 81 c3 60 04 00 00`
+ *     -> 0x460, and the file branch's `leaq 0x8(%rax),%rcx` is `48 8d 48 08` -> +0x8
+ *   - NEITHER BRANCH IS EXECUTABLE HERE, and that is a finding rather than a shrug. Calling
+ *     the live function with `this->stream` = NULL does not return the fallback: it FAULTS
+ *     inside `___dynamic_cast` (the oracle runs that probe in a CHILD process and reports
+ *     the signal, so the harness survives to say so). Since the body contains no null test,
+ *     that fault is the caller contract talking — +0x50 is never NULL at a live call site —
+ *     and it is the reason this port adds no null guard. Reaching the file branch would
+ *     need a real PCFileWriteStream with live RTTI, which this harness does not build.
+ *   - the SHIPPED TypeScript is executed: it defers LOUDLY through the RTTI stub, citing
+ *     @0x2d81d, for both a null and a non-null stream, and never returns a URL it could not
+ *     have computed. A port that quietly returned the fallback would be indistinguishable
+ *     from this one on any test the fallback path can run, which is exactly the shape this
+ *     repo calls a cheat.
+ *
+ * Source disassembly:
+ *   raw-port/re/disasm/ProCore.__ZNK16PCXMLWriteStream6getURLEv.s  (20 lines)
+ *
+ * @ProCore 0x000000000002d800
+ */
+export function PCXMLWriteStream_getURL(
+  self: { streamAt50: PCStreamPtr | null; urlAt460: PCURL },
+): PCURL {
+  // @0x2d809 — movq 0x50(%rdi),%rdi : the underlying stream.
+  const stream = self.streamAt50;
+  // @0x2d80d-0x2d81d — the RTTI call, made UNCONDITIONALLY, exactly as the machine does.
+  //   There is no null test before the `callq` and none is added here: MEASURED, the live
+  //   helper FAULTS on a NULL source (the oracle drives it in a child process and collects
+  //   SIGSEGV), so a NULL +0x50 is outside this method's caller contract rather than a case
+  //   it handles. Adding a guard would invent behaviour the binary does not have.
+  const casted = cxx_dynamic_cast_PCStream_to_PCFileWriteStream(stream);
+  // @0x2d826 — addq $0x460,%rbx : the fallback is computed UNCONDITIONALLY, before the
+  //   select, because the machine's `cmovneq` is branchless.
+  const fallback = self.urlAt460;
+  // @0x2d822 + @0x2d82d-0x2d830 — leaq 0x8(%rax),%rcx ; testq %rax,%rax ; cmovneq %rcx,%rbx
+  return casted !== null ? casted.urlAt8 : fallback;
+}
+
 // Force type-only import to remain live — PCSerializerWriteStream is
 // the referenced base class in the class header comment and the
 // vtable-re-install step at @0x0004c3ee, so a type import keeps that
