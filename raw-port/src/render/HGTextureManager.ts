@@ -535,6 +535,15 @@ export class PostTextureDeleteEventList {
 export type TextureStorageRecyclingPolicy = number;
 
 /**
+ * `HGTextureManager::SizeRequestLocation` — the enum parameter of
+ * `getTotalTextureMemory`. Its enumerators are not decoded here, and they do not need to be:
+ * the body below never reads the argument, which the oracle measures rather than assumes.
+ * Modelled as a plain number, as `TextureStorageRecyclingPolicy` above is.
+ * @Helium (parameter of __ZN16HGTextureManager21getTotalTextureMemoryENS_19SizeRequestLocationE @0x44c20)
+ */
+export type SizeRequestLocation = number;
+
+/**
  * `HGTextureManager` — Helium's texture manager. Only the ONE field this unit
  * writes is modelled; the rest of the (large) layout is undecoded and
  * deliberately absent (PORTING_SPEC Rule 5).
@@ -542,6 +551,16 @@ export type TextureStorageRecyclingPolicy = number;
  * @Helium 0x4b320
  */
 export class HGTextureManager {
+  /**
+   * @Helium HGTextureManager@0x90 — a u64 byte count, READ by `getTotalTextureMemory`
+   * @0x44c24 via a single `movq 0x90(%rdi), %rax`. Nothing in this file writes it yet; the
+   * unit that does will be whichever method accumulates texture allocations. Measured on the
+   * live getter: the 8 bytes at +0x90 are returned whole (a 4-byte load, or a load at +0x88 or
+   * +0x98, each disagree on every one of 288 cases), and the call changes no byte of a
+   * 0x200-byte object. Zero-initialised until a ctor is transcribed to reveal the true default.
+   */
+  totalTextureMemory_at_0x90: bigint = 0n; // @Helium HGTextureManager@0x90
+
   /**
    * @Helium HGTextureManager@0xa8 — the u32 `TextureStorageRecyclingPolicy`
    * enum tag, written by `storageRecyclingPolicy` @0x4b324 via a single
@@ -639,4 +658,42 @@ export class HGTextureManager {
     //   byte of the object — including the u32 policy slot at +0xa8 — untouched.
     this.recycleClientStorageTextures_at_0xac = recycle;
   }
+
+  /**
+   * `HGTextureManager::getTotalTextureMemory(HGTextureManager::SizeRequestLocation)` -> u64
+   *   — @Helium 0x44c20
+   *     __ZN16HGTextureManager21getTotalTextureMemoryENS_19SizeRequestLocationE
+   *
+   * FULL DISASM — the whole function, four instructions:
+   *   0x44c20  pushq %rbp                  ; frame
+   *   0x44c21  movq  %rsp, %rbp
+   *   0x44c24  movq  0x90(%rdi), %rax      ; return this->+0x90   (8-byte load)
+   *   0x44c2b  popq  %rbp
+   *   0x44c2c  retq
+   *   0x44c2d  nopl  (%rax)                ; alignment padding
+   *
+   * A plain 64-bit field read. **The `SizeRequestLocation` argument is DEAD** — no instruction
+   * reads %esi — so every location asks the same question and gets the same answer. That is
+   * worth stating because the signature invites the opposite assumption: the name and the enum
+   * parameter both suggest a per-location breakdown, and the machine code does not have one.
+   * (The neighbouring `HGTextureManagerHandleImpl::getTotalTextureMemory` @0x44c00 is a
+   * SEPARATE symbol and a separate unit.)
+   *
+   * ORACLE: `raw-port/re/oracle/HGTextureManager_getTotalTextureMemory_oracle.py`, run under
+   * `arch -x86_64` against the live Helium binary, with the prologue bytes at slide+0x44c20
+   * checked against `554889e5488b8790000000` before any number is trusted. 288 cases (48 stored
+   * values including both int64 extremes, 0xffffffffffffffff and 40 random u64s, crossed with 6
+   * location values including both int32 extremes) on a 0x200-byte object poisoned with 0xEE:
+   * **288/288 returned the stored value and 0 calls changed any byte of the object.**
+   * NEGATIVE CONTROLS, all three of which correctly differ: a 32-bit load at +0x90, a load at
+   * +0x88, and a load at +0x98.
+   *
+   * @param _location the enum the caller passes; dead, and named with a leading underscore
+   *                  because the body genuinely never reads it.
+   */
+  getTotalTextureMemory(_location: SizeRequestLocation): bigint {
+    // @0x44c24 — movq 0x90(%rdi), %rax.
+    return this.totalTextureMemory_at_0x90;
+  }
+
 }
