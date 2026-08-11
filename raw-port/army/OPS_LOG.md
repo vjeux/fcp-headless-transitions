@@ -4807,3 +4807,92 @@ same mechanical job, which is the finding.
   survive the edit. My replacement did splice, but against the file as I had ALREADY edited it in an
   earlier pass, then re-applied to the freshly merged file where the original was still present.
   Same root as the entry above it: an edit is only as good as the copy it was computed against.
+---
+
+## Open — reported 2026-08-11 by reviewer 2 (a class forked across EIGHT files under the guard's nose; a merge preview that lies when your main is a minute old; and dismissing the wrong person's review; NEW)
+
+Second batch from the same shift, all found after my earlier entry landed. The first is a hole in a
+guard that works; the second cost me a wrong conclusion I nearly acted on; the third is a mistake I
+made and would make again with the same one-liner.
+
+- **ONE C++ CLASS IS FILED ACROSS EIGHT FILES ON MAIN AND `check_duplicate_classes.py` CANNOT SEE IT,
+  BECAUSE THE FORK IS IN THE FILENAME SUFFIX RATHER THAN THE DIRECTORY.** The known fork entry names
+  five classes filed twice under different LAYER directories. `OZSpline` is a sixth, through a door
+  the check does not cover:
+
+      raw-port/src/channels/OZSpline.ts        export function sampleCurveValue
+      raw-port/src/channels/OZSpline.m0.ts     export class OZSpline          (552 lines)
+      raw-port/src/channels/OZSpline.m1.ts     export interface OZSplineFieldsM1 + free functions
+      raw-port/src/channels/OZSpline.m2.ts … OZSpline.m6.ts
+
+  The check groups by the lowercased basename, so `ozspline`, `ozspline.m0` … `ozspline.m6` are eight
+  different classes to it and it reports nothing. The hazard it exists for is present in kind, not
+  just in form: `.m0` models the object as `class OZSpline { _sp: OZSplineState }` while `.m1`
+  models the SAME object as its own `OZSplineFieldsM1` interface — two struct models of one C++
+  class, exactly the drift the one-class-one-file rule is for. Found while reviewing #635, which
+  correctly EXTENDS `.m0` rather than adding a ninth file, so this is a property of main and not of
+  that PR.
+  FIX: strip a trailing `.m<N>` before grouping (two lines), or record the split as an accepted
+  exception inside the tool with its reason. Note the general shape, which is the part worth
+  keeping: **a naming convention invented to work around one guard can walk straight through
+  another.** The `.mN` split exists to keep huge class files manageable; the duplicate-class check
+  was written before it and keys on a string the split changes.
+
+- **`git merge-tree --write-tree origin/main <head>` REPORTS A CLEAN MERGE FOR A PR GITHUB CALLS
+  DIRTY, WHEN YOUR LOCAL `origin/main` IS A MINUTE OLD — AND THE OUTPUT LOOKS IDENTICAL EITHER WAY.**
+  This log already teaches `merge-tree` as the correct alternative to a two-ref diff (which renders
+  "behind" as deletions and false-rejects almost everything). It is the right tool and it has this
+  one edge. On #614, a PR a worker had just rebased:
+
+      git merge-tree --write-tree origin/main 594fd528   -> a tree oid, no CONFLICT line
+      gh pr view 614 --json mergeable                    -> CONFLICTING / DIRTY
+      git fetch origin main
+      git merge-tree --write-tree origin/main 594fd528   -> CONFLICT (content): OPS_LOG.md
+
+  I was one command away from telling an author their PR merged cleanly when it did not. `merge-tree`
+  answered exactly what I asked — about a `main` that had stopped existing sixty seconds earlier.
+  RULE: **`git fetch origin main` immediately before any merge preview**, and when the preview
+  disagrees with GitHub, believe GitHub and re-fetch. Corollary for #625's `REBASE_MANUAL`
+  instructions, which tell a worker to check deletions with `git diff --unified=0 origin/main --
+  <file>`: that two-dot form is correct THERE only because the worktree has just merged
+  `origin/main`; the same line on a branch that has not merged reports every line main gained as a
+  deletion.
+
+- **`[.[]|select(.state=="CHANGES_REQUESTED")]|last|.id` DISMISSED A PEER'S REVIEW WHEN I MEANT TO
+  DISMISS MY OWN.** Landing #603 I ran that selector to retire my own rejection; the most recent
+  `CHANGES_REQUESTED` at that moment was reviewer 1's, so their verdict now carries a dismissal
+  message written about MY findings. The dismissal was substantively correct — I had checked their
+  ask (a test with no caller) was implemented, and it was, wired as `prove_all` LAYER 2g — but I
+  dismissed it by accident, and a dismissal is durable text on someone else's judgement.
+  **`user.login` cannot save you here**: every reviewer slot posts as `vjeux-reviewer[bot]`, which
+  reviewer 4 records from the other side (auditing "which review is mine" by login returned a peer's
+  approval). RULES: (a) **list the reviews, read the one you intend to dismiss, and pass its id
+  literally** — I did that for the second dismissal on the same PR and for both on #627; (b) if you
+  slip, annotate rather than rewrite: I posted a comment stating plainly what happened, because
+  re-dismissing to tidy the trail would bury it; (c) when a rework answers rejections from several
+  reviewers, dismiss each one with a message about ITS asks, not a shared paragraph.
+
+- **THE DEAD-CONTROL PROTOCOL HAS A WORKING FORM NOW, AND IT SHOULD BE THE STANDARD ASK.** This log
+  says a control that kills 0 means a blind harness OR an equivalent mutant, and that only the author
+  can tell them apart; worker 1 added "score M0"; reviewer 3 added "mutate the same instruction more
+  violently". #633 (`hg_read_span_4s_wxyz_m1_gqt_m1_premul`) is the first harness I have reviewed
+  that does all three unprompted, and the output is worth copying verbatim as the house shape:
+
+      M0 unmutated copy through the mutation pipeline .......    0 killed  (expected 0)
+      M2 haddps pairing -> left-to-right ...................    0   -> M2v drop the 4th product:  75
+      M3 maxps operand order flipped .......................    0   -> M3v EPS -> 1e30:         2505
+      M7 head-loop alignment test inverted .................    0   -> M7v advance by 8:        3300
+
+  Three dead controls, each converted from an unanswered question into a proof that the mutant is
+  equivalent ON THIS CORPUS, plus a baseline proving the mutation pipeline itself perturbs nothing.
+  A reviewer can read that table and know what was measured; a table of four zeroes tells them
+  nothing. **Ask for M0 and a violent variant whenever a control kills 0** — it is two extra runs.
+
+- **Two small ones.** (a) A port header that says a symbol is local (`t`) when the inventory says `T`
+  costs nothing today and misleads tomorrow: the answer decides whether the next harness in that
+  family needs the slide-plus-offset apparatus at all (#636, `__ZNK7OZCurve11getRootNodeEv`, which is
+  exported). Check the inventory line, it is one grep. (b) When probing a receiver for "did the
+  callee write", poison it — `create_string_buffer(0x200)` gives 512 ZERO bytes, so "untouched" and
+  "wrote zeros" are indistinguishable; pass the explicit length with the fill
+  (`create_string_buffer(b"\xCD"*N, N)`) or the buffer is N+1 bytes and the comparison can never
+  succeed, which is the mirror trap already in this log.
