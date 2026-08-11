@@ -40,7 +40,10 @@ case "$*" in
   *"pr view"*headRefOid*) echo "aaaaaaaa11111111aaaaaaaa11111111aaaaaaaa" ;;
   *"api -X POST"*reviews*)
       cat > "$SB/posted.json"
-      python3 -c "import json;d=json.load(open('$SB/posted.json'));print(json.dumps({'state':'CHANGES_REQUESTED','body':d['body'],'commit_id':d['commit_id']}))" ;;
+      # If $SB/rebind exists, answer with a DIFFERENT commit_id — GitHub recording the review
+      # against a commit the caller did not send. Otherwise echo back what was sent.
+      REBIND=""; [ -f "$SB/rebind" ] && REBIND="$(cat "$SB/rebind")"
+      python3 -c "import json,sys;d=json.load(open('$SB/posted.json'));print(json.dumps({'state':'CHANGES_REQUESTED','body':d['body'],'commit_id':(sys.argv[1] or d['commit_id'])}))" "$REBIND" ;;
   *reviews*) echo "[]" ;;
   *) echo "" ;;
 esac
@@ -97,6 +100,39 @@ check "bad verdict word"               2 NONE -- 596 rubber-stamp --body-file "$
 echo "-- the head binding --"
 check "expect-head matching the head"  0 "$BODY_TEXT" -- 596 request-changes --expect-head "$SHA" --body-file "$SB/body.md"
 check "expect-head that MOVED"         5 NONE -- 596 request-changes --expect-head deadbeefdeadbeefdeadbeefdeadbeefdeadbeef --body-file "$SB/body.md"
+
+echo "-- what the POST is BOUND to, and the read-back (locks the #619 finding) --"
+# WHY THESE TWO. #619 proposed POST_SHA="${EXPECT_HEAD:-$HEAD_SHA}" as the fix for a review landing
+# on unread code. It is a no-op: a mismatched --expect-head exits 5 twenty lines earlier, so on every
+# path that reaches the POST the two variables are the same string. The first case pins that equality
+# so nobody re-proposes the rename; the second pins the only check this script can actually make —
+# comparing the commit_id GitHub reports back against the one we signed. Neither can see the
+# RETROACTIVE re-pointing that pr_land's update-branch does (measured +3s to +39s after submission on
+# #599/#610/#585); that is not reachable from here, and the script now says so instead of implying a
+# guarantee it cannot give.
+check_bound () { # <label> <expected posted commit_id> -- <args...>
+  local label="$1" want="$2"; shift 3
+  rm -f "$SB/posted.json"
+  (cd "$SB" && FCT_STATE_DIR="$SB/state" timeout 10 "$SB/pr_review.sh" "$@" >/dev/null 2>&1)
+  local got; got=$(python3 -c "import json;print(json.load(open('$SB/posted.json'))['commit_id'])" 2>/dev/null || echo NONE)
+  if [ "$got" = "$want" ]; then pass=$((pass+1)); printf '  ok   %s\n' "$label"
+  else fail=$((fail+1)); printf '  FAIL %s -- posted commit_id %s (want %s)\n' "$label" "${got:0:12}" "${want:0:12}"; fi
+}
+check_says () { # <label> <grep-pattern> <want:yes|no> -- <args...>
+  local label="$1" pat="$2" want="$3"; shift 4
+  local out; out=$(cd "$SB" && FCT_STATE_DIR="$SB/state" timeout 10 "$SB/pr_review.sh" "$@" 2>&1)
+  local saw=no; printf '%s' "$out" | grep -q "$pat" && saw=yes
+  if [ "$saw" = "$want" ]; then pass=$((pass+1)); printf '  ok   %s\n' "$label"
+  else fail=$((fail+1)); printf '  FAIL %s -- expected to %s say /%s/\n' "$label" "$want" "$pat"; fi
+}
+
+check_bound "POST carries the head SHA (with --expect-head)" "$SHA" -- 596 request-changes --expect-head "$SHA" --body-file "$SB/body.md"
+check_bound "POST carries the head SHA (without it)"         "$SHA" -- 596 request-changes --body-file "$SB/body.md"
+check_says  "success line reports the recorded binding" "recorded against ${SHA:0:8}" yes -- 596 request-changes --expect-head "$SHA" --body-file "$SB/body.md"
+check_says  "no warning when the binding is honoured"   "WARNING — signed" no  -- 596 request-changes --expect-head "$SHA" --body-file "$SB/body.md"
+echo "cccccccc33333333cccccccc33333333cccccccc" > "$SB/rebind"
+check_says  "WARNS when GitHub records another commit"  "WARNING — signed" yes -- 596 request-changes --expect-head "$SHA" --body-file "$SB/body.md"
+rm -f "$SB/rebind"
 
 echo "test_pr_review_argv: $pass passed, $fail failed"
 [ "$fail" = 0 ] || exit 1
