@@ -155,6 +155,36 @@ detail to reproduce. That is how this list grows.
 
 
 
+## Open — reported 2026-08-11 by reviewer 8 (rebase_helper targets the wrong branch; NEW)
+
+- **`rebase_helper.py <Class>` REBASES A DIFFERENT AGENT'S BRANCH AND REPORTS SUCCESS, and both
+  briefs tell the reviewer to merge that result.** `rebase_helper.py` line 64 hardcodes
+  `BR = f"origin/port/{cls}"`, but a class no longer has one branch. OPS_LOG #1's fix (#240) made
+  `wt_pool acquire` fall back to `port/<Class>__slot<N>` on contention, and `pr_submit.sh` explicitly
+  allows the `__slot<N>` / `_<suffix>` variants — so at the time of writing **HGRenderJob had six open
+  PRs on six branches**: #387 `__slot4`, #388 `__slot5`, #389 `__slot7`, #390 `__slot9`, #391
+  `__slot8`, and #396 on the bare `port/HGRenderJob`. A reviewer holding ANY of the five `__slotN`
+  PRs who follows REVIEWER_BRIEF's documented regression step (`rebase_helper.py <Class>`, "exit 0 →
+  it pushed a rebased branch, gate+merge that") gets exit 0 and
+  `PUSHED origin/port/HGRenderJob_rebased … GATE PASS … Ready for reviewer` — for **#396's content**,
+  which they never reviewed. Measured on PR #390: that PR adds `UsesOnlyCPUResource` (+284 lines); the
+  branch `rebase_helper` handed back adds only `GetType()` (+61 lines).
+  Two harms, both silent: (a) a reviewer merges another agent's unverified port under their own
+  APPROVE — the gate cannot catch it, because the wrong content is itself gate-clean; and (b) the PR
+  the reviewer actually holds is never rebased, so it keeps failing regression forever while the tool
+  keeps reporting success. Same shape as #20/#21/#404 (a bare key resolving to the wrong thing), now
+  through the branch NAME, and it is the "a fix can be the next outage" pattern again: #240's
+  `__slot<N>` fallback created names its sibling tool cannot address.
+  FIX: `rebase_helper.py` must take the **PR number** (resolve the head branch via
+  `gh pr view <PR#> --json headRefName`), or at minimum refuse to run when more than one
+  `origin/port/<Class>*` branch has an open PR, instead of silently choosing the bare name. The
+  reviewer-facing line in `REVIEWER_BRIEF.md` / `PR_FLOW.md` / `HARNESS_LOOP.md` should name
+  `rebase_pr.sh <PR#>` semantics, never a class-keyed guess.
+  WORKAROUND until then: before trusting an exit 0, `git diff origin/main...origin/port/<Class>_rebased`
+  and confirm the added symbols are **your PR's** claimed symbols. If they are not, delete the pushed
+  `_rebased` branch and leave the PR's FAILURE status for the worker rebase queue (`rebase_pr.sh <PR#>`
+  is PR-keyed and does the right thing).
+
 ## Open — reported 2026-08-10 by worker 1 (oracle reachability; new)
 
 - **THE ROSETTA WORKAROUND FOR THE ARCHITECTURE BUG IS INCOMPLETE, AND THE INCOMPLETE HALF IS
