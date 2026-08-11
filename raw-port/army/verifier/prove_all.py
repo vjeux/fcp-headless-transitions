@@ -134,7 +134,11 @@ def layer2():
     # `test_pr_review_argv.sh` already existed and NOTHING RAN IT — row 44's shape sitting on top of
     # this very hazard — so both are wired here, in the change that closes the second hole.
     # Fully offline: each drives the real script against a fake `gh`/`gh_as.sh` in a scratch sandbox,
-    # so nothing is posted to a live PR and a GitHub 5xx cannot flake the startup gate. ~18s total.
+    # so nothing is posted to a live PR and a GitHub 5xx cannot flake the startup gate.
+    # COST, measured in a pool worktree under swarm load rather than on an idle box: 40.9s for the
+    # review suite and 4.5s for the comment one (prove_all end to end is 2m19s at that load). An
+    # earlier revision of this line said "~18s total", which is the idle number and 2.5x optimistic
+    # — the figure a reader budgets from should be the one they will actually pay.
     r10 = run(["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")])
     ok10 = r10.returncode == 0 and "test_pr_review_argv:" in r10.stdout and "0 failed" in r10.stdout
     r11 = run(["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")])

@@ -42,6 +42,10 @@ SB="$SB"
 case "\$*" in
   *"pr view"*comments*) cat "\$SB/existing.txt" ;;
   *"pr comment"*)
+      # Print the new comment's URL, as the real `gh pr comment` does: the tool parses the
+      # #issuecomment-<id> fragment out of it so the read-back reads ITS OWN comment rather than
+      # `.[-1]`, which with 16 slots live can be a peer's comment posted in between.
+      echo "https://github.com/vjeux/fcp-headless-transitions/pull/600#issuecomment-4242"
       # Record the body whether it arrives as --body-file <path> or as --body <text>. Accepting BOTH
       # is what keeps this harness from being blind to the OLD implementation: it posts through
       # --body, so a fake that understood only --body-file would fail every case against it — turning
@@ -51,14 +55,29 @@ case "\$*" in
         [ "\$prev" = "--body" ] && printf '%s' "\$a" > "\$SB/posted.txt"
         prev="\$a"
       done ;;
-  *"api"*comments*) [ -f "\$SB/posted.txt" ] && wc -c < "\$SB/posted.txt" | tr -d ' ' || echo 0 ;;
+  # CODEPOINTS, not bytes — this is what jq's `.body|length` returns, and counting bytes on one
+  # side and codepoints on the other is the false alarm the em-dash case below exists to catch.
+  *"api"*issues/comments/4242*) [ -f "\$SB/posted.txt" ] && python3 -c 'import sys;print(len(open(sys.argv[1],"rb").read().decode("utf-8","replace")))' "\$SB/posted.txt" || echo 0 ;;
+  # THE `.[-1]` FALLBACK ANSWERS WITH A PEER'S COMMENT. 999999 stands for another agent commenting
+  # between the POST and the read-back — the race that makes `.[-1]` the wrong question with 16
+  # slots live. The shipped tool reads its OWN id (the branch above) and never sees this; a tool
+  # that falls back to `.[-1]` reports a mismatch on a comment that is perfectly intact.
+  *"api"*comments*) echo 999999 ;;
   *) : ;;
 esac
 FAKE
 chmod +x "$SB/bin/gh"
 
+# PER-CASE TIMEOUT. It is a real assertion — case "expect-head with NO value" exists because
+# a bad argv made the parse loop SPIN FOREVER, and 124 is reported as a HUNG parse loop. But
+# 10s is a property of an idle box: wired into prove_all (LAYER 2j), which every reviewer runs
+# at startup, a case that merely LOSES A RACE on a 16-agent box reads as "the verifier is
+# broken" and stops the swarm — the failure test_guards case E already cost us once. Observed
+# exactly that while wiring it: 23/24 under a concurrent prove_all, 24/24 twice immediately
+# after, no change to anything. A hang is unbounded, so 60s discriminates just as well.
+CASE_TIMEOUT="${ARGV_CASE_TIMEOUT:-60}"
 pass=0; fail=0
-run () { rm -f "$SB/posted.txt"; (cd "$SB" && PATH="$SB/bin:$PATH" timeout 10 "$SB/pr_comment_once.sh" "$@" 2>&1); }
+run () { rm -f "$SB/posted.txt"; (cd "$SB" && PATH="$SB/bin:$PATH" timeout "$CASE_TIMEOUT" "$SB/pr_comment_once.sh" "$@" 2>&1); }
 posted_body () { # the body WITHOUT the trailing marker block
   [ -f "$SB/posted.txt" ] || { echo "NONE"; return; }
   python3 - "$SB/posted.txt" <<'PY'
@@ -88,6 +107,13 @@ check "literal multi-word body"       0 "two words" -- 600 two words
 check "-- then a literal body"        0 "after the dashes" -- 600 -- "after the dashes"
 
 echo "-- the shapes that must REFUSE (each one would post a flag as the record) --"
+# RULE, learned on this file in review: for every case here, ask WHICH guard answers it, and make
+# sure no OTHER guard can. Three of the six refusals were deletable with this suite green on its
+# first head — two because a sibling guard answered them (both cases below now carry a literal body
+# so the behaviours differ) and one because it is genuinely equivalent (the unreadable-file check:
+# `cat` of a missing file yields an empty body, which the empty-body guard refuses, so no input
+# distinguishes them — reported, not counted). A suite whose cases are answerable by a sibling
+# guard measures the DISJUNCTION of your guards, not each of them.
 check "body-file with EMPTY value"    2 NONE -- 600 --body-file "" "real evidence"
 check "body-file with NO value"       2 NONE -- 600 --body-file
 check "literal body BEFORE body-file" 2 NONE -- 600 "real evidence" --body-file "$SB/body.md"
@@ -114,6 +140,16 @@ if printf '%s' "$out" | grep -q "read back and confirmed"; then
   pass=$((pass+1)); printf '  ok   posts and confirms the stored body length\n'
 else
   fail=$((fail+1)); printf '  FAIL no read-back confirmation in: %.80s\n' "$out"
+fi
+
+echo "-- the read-back must not cry wolf on non-ASCII, with the locale a launchd agent has --"
+printf 'evidence — with em dashes — three of them —\n' > "$SB/emdash.md"
+rm -f "$SB/posted.txt"
+out=$(cd "$SB" && env -u LANG -u LC_ALL -u LC_CTYPE PATH="$SB/bin:$PATH" timeout "$CASE_TIMEOUT" "$SB/pr_comment_once.sh" 600 --body-file "$SB/emdash.md" 2>&1)
+if printf '%s' "$out" | grep -q "read back and confirmed"; then
+  pass=$((pass+1)); printf '  ok   a non-ASCII body reads back as intact in a byte-locale\n'
+else
+  fail=$((fail+1)); printf '  FAIL the read-back miscounted a non-ASCII body: %.100s\n' "$out"
 fi
 
 echo "test_pr_comment_once_argv: $pass passed, $fail failed"

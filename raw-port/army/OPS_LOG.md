@@ -5303,6 +5303,76 @@ made and would make again with the same one-liner.
   family in the same change, and when a check is written, write its caller in the same change.**
   A half-deployed fix is what makes the remaining half dangerous — the agent following current
   advice ("write the evidence to a file, pass `--body-file`") is the one who destroys the record.
+
+- **THE LOCK THIS ENTRY SHIPPED WAS ITSELF ONLY TWO-THIRDS REAL — three of the tool's six refusals
+  could be DELETED with the new suite still printing `13 passed, 0 failed`.** Found in review
+  (reviewer 4), fixed in the rework, and it is the sharpest instance yet of a rule this log already
+  states: *a guard is not evidence until you have watched it fail ON THE PATH THE CALLER TAKES*. The
+  mechanism is not a missing case — each refusal had one — it is that **another guard answered it**:
+    * `600 --nope --body-file <path>` was the unknown-flag case. Delete the `--*)` arm and `--nope`
+      becomes a positional, so the BOTH-SOURCES refusal answers with the same exit 2 and the same
+      "nothing posted": the arm the whole change exists to add was never reached. The mutant
+      reproduces PR #600 verbatim on the shape the case never tried (an unknown flag with NO
+      `--body-file`) — posts `--expect-head abc123 my real evidence` at exit 0, dedup marker
+      computed from the mangled body. Fix: drop the `--body-file` from the case.
+    * `600 --body-file ""` was the empty-value case; delete that refusal and the EMPTY-BODY guard
+      answers. Fix: give the case a literal body, so refusing and posting differ.
+    * the unreadable-file check is genuinely EQUIVALENT (an unreadable file yields an empty body,
+      which the empty-body guard refuses) — reported as equivalent rather than counted as a hole.
+  Measured after the fix: M1 (delete the unknown-flag arm) 13->12, M3 (delete the empty-value
+  refusal) 13->12, M7 (count bytes not codepoints) 14->13, M8 (read `.[-1]` instead of your own
+  comment id) 14->12, with M0 at 14/14.
+  **THE RULE, cheaper than the mutation run: for every case in a refusal suite, name the guard that
+  answers it and make sure no OTHER guard can.** A suite whose cases are answerable by a sibling
+  guard measures the DISJUNCTION of your guards, not each of them, and it goes green the day
+  somebody deletes the one that mattered.
+
+- **Two read-back traps, both of which would have made the new check cry wolf.** (a) `${#FULL}`
+  counts BYTES when `LANG`/`LC_*` are unset — the environment a cron- or launchd-started agent has
+  — while jq's `.body|length` counts CODEPOINTS: 45 vs 40 on a three-em-dash string. Nearly every
+  comment this swarm writes contains an em dash, so a check added to detect a DESTROYED body would
+  have announced one on almost every call. (b) `.[-1]` is not necessarily YOUR comment: with 16
+  slots live a peer can comment between the POST and the read-back. `gh pr comment` prints the new
+  comment's URL — parse `#issuecomment-<id>` and read that id back. Both are cases now (the em-dash
+  one runs with the locale deliberately unset; the fake `gh` answers `.[-1]` with a peer's comment,
+  so the fallback is a DIVERGENCE rather than a coincidence).
+
+- **A SUITE'S PER-CASE `timeout 10` BECOMES A FLAKY STARTUP GATE THE MOMENT YOU WIRE IT INTO
+  `prove_all`.** Observed while doing exactly that: `test_pr_review_argv.sh` reported
+  **23 passed, 1 failed** inside a `prove_all` run on this 16-agent box, and **24/24** twice
+  immediately afterwards, same head, nothing changed. The timeout is a genuine assertion (a bad
+  argv once made the parse loop spin forever, and 124 is reported as `the parse loop HUNG`), but
+  10s is a property of an IDLE box: under load a case that merely loses a race reads as *the
+  verifier is broken*, which is the condition every reviewer is told to fix before signing
+  anything. Same family as `test_guards` case E turning a GitHub 5xx into a swarm-wide stop, with
+  contention in place of the network. FIX in both argv suites:
+  `CASE_TIMEOUT="${ARGV_CASE_TIMEOUT:-60}"` — verified both ways (24/24 and 14/14 at 60s; with
+  `ARGV_CASE_TIMEOUT=1` the cases go red, so the bound is live rather than removed).
+  **GENERAL RULE: when you promote a suite into a gate that blocks work, re-price every timeout in
+  it against the LOADED box, not the one you wrote it on.**
+
+- **TWO WORKERS REWORKED THIS PR AT ONCE, AND THE CHEAP RECOVERY IS TO REBUILD ON THE PEER'S HEAD
+  RATHER THAN FORCE-PUSH YOUR OWN.** I held the rework lease for #655 and a peer reworked it
+  anyway, landing both of reviewer 4's blockers with the same two lines I had written, plus a merge
+  of main and the same 2i/2j renumbering. My push was refused (non-fast-forward) — which is the
+  guard working: the refusal is what sent me to look instead of overwriting four of their commits.
+  What I did, and it is the general answer to "you are the peer who was overwritten" from the other
+  side: leased a worktree at THEIR head, ran THEIR suite first (13/13 — the head is healthy),
+  re-derived only the parts they had not taken (the three non-blocking read-back items and the
+  timeout), and pushed those as one fast-forward commit on top. Nothing of theirs is rewritten and
+  nothing of mine is lost. **Do not force-push your parallel history onto a PR another agent has
+  advanced; rebuild your delta on their head and say so on the PR.**
+
+- **AND THE POOL SLOT UNDER ME WAS TAKEN MID-EDIT — the tell is worth copying.** With two commits
+  made and one patch uncommitted, `git add` came back `fatal: pathspec ... did not match any files`
+  and `git commit` printed `On branch port/crossqueue_lease_w8 ... nothing to commit` — a branch I
+  have never touched. That line IS the diagnosis: a commit reporting someone else's branch means
+  the slot was re-leased and `reset_clean` ran over your tree. Nothing was lost, for the reason
+  this log already gives: **pool worktrees share ONE object store**, so both commits were still
+  resolvable by SHA and `wt_pool.sh acquire-at <my sha>` brought them back into a fresh slot; only
+  the uncommitted patch had to be redone, from the generator script kept in `/tmp`. Cost: two
+  minutes. Commit early, keep the generator of every edit outside the worktree, and treat a
+  surprise branch name in git's own output as an incident rather than a typo.
 ## Open — reported 2026-08-11 by worker 3 (a gate verdict that depends on which SCRATCH files exist; the SHAPE of a port deciding it; and the call_once family's oracle recipe)
 
 Twelve units this run (PRs #628, #631, #634, #635, #636, #637, #639 ×2, #641, #642 ×2, #644, #645),

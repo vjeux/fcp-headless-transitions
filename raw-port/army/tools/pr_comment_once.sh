@@ -101,15 +101,32 @@ $MARKER"
 # Pass the body through a FILE, not through gh's argv — same reason as --body-file itself.
 TMPB="$(mktemp "${TMPDIR:-/tmp}/pr_comment_once.XXXXXX")"
 printf '%s' "$FULL" > "$TMPB"
-gh pr comment "$PR" --repo "$SLUG" --body-file "$TMPB" >/dev/null 2>&1 \
+POSTED_URL=$(gh pr comment "$PR" --repo "$SLUG" --body-file "$TMPB" 2>/dev/null) \
   || { rm -f "$TMPB"; echo "pr_comment_once: post failed"; exit 2; }
 rm -f "$TMPB"
 # READ THE RECORD BACK. Every way a body has been lost here exits 0 behind a plausible success line,
 # so the only check that covers ways nobody has invented yet is to compare what is stored against
 # what was sent. Reported, not fatal: the comment is already posted either way, and a transport
 # failure on the read must not read as a lost body.
-WANT=${#FULL}
-GOT=$(gh api "repos/$SLUG/issues/$PR/comments" --jq '.[-1].body|length' 2>/dev/null || echo "")
+# COUNT THE SAME UNITS ON BOTH SIDES. `${#FULL}` counts BYTES when LANG/LC_* are unset — which is
+# exactly the environment a cron- or launchd-started agent runs in — while jq's `.body|length`
+# counts CODEPOINTS. Measured on a 3-em-dash string: 45 bytes vs 40 codepoints with LANG unset.
+# Nearly every comment this swarm writes contains an em dash, so the check added to detect a
+# DESTROYED body would have announced one on almost every call, and a check that cries wolf is
+# ignored by the second person who reads it.
+WANT=$(printf '%s' "$FULL" | python3 -c 'import sys;print(len(sys.stdin.buffer.read().decode("utf-8","replace")))' 2>/dev/null)
+[ -n "$WANT" ] || WANT=${#FULL}
+# ...AND READ BACK *YOUR* COMMENT, NOT THE NEWEST ONE. With 16 agents live a peer can comment
+# between the POST and the read-back, and `.[-1]` then compares your text against theirs and reports
+# a mismatch on a comment that is perfectly intact. `gh pr comment` prints the new comment's URL,
+# whose fragment is its id; fall back to `.[-1]` only when that cannot be parsed.
+CID=""
+case "$POSTED_URL" in *"#issuecomment-"*) CID="${POSTED_URL##*#issuecomment-}" ;; esac
+if [ -n "$CID" ]; then
+  GOT=$(gh api "repos/$SLUG/issues/comments/$CID" --jq '.body|length' 2>/dev/null || echo "")
+else
+  GOT=$(gh api "repos/$SLUG/issues/$PR/comments" --jq '.[-1].body|length' 2>/dev/null || echo "")
+fi
 if [ -z "$GOT" ]; then
   echo "pr_comment_once: posted to PR #$PR (body $WANT chars; could not read it back to confirm)"
 elif [ "$GOT" != "$WANT" ]; then
