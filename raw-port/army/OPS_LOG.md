@@ -194,6 +194,55 @@ detail to reproduce. That is how this list grows.
 
 
 
+## Open — reported 2026-08-11 by reviewer 5 (three reviewer-side traps; NEW)
+
+Independently hit while reviewing #385/#389/#394/#402/#403/#406/#421/#428/#431/#443. The first one
+cost a WRONG REJECT on a correct PR, which is the expensive direction for a reviewer.
+
+- **`git diff origin/main <branchHead>` IS NOT A MERGE PREVIEW, and reading it as one makes every
+  stale-base PR look like it deletes landed work.** Reviewing #403 I checked "does this branch drop
+  content main already has" with a two-ref diff. It showed 40 lines of worker 2's
+  differential-harness-traps section (landed minutes earlier as #417) on the `-` side, so I filed a
+  blocking REQUEST_CHANGES for a regression that does not exist: a two-ref diff renders *the branch
+  is behind* as deletions. The real three-way result keeps everything —
+
+      git merge-tree --write-tree origin/main <branchHead>   # prints the merged TREE sha
+      git show <tree>:<path>                                 # inspect the ACTUAL merge result
+
+  354 lines = main's 324 + the PR's 30, with all 6 keyword hits of the "deleted" section intact. I
+  dismissed my own review with the reason and landed the PR. Stale-base is the NORMAL state in this
+  swarm, so this false-rejects almost everything if a reviewer adopts it as a habit. Note
+  `regression_check` already gets this right with a 3-dot `-`-side check; the briefs never say out
+  loud that the two-ref form is the wrong tool.
+  **RULE: `git diff origin/main...<branchHead>` (three dots, against the merge base) or
+  `git merge-tree --write-tree`. NEVER `git diff origin/main <branchHead>`.**
+  (Smaller, related, and NOT what bit me: `pr_gate.sh` skips regression_check entirely when a PR
+  touches no `raw-port/src` file — it prints "no raw-port/src ports to gate (infra/tooling PR)" and
+  posts SUCCESS. Harmless for a non-conflicting doc edit because git unions it; it would only
+  matter for an infra PR that rewrites a shared file wholesale, the #9 shape.)
+
+- **Backticks inside the double-quoted evidence string of `ghapp/pr_review.sh` are
+  command-substituted, silently deleting text from the durable review body.** Approving #389 with
+  ``... so `?? ''` models the cmov ...`` posted an APPROVED review reading "so  models the cmov",
+  and printed `/bin/sh: ??: command not found` AFTER the success line where it is easy to miss.
+  Reviewer evidence is quoted CODE (`movl 0x44(%rdi),%eax`, `!== -1n`, `?? ''`), so backticks are
+  the natural way to write it, and in a double-quoted shell argument they are substitution — which
+  also EXECUTES whatever is inside them. The verdict still posts, so nothing fails loudly; the
+  evidence of record just quietly loses a token.
+  FIX: give `pr_review.sh` a `--body-file`/stdin path. WORKAROUND: single-quote the evidence
+  string (or heredoc it); never double quotes.
+
+- **A reviewer's own `wt_pool.sh acquire-at` lease cannot be released without `--force`, so manual
+  oracle work still leaks pool slots (the #12/#372 family, through a third door).** `acquire-at`
+  leaves the worktree detached at the PR head, which is BY DEFINITION a commit not on origin/main,
+  so `release` reads it as unfinished work and refuses with "commit+push it (pr_submit.sh), or
+  re-run with --force to abandon it deliberately". #258/#372 fixed exactly this for `pr_gate.sh`
+  (it releases `--force`); a reviewer who leases a worktree by hand to drive a TS differential —
+  which REVIEWER_BRIEF asks for — hits it every time, and one who does not read the refusal leaks
+  the slot. That is the failure that stopped the swarm in #12.
+  FIX: `release` should treat a detached `acquire-at` lease as disposable, the same self-healing
+  rule as the `gate/<sha>` leases, since it can never hold authored work.
+
 ## Open — reported 2026-08-11 by reviewer 8 (rebase_helper targets the wrong branch; NEW)
 
 - **`rebase_helper.py <Class>` REBASES A DIFFERENT AGENT'S BRANCH AND REPORTS SUCCESS, and both
@@ -343,6 +392,51 @@ detail to reproduce. That is how this list grows.
   Until fixed: a reviewer who finds a faithful-but-rebase-blocked PR should record the verified body
   in a PR comment (`pr_comment_once.sh`) so that if the cap closes it, the transcription is not lost
   and the next worker can carry it over verbatim rather than re-deriving it.
+
+---
+
+## Open — reported 2026-08-11 by worker 7 (new)
+
+- **LOCAL (`t`) symbols ARE oracle-able, and the recipe avoids `nm` entirely — this closes the
+  "Rosetta workaround is incomplete" item below.** Worker 1 correctly found that
+  `local_call.py::_vmaddr`'s bare `nm -n` reports **arm64** addresses even under Rosetta, so
+  `local_fn()` computes (arm64 vmaddr + x86_64 slide) and calls the wrong function. The fix does not
+  require fixing `nm` at all, because the x86_64 vmaddr is **already on disk**: it is the first
+  column of `raw-port/army/inventory/<FW>.syms.txt`. Working recipe, verified end-to-end on
+  `hg_read_span_4s_wxyz_m1_gqt_m1_premul` (Helium `t` @0x18adf0, a symbol `dlsym` cannot find at all):
+
+      # under arch -x86_64 /usr/bin/python3
+      libc = ctypes.CDLL(None)
+      libc._dyld_get_image_name.restype = ctypes.c_char_p
+      libc._dyld_get_image_vmaddr_slide.restype = ctypes.c_void_p
+      ctypes.CDLL(FW_PATH, ctypes.RTLD_GLOBAL)
+      i     = <index whose _dyld_get_image_name(i) == FW_PATH>
+      slide = libc._dyld_get_image_vmaddr_slide(i)
+      fn    = ctypes.CFUNCTYPE(<restype>, *<argtypes>)(slide + VMADDR_FROM_INVENTORY)
+
+  Measured slide 0x10ab6e000, called an 8-pixel span, and confirmed the function's own `count == 0`
+  early-out leaves the destination untouched. **Consequence for reviewers and workers: "the symbol is
+  local, so I could not oracle it" is no longer a valid reason to sign a port on reading alone.**
+  Roughly a third of the remaining queue is `t`-class. Worth folding into `local_call.py` as the
+  `_vmaddr` implementation (read the inventory, never shell out to `nm`), which would also make it
+  ~1000x faster than the `nm` it replaces.
+
+- **The nested-class file-naming convention and the landed precedent CONTRADICT each other, across a
+  whole family.** `PORTING_SPEC.md` says a nested class joins its outer names with a DOUBLE
+  underscore (`OZOpticalFlow::Private::CacheFileHeader` -> `OZOpticalFlow__Private__CacheFileHeader.ts`),
+  and both worker briefs repeat it as a rule that exists because it was violated. But the
+  `OZChannelColorNoAlpha_*Impl.ts` family already on main — `greyImpl`, `whiteImpl`, `gammaImpl`,
+  `colorSpaceIDImpl`, `blueSample1Impl`, `redSample1Impl` and friends, ~10 files — are *equally*
+  nested (e.g. `__ZN21OZChannelColorNoAlpha30OZChannelColorNoAlpha_greyImpl11getInstanceEv` is
+  Outer=`OZChannelColorNoAlpha`, Inner=`OZChannelColorNoAlpha_greyImpl`) and every one of them is
+  filed under the INNER name alone. So a worker handed one of these units cannot satisfy both the
+  spec and the precedent, and whichever they pick looks wrong to a reviewer diffing against the
+  other. This is the exact setup PORTING_SPEC's own rationale warns about — two workers filing one
+  class under `_` and `__`, both landing. It needs a project-level ruling (and, if the spec wins, a
+  rename of the existing family) rather than a per-worker coin flip. Filed
+  `OZChannelColor__OZChannelColor_alpha_zeroImpl.ts` per the spec and flagged it in the file header
+  (PR #440); `check_duplicate_classes.py` does not catch the divergence because the two spellings
+  normalise differently.
 
 ---
 
