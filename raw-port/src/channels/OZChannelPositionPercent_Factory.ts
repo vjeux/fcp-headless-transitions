@@ -10,6 +10,11 @@
 //   __ZN32OZChannelPositionPercent_Factory11getBundleIDEv
 //     — OZChannelPositionPercent_Factory::getBundleID()   @ProChannel 0x8680
 //
+// ADDED LATER, its own ledger unit, its own disassembly (see the method doc):
+//
+//   __ZN32OZChannelPositionPercent_Factory17getIconIDInternalEv
+//     — OZChannelPositionPercent_Factory::getIconIDInternal()  @ProChannel 0x86be
+//
 // This is a FRESH class (not previously on origin/main): the landed
 // neighbours are the CHANNEL class `OZChannelPositionPercent.ts` and the 3D
 // factory `OZChannelPositionPercent3D_Factory.ts`, both different C++ classes.
@@ -96,6 +101,15 @@ const OZ_CHANNEL_POSITION_PERCENT_FACTORY_BUNDLE_ID = "";
 const OZ_CHANNEL_POSITION_PERCENT_FACTORY_BUNDLE_ID_LIT_ADDR = 0xbc3f8;
 
 /**
+ * The "no icon ID" sentinel this factory reports — the int32 -1 written by
+ * `movl $0xffffffff,%eax` @ProChannel 0x86c2 (see `getIconIDInternal` below).
+ * Declared here rather than imported from the sibling `OZChannelLevels_Factory`, which carries the
+ * same value from ITS own instruction @0xce98: the provenance of a constant is the address it was
+ * read from, and each file cites its own.
+ */
+export const OZ_CHANNEL_POSITION_PERCENT_FACTORY_ICON_ID_NONE = -1 as const;
+
+/**
  * `OZChannelPositionPercent_Factory` — ProChannel factory singleton that mints
  * OZChannelPositionPercent channel instances.
  *
@@ -129,5 +143,48 @@ export class OZChannelPositionPercent_Factory {
     // @0x868c retq                    : return that pointer.
     void OZ_CHANNEL_POSITION_PERCENT_FACTORY_BUNDLE_ID_LIT_ADDR;
     return OZ_CHANNEL_POSITION_PERCENT_FACTORY_BUNDLE_ID;
+  }
+
+  /**
+   * `OZChannelPositionPercent_Factory::getIconIDInternal()` — @ProChannel 0x86be
+   *   (`__ZN32OZChannelPositionPercent_Factory17getIconIDInternalEv`).
+   *
+   * FULL transcription — every instruction, in order (7 lines, the whole function; re-derive with
+   * `raw-port/tools/disasm.sh --sym __ZN32OZChannelPositionPercent_Factory17getIconIDInternalEv ProChannel`):
+   *
+   *   0x86be  pushq %rbp                  ; frame prologue (no TS counterpart)
+   *   0x86bf  movq  %rsp,%rbp             ; frame prologue (no TS counterpart)
+   *   0x86c2  movl  $0xffffffff,%eax      ; %eax = -1 (int32)
+   *   0x86c7  popq  %rbp                  ; frame epilogue (no TS counterpart)
+   *   0x86c8  retq                        ; returns the int in %eax
+   *   0x86c9  nop                         ; alignment padding, not executed
+   *
+   * One instruction with value semantics. `this` (%rdi) is never dereferenced, nothing is called
+   * and nothing is allocated: no in-scope callee, no extern, no allocation, no indirect or virtual
+   * dispatch (`depgraph.py deps` lists nothing for this symbol).
+   *
+   * WHY -1 IS THE IMPLEMENTATION, NOT A GAP — the same reasoning the landed sibling
+   * `OZChannelLevels_Factory::getIconIDInternal` @ProChannel 0xce94 records, and this body is
+   * byte-identical to it. `getIconIDInternal()` occupies a vtable slot the abstract factory base
+   * leaves as `__cxa_pure_virtual`, so every concrete factory must supply a body; -1 is the
+   * "this factory contributes no icon ID" sentinel that the channel factories all emit, while the
+   * scene-node factories return real small positive IDs. A `throw` here would be wrong: the
+   * function is complete, and its complete answer is -1.
+   *
+   * SIGNEDNESS: the immediate is written into the 32-bit `%eax`, so the value is the int32 -1, not
+   * the unsigned 4294967295 a 64-bit read would give; callers compare against -1.
+   *
+   * ORACLE (executed against live FCP, not read): the symbol is `t` (local) and therefore not
+   * dlsym-able, so it was called BY ADDRESS in a Rosetta x86_64 process — `arch -x86_64
+   * /usr/bin/python3` — at `_dyld_get_image_vmaddr_slide(ProChannel) + 0x86be`, with the vmaddr
+   * from `nm -n -arch x86_64` (never a bare `nm`: it reports the arm64 slice even under Rosetta).
+   * Live ProChannel returned exactly -1 (0xffffffff in the low 32 bits) for four different `this`
+   * pointers including null — the value this port returns.
+   *
+   * @returns %eax — always -1 (@0x86c2).
+   */
+  getIconIDInternal(): number {
+    // @0x86c2  movl $0xffffffff,%eax ; @0x86c8 retq
+    return OZ_CHANNEL_POSITION_PERCENT_FACTORY_ICON_ID_NONE;
   }
 }
