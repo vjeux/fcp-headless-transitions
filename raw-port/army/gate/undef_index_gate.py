@@ -40,7 +40,12 @@ USAGE
 import os, re, subprocess, sys
 
 # ident[ ...expr... ]!   where the index is not a plain integer literal
-IDX_BANG = re.compile(r'([A-Za-z_$][\w$.]*)\s*\[\s*([^\]]+?)\s*\]\s*!')
+# `]!` must be ADJACENT and not the start of a comparison. The first version allowed whitespace
+# before `!` and did not exclude `!=`, so `buf[i] !== other[i]` — the byte-compare idiom that
+# transcriptions use constantly — was read as a non-null assertion `buf[i]!`. That is not
+# cosmetic: pr_gate holds faithfulness-gate at FAILURE while a flag stands, so my own gate was
+# mechanically blocking correct ports (worker-01 hit it on its first unit).
+IDX_BANG = re.compile(r'([A-Za-z_$][\w$.]*)\s*\[\s*([^\]]+?)\s*\]!(?!=)')
 LITERAL = re.compile(r'^(?:0[xX][0-9a-fA-F]+|\d+)$')
 # a bounds check mentioning .length, a clamp, or an explicit range throw on the same/near line
 GUARDY = re.compile(r'\.length|\bMath\.min\b|\bMath\.max\b|\bclamp\b|throw\b|\?\?')

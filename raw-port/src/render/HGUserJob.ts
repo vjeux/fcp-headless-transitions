@@ -31,6 +31,18 @@
 //                        // `movl %esi, 0xc(%rdi)`. Values not enumerated
 //                        // here; opaque u32.
 //   ...                          // fields 0x10..0x3f not yet decoded
+//   // ^ NARROWED by the GetQueueID port below — the first field decoded
+//   //   inside that range is:
+//   uint32_t queueID;    // offset 0x14 — the u32 render-queue identifier.
+//                        // GetQueueID @0x2fef4 READS it via
+//                        // `movl 0x14(%rdi), %eax`; the sibling setter
+//                        // SetQueueID(unsigned int) @0x2fe54 WRITES it via
+//                        // `movl %esi, 0x14(%rdi)` (its `unsigned int`
+//                        // parameter is what fixes the field's type and
+//                        // 32-bit width); and the ctor @0x2fd19 zero-inits
+//                        // +0x14..+0x23 with `movups %xmm0, 0x14(%rbx)`,
+//                        // so the field starts at 0.
+//   ...                          // fields 0x18..0x3f still not decoded
 //   void (*notifyFunc)(HGUserJob*);
 //                        // offset 0x40 — function pointer written by
 //                        // SetNotifyFunc @0x2fee0 via
@@ -43,6 +55,7 @@
 // -----------------------------------------------------------------------------
 //   SetPriority     — none. Pure field write.
 //   SetNotifyFunc   — none. Pure field write.
+//   GetQueueID      — none. Pure field read.
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -127,6 +140,23 @@ export class HGUserJob {
   _notifyFunc: HGUserJobNotifyFn | null = null; // @Helium HGUserJob@0x40
 
   /**
+   * @Helium HGUserJob@+0x14 — the u32 render-queue identifier.
+   *
+   * Read by `GetQueueID()` @0x2fef4 via `movl 0x14(%rdi), %eax`. The
+   * field's type and width come from its sibling setter
+   * `SetQueueID(unsigned int)` @0x2fe54, whose whole body is
+   * `movl %esi, 0x14(%rdi)` — an `unsigned int` parameter stored as a
+   * 32-bit word at the very offset this getter loads. (SetQueueID is a
+   * SEPARATE ledger unit and is deliberately NOT ported here; its
+   * disassembly is cited only as layout evidence, exactly as the class
+   * header does.)
+   *
+   * Initial value 0: the constructor @0x2fd19 zeroes +0x14..+0x23 with
+   * `movups %xmm0, 0x14(%rbx)`.
+   */
+  _queueID: number = 0; // @Helium HGUserJob@0x14
+
+  /**
    * `HGUserJob::SetPriority(HGUserJob::Priority)` @Helium 0x2fe60
    *   — __ZN9HGUserJob11SetPriorityENS_8PriorityE
    *
@@ -195,5 +225,40 @@ export class HGUserJob {
     //   TS `null` so the read side ("if (this._notifyFunc)" -> dispatch)
     //   observes the same "no callback" semantics.
     this._notifyFunc = fn;
+  }
+
+  /**
+   * `HGUserJob::GetQueueID()` @Helium 0x2fef0
+   *   — __ZN9HGUserJob10GetQueueIDEv
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly:
+   *
+   *   0x2fef0  pushq  %rbp                     ; frame prologue
+   *   0x2fef1  movq   %rsp, %rbp
+   *   0x2fef4  movl   0x14(%rdi), %eax          ; eax = this->+0x14 (u32 load)
+   *   0x2fef7  popq   %rbp                     ; frame epilogue
+   *   0x2fef8  retq
+   *   0x2fef9  nopl   (%rax)                    ; padding — not executed
+   *
+   * Single-instruction body: load the 32-bit field at +0x14 into the
+   * return register. The mirror image of `SetPriority`/`SetNotifyFunc`
+   * above — same prologue/one-access/epilogue skeleton, but a READ.
+   *
+   * `movl` into `%eax` zero-extends into `%rax`, so the value is an
+   * unsigned 32-bit quantity; the port masks with `>>> 0` to keep that
+   * width observable, matching the mask `SetPriority` applies on the
+   * store side. No sign extension is performed by the machine and none
+   * is performed here.
+   *
+   * Zero in-scope callees, zero externs, no dispatch — pure field read
+   * (`depgraph.py deps` lists nothing for this symbol).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN9HGUserJob10GetQueueIDEv.s (7 lines)
+   */
+  GetQueueID(): number {
+    // @0x2fef4  movl 0x14(%rdi),%eax
+    //   32-bit zero-extending load; preserve the u32 width the CPU reads.
+    return this._queueID >>> 0;
   }
 }

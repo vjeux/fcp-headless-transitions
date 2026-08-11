@@ -73,8 +73,14 @@ cd "$WT"
 for d in raw-port/node_modules venv; do ln -sfn "$CANON/$d" "$d" 2>/dev/null || true; done
 # TRUSTED gate tools from origin/main (never trust the PR's own gate)
 T="/tmp/prgate_tools_$$"; rm -rf "$T"; mkdir -p "$T"
-git --git-dir="$CANON/.git" archive origin/main raw-port/army/gate raw-port/army/tools | tar -x -C "$T" 2>/dev/null
-cp -R "$T/raw-port/army/gate" raw-port/army/ 2>/dev/null; cp -R "$T/raw-port/army/tools" raw-port/army/ 2>/dev/null; rm -rf "$T"
+# raw-port/army/verifier IS part of the gate: g5_impl_gate.py imports classify_disasm/reach_check
+# from it. Copying only gate/ and tools/ left TWO holes. (1) A PR could ship its OWN
+# verifier/classify_disasm.py — the very thing "a PR can't ship its own gate" is supposed to
+# prevent, since classify() is what decides TRAP/EMPTY/REAL. (2) Version skew: gate/ from current
+# main against verifier/ from a stale branch, which is how #322's new `names_class` import raised
+# ImportError on PR #341 and (before the gate.sh fix in this commit) skipped G5 entirely.
+git --git-dir="$CANON/.git" archive origin/main raw-port/army/gate raw-port/army/tools raw-port/army/verifier | tar -x -C "$T" 2>/dev/null
+cp -R "$T/raw-port/army/gate" raw-port/army/ 2>/dev/null; cp -R "$T/raw-port/army/tools" raw-port/army/ 2>/dev/null; cp -R "$T/raw-port/army/verifier" raw-port/army/ 2>/dev/null; rm -rf "$T"
 
 git fetch -q origin main 2>&1 | tail -1
 CHANGED=$(git diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
