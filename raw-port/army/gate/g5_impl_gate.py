@@ -235,9 +235,21 @@ def check_file(path):
                         f"dispatch shell whose real work is the callee. Counting it `ported` is a "
                         f"false completion — port the concrete callee instead.")
         elif v == "REVIEW_NEEDED":
-            errs.append(f"{path}: G5 REVIEW_NEEDED — {name}: REAL disasm but not callable in "
-                        f"isolation; the adversarial reviewer must re-derive from the binary and "
-                        f"sign off (pr_gate.sh <PR#> --reviewed) before this can land.")
+            # A FLAG, NOT AN ERROR — and the distinction is load-bearing. REVIEW_NEEDED means exactly
+            # "a human must judge this": the disasm is REAL but the symbol is not callable in
+            # isolation, so no mechanical check can decide it. Filing that under `errs` made it a hard
+            # gate REJECT, and --reviewed only ever bypassed `flags` — so the gate's OWN instruction
+            # ("rerun --reviewed") could never work, and correct PRs were unmergeable by construction
+            # (reviewer-03: "this silently blocks correct PRs (#228, #231, and likely much of the
+            # G0-G5 gate reject backlog)"). It was doubly wrong while pr_gate passed relative paths,
+            # since a merely-unavailable fuzz produced this same verdict (fixed in #234).
+            # As a flag it still blocks a green status until a reviewer re-derives and signs — which
+            # is the whole intent — but the sign-off now actually clears it.
+            # A real cheat (REJECT_CHEAT / SKELETON / REJECT_INCOMPLETE_EMPTY) stays a hard error and
+            # is NOT clearable by --reviewed.
+            flags.append(f"{path}: G5 REVIEW_NEEDED — {name}: REAL disasm but not callable in "
+                         f"isolation; the adversarial reviewer must re-derive from the binary and "
+                         f"sign off (pr_gate.sh <PR#> --reviewed) before this can land.")
         elif v == "REJECT_INCOMPLETE_EMPTY":
             errs.append(f"{path}: G5 — {name}: EMPTY disasm but port throws incompleteness on a "
                         f"reachable input (a no-op must not throw).")
