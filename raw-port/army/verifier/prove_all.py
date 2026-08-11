@@ -191,6 +191,17 @@ LAYER2 = [
      "driver timeout — a hang is a kill, not a pending result",
      ["bash", os.path.join(TOOLS, "test_driver_timeout.sh")],
      "test_driver_timeout: PASS"),
+    # 2v — the doctor's own duplicate-label check, which THIS table's arrival silently retired: its
+    # pattern was `print("LAYER 2<letter>` and it matched nothing here, so `swarm_doctor` reported
+    # `?? layer-letters … not evidence of anything` on every run, permanently, against a main whose
+    # fifteen labels were all distinct. An UNKNOWN that no correct state can clear is a check that
+    # has stopped checking while still occupying a line in the report. The suite feeds the extractor
+    # BOTH shapes plus an unrecognisable one, so the next refactor of this file fails a suite instead
+    # of quietly retiring a guard. Offline — no gh, no network, no pool. ~2s.
+    ("2v",
+     "the doctor can still read this table — a refactor must not silently retire its check",
+     [sys.executable, os.path.join(TOOLS, "test_doctor_layer_labels.py")],
+     "test_doctor_layer_labels: PASS"),
 ]
 
 def check_layer_labels():

@@ -978,37 +978,66 @@ def check_ops_contention():
            f"convention landed")
 
 
+def prove_all_layer_labels(src):
+    """The sub-layer labels `prove_all.py` declares, for EITHER shape of that file.
+
+    Kept as a module-level function so a suite can drive it directly with source text, which is the
+    only way to exercise the duplicate branch without planting a duplicate on main.
+
+    THIS EXISTS BECAUSE THE CHECK WENT BLIND ON A LANDED REFACTOR, SILENTLY. The original pattern
+    was `print("LAYER 2<letter>` — correct for the thirteen hand-numbered blocks it was written
+    against, and matching NOTHING once prove_all became a `LAYER2 = [(label, desc, cmd, token), …]`
+    table (the fix three ops entries had asked for). The check then reported UNKNOWN on every run,
+    which is honest — `found no LAYER labels … it is not evidence of anything` — and permanent: an
+    UNKNOWN that no correct state can clear is a check that has stopped checking while still
+    occupying a line in the report. Measured on 2026-08-11 by reviewer 2, against a main whose
+    fifteen labels were all perfectly distinct.
+
+    So: read the CURRENT shape first, fall back to the legacy one, and return [] only when neither
+    is recognisable — that last case is the caller's UNKNOWN, and it stays UNKNOWN rather than
+    becoming OK, because "selects nothing" must never read as "all distinct".
+    """
+    # CURRENT SHAPE — the row table. Sliced to the LAYER2 literal so an unrelated `("2x", …)` tuple
+    # elsewhere in the file cannot be counted as a layer.
+    table = re.search(r'^LAYER2 = \[(.*?)^\]', src, re.S | re.M)
+    if table:
+        rows = re.findall(r'^\s*\(\s*"([^"]+)"\s*,\s*$', table.group(1), re.M)
+        if rows:
+            return rows
+    # LEGACY SHAPE — hand-numbered print() calls. Bare labels are excluded here on purpose: `LAYER 3`
+    # is legitimately printed twice in that shape (a heading and a verdict), so counting it would
+    # FAIL against a healthy tree. The table has no such duplicate-by-design, which is why its rows
+    # are read whole.
+    return re.findall(r'print\(\s*"LAYER (\d+[a-z])\b', src)
+
+
 def check_layer_letters():
-    """No two prove_all layers may claim the same letter.
+    """No two prove_all layers may claim the same label.
 
-    Every suite is wired into `prove_all.layer2()` by appending a hand-numbered `rN`/`okN` pair, a
-    hand-CHOSEN `LAYER 2<letter>` label, and one more `and okN` to the single `return` line. There
-    is no allocator for the letter and no way for two open PRs to see each other's choice, so two
-    authors pick the same one routinely: main's list went 2h -> 2i -> 2j in ninety minutes today,
-    and PR #650 needed THREE letters in one hour (2i taken by queue-coverage while it waited, then
-    2j taken by #670 in the eight minutes between its re-approval and its merge).
+    HISTORY, because it explains both the check and its repair. Every suite used to be wired into
+    `prove_all.layer2()` by appending a hand-numbered `rN`/`okN` pair, a hand-CHOSEN `LAYER
+    2<letter>` label, and one more `and okN` to a single `return` line. There was no allocator, so
+    two authors picked the same letter routinely — main's list went 2h -> 2i -> 2j in ninety
+    minutes, and PR #650 needed THREE letters in one hour. The collision surfaced only at rebase
+    time, and the tempting resolution was the dangerous one: "take mine" on that hunk REVERTED the
+    peer's landed layer, the file still parsed, and the suite still passed with a layer missing.
 
-    The collision is only ever discovered at rebase time — the three-dot diff is clean on both
-    sides — and the tempting resolution is the dangerous one: "take mine" on that hunk REVERTS the
-    peer's landed layer, the file still parses, the suite still passes with a layer missing, and G6
-    add-only cannot see it because it only inspects the .ts file handed to gate.sh.
+    Main has since made the layers a `LAYER2` table of rows, which removed the `rN`/`okN` pair and
+    the shared `return` line — so the merge conflict is gone and prove_all now refuses a duplicate
+    itself before running anything. Two labels can still collide in the table (two rows, two PRs,
+    one string), and this check is the version of that question the BOARD can answer without
+    running the suite, from `origin/main` rather than from a possibly-stale checkout.
 
-    So: report a duplicate label as a FAIL naming the letter. This does not remove the append point
-    (see the ops entry filed with this check for the two ways to do that); it makes the next
-    collision a line in this report instead of two reviewer rounds.
+    It reads whichever shape the file is in (see `prove_all_layer_labels`), because the first thing
+    the refactor did to this check was blind it: the old pattern matched nothing and the check
+    reported UNKNOWN, permanently, on a perfectly healthy main.
     """
     src = from_main("raw-port/army/verifier/prove_all.py")
     if not src:
         return record("layer-letters", UNKNOWN,
                       "could not read prove_all.py from origin/main — cannot say whether two "
                       "layers claim one letter")
-    # ONLY the lettered sub-layers (2b, 2c, ... 2z). The bare top-level labels are excluded on
-    # purpose: `LAYER 3` is legitimately printed TWICE on main — once as a heading before the
-    # per-fixture rows and once as its verdict — so counting it would make this check FAIL against
-    # a healthy main, which is the "a red that correct behaviour cannot clear" defect this file's
-    # own ops-contention check was rejected for. Measured: with a bare-label pattern, main reports
-    # `3 (x2)`. The lettered labels are the ones with no allocator and the real collisions.
-    labels = re.findall(r'print\(\s*"LAYER (\d+[a-z])\b', src)
+    labels = prove_all_layer_labels(src)
     if not labels:
         # The pattern found nothing, which is either a rewrite or a broken regex — and "selects
         # nothing" must never read as "all distinct" (test_guards case E's lesson, one file over).
