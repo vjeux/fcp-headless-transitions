@@ -72,6 +72,50 @@ reap_dead_counters () {
   done
 }
 
+# ── AUTHOR-ANSWERED TEST ──────────────────────────────────────────────────────────────────────
+# Does the head carry AUTHOR WORK done since the rejection, or has it merely MOVED?
+#
+# The skip below used to be `rej != head`, a bare SHA comparison. A head moves for reasons that
+# are not an answer to the review: a reviewer's `update-branch`, a worker clearing a conflict from
+# the REBASE queue, GitHub's own merge-main-into-branch button. Measured live 2026-08-11 on #656:
+# its head moved from 23632095 to 816a8a5f by one commit, `merge origin/main into
+# tools/slot-liveness`, carrying not a line of the author's — and from that moment rework_claim
+# reported it as "already reworked … waiting on a REVIEWER" forever, while `reviewDecision` stayed
+# CHANGES_REQUESTED and the reviewer's asks stayed unanswered. That is the file's oldest failure
+# shape (#33: work no queue can see), re-entering through the fix for its opposite (#28: work the
+# queue re-hands after a peer fixed it).
+#
+# So ask what the commits ARE, not whether the SHA changed. The author has answered iff, since the
+# rejected commit, the branch gained
+#   (a) any NON-MERGE commit that is not already on main, or
+#   (b) a rewrite that made the rejected commit unreachable (a force-push is author work).
+#
+# A MERGE COMMIT IS NEVER AN ANSWER, INCLUDING ONE THAT RESOLVED CONFLICTS. That is the sharp edge
+# of this rule and it was measured, not assumed: an earlier version of this function also accepted
+# "a merge whose tree differs from the mechanical merge of its parents" as authoring, on the
+# grounds that a REBASE_MANUAL resolution is real work. It is real work — and it is the WRONG work
+# to leave a review on. Run against #656's own history that version still answered SKIP, because
+# the merge a rebase worker pushed had resolved a conflict. Reconciling a branch with main does not
+# address a single one of a reviewer's semantic asks, and `reviewDecision` stays
+# CHANGES_REQUESTED throughout. A worker who does answer the review makes an ordinary commit, so
+# (a) sees it. Cheaper, too: no per-merge tree computation.
+#
+author_answered () { # <PR#> <rejSHA> <headSHA> ; 0 = the author answered, 1 = still the author's turn
+  local num="$1" rej="$2" head="$3"
+  [ -n "$rej" ] && [ "$rej" != "null" ] || return 1
+  [ "$rej" = "$head" ] && return 1
+  # The PR head ref always exists on the remote, even when the branch was deleted or rewritten.
+  git fetch -q origin "refs/pull/$num/head" 2>/dev/null || true
+  git cat-file -e "${rej}^{commit}" 2>/dev/null || return 0          # (b) rewritten away
+  git cat-file -e "${head}^{commit}" 2>/dev/null || return 1         # cannot see it -> offer
+  # (a) real commits of the author's own, excluding anything that is only main catching up.
+  #     Merges are excluded on purpose — see the note above; reconciling with main is not an answer.
+  if [ -n "$(git rev-list --no-merges "${rej}..${head}" --not origin/main 2>/dev/null | head -1)" ]; then
+    return 0
+  fi
+  return 1
+}
+
 cmd_claim () {
   reap_dead_counters
   git fetch -q origin main 2>/dev/null || true
@@ -91,17 +135,18 @@ cmd_claim () {
     # hands each of those to a worker again, one full run at a time, until the cap stops offering
     # it. Measured 2026-08-11: two of one worker's six claims (#114, #143) were already fixed by a
     # peer, one of them 14 minutes earlier; #143 reached 3/3 that way without anything failing.
-    # The head SHA the rejection was RECORDED AGAINST answers it: if the head has moved since, the
-    # author has already answered and the PR belongs to the review queue (`review_claim.sh` selects
-    # on the head's faithfulness-gate status, and a freshly pushed head has none, so it is visible
-    # there as an ordinary unreviewed head).
+    # The head SHA the rejection was RECORDED AGAINST is where the answer starts, but a MOVED head
+    # is not by itself an answer — see `author_answered` above, which asks what the new commits ARE
+    # (a merge of main is not a rework). When it says the author answered, the PR belongs to the
+    # review queue (`review_claim.sh` selects on the head's faithfulness-gate status, and a freshly
+    # pushed head has none, so it is visible there as an ordinary unreviewed head).
     local rej
     rej=$(gh api "repos/$SLUG/pulls/$num/reviews" \
             --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
     # An EMPTY answer is a transport failure or an API shape change, never a verdict — offer the PR
     # rather than starving the queue on it (OPS_LOG: a gh "not found" is not information).
-    if [ -n "$rej" ] && [ "$rej" != "null" ] && [ "$rej" != "$sha" ]; then
-      echo "rework_claim: PR #$num already reworked (rejection was on ${rej:0:8}, head is now ${sha:0:8}) — it is waiting on a REVIEWER, skipping" >&2
+    if author_answered "$num" "$rej" "$sha"; then
+      echo "rework_claim: PR #$num already reworked (rejection was on ${rej:0:8}, head is now ${sha:0:8}, and the head carries author work since it) — it is waiting on a REVIEWER, skipping" >&2
       rm -f "$ATT/$num" "$ATT/$num.sha" 2>/dev/null
       continue
     fi
@@ -125,6 +170,20 @@ cmd_claim () {
 
 case "${1:-claim}" in
   claim)   cmd_claim ;;
+  # ASK-THE-QUEUE, for swarm_doctor and for a human wondering why a PR is not being offered.
+  # Read-only: no lease, no counter, no post. Prints SKIP/OFFER and the reason.
+  would-skip)
+    _n="${2:?usage: rework_claim.sh would-skip <PR#>}"
+    _sha=$(gh pr view "$_n" --repo "$SLUG" --json headRefOid --jq .headRefOid 2>/dev/null)
+    _rej=$(gh api "repos/$SLUG/pulls/$_n/reviews" \
+             --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
+    if [ -z "$_sha" ]; then echo "UNKNOWN could not read the head of PR #$_n"; exit 2; fi
+    if author_answered "$_n" "$_rej" "$_sha"; then
+      echo "SKIP author work since ${_rej:0:8}; head ${_sha:0:8} belongs to the REVIEW queue"
+    else
+      echo "OFFER still the author's turn at head ${_sha:0:8} (rejected on ${_rej:0:8})"
+    fi
+    ;;
   release) rm -rf "$LEAS/${2:?usage: rework_claim.sh release <PR>}" 2>/dev/null; echo "RELEASED rework lease ${2}" ;;
   status)
     echo "rework leases:"; ls -1 "$LEAS" 2>/dev/null | while read -r p; do

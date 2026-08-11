@@ -31,6 +31,7 @@ USAGE
 EXIT: 0 all clear · 1 one or more FAILs · 2 could not run some check (never silently "fine")
 """
 import argparse
+import tempfile
 import collections
 import json
 import os
@@ -270,6 +271,30 @@ def check_queue_coverage():
         if desc_re.search(r.stdout or ""):
             kept.add(n)
     coverage["rebase_claim.sh"] = kept
+
+    # ── AND rework_claim's PREFILTER IS NOT ITS FILTER EITHER ─────────────────────────────────
+    # Its `cand=` query selects every CHANGES_REQUESTED PR; the loop then SKIPS the ones whose head
+    # already carries the author's answer. Counting the skipped ones as covered is how #656 read as
+    # `ok queue-coverage` while no queue would hand it to anybody: its head had moved by one
+    # `merge origin/main into <branch>` commit, which the old bare-SHA skip called a rework.
+    #
+    # Same discipline as the rebase post-filters above: ASK THE TOOL. `rework_claim.sh would-skip`
+    # is read-only (no lease, no counter, no post) and runs the queue's OWN author_answered on the
+    # live PR, so this check follows a change to that rule instead of re-stating it. DETECTED, not
+    # assumed: an older rework_claim without the subcommand leaves the set exactly as it was.
+    rework_src = from_main("raw-port/army/tools/rework_claim.sh")
+    if rework_src and "would-skip)" in rework_src:
+        rw_path = os.path.join(tempfile.gettempdir(), "swarm_doctor_rework_claim.sh")
+        with open(rw_path, "w") as fh:
+            fh.write(rework_src)
+        rw_kept = set()
+        for n in sorted(coverage.get("rework_claim.sh", set())):
+            r = sh(f"bash {rw_path} would-skip {n}", timeout=120)
+            verdict = (r.stdout or "").strip().split(" ", 1)[0]
+            if verdict == "SKIP":
+                continue                     # the queue will not offer it; not covered by it
+            rw_kept.add(n)                   # OFFER, or UNKNOWN -> the tool errs toward offering
+        coverage["rework_claim.sh"] = rw_kept
 
     # pr_land is not a queue anyone polls, but a PR that is APPROVED + green + mergeable is not
     # stranded: it is waiting on a reviewer's merge step. Counted as covered, and named as such.
