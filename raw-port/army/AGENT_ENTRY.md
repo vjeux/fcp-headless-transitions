@@ -113,9 +113,13 @@ seconds, on the box, before you decide a kernel is un-oracle-able:
 
     arch -x86_64 /usr/bin/python3 raw-port/army/tools/probe_avx.py
 
-It calls a real exported AVX-path function out of the live Helium image, so a PASS means the thing
-you are about to rely on: VEX.256 executes in THIS process, at the addresses your port cites.
-(Today: `sysctl` says 0, `HGHWBlend::AVXEnabled()` returns 1.)
+It runs the landed VEX.256 kernel `Gettype1_half_unpremultTile_AVX` @Helium 0x2945e0 out of the live
+image over a fixed tile and compares the whole destination plane byte-for-byte, so a PASS means the
+thing you are about to rely on: VEX.256 executes in THIS process, at the addresses your port cites,
+AND computes the right bytes. It has three outcomes and each can fire: PASS (0), FAIL (1) if the
+kernel computes the wrong bytes or the symbol it was pointed at contains no VEX prefix at all, and
+INCONCLUSIVE (2) if it could not run — "could not run" never reads as "answered".
+(Today: `sysctl hw.optional.avx1_0` says 0, and the kernel executes and matches.)
 
 **The slice trap:** every port is transcribed from **x86_64**, while a dlopen'd image on this machine
 is **arm64**. Plain struct offsets are ABI-fixed and fine, but anywhere the slices differ — libc++
