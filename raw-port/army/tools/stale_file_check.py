@@ -45,6 +45,22 @@ matters and is independent of when you forked:
 Counting multisets rather than diff hunks means a pure MOVE of a line inside a file is not a loss,
 and a file deletion is correctly the loss of every line in it.
 
+AN INSERTION IS NOT A DELETION (the second thing this got wrong)
+-----------------------------------------------------------------
+Git reports an edit INSIDE a line as one `-` and one `+`, so the first version of the rule above
+charged every in-place edit as deleting a peer's landed line. That is not a corner case here: the
+two edits this repo REQUIRES of any swarm-level fix — registering a name in `swarm_doctor.py`'s
+`CHECKS` list, and extending `prove_all.py`'s `return ok and ok2 and …` chain — are both insertions
+into one line. Measured on the live queue: 8 of 24 open PRs red, two of them APPROVED and waiting to
+land, and the remedy the guard offered was a `reverts-ok:` on the two hottest shared files in the
+tree, i.e. a standing waiver exactly where the guard should be strong.
+
+So a removed line is NOT a loss when every one of its tokens still appears, IN ORDER, in one line
+the same change adds — or in a run of adjacent added lines, for an insertion that wrapped
+(`survives_in_added`). Order is the discriminator: without it, a large rewrite clears a real revert
+by scattering its tokens. The shrink direction stays a loss too: `foo(); bar();` cut down to
+`foo();` drops a token and is still reported.
+
 INTENT IS NOT MECHANICALLY DECIDABLE — SO THE AUTHOR ACKNOWLEDGES
 ------------------------------------------------------------------
 Plenty of honest changes delete on purpose (removing a condition, replacing an `echo`). No test
@@ -72,6 +88,9 @@ from collections import Counter
 SRC_PREFIX = "raw-port/src/"
 ACK_RE = re.compile(r"^\s*#?\s*reverts-ok:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
 MAX_REPORTED_LINES = 6
+# Words, and each punctuation character on its own. Whitespace-splitting is too coarse
+# (`[a,b]` -> `[a,c,b]` changes every token); raw substrings are too coarse the other way.
+TOKEN_RE = re.compile(r"\w+|[^\w\s]")
 
 
 def git(*args):
@@ -99,20 +118,86 @@ def acknowledged_paths(base, head, ack_flags, ack_all):
     return acks
 
 
-def rewritten_in_place(added_lines, line):
-    """Is this removed line a REWRITE rather than a loss?
+def is_subsequence(want, have):
+    """Do all of `want`'s tokens appear in `have`, IN ORDER (insertions allowed between them)?"""
+    it = iter(have)
+    return all(tok in it for tok in want)
 
-    A line the branch removes whose text still appears inside a line the SAME change ADDS was
-    edited, not dropped — the shape of most ordinary edits, and the shape reviewer 1 measured on
-    #553 (`echo "ACQUIRED ..."; exit 0` becoming `echo "ACQUIRED ..."` plus a new line above it).
 
-    This LABELS the loss; it deliberately does NOT clear it. `foo(); bar();` shortened to `foo();`
-    also satisfies it, and that is precisely the silent-revert this file exists to catch — so the
-    author still has to say they meant it. What the label buys is that the reader can tell the two
-    apart at a glance instead of opening the diff.
+def added_runs(head_lines, added, max_run=3):
+    """Token sequences of each added line, and of each run of up to `max_run` ADJACENT added lines.
+
+    Runs exist for one reason: an insertion that makes a line too long is WRAPPED, so the edit
+    arrives as one `-` and two `+`s. That is the shipped shape of the CHECKS registration this rule
+    is built for (#719: `…check_layer_letters]` -> `…check_layer_letters,` + `check_orphan_drivers]`).
+    Adjacency is in the HEAD file, so an unrelated added line elsewhere cannot join the run.
+    """
+    remaining = Counter(added)
+    idx = []
+    for i, l in enumerate(head_lines):
+        if l.strip() and remaining[l] > 0:
+            remaining[l] -= 1
+            idx.append((i, TOKEN_RE.findall(l)))
+    runs = []
+    for a in range(len(idx)):
+        seq = []
+        for b in range(a, min(a + max_run, len(idx))):
+            if b > a and idx[b][0] != idx[b - 1][0] + 1:
+                break
+            seq = seq + idx[b][1]
+            runs.append(seq)
+    return runs
+
+
+def survives_in_added(runs, line):
+    """Does this removed line survive, in full and IN ORDER, inside what the change ADDS?
+
+    Reviewer 6's discriminator, and the reason it exists: as a hard gate, the previous version
+    reddened the two edits this repo REQUIRES of every swarm-level fix — registering a name in
+    `swarm_doctor.py`'s CHECKS list, and extending `prove_all.py`'s `return ok and ok2 and …`
+    chain. Both are INSERTIONS into one line, which git reports as one `-` and one `+`, and the `-`
+    was charged as deleting a peer's landed line. Measured on the live queue at the time: 8 of 24
+    open PRs red, two of them APPROVED and waiting to land, and the remedy the guard prescribed was
+    a `reverts-ok:` on the two hottest shared files in the tree — a standing blanket waiver exactly
+    where the guard is supposed to be strong.
+
+    The rule: **a removed line loses nothing if every one of its tokens still appears, IN ORDER, in
+    one line this change adds** (or in a run of adjacent added lines, for an insertion that wrapped).
+
+      - `… and ok11`                        -> `… and ok11 and ok12`                    survives
+      - `check_leases, check_heartbeats,`   -> `check_leases, check_no_dl, check_heart…` survives
+      - `…check_layer_letters]`             -> `…check_layer_letters,` + `check_new]`    survives
+      - `foo(); bar();`                     -> `foo();`                                  LOST (bar)
+      - a whole-file write over a peer's fix: its tokens are in no added line            LOST
+
+    ORDER is what makes this safe, and it is not decoration — it is the whole discriminator, so it
+    has its own case (L). Ask only "do the tokens appear SOMEWHERE in what I added" and a large
+    rewrite clears a real revert by coincidence: measured on the shape that landed today, a rework
+    wraps a `gh api` call in a retry loop from a stale copy and drops the peer's
+    `[ -n "$rej" ] && [ "$rej" != "null" ] && break` guard, while the loop it adds spends every one
+    of those tokens across its own lines — unordered says `no line that is on main`, exit 0, GREEN,
+    on the exact incident this file exists to catch. In order, the `break` lands before the `null`
+    test instead of after it and the line is correctly reported. A false positive costs a look; a
+    false negative costs the work.
     """
     t = line.strip()
     if len(t) < 8:                     # a brace or a blank matches everything; say nothing
+        return False
+    want = TOKEN_RE.findall(t)
+    return any(is_subsequence(want, r) for r in runs)
+
+
+def rewritten_in_place(added_lines, line):
+    """Is this removed line a partial rewrite rather than a clean drop?
+
+    Only a LABEL, and only for lines that are still counted as losses. `survives_in_an_added_line`
+    above clears the lines that provably keep every token; what is left here is the SHRINK
+    direction — `foo(); bar();` shortened to `foo();` satisfies plain substring containment and IS
+    a real loss — so the author still has to say they meant it. The label buys the reader the
+    difference at a glance instead of opening the diff.
+    """
+    t = line.strip()
+    if len(t) < 8:
         return False
     for a in added_lines:
         b = a.strip()
@@ -177,6 +262,7 @@ def main(argv):
         return 0
 
     losses = []
+    cleared = []      # (path, n) — lines charged by the old rule that provably lose nothing
     for p in paths:
         mb_c = Counter(l for l in blob_lines(mb, p) if l.strip())
         head_c = Counter(l for l in blob_lines(head, p) if l.strip())
@@ -185,14 +271,25 @@ def main(argv):
             continue                      # not on main any more: nothing of main's to lose
         removed = mb_c - head_c           # what the merge applies as deletions (three dots)
         lost = removed & main_c           # ...of lines main still has
+        added = list((head_c - mb_c).elements())
+        # ...minus the ones that survive whole inside a line this change ADDS. An insertion into a
+        # list or a chain reads to git as one `-` and one `+`; charging that as a deletion is what
+        # made this guard red on the repo's own mandated edits (see survives_in_an_added_line).
+        runs = added_runs(blob_lines(head, p), head_c - mb_c)
+        rewrites = Counter({l: c for l, c in lost.items() if survives_in_added(runs, l)})
+        lost = lost - rewrites
         n = sum(lost.values())
         if n:
-            added = list((head_c - mb_c).elements())
-            losses.append((p, n, list(lost.elements()), added))
+            losses.append((p, n, list(lost.elements()), added, sum(rewrites.values())))
+        elif rewrites:
+            cleared.append((p, sum(rewrites.values())))
 
     if not losses:
         print(f"stale_file_check: {len(paths)} non-src file(s) checked, "
               f"the merge removes no line that is on main -> PASS")
+        for p, k in cleared:
+            print(f"  ({p}: {k} line(s) rewritten in place — every token survives in a line this "
+                  f"change adds, so nothing is lost)")
         return 0
 
     acks = acknowledged_paths(base, head, ack_flags, ack_all)
@@ -200,11 +297,13 @@ def main(argv):
 
     verdict = "REJECT" if unacked else "ACKNOWLEDGED"
     print(f"stale_file_check: {verdict} — this change removes lines that are on main.\n")
-    for p, n, lines, added in losses:
+    for p, n, lines, added, nrew in losses:
         state = "acknowledged by the commit message" if ("all" in acks or p in acks) else "NOT acknowledged"
         rew = sum(1 for line in lines if rewritten_in_place(added, line))
         shape = f"{rew} rewritten in place, {n - rew} removed outright" if rew else "removed outright"
         print(f"  {p}: the merge deletes {n} line(s) main has  [{state}]  ({shape})")
+        if nrew:
+            print(f"      (plus {nrew} line(s) not counted: every token survives in a line this change adds)")
         for line in lines[:MAX_REPORTED_LINES]:
             tag = "rewritten" if rewritten_in_place(added, line) else "removed  "
             print(f"      - [{tag}] {line.strip()[:92]}")
@@ -221,11 +320,11 @@ def main(argv):
         # covers — and naming what went is the docstring's whole justification for the hatch. So a
         # blanket acknowledgement prints the per-path bill it just paid, which is what the record
         # needs when someone reads this run six PRs later (reviewer 2's note on #600).
-        if "all" in acks and not all(p in acks for p, _, _, _ in losses):
-            total = sum(n for _, n, _, _ in losses)
+        if "all" in acks and not all(p in acks for p, _, _, _, _ in losses):
+            total = sum(n for _, n, _, _, _ in losses)
             print(f"  NOTE: this PASS rests on a blanket `reverts-ok: all`, which covers "
                   f"{len(losses)} file(s) and {total} deleted line(s):")
-            for p, n, _, _ in losses:
+            for p, n, _, _, _ in losses:
                 print(f"      reverts-ok: {p}      # {n} line(s) — the per-path form the blanket replaced")
         print("  Every deletion above is declared in the commit message -> PASS")
         return 0
@@ -236,7 +335,7 @@ def main(argv):
     print("      git fetch origin && git diff HEAD origin/main -- <file>")
     print("      # re-apply YOUR change on top of main's version, then re-run the gate")
     print("  If you DID mean it, say so in the commit message and this passes:")
-    for p, _, _, _ in unacked:
+    for p, _, _, _, _ in unacked:
         print(f"      reverts-ok: {p}")
     return 2
 
