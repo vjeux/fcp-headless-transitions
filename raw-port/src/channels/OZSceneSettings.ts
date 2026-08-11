@@ -153,7 +153,8 @@ export class OZSceneSettings {
    *   0x33a39f  addsd  0x3ccb01(%rip), %xmm0       ; += 0.5                 @0x706ea8
    *   0x33a3a7  addsd  0x3ccb21(%rip), %xmm0       ; += 1e-07               @0x706ed0
    *   0x33a3af  roundsd $0x9, %xmm0, %xmm0         ; round toward -inf (floor); imm 0x9 = 0x8(suppress)|0x1(down)
-   *   0x33a3b5  cvttpd2dq %xmm0, %xmm0             ; truncate double -> int32 (already floored)
+   *   0x33a3b5  cvttpd2dq %xmm0, %xmm0             ; truncate double -> int32; NaN/Inf/
+   *                                                ;   out-of-range -> 0x80000000
    *   0x33a3b9  cvtdq2pd  %xmm0, %xmm0             ; int32 -> double
    *   0x33a3bd  mulsd  0x3cb05b(%rip), %xmm0       ; *= 0.01                @0x705420
    *   0x33a3c5  popq   %rbp
@@ -194,10 +195,25 @@ export class OZSceneSettings {
     // @0x33a3a7  addsd 1e-07 @0x706ed0
     x = x + 1e-7;
     // @0x33a3af  roundsd $0x9 -> floor (round toward -inf)
-    // @0x33a3b5  cvttpd2dq / @0x33a3b9 cvtdq2pd -> narrow the (already integral) value through int32
     x = Math.floor(x);
-    x = (x | 0); // cvttpd2dq: truncate to signed int32 (x is already integral & floored)
-    x = x + 0.0; // cvtdq2pd: int32 -> double (identity in JS numbers)
+    // @0x33a3b5  cvttpd2dq %xmm0, %xmm0 — truncate double -> SIGNED int32.
+    //   THIS IS NOT JS `x | 0`. ToInt32 wraps modulo 2^32 and maps NaN to 0;
+    //   CVTTPD2DQ instead yields the x86 INTEGER INDEFINITE value 0x80000000
+    //   (-2147483648) whenever the source is NaN, either infinity, or outside
+    //   the int32 range — no wrap, no zero. The two agree on every input that
+    //   fits and disagree on every input that does not, which is why the
+    //   difference is invisible at realistic frame rates and shows up as a
+    //   plausible wrong number at the edges (measured: `| 0` answered 0 for
+    //   NaN/+-Inf/1e300 and +-11158520.92 for +-1e9, where FCP answers
+    //   -21474836.48 in all six cases).
+    //   x is already integral here (roundsd floored it), so within range the
+    //   truncation is the identity and `| 0` is exact.
+    x =
+      Number.isNaN(x) || x < -2147483648 || x > 2147483647
+        ? -2147483648
+        : x | 0;
+    // @0x33a3b9  cvtdq2pd %xmm0, %xmm0 — int32 -> double (identity in JS).
+    x = x + 0.0;
     // @0x33a3bd  mulsd 0.01 @0x705420
     x = x * 0.01;
     return x;
