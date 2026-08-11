@@ -38,6 +38,123 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by worker 1 (G5 resolution; FIX PROPOSED in this same change)
+
+- **G5 judged 63% of the corpus's exports against SOME OTHER METHOD OF THE SAME CLASS — and the
+  trigger was obeying the worker brief.** #302/#317 made a resolved disasm prove it NAMES THE CLASS.
+  Nothing made it name the METHOD, and the cited-symbol loop took the first cited symbol that
+  resolved to any `.s` at all (the method-name ranking was only a *preference*). So one arbitrary
+  body — whichever of the class's methods happened to be warm in `re/disasm/` — became the verdict
+  for **every export in the file**.
+
+  Measured live on the landed `channels/OZ3DEngineScenePlacementBehavior.ts`: derive that class's
+  disassembly, as the brief instructs (`disasm.sh --sym` inside the leased worktree, "else G5 only
+  flags instead of classifying"), and the file goes from **`0 cheats, 12 flags -> PASS`** to
+  **`11 cheats -> REJECT`**. All eleven were fabricated: every export was judged against
+  `__ZNK32OZ3DEngineScenePlacementBehavior12getLockingIDEv.s`, a 6-instruction trivial getter that
+  classifies EMPTY (0 stores, 0 compute, 1 load), so each honest `@0xADDR`-citing deferral stub read
+  as "EMPTY disasm but port throws incompleteness". Scope of exposure, counted over `raw-port/src`:
+  **1,453 of 2,317 exported functions (63%) have no cited symbol that relates to their own method**,
+  so each takes a sibling's body the moment any of the file's symbols is cached. It is masked right
+  now only because #368 purged the `.s` cache — it re-arms itself as workers regenerate disasm.
+
+  Both directions of harm, as with every earlier instance: a borrowed EMPTY waves through an
+  empty-bodied port of a REAL method in the same class, and a borrowed REAL condemns an honest
+  deferral stub as a class-C cheat. Note the shape — **deriving the evidence you were told to derive
+  manufactured the cheat verdicts**, which is why nobody hit it while the cache was cold.
+
+- **It is not even confined to the class: #317's class guard was never applied to the CITED-SYMBOL
+  path, so the two-letter token `__ZN` written in a prose comment condemned 34 exports of two
+  unrelated classes.** `SYM_RE` (`_{1,2}Z[NK]?[0-9A-Za-z_]+`) happily matches the bare `__ZN` /
+  `__ZNK` / `__ZThn328_` fragments that files write when *describing* mangling, and for a full
+  "mangled" key `find_disasm` uses an unanchored `*<san>*.s` glob — so `__ZN` matched the one
+  OZ3DEngineScenePlacementBehavior getter sitting in the cache. Result, measured:
+  `channels/OZ3DEngineApplyForceBehavior.ts` (cites `__ZN`, `__ZNK`) took **20** fabricated cheat
+  verdicts and `channels/OZCollisionBehavior.ts` (cites `__ZThn328_`) took **14** — from a class
+  neither file mentions. The class anchor exists; it was simply never on this door. Note what this
+  means operationally: one worker deriving one class's disassembly poisons the verdicts of OTHER
+  agents' unrelated files, through the shared `re/disasm` cache in a warm-pool worktree.
+
+- **...and a PARAMETER TYPE could impersonate the method, which is how one unrelated class's body
+  judged all twelve exports of `src/infra/CMTime.ts`.** Found while measuring the fix above.
+  `find_disasm("CMTime")` returns `ProChannel.__ZN15OZDynamicSpline15setVertexSmoothEPvbRK6CMTime.s`
+  — a DIFFERENT class — because the parameter type `RK6CMTime` contains the Itanium component
+  `6CMTime`, and the whole-component anchoring rule from #302/#317 cannot tell a NAME position from
+  a TYPE position. That body is DISPATCH_ONLY, so every export in CMTime.ts came back
+  `G5 SKELETON — DISPATCH_ONLY, a pure dispatch shell`: **12 hard rejects on a file whose own
+  disassembly was never in the cache at all**. This one is live on main TODAY with the post-#368
+  18-file cache — no disasm regeneration needed to trigger it. The method test is therefore
+  POSITIONAL (`_itanium_components` parses the nested-name sequence and compares only its LAST
+  component, with `_ZThn…_` thunk prefixes normalised and `_ZL` internal-linkage handled), not a
+  substring or even a whole-component test. A fourth door, same shape: when an export name has no
+  underscore, `method == name`, and the `find_disasm(name)` key was assigned with NO class check —
+  `channels/OZBSplineInterpolator.ts: interpolate` was rejected as a CHEAT against
+  `ProChannel.OZBezierInterpolator.interpolate.s`, a different interpolator class.
+
+  **Corpus measurement, all 1,607 files in `raw-port/src`, absolute paths (relative paths hide
+  half of it — OPS_LOG #6), same 18-file cache: 61 cheats -> 2.** The two survivors are the only
+  two judged against their OWN disassembly, and both are true positives:
+  `OZDynamicSpline_setVertexSmooth` (the DISPATCH_ONLY body `prove_all` LAYER 3 already pins) and
+  `OZ3DEngineScenePlacementBehavior_getLockingID` (a 5-instruction getter landed as a throw-stub —
+  fixed by the port PR that came out of this investigation). The other **59 were fabricated**,
+  spread over 6 files and 4 distinct classes that the cached body did not belong to.
+
+  FIX (all four doors, in this change): a candidate must name the class AND the method, the method
+  test being POSITIONAL (`_sym_names_method` + `_itanium_components`), with the Itanium
+  special-member spellings `C[123]`/`D[012]`/`aS`/`eq` a TS `_ctor`/`_dtor`/`_assign`/`_equals`
+  export can never contain literally. One deliberate escape hatch keeps the teeth where
+  they matter most: a file with exactly one export and exactly one cached candidate that names the
+  class is unambiguous, and that is the shape of nearly every fresh port unit. Anything else falls
+  through to the existing NO-DISASM FLAG — "the reviewer must re-derive this one from the binary" —
+  which is exactly what the gate already does when nothing resolves, and is the only honest answer.
+  Locked by `verifier/test_g5_bare_key.py` (10 positional unit cases + 5 end-to-end G5 fixtures, wired into `prove_all` as LAYER 2c): it
+  fails on the pre-fix code and passes after.
+
+  Sanity check that the fix keeps its teeth rather than just going quiet: on the **pristine main**
+  version of that same file the fixed gate reports **1 cheat, not 0** — `getLockingID` resolved to
+  its OWN `.s` (EMPTY, a 5-instruction getter) while the landed TS throws "not yet transcribed".
+  That one is a TRUE positive, and porting it is what PR "port: OZ3DEngineScenePlacementBehavior::
+  getLockingID" does. 11 fabricated verdicts -> 1 real one.
+
+---
+
+## Open — reported 2026-08-11 by worker 1 (G4 oracle; NOT fixed — diagnosis only)
+
+- **G4, the only un-fakeable gate, cannot run AT ALL right now, so every oracle-mapped file on main
+  is unmergeable.** Reproduced in a fresh pool worktree AND in the canonical checkout, so it is not
+  a worktree artifact:
+
+      $ python3 -m fct.parity.driver sweep curve.interp.bezier.eval
+        HARNESS_BROKEN — refusing to record:
+          FAIL S2_TS_WORKER_LIVE: worker raised: TS parity error for PCMath_easeInOut:
+               The "path" argument must be of type string. Received undefined
+
+  `gate.sh` correctly turns that into `ORACLE HARNESS BROKEN — G4 could not run (this is a REJECT,
+  not a pass)` (the #63/worker-02 fix doing its job — a gate that cannot run must not look like one
+  that ran), so `gate.sh <file>` REJECTS unconditionally for every class in
+  `army/gate/oracle_map.json`: OZInterpolator, OZBezierInterpolator, PCMath, OZSpline,
+  OZLinearInterpolator, OZSCurveInterpolator, CMTime. Confirmed end-to-end: a gate run on the
+  UNMODIFIED landed `src/channels/OZBezierInterpolator.ts` returns REJECT with G1/G2/G5/G6/G7 all
+  clean and only G4 failing.
+
+  ROOT CAUSE, two layers deep, neither of them the oracle itself:
+  1. `fct/parity/selftest.py` S2 calls `worker.eval("PCMath_easeInOut", {...})` with **no `node`**.
+     `bridge.TSWorker.eval` only emits the module-addressed request `{modulePath, exportName, args}`
+     when a node supplies `ts_module`; with none it falls back to the LEGACY `{fn, args}` shape,
+     which `army/verifier/generic_worker.ts` no longer speaks — the worker reads `req.modulePath`
+     as `undefined` and `pathToFileURL(undefined)` throws the "path" TypeError. The selftest is the
+     harness's own trust gate, so this one failure aborts every sweep before it starts.
+  2. Fixing S2 alone is NOT enough, and this is the part to be careful with. `driver._sweep_curve`
+     reads `e_out["outVal"]`, but `generic_worker.ts` answers `{ok, ret, outArgs:{arg5, arg6}}` and
+     the TS port itself returns `{out, speed}` — three different names for one value, with no
+     mapping anywhere. Making G4 green needs an explicit output-name contract in `registry.json`
+     (e.g. `ts_outputs: {"outVal": "out", "outDeriv": "speed"}`) plumbed through `bridge.eval`.
+     Guessing that mapping is exactly the "wrong ctypes marshalling produces confident garbage
+     verdicts" hazard already flagged under the autoreg/autosig item, so it wants doing
+     deliberately, not as a drive-by inside a port PR. Left unfixed and reported instead.
+
+
+
 ## Open — reported 2026-08-10 by worker 1 (oracle reachability; new)
 
 - **THE ROSETTA WORKAROUND FOR THE ARCHITECTURE BUG IS INCOMPLETE, AND THE INCOMPLETE HALF IS
@@ -87,6 +204,40 @@ detail to reproduce. That is how this list grows.
   layout; the pixel loop still has to be transcribed.
 
 ---
+
+## Open — reported 2026-08-11 by worker 2 (differential-harness traps; new)
+
+These are HARNESS bugs, not port bugs, and both of them present as "the port is wrong". That is
+what makes them expensive: the natural reaction is to go re-read the disassembly of a correct
+transcription. Cost me ~10 minutes each; they are trivial once named.
+
+- **A ctypes `CFRange` declared as `c_long * 2` SEGFAULTS the oracle process.** CoreFoundation
+  takes `CFRange` BY VALUE (two `CFIndex` fields); an array type marshals as a POINTER, so
+  `CFStringGetCharacters(ref, (c_long*2)(0, n), buf)` hands CF a pointer where it expects 16 bytes
+  of struct and the process dies with SIGSEGV — no Python traceback, just `Segmentation fault: 11`.
+  A segfaulting oracle is indistinguishable from a port that corrupts memory until you look. Fix:
+  `class CFRange(ctypes.Structure): _fields_ = [("location", c_long), ("length", c_long)]` and pass
+  it by value. Same hazard for any by-value CF/CG struct (`CGRect`, `CFArrayCallBacks`, …).
+
+- **`Array.from(str, ch => ch.charCodeAt(0))` in a TS oracle driver SILENTLY TRUNCATES every
+  surrogate pair.** `Array.from` over a string iterates CODE POINTS, so a pair collapses to one
+  element and only its HIGH half survives the read-back. My first run of the PCString char16
+  differential reported 2/315 divergences (an emoji and a random buffer) against a port that was
+  correct — the bug was in the harness's read-back, and it only fires on non-BMP data, i.e. exactly
+  the interesting cases a good corpus adds. Index by code unit instead:
+  `for (let i = 0; i < s.length; i++) out.push(s.charCodeAt(i))`. Related to the existing JSON/NaN
+  note above: **exchange code units, never JS strings, on an oracle wire.**
+
+- **The two OPEN Ozone/`nm` items above now have a drop-in fix: `raw-port/re/oracle/ozone_loader.py`**
+  (landed with the OZLightingFolder_Factory port). `load_framework(fw)` preloads the `@rpath` chain
+  depth-first so Ozone/Flexo load outside the app bundle with no env vars; `nm_addr(fw, sym)` uses
+  `nm -n -arch x86_64`; `image_slide(fw)` asks dyld for the real slide; and `local_fn(...)` composes
+  them into a callable for symbols dlsym CANNOT reach — `nm` type `t` LOCALS, which is most of the
+  Ozone factory bodies. It also refuses to run unless `platform.machine() == 'x86_64'`, which is the
+  guard the OPS_LOG entry above asks for. Verified end-to-end by calling
+  `OZLightingFolder_Factory::getBundleID` @0x4b2820 (a local symbol) and checking the returned
+  pointer against the literal VA its `leaq` computes. **"The symbol is local, so I can't oracle it"
+  is no longer true.**
 
 ## Open — known, not yet fixed
 
