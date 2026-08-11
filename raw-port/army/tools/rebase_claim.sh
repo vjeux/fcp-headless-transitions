@@ -26,7 +26,28 @@ lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
   return 1
 }
 
+reap_dead_counters () {
+  # SELF-HEAL — see the long note in rework_claim.sh. An attempt counter is the authority to stop
+  # offering work, and nothing cleared it when a PR merged: 64 dead counters had accumulated, and one
+  # (#387, MERGED) read as "stranded at 3/3". A counter inflated by a bug that has since been fixed
+  # also stays at the cap, so the fix alone does not free the work it hid (OPS_LOG #28).
+  local f b n st
+  for f in "$ATT"/*; do
+    [ -f "$f" ] || continue
+    b="$(basename "$f")"; case "$b" in *.sha) continue;; esac
+    case "$b" in ''|*[!0-9]*) continue;; esac
+    n=$(cat "$f" 2>/dev/null || echo 0)
+    [ "${n:-0}" -ge "$CAP" ] || continue
+    st=$(gh pr view "$b" --repo "$SLUG" --json state --jq .state 2>/dev/null)
+    if [ "$st" = "MERGED" ] || [ "$st" = "CLOSED" ]; then
+      rm -f "$f" "$f.sha" 2>/dev/null
+      echo "rebase_claim: reaped a dead counter for PR #$b ($st)" >&2
+    fi
+  done
+}
+
 cmd_claim () {
+  reap_dead_counters
   git fetch -q origin main 2>/dev/null || true
   # candidate PRs whose LATEST faithfulness-gate is FAILURE
   local cand

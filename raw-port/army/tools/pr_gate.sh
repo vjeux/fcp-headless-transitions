@@ -124,6 +124,17 @@ python3 raw-port/army/tools/regression_check.py origin/main HEAD $CHANGED; rc=$?
 if [ "$rc" = "2" ]; then FAIL=1; REASON="regression (rebase needed)"; elif [ "$rc" != "0" ]; then FAIL=1; REASON="regression_check errored rc=$rc"; fi
 python3 raw-port/army/tools/dup_check.py origin/main HEAD $CHANGED; rc=$?
 if [ "$rc" = "5" ]; then FAIL=1; REASON="dup-ledger (already on main)"; elif [ "$rc" != "0" ]; then FAIL=1; REASON="dup_check errored rc=$rc"; fi
+# ONE C++ CLASS = ONE .ts. check_duplicate_classes.py has always worked and was never invoked —
+# its docstring and PORTING_SPEC both call it a CI guard, yet no gate ran it, so it reported into
+# the void while 7 duplicates accumulated on main (5 classes filed twice across LAYER DIRECTORIES:
+# ozone/ vs channels/, nodes/ vs channels/). dup_check above cannot see these — it compares ledger
+# symbols, not filenames — and G6 cannot either, because each file is add-only in isolation. Two
+# files modelling one class means two struct layouts that silently drift.
+# --new-only judges the DELTA: a PR that adds no new duplicate passes even while main carries the
+# existing 7, which is what makes wiring this in possible today rather than after a cleanup.
+python3 raw-port/army/tools/check_duplicate_classes.py --new-only origin/main; rc=$?
+if [ "$rc" = "2" ]; then FAIL=1; REASON="introduces a duplicate class file (one C++ class = one .ts)";
+elif [ "$rc" != "0" ]; then FAIL=1; REASON="check_duplicate_classes errored rc=$rc"; fi
 
 if [ "$FAIL" != 0 ]; then post_status failure "$REASON"; echo "PR_GATE: FAIL ❌ (#$PR) — $REASON"; exit 1; fi
 if [ "$FLAGS" -gt 0 ] && [ "$REVIEWED" != 1 ]; then

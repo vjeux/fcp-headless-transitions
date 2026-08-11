@@ -142,5 +142,30 @@ export class OZChannelDecibel_Factory {
     // @0x2624: epilog + retq.
     return OZChannelDecibel_Factory._instance;
   }
+
+  /**
+   * `OZChannelDecibel_Factory::revision()` -> unsigned
+   * @ProChannel __ZN24OZChannelDecibel_Factory8revisionEv @0x1027c..0x10283
+   *
+   * FULL DISASM — the whole function, five instructions:
+   *   0x1027c  pushq %rbp                 ; frame
+   *   0x1027d  movq  %rsp, %rbp
+   *   0x10280  xorl  %eax, %eax           ; return 0
+   *   0x10282  popq  %rbp
+   *   0x10283  retq
+   *
+   * The factory reports revision 0. `this` is never dereferenced — %rdi is dead on entry — so
+   * the value is a property of the class and not of any instance, which is why it is safe to
+   * read it off a factory that has not been constructed.
+   *
+   * ORACLED against the live symbol (a local `t` symbol is still callable by address): loading
+   * ProChannel under `arch -x86_64` and checking the eight prologue bytes at slide+0x1027c
+   * against `554889e531c05dc3` before calling, eight calls all return 0, and a `this` arena
+   * poisoned with 0xCD is byte-identical afterwards — so "reads nothing, returns 0" is measured
+   * rather than read off the listing.
+   */
+  revision(): number {
+    return 0; // @0x10280 xorl %eax, %eax
+  }
 }
 

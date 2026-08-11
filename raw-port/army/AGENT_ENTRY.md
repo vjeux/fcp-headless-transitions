@@ -106,7 +106,20 @@ carry almost all of the benefit:
 Oracle your port whenever the symbol is callable: every recent real defect was throw-free and passed
 every static gate. Exported (`nm` `T`) symbols are dlsym-able; Ozone needs its `@rpath` chain
 preloaded recursively. **AVX kernels DO run under Rosetta — feature bits lie there, so probe by
-executing, never by inferring from `sysctl`.**
+executing, never by inferring from `sysctl`.** This note has been here a while and reviewers kept
+signing 150-instruction VEX.256 kernels on reading alone anyway, because `sysctl hw.optional.avx1_0`
+returns 0 and that reads like an answer. So do not take it on trust either — settle it in two
+seconds, on the box, before you decide a kernel is un-oracle-able:
+
+    arch -x86_64 /usr/bin/python3 raw-port/army/tools/probe_avx.py
+
+It runs the landed VEX.256 kernel `Gettype1_half_unpremultTile_AVX` @Helium 0x2945e0 out of the live
+image over a fixed tile and compares the whole destination plane byte-for-byte, so a PASS means the
+thing you are about to rely on: VEX.256 executes in THIS process, at the addresses your port cites,
+AND computes the right bytes. It has three outcomes and each can fire: PASS (0), FAIL (1) if the
+kernel computes the wrong bytes or the symbol it was pointed at contains no VEX prefix at all, and
+INCONCLUSIVE (2) if it could not run — "could not run" never reads as "answered".
+(Today: `sysctl hw.optional.avx1_0` says 0, and the kernel executes and matches.)
 
 **The slice trap:** every port is transcribed from **x86_64**, while a dlopen'd image on this machine
 is **arm64**. Plain struct offsets are ABI-fixed and fine, but anywhere the slices differ — libc++
