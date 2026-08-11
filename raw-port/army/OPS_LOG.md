@@ -260,6 +260,54 @@ detail to reproduce. That is how this list grows.
   by this branch failing), and `rebase_claim` should prefer to hand out one PR per class file at a
   time.
 
+---
+
+## Open — reported 2026-08-11 by reviewer 6 (the rebase attempt cap counts CLAIMS, not failures; new)
+
+- **`rebase_attempts/<PR>` is incremented on every rebase CLAIM and is NEVER reset by a SUCCESSFUL
+  rebase, so on a contended class file the cap executes honest, already-verified PRs and blames them
+  for "3 failed rebase attempts" they did not have.** `rebase_claim.sh` is the ONLY writer of
+  `$STATE/rebase_attempts/` (grep confirms: no other tool touches it, and `rebase_pr.sh` never does).
+  It reads the counter, and on a successful lease writes `n+1` — *before* the rebase is attempted and
+  regardless of how it turns out. The file is removed in exactly one place: the `n >= CAP` branch that
+  CLOSES the PR. There is no success path that decrements or clears it. So the counter measures "how
+  many times this PR needed a rebase", while the cap and its close comment
+  ("Closed after $CAP failed rebase attempts (stale-base shared-class conflict that couldn't be
+  auto-rebased)") both assert "how many times rebasing FAILED".
+  These diverge whenever a rebase SUCCEEDS and the branch is then re-staled by a SIBLING landing —
+  the normal state of a hot class file, not a pathology.
+  MEASURED LIVE (2026-08-11 07:16, 8 workers + 8 reviewers): six open PRs on ONE class,
+  `HGRenderJob` (#387 `__slot4`, #388 `__slot5`, #389 `__slot7`, #390 `__slot9`, #391 `__slot8`,
+  #396 `port/HGRenderJob`), against 15 merges to main in 25 minutes. #387 = 3/3 and #390 = 3/3;
+  #388 and #391 = 2/3. **#387 is at the cap while being GREEN and APPROVED**: it was successfully
+  rebased (head 029dcb46 -> 7ded66ea), re-gated `success — gate PASS (G0-G5 clean, 0 flags)`, and
+  carries an APPROVED review. One more sibling landing regresses it and the next `rebase_claim` pass
+  CLOSES it, discarding an oracle-verified body and re-handing the symbol to a fresh worker to
+  transcribe from scratch. #390 is in the same position with a body I verified 1400/1400 bit-exact
+  against live Helium.
+  THE TRIGGER IS CONTENTION, NOT UN-REBASABILITY. Every landing on a shared class file invalidates
+  every other open branch on that file, so with K concurrent PRs on one class the cap is consumed in
+  ~K sibling merges no matter how well the rebases work. The cap's stated purpose — retiring a PR
+  that genuinely cannot be auto-rebased — is not what it does here; it retires the LOSERS OF A RACE,
+  and it does so faster the healthier the merge rate is. Cost is highest exactly where the work was
+  best, because a body that has been reviewed and oracle-verified is the most expensive thing to
+  throw away.
+  FIX (any one of these closes it; the first is the smallest):
+  1. **Only count FAILURES.** Have `rebase_pr.sh` clear `$STATE/rebase_attempts/<PR>` when it
+     force-pushes a rebased head that gates clean, or have `rebase_claim.sh` key the counter to the
+     head SHA it was claimed at and reset when the head has MOVED since. A PR that keeps producing
+     new, gating heads is making progress and must not be retired.
+  2. Exempt a PR that currently holds an APPROVED review or a `success` faithfulness-gate from the
+     cap outright — it has already paid for itself.
+  3. Serialise per class file: do not dispense two PORT units from the same `<Class>.ts` concurrently
+     (or land them through one stacked branch). That removes the race instead of arbitrating it. This
+     is the real fix for the 6-PRs-on-one-class pile-up; the cap change just stops the bleeding.
+  Until fixed: a reviewer who finds a faithful-but-rebase-blocked PR should record the verified body
+  in a PR comment (`pr_comment_once.sh`) so that if the cap closes it, the transcription is not lost
+  and the next worker can carry it over verbatim rather than re-deriving it.
+
+---
+
 ## Open — reported 2026-08-10 by worker 1 (oracle reachability; new)
 
 - **THE ROSETTA WORKAROUND FOR THE ARCHITECTURE BUG IS INCOMPLETE, AND THE INCOMPLETE HALF IS
