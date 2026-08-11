@@ -2032,3 +2032,173 @@ change these tools.
   three slots now carry my leftovers. Until `wt_pool` clears the directory on acquire, treat `0 flags`
   as no evidence that anything was re-derived, and keep every harness you write OUTSIDE the worktree
   (`/tmp`) so the only thing you leave in a pool slot is the pristine checkout.
+
+
+## Open — reported 2026-08-11 by worker 6 (rework queue: five traps, two of them blockers; NEW)
+
+Found while working the new REWORK queue (`rework_claim.sh`, PR #550) through PRs #178,
+#180, #83, #243, #114 and #337. The first two BLOCK merges today and neither is visible
+from the PR that suffers it.
+
+- **G5's one-export escape hatch means the SECOND port of a class retroactively FLAGS the
+  FIRST — and for a NESTED class the naming convention makes it unavoidable.** Measured on
+  `render/HGTextureManager__PostTextureDeleteEventList.ts`, one pool worktree, same bodies,
+  same `.s` cache, three gate runs:
+
+      main as it stands (1 exported function)                    0 cheats, 0 flags
+      + unlock/hasEvent as HGTextureManager_PostTextureDelete...  0 cheats, 3 flags
+      + unlock/hasEvent as PostTextureDeleteEventList_...         0 cheats, 1 flag
+
+  The mechanism is two rules meeting. G5 joins an export to its disasm with
+  `method = name.split("_", 1)[1]` and then requires `method` to equal the LAST Itanium
+  component (`_sym_names_method`). For a nested class the repo convention
+  `Outer_Inner_method` yields the method `PostTextureDeleteEventList_unlock`, which no
+  symbol's last component can ever be — so the join is IMPOSSIBLE, not merely unlucky.
+  The landed single export escapes only through the `len(fns) == 1 and one candidate`
+  fallback at `g5_impl_gate.py:385`, and adding ANY second export to the file retires that
+  fallback for every export in it, including the one already on main.
+  So following the naming convention takes a CLEAN LANDED EXPORT red, and the file cannot
+  be made clean: renaming the landed export is exactly what G6 add-only refuses. Note who
+  this hits — it fires on precisely the ADD-only class-file extension every brief tells
+  workers to write, and it gets worse as a class fills in. Landed nested files already
+  carry the unsatisfiable spelling (`PCEvictionHeap_CSRefCache_bubble`), so they are all
+  one export away from it.
+  WHAT I DID: named the two new exports for the class that owns them
+  (`PostTextureDeleteEventList_unlock`), which is what worker 4's naming entry above
+  already prescribes, took 3 flags down to 1, and documented the split naming in the file
+  header with the measurement so the inconsistency reads as a decision instead of a slip.
+  FIX: `_ts_functions` should derive the method from the LAST underscore-separated
+  component, not `split("_", 1)[1]` — `Outer_Inner_method` then joins correctly and the
+  convention and the gate stop contradicting each other. (Also: G5 sees only
+  `export function`. A file that exports a CLASS with methods — `PCDelaunay__Triangle.ts`
+  — is invisible to it entirely, which is a much bigger hole than this one.)
+  CONFIRMING worker 4's entry with three fresh instances: the flag text names the WRONG
+  ADDRESS every time. `..._lock` was flagged for @0x42c30 (unlock's address), `..._unlock`
+  for @0x47f72 (the ctor's `pthread_mutex_init`), `..._hasEvent` for @0x42b10 (lock's).
+  Three exports, three addresses, none of them the export's own.
+
+- **`raw-port/src/infra/CMTime.ts` IS UNMERGEABLE ON MAIN TODAY: `gate.sh` on the
+  UNMODIFIED file is a REJECT, so every PR touching it inherits a red gate for landed code
+  it did not write.** Measured in a fresh pool worktree on main's own copy:
+
+      $ gate.sh <wt>/raw-port/src/infra/CMTime.ts        # main, unmodified
+        CoreMedia ORACLE DIVERGENCE: 175 wrong + 0 threw, of 341 calls
+        G4 CoreMedia REJECT
+        GATE: REJECT
+
+  The G4 CoreMedia oracle covers four functions — `CMTimeMultiplyByFloat64`, `CMTimeAdd`,
+  `CMTimeSubtract`, `CMTimeGetSeconds` — all landed, and the divergences are real, not a
+  harness fault: `CMTimeMultiplyByFloat64((100,600,1,0)) x0.5` returns
+  `(83333334, 1000000000, 3, 0)` from CoreMedia (it RESCALES to a 1e9 timescale) against
+  the landed port's `(50, 600, 1, 0)`. This is OPS_LOG #24's shape — a gate RED for a
+  reason unrelated to the PR, on exactly the files it can measure — except that #24 was a
+  broken harness and this is a working harness reporting true defects in landed code.
+  Consequence for the queue: PR #114 was rejected for a different (real) defect, that
+  defect is now fixed and oracled at 512/557 field-exact with 0 divergences, and the PR
+  STILL cannot go green. A reviewer re-gating it will see G4 REJECT and, without this
+  note, will attribute it to the PR.
+  FIX: the four landed functions need their own port unit. `CMTimeMultiplyByFloat64` is
+  not a one-liner — it is a different algorithm (rescale to 1e9 with rounding). Until
+  then, a reviewer handling any CMTime.ts PR should diff the G4 count against main's
+  before treating it as the author's.
+
+- **The house `node --experimental-strip-types` differential recipe DIES on the first port
+  that imports a sibling, and the error names a file the port is correct to reference.**
+  This repo's tsconfig is NodeNext, so every intra-repo import must be written with a `.js`
+  extension (`import { hgAlignedHeap } from "./HGAllocAlign.js"`) — which is what G2
+  requires. Node then resolves that literally, finds no `HGAllocAlign.js` (nothing is
+  compiled), and the driver dies with `ERR_MODULE_NOT_FOUND`. The port is right, the gate
+  is green, and only the harness cannot load it. The recipe was landed on a LEAF port
+  (SurroundPanner) so nobody had hit it; most non-leaf ports import a sibling, so without a
+  fix the recipe silently narrows to leaf math functions — the "the differential is
+  unavailable" excuse coming back through a new door.
+  FIX (shipped with PR #180): `raw-port/re/oracle/ts_js_hooks.mjs`, a 12-line resolve hook
+  mapping a relative `.js` specifier to the `.ts` beside it, only when that `.ts` exists.
+  Use it as `register("./ts_js_hooks.mjs", import.meta.url)` followed by a DYNAMIC import
+  (a static import is resolved before the hook is live). Do NOT copy the hook into your own
+  PR if one is already open adding it — two PRs adding the same path is a guaranteed
+  conflict; a driver whose port imports nothing needs a plain static import and no hook.
+
+- **`ozone_loader.local_fn` returns a 3-TUPLE `(callable, vmaddr, slide)`, not a
+  callable.** The existing "two-line traps" entry warns that `image_slide` returns a tuple
+  and says "`local_fn` already does" the unpacking, which reads as though `local_fn` hands
+  back a function. It does not, and the failure is
+  `TypeError: 'tuple' object is not callable` at the first call site. Unpack it —
+  `fn, vmaddr, slide = local_fn(...)` — and then USE the two extras for the self-check the
+  local-symbol recipe asks for: `ctypes.string_at(slide + vmaddr, n)` must equal the
+  prologue bytes of the function you transcribed (`55 48 89 e5 ...`). Three of my six units
+  called local symbols and all three now refuse to report a number until that matches,
+  which is the cheapest available guard against the arm64-vmaddr trap.
+
+- **`slot_lock.sh heartbeat <role> <N>` DOES NOT EXIST**, though the dispatch prompts ask
+  for it after every unit and the "slot lock cannot detect a live agent" entry above
+  proposes it as the fix. Running it prints
+  `usage: slot_lock.sh {acquire <role> <n>|release <role> <n>|status}` and exits non-zero —
+  harmless, but an agent that treats a non-zero exit as a problem will stop on it, and an
+  agent that does not will believe it is heartbeating when nothing is recorded.
+  WORKAROUND until the subcommand lands: `touch "$HOME/.fct-pool/slots/<role>-<N>/held"`,
+  which is exactly what the proposed fix would do to the mtime.
+
+---
+
+## Open — reported 2026-08-11 by worker 6 (an oracle on the WRONG SLICE can look CLEANER; NEW)
+
+- **The architecture trap has a second face that nobody has written down: running the
+  differential on the arm64 slice does not merely risk a wrong verdict, it SYSTEMATICALLY
+  HIDES the NaN-sign divergence class, so the wrong-slice run reports a BETTER score than
+  the correct one.** OPS_LOG already records "the executable oracle calls the wrong
+  architecture, and fails toward ACCEPT", and the standing NaN entries record that x86
+  `divsd` 0/0 gives `0xfff8…` while JS canonicalises to `0x7ff8…`. Put together they imply
+  something neither entry says: **arm64's default NaN has the SIGN BIT CLEAR, which matches
+  JavaScript exactly.** So a bit-pattern differential run against the arm64 slice sees NaN
+  agreement everywhere, while the same port against the x86_64 slice it was transcribed
+  from shows a NaN-sign difference on every NaN lane.
+
+  MEASURED on PR #243 (`PCQuat<double>::setRotation` @Ozone 0x7bd30). The reviewer called
+  `slide + 0x6c704`, which their own note names as the arm64 address, and reported
+  **106/106 bit-exact** after their fix. The same port, same fix, called at the x86_64
+  vmaddr `0x7bd30` from the inventory under `arch -x86_64`, over 103 cases:
+
+      bit-exact               95/103
+      NaN-on-both-sides only   8/103
+      REAL divergences          0/103
+
+  The 8 are exactly the inputs that made `cosθ` NaN — i.e. the very inputs that exposed the
+  branch defect under review. The verdict is the same either way here, which is why this is
+  worth writing down rather than shrugging at: the wrong slice produced a *cleaner-looking*
+  number and no visible symptom. An agent comparing two harnesses' scores would pick the
+  arm64 one as the better instrument.
+  RULES that follow: (1) take the vmaddr from `army/inventory/<FW>.syms.txt`, which is
+  x86_64 by construction, and never from a bare `nm`; (2) self-check the prologue bytes at
+  `slide + vmaddr` before trusting a number — it costs one line and catches the wrong
+  address directly rather than through its consequences; (3) on the x86_64 slice, EXPECT a
+  NaN-payload count above zero on any corpus containing `0/0`, classify it separately, and
+  never "fix" it in the port — constructing that NaN through a `DataView` is a rewrite of
+  `divsd`, not a transcription; (4) a differential reporting 100% on a corpus that includes
+  NaN cases is itself a signal worth checking, because on the correct slice it should not.
+
+- **A REVIEWER'S "not blocking on this" can be worth fixing, and the way to settle it is to
+  price it with a mutant.** On PR #337 the reviewer named a signed-zero divergence
+  (C `modf` returns a fraction carrying the sign of the argument, so `modf(-30.0)` is
+  `-0.0` while `value - Math.trunc(value)` is `+0.0`) and explicitly did not block, on the
+  grounds that the project's own differential compares absolute differences. Compared as
+  BIT PATTERNS against the live symbol it fires on `sample=-48000` at rates 32000/48000 and
+  fps 24/30/60 — an exact frame boundary at a negative timeline position, i.e. ordinary
+  input, not an edge case. Fixed, and then PRICED by keeping a mutant that has the
+  non-finite fix but not the signed-zero one: it kills 9 of 257. That number is the honest
+  answer to "was this worth doing", and it is cheap to produce once the harness compares
+  bits. Same class as #445, which was rejected for the sign of zero after passing 4,764 of
+  4,768 cases.
+
+- **Two smaller ones, each of which cost a cycle.** (a) G1's banned-language check reads
+  PROSE, so the word "roughly" in an explanatory comment is a hard REJECT
+  (`P3 shortcut language`) — mine was in a sentence explaining why a throw is unreachable.
+  The tokens to avoid in comments are approximate / roughly / guess / heuristic / hack /
+  fudge; write "more than 480,000 years" rather than "roughly 487,000". (b) When a
+  differential's corpus is generated by drawing operands independently and then filtering,
+  CHECK HOW MANY SURVIVED: my first CMTimeMultiply corpus drew value and multiplier
+  independently and 272 of 400 "in-range" cases silently fell out of range into the
+  throw path, so the rule they were meant to exercise was barely tested while the summary
+  line still looked healthy. Draw the constrained operand LAST (pick the multiplier, then
+  bound the value by `MAX/|m|`), and print the per-class counts so a collapsed class is
+  visible.
