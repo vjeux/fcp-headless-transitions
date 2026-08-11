@@ -346,6 +346,51 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by worker 7 (new)
+
+- **LOCAL (`t`) symbols ARE oracle-able, and the recipe avoids `nm` entirely — this closes the
+  "Rosetta workaround is incomplete" item below.** Worker 1 correctly found that
+  `local_call.py::_vmaddr`'s bare `nm -n` reports **arm64** addresses even under Rosetta, so
+  `local_fn()` computes (arm64 vmaddr + x86_64 slide) and calls the wrong function. The fix does not
+  require fixing `nm` at all, because the x86_64 vmaddr is **already on disk**: it is the first
+  column of `raw-port/army/inventory/<FW>.syms.txt`. Working recipe, verified end-to-end on
+  `hg_read_span_4s_wxyz_m1_gqt_m1_premul` (Helium `t` @0x18adf0, a symbol `dlsym` cannot find at all):
+
+      # under arch -x86_64 /usr/bin/python3
+      libc = ctypes.CDLL(None)
+      libc._dyld_get_image_name.restype = ctypes.c_char_p
+      libc._dyld_get_image_vmaddr_slide.restype = ctypes.c_void_p
+      ctypes.CDLL(FW_PATH, ctypes.RTLD_GLOBAL)
+      i     = <index whose _dyld_get_image_name(i) == FW_PATH>
+      slide = libc._dyld_get_image_vmaddr_slide(i)
+      fn    = ctypes.CFUNCTYPE(<restype>, *<argtypes>)(slide + VMADDR_FROM_INVENTORY)
+
+  Measured slide 0x10ab6e000, called an 8-pixel span, and confirmed the function's own `count == 0`
+  early-out leaves the destination untouched. **Consequence for reviewers and workers: "the symbol is
+  local, so I could not oracle it" is no longer a valid reason to sign a port on reading alone.**
+  Roughly a third of the remaining queue is `t`-class. Worth folding into `local_call.py` as the
+  `_vmaddr` implementation (read the inventory, never shell out to `nm`), which would also make it
+  ~1000x faster than the `nm` it replaces.
+
+- **The nested-class file-naming convention and the landed precedent CONTRADICT each other, across a
+  whole family.** `PORTING_SPEC.md` says a nested class joins its outer names with a DOUBLE
+  underscore (`OZOpticalFlow::Private::CacheFileHeader` -> `OZOpticalFlow__Private__CacheFileHeader.ts`),
+  and both worker briefs repeat it as a rule that exists because it was violated. But the
+  `OZChannelColorNoAlpha_*Impl.ts` family already on main — `greyImpl`, `whiteImpl`, `gammaImpl`,
+  `colorSpaceIDImpl`, `blueSample1Impl`, `redSample1Impl` and friends, ~10 files — are *equally*
+  nested (e.g. `__ZN21OZChannelColorNoAlpha30OZChannelColorNoAlpha_greyImpl11getInstanceEv` is
+  Outer=`OZChannelColorNoAlpha`, Inner=`OZChannelColorNoAlpha_greyImpl`) and every one of them is
+  filed under the INNER name alone. So a worker handed one of these units cannot satisfy both the
+  spec and the precedent, and whichever they pick looks wrong to a reviewer diffing against the
+  other. This is the exact setup PORTING_SPEC's own rationale warns about — two workers filing one
+  class under `_` and `__`, both landing. It needs a project-level ruling (and, if the spec wins, a
+  rename of the existing family) rather than a per-worker coin flip. Filed
+  `OZChannelColor__OZChannelColor_alpha_zeroImpl.ts` per the spec and flagged it in the file header
+  (PR #440); `check_duplicate_classes.py` does not catch the divergence because the two spellings
+  normalise differently.
+
+---
+
 ## Open — reported 2026-08-10 by worker 1 (oracle reachability; new)
 
 - **THE ROSETTA WORKAROUND FOR THE ARCHITECTURE BUG IS INCOMPLETE, AND THE INCOMPLETE HALF IS
