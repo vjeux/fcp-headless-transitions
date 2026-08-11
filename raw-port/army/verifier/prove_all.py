@@ -54,6 +54,31 @@ def _reach(spec, expect):
 
 def layer3():
     D = os.path.join(REPO, "raw-port", "re", "disasm")
+    # SELF-HEAL THE FIXTURE DISASM. `raw-port/re/disasm/` is gitignored (it is a generated cache), so
+    # a freshly leased pool worktree has NONE of it — and Layer 3 resolves its fixtures from there.
+    # Result: prove_all PASSES in the canonical checkout and FAILS with `got=UNKNOWN` in any pool
+    # worktree. That is a trap, because REVIEWER_BRIEF tells every reviewer to run prove_all at
+    # startup and to sign nothing unless it passes: a reviewer running it from a leased worktree
+    # either stops working or learns to ignore the verifier. Both are worse than the bug.
+    # Regenerating is cheap now (disasm.sh is indexed since #148 — sub-second), so rebuild whatever
+    # is missing, and fall back to the canonical cache if the binary cannot be read.
+    os.makedirs(D, exist_ok=True)
+    sh = os.path.join(REPO, "raw-port", "tools", "disasm.sh")
+    CANON_D = os.path.expanduser("~/random/final-cut-pro-transitions/raw-port/re/disasm")
+    for fname, args in (
+        ("ProChannel.OZBezierInterpolator.interpolate.s",
+         ["OZBezierInterpolator", "interpolate", "ProChannel"]),
+        ("ProChannel.__ZN15OZDynamicSpline15setVertexSmoothEPvbRK6CMTime.s",
+         ["--sym", "__ZN15OZDynamicSpline15setVertexSmoothEPvbRK6CMTime", "ProChannel"]),
+    ):
+        dst = os.path.join(D, fname)
+        if os.path.exists(dst):
+            continue
+        subprocess.run(["bash", sh] + args, capture_output=True, cwd=REPO)
+        if not os.path.exists(dst) and os.path.exists(os.path.join(CANON_D, fname)):
+            import shutil; shutil.copy(os.path.join(CANON_D, fname), dst)
+        if not os.path.exists(dst):
+            print(f"   NOTE: could not materialize Layer-3 fixture {fname}")
     specs = [
       ({"symbol":"__ZN15OZDynamicSpline15setVertexSmoothEPvbRK6CMTime",
         "module":"raw-port/src/channels/OZDynamicSpline.ts","export":"OZDynamicSpline_setVertexSmooth",

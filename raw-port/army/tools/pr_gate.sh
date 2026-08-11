@@ -31,14 +31,31 @@ echo "PR #$PR  head=$HEAD_REF @ ${HEAD_SHA:0:12}  reviewed=$REVIEWED"
 # token happened to be handy — is what lets branch protection treat it as an independent check.
 GHAPP_G="$(cd "$(dirname "$0")" && pwd)/ghapp"
 post_status () { bash "$GHAPP_G/gh_as.sh" reviewer api -X POST "repos/$REPO_SLUG/statuses/$HEAD_SHA" -f state="$1" -f context="faithfulness-gate" -f description="$2" >/dev/null 2>&1 && echo "  status: $1 — $2" || echo "  WARN status post failed"; }
-post_status pending "gate running on vjeux-mac"
+
+# A PENDING must never overwrite a settled verdict. GitHub keeps only the LATEST status per context,
+# so a second agent starting a gate run on a PR that already has a red REJECT posts `pending` over
+# it and the rejection vanishes from the required check — reviewer-03 watched another agent's
+# POOL_BUSY pending erase its REJECT on #82 and had to restore it by hand. A concurrent gate run is
+# not new information about the port; a verdict is. Success/failure still overwrite freely (they ARE
+# new information), and a pending on a head with no verdict yet is posted normally.
+post_pending_if_undecided () {
+  local cur
+  cur=$(bash "$GHAPP_G/gh_as.sh" reviewer api "repos/$REPO_SLUG/commits/$HEAD_SHA/status" \
+          --jq '[.statuses[]?|select(.context=="faithfulness-gate")]|last|.state // ""' 2>/dev/null)
+  case "$cur" in
+    success|failure|error)
+      echo "  status: keeping existing '$cur' verdict on ${HEAD_SHA:0:8} (not overwriting with pending)";;
+    *) post_status pending "$1";;
+  esac
+}
+post_pending_if_undecided "gate running on vjeux-mac"
 
 git fetch -q origin main "+refs/pull/$PR/head:refs/prgate/$PR" 2>/dev/null || git fetch -q origin main "$HEAD_REF" 2>/dev/null
 # WARM POOL (2026-08-10): lease a pre-materialized worktree and detached-checkout the PR head into it,
 # instead of `git worktree add`/`remove` per PR (which wrote ~2,579 files -> corp Defender scan storm).
 # The pool reuses the checkout + a warm tsgo cache; release resets it to origin/main for the next PR.
 WT="$(bash "$CANON/raw-port/army/tools/wt_pool.sh" acquire-at "$HEAD_SHA")"
-[ -z "$WT" ] && { post_status pending "pool busy — retry"; echo "PR_GATE: POOL_BUSY (#$PR) — no free worktree, retry"; exit 3; }
+[ -z "$WT" ] && { post_pending_if_undecided "pool busy — retry"; echo "PR_GATE: POOL_BUSY (#$PR) — no free worktree, retry"; exit 3; }
 # A gate worktree is DISPOSABLE by construction: we detach it at the PR head and then deliberately
 # overwrite raw-port/army/{gate,tools} with the TRUSTED copies from origin/main, which leaves the tree
 # dirty on purpose. So it must be released with --force.

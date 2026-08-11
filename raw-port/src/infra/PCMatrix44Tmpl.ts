@@ -68,6 +68,22 @@
  *   0x0005065c  leftMult(other)
  *   0x00050782  rightMult(other)
  *   0x00068210  operator*(other)
+ *   @ProChannel
+ *   0x000844d8  setRotationFromQuaternion(PCQuat<double> const&)
+ *               — the ONLY method in this file taken from ProChannel's own
+ *                 instantiation of the template (ProChannel links its own copy;
+ *                 the symbol is `__ZN14PCMatrix44TmplIdE25setRotationFromQuaternionERK6PCQuatIdE`
+ *                 at ProChannel 0x844d8). Same class, same 128-byte row-major
+ *                 layout — only the framework the code was emitted into differs,
+ *                 exactly like the @Ozone in-place transform<PCVector3> above.
+ *                 Disasm: raw-port/re/disasm/ProChannel.__ZN14PCMatrix44TmplIdE25setRotationFromQuaternionERK6PCQuatIdE.s
+ *
+ * DECODED CONSTANTS (ProChannel.x86_64 rodata, for the method above):
+ *   0x000b05f0 = 2.0   (`movsd 0x2c0d6(%rip),%xmm2` @0x84512 -> 0x8451a+0x2c0d6;
+ *                       raw bytes 00 00 00 00 00 00 00 40)
+ *   0x000af528 = 1.0   (`movsd 0x2afa0(%rip),%xmm7` @0x84580 -> 0x84588+0x2afa0;
+ *                       raw bytes 00 00 00 00 00 00 f0 3f)
+ *   0x3ff0000000000000 = 1.0 (immediate `movabsq` @0x8461a, stored to m33)
  *
  * DECODED CONSTANTS (from ProCore.x86_64 rodata; addresses are file
  * offsets in the thin slice):
@@ -166,6 +182,35 @@ export enum PCMatrix44Axis {
 }
 
 // ---------------------------------------------------------------------------
+// PCQuat<double> — the 4-double quaternion `setRotationFromQuaternion`
+// (@ProChannel 0x844d8) reads through %rsi.
+// ---------------------------------------------------------------------------
+// Byte layout confirmed by that body's loads: `movupd (%rsi),%xmm6` @0x844e9
+// takes components 0/1 (+0x00,+0x08), `movupd 0x10(%rsi),%xmm0` @0x844dc takes
+// components 2/3 (+0x10,+0x18) — 4 packed doubles, 32 bytes.
+//
+// WHICH COMPONENT IS THE SCALAR: component 0. Two independent confirmations —
+//   (a) this body writes m00 = 1 - 2(c2^2 + c3^2)/|q|^2 @0x84592 and
+//       m11 = 1 - 2(c3^2 + c1^2)/|q|^2 @0x845cd, the standard rotation matrix
+//       ONLY when the scalar is component 0 and (c1,c2,c3) are (x,y,z);
+//   (b) the landed OZChannelRotation3D::getValueAsQuatd port (@ProChannel
+//       0x82062, raw-port/src/channels/OZChannelRotation3D.ts) fills the same
+//       PCQuat<double> with q[0] = cx*cy*cz + sx*sy*sz — the scalar term of the
+//       Euler→quaternion identity — and q[1..3] with the x/y/z terms.
+// The fields are therefore named w,x,y,z (component 0..3) with their offsets
+// documented, per PORTING_SPEC rule 5.
+export interface PCQuatDouble {
+  /** +0x00 — component 0, the scalar part. */
+  w: number;
+  /** +0x08 — component 1. */
+  x: number;
+  /** +0x10 — component 2. */
+  y: number;
+  /** +0x18 — component 3. */
+  z: number;
+}
+
+// ---------------------------------------------------------------------------
 // Class
 // ---------------------------------------------------------------------------
 
@@ -236,6 +281,173 @@ export class PCMatrix44Tmpl_double {
     m[4] = 0; m[5] = 1; m[6] = 0; m[7] = 0;
     m[8] = 0; m[9] = 0; m[10] = 1; m[11] = 0;
     m[12] = 0; m[13] = 0; m[14] = 0; m[15] = 1;
+  }
+
+  /**
+   * `PCMatrix44Tmpl<double>::setRotationFromQuaternion(PCQuat<double> const&)`
+   *   — @ProChannel 0x000844d8
+   *   — __ZN14PCMatrix44TmplIdE25setRotationFromQuaternionERK6PCQuatIdE
+   *
+   * Overwrites the WHOLE matrix (all 16 doubles) with the rotation the
+   * quaternion `q` describes, normalising by |q|^2 as it goes. Transcribed
+   * from the 77-line SSE body in
+   * raw-port/re/disasm/ProChannel.__ZN14PCMatrix44TmplIdE25setRotationFromQuaternionERK6PCQuatIdE.s
+   *
+   * REGISTER TRACE — the packed ops in the order the machine performs them
+   * (q0..q3 are the four components at %rsi +0x00/+0x08/+0x10/+0x18):
+   *
+   *   0x844dc movupd 0x10(%rsi),%xmm0        ; xmm0 = {q2, q3}
+   *   0x844e1 movapd %xmm0,%xmm1
+   *   0x844e5 mulpd  %xmm0,%xmm1             ; xmm1 = {q2*q2, q3*q3}
+   *   0x844e9 movupd (%rsi),%xmm6            ; xmm6 = {q0, q1}
+   *   0x844ed movapd %xmm6,%xmm2
+   *   0x844f1 mulsd  %xmm6,%xmm2             ; xmm2 = q0*q0
+   *   0x844f5 movsd  0x8(%rsi),%xmm7         ; xmm7 = q1
+   *   0x844fa movapd %xmm7,%xmm3
+   *   0x844fe mulsd  %xmm7,%xmm3             ; xmm3 = q1*q1
+   *   0x84502 addsd  %xmm1,%xmm3             ; xmm3 = q1*q1 + q2*q2
+   *   0x84506 unpckhpd %xmm1,%xmm1           ; xmm1 = q3*q3 (high lane -> low)
+   *   0x8450a addsd  %xmm3,%xmm1             ; xmm1 = q3*q3 + (q1*q1 + q2*q2)
+   *   0x8450e addsd  %xmm2,%xmm1             ; xmm1 = normSq = that + q0*q0
+   *   0x84512 movsd  0x2c0d6(%rip),%xmm2     ; xmm2 = 2.0   (@0xb05f0)
+   *   0x8451a divsd  %xmm1,%xmm2             ; xmm2 = 2.0 / normSq
+   *   0x8451e xorpd  %xmm3,%xmm3             ; xmm3 = 0.0
+   *   0x84522 cmpltsd %xmm1,%xmm3            ; xmm3 = (0.0 < normSq) ? ~0 : 0
+   *   0x84527 andpd  %xmm2,%xmm3             ; s = (0.0 < normSq) ? 2/normSq : 0.0
+   *   0x8452b-0x84541                        ; sq1 = q1*s, sq2 = q2*s, sq3 = s*q3
+   *   0x84546 movddup %xmm2,%xmm4 ; mulpd %xmm6,%xmm4   ; xmm4 = {q0*sq2, q1*sq2}
+   *   0x8454e movddup %xmm3,%xmm5 ; mulpd %xmm6,%xmm5   ; xmm5 = {q0*sq3, q1*sq3}
+   *   0x84556 mulsd  %xmm1,%xmm6             ; xmm6 = q0*sq1
+   *   0x8455a mulsd  %xmm7,%xmm1             ; xmm1 = sq1*q1
+   *   0x8455e shufpd $0x1,%xmm4,%xmm9        ; xmm9 = {q1*sq2, q0*sq2}  (swapped)
+   *   0x84569 mulsd  %xmm0,%xmm2             ; xmm2 = sq2*q2
+   *   0x8456d mulsd  %xmm3,%xmm0             ; xmm0 = q2*sq3
+   *   0x84571 mulsd  %xmm8,%xmm3             ; xmm3 = sq3*q3
+   *
+   * The nine products the stores are built from (named as in the body below):
+   *   a = q0*sq1   b = sq1*q1   c = q0*sq2   d = q1*sq2   e = sq2*q2
+   *   f = q0*sq3   g = q1*sq3   h = q2*sq3   i = sq3*q3
+   *
+   * STORES — every one of the 16 doubles, in machine order:
+   *   0x84580 movsd 0x2afa0(%rip),%xmm7      ; xmm7 = 1.0 (@0xaf528)
+   *   0x84592 movsd  %xmm10,(%rdi)           ; m00 = 1.0 - (e + i)
+   *   0x84597-0x845ad                        ; xmm8 = {d-f, c+g} via
+   *                                          ;   subpd/addpd + blendpd $0x2
+   *           movupd %xmm8,0x8(%rdi)         ; m01 = d - f ; m02 = c + g
+   *   0x845b3 xorl %eax,%eax ; movq %rax,0x18(%rdi)   ; m03 = 0.0
+   *   0x845b9 movlpd %xmm9,0x20(%rdi)        ; m10 = d + f
+   *   0x845bf addsd %xmm1,%xmm3              ; xmm3 = i + b
+   *   0x845cd movsd  %xmm8,0x28(%rdi)        ; m11 = 1.0 - (i + b)
+   *   0x845d7 subsd %xmm6,%xmm0
+   *   0x845db movsd  %xmm0,0x30(%rdi)        ; m12 = h - a
+   *   0x845e0 movq  %rax,0x38(%rdi)          ; m13 = 0.0
+   *   0x845e4-0x845f4                        ; xmm5 = {g-c, a+h} via
+   *                                          ;   unpckhpd/movddup/addpd/subpd/blendpd
+   *   0x845fa movupd %xmm5,0x40(%rdi)        ; m20 = g - c ; m21 = a + h
+   *   0x845ff addsd %xmm1,%xmm2              ; xmm2 = e + b
+   *   0x84603 subsd %xmm2,%xmm7              ; xmm7 = 1.0 - (e + b)
+   *   0x84607 movsd  %xmm7,0x50(%rdi)        ; m22
+   *   0x8460c xorpd %xmm0,%xmm0
+   *   0x84610 movupd %xmm0,0x58(%rdi)        ; m23 = 0.0 ; m30 = 0.0
+   *   0x84615 movupd %xmm0,0x68(%rdi)        ; m31 = 0.0 ; m32 = 0.0
+   *   0x8461a movabsq $0x3ff0000000000000,%rax
+   *   0x84624 movq  %rax,0x78(%rdi)          ; m33 = 1.0
+   *
+   * DECODE NOTES:
+   *   * THE NORM GUARD. `xorpd %xmm3,%xmm3 ; cmpltsd %xmm1,%xmm3 ; andpd
+   *     %xmm2,%xmm3` computes `s = (0.0 < normSq) ? 2.0/normSq : 0.0`. AT&T
+   *     `cmpltsd %src,%dst` evaluates `dst < src`, and dst is the zero
+   *     register, so the predicate is `0.0 < normSq` — false for a zero
+   *     quaternion AND for NaN (an unordered compare is false), in which case
+   *     the `andpd` masks the quotient to +0.0 and the result is the identity
+   *     matrix's diagonal 1.0s with zero off-diagonals. `0 < NaN` is likewise
+   *     false in JS, so the ternary below reproduces it exactly; the divide
+   *     itself is performed unconditionally in the machine (@0x8451a) and its
+   *     result is discarded by the mask, which is why a normSq of 0 does not
+   *     trap.
+   *   * every operation is an f64 (movsd/mulsd/addsd/divsd/mulpd/addpd); there
+   *     is no cvtsd2ss anywhere, so NO Math.fround — see the class header's
+   *     precision note.
+   *   * the packed ops are transcribed as their two scalar lanes; the
+   *     `shufpd`/`blendpd`/`movddup`/`unpckhpd` shuffles only choose WHICH lane
+   *     is stored where, which the per-lane expressions below encode directly.
+   *   * grouping is preserved exactly as the adds are issued (IEEE-754 is not
+   *     associative): normSq = ((q1*q1 + q2*q2) + q3*q3) + q0*q0.
+   *   * the matrix is fully overwritten — the 3x3 rotation block, the zero
+   *     translation column/row, and m33 = 1.0 — so no prior contents survive.
+   *
+   * Zero callees: no in-scope call, no extern, no indirect or virtual dispatch
+   * (`depgraph.py deps` lists nothing).
+   *
+   * @param q the quaternion (component 0 is the scalar — see PCQuatDouble).
+   */
+  setRotationFromQuaternion(q: PCQuatDouble): void {
+    const m = this.m;
+
+    // @0x844dc / @0x844e9 / @0x844f5 — the four components as the body loads
+    // them: {q2,q3} packed, {q0,q1} packed, and q1 again as a scalar.
+    const q0 = q.w; // +0x00
+    const q1 = q.x; // +0x08
+    const q2 = q.y; // +0x10
+    const q3 = q.z; // +0x18
+
+    // @0x844e5/@0x844f1/@0x844fe — the four squares.
+    // @0x84502/@0x8450a/@0x8450e — summed in EXACTLY this grouping.
+    const normSq = q1 * q1 + q2 * q2 + q3 * q3 + q0 * q0;
+
+    // @0x84512-0x84527 — s = (0.0 < normSq) ? 2.0/normSq : 0.0.
+    // 2.0 is the rodata double @ProChannel 0xb05f0.
+    const s = 0.0 < normSq ? 2.0 / normSq : 0.0;
+
+    // @0x8452b-0x84541 — the three scaled components.
+    const sq1 = q1 * s;
+    const sq2 = q2 * s;
+    const sq3 = s * q3;
+
+    // @0x84546-0x84571 — the nine products every store is built from.
+    const a = q0 * sq1; // xmm6 @0x84556
+    const b = sq1 * q1; // xmm1 @0x8455a
+    const c = q0 * sq2; // xmm4 low  @0x8454a
+    const d = q1 * sq2; // xmm4 high @0x8454a
+    const e = sq2 * q2; // xmm2 @0x84569
+    const f = q0 * sq3; // xmm5 low  @0x84552
+    const g = q1 * sq3; // xmm5 high @0x84552
+    const h = q2 * sq3; // xmm0 @0x8456d
+    const i = sq3 * q3; // xmm3 @0x84571
+
+    // @0x84580 — the 1.0 rodata double @ProChannel 0xaf528.
+
+    // @0x84592  m00 = 1.0 - (e + i)
+    m[0] = 1.0 - (e + i);
+    // @0x845ad  the 16-byte store of {d - f, c + g}
+    m[1] = d - f;
+    m[2] = c + g;
+    // @0x845b5  the zeroed %rax
+    m[3] = 0.0;
+
+    // @0x845b9  movlpd of the ADD lane {d + f, ...}
+    m[4] = d + f;
+    // @0x845bf/@0x845cd  m11 = 1.0 - (i + b)
+    m[5] = 1.0 - (i + b);
+    // @0x845d7/@0x845db  m12 = h - a
+    m[6] = h - a;
+    // @0x845e0
+    m[7] = 0.0;
+
+    // @0x845fa  the 16-byte store of {g - c, a + h}
+    m[8] = g - c;
+    m[9] = a + h;
+    // @0x845ff/@0x84603/@0x84607  m22 = 1.0 - (e + b)
+    m[10] = 1.0 - (e + b);
+    // @0x84610  the first zeroing 16-byte store covers m23 and m30
+    m[11] = 0.0;
+    m[12] = 0.0;
+
+    // @0x84615  the second zeroing 16-byte store covers m31 and m32
+    m[13] = 0.0;
+    m[14] = 0.0;
+    // @0x8461a/@0x84624  movabsq $0x3ff0000000000000 (= 1.0)
+    m[15] = 1.0;
   }
 
   // ==========================================================================
