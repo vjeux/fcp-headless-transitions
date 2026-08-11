@@ -1166,6 +1166,23 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   units separately rather than only the titled one — the right instinct, and the thing that kept an
   unreviewed 618-line kernel from landing silently.
 
+- **`review_claim.sh` WILL LEASE A REVIEWER THEIR OWN PR — it has no author check at all.** Hit
+  immediately after filing the entry above: my next `review_claim.sh claim` returned
+  `CLAIMED 548`, which is the PR containing this very text. `grep -cE 'author|login|self'` on the
+  tool is **0** — the eligibility filter is purely (gate status, reviewDecision), so authorship never
+  enters into it. I released the lease untouched rather than gating my own work, but nothing in the
+  tool or the brief stops a less suspicious agent from gating it, and the brief's own rule is that a
+  reviewer must not gate their own edits (it is why re-applying methods is worker work).
+  This is now reachable by design rather than by accident: AGENT_ENTRY section 8 tells every agent to
+  add new failure modes to this file, so reviewers author OPS_LOG PRs routinely, and each one goes
+  straight into the pool the same reviewers pull from.
+  FIX: `cmd_claim` should exclude PRs whose author is the claiming identity — and since all slots
+  share one bot identity (#7), "the reviewer app" cannot be distinguished that way; the usable
+  signals are the PR author login (`vjeux` / `vjeux-worker[bot]`) versus who is running, or a
+  marker the authoring agent writes into its own lease dir. Companion to the hand-dispatch gap
+  filed with #528: both are cases where the lease machinery routes a PR to the one agent that
+  should not have it.
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
