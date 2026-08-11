@@ -13,7 +13,9 @@
 // SYMBOL PORTED
 // -----------------------------------------------------------------------------
 //   * __ZN15HGExecutionUnit9SwapStackEv
-//       -- HGExecutionUnit::SwapStack()   @Helium 0x144570   (`nm` class T)
+//       -- HGExecutionUnit::SwapStack()      @Helium 0x144570   (`nm` class T)
+//   * __ZN15HGExecutionUnit13GetStackStateEv
+//       -- HGExecutionUnit::GetStackState()  @Helium 0x1444c0   (`nm` class T)
 //
 // FULL DISASM (raw-port/re/disasm/Helium.__ZN15HGExecutionUnit9SwapStackEv.s, 9 instructions):
 //
@@ -61,7 +63,41 @@
 /** The object `HGExecutionUnit.state` (+0x90) points at. Only the one field this method touches is
  *  modelled. */
 export interface HGExecutionUnitState {
-  /** +0x98 — int32 stack selector; read @0x14457d, written @0x144587. */
+  /** +0x88 — pointer to a stack object; loaded @0x1444ce and dereferenced at ITS +0x10 @0x1444e3. */
+  stackA: HGExecutionUnitStackSlot | null;
+  /** +0x90 — the second stack object; loaded @0x1444d8, dereferenced at its +0x10 @0x1444eb. */
+  stackB: HGExecutionUnitStackSlot | null;
+  /** +0x98 — int32 stack selector; read @0x14457d, written @0x144587, and copied out @0x1444f3. */
+  stackIndex: number;
+}
+
+/**
+ * One of the two objects hanging off the state at +0x88 / +0x90. Only the single field this class
+ * reads is modelled: `GetStackState` loads +0x10 out of each and copies it into the result.
+ * Nothing here names what that field MEANS — no method decoded so far writes it, so calling it a
+ * count or a top-of-stack would be an invention (PORTING_SPEC Rule 5).
+ */
+export interface HGExecutionUnitStackSlot {
+  /** +0x10 — a 64-bit value, read @0x1444e3 (from +0x88's object) and @0x1444eb (from +0x90's). */
+  at10: bigint;
+}
+
+/**
+ * The 0x24-byte structure `GetStackState()` returns BY VALUE. It is larger than 16 bytes, so the
+ * SysV ABI returns it through a hidden out-pointer in %rdi — which is why the receiver arrives in
+ * %rsi in this method's disassembly and %rax is set to the out-pointer @0x1444c4. Reading %rdi as
+ * `this` is the mistake this shape invites, and it would put every field off by one argument.
+ */
+export interface HGStackState {
+  /** out +0x00 — a copy of state->stackA (@0x1444d5). */
+  stackA: HGExecutionUnitStackSlot | null;
+  /** out +0x08 — a copy of state->stackB (@0x1444df). */
+  stackB: HGExecutionUnitStackSlot | null;
+  /** out +0x10 — stackA->at10 (@0x1444e7). */
+  stackAAt10: bigint;
+  /** out +0x18 — stackB->at10 (@0x1444ef). */
+  stackBAt10: bigint;
+  /** out +0x20 — a copy of state->stackIndex, int32 (@0x1444f9). */
   stackIndex: number;
 }
 
@@ -92,5 +128,55 @@ export class HGExecutionUnit {
     // @0x144587 movl %ecx,0x98(%rax)
     state.stackIndex = cl;
     // @0x14458d/@0x14458e — epilogue + retq.
+  }
+
+  /**
+   * `HGExecutionUnit::GetStackState()` @Helium 0x1444c0 (__ZN15HGExecutionUnit13GetStackStateEv).
+   *
+   * FULL DISASM (raw-port/re/disasm/Helium.__ZN15HGExecutionUnit13GetStackStateEv.s, 14 instrs):
+   *
+   *   0x1444c4  movq %rdi, %rax           ; rax = the sret OUT-POINTER (returned in %rax)
+   *   0x1444c7  movq 0x90(%rsi), %rcx     ; rcx = this->state   — NOTE: `this` is %rsi, not %rdi
+   *   0x1444ce  movq 0x88(%rcx), %rdx     ; rdx = state->stackA
+   *   0x1444d5  movq %rdx, (%rdi)         ; out+0x00 = stackA
+   *   0x1444d8  movq 0x90(%rcx), %rsi     ; rsi = state->stackB
+   *   0x1444df  movq %rsi, 0x8(%rdi)      ; out+0x08 = stackB
+   *   0x1444e3  movq 0x10(%rdx), %rdx     ; rdx = stackA->+0x10
+   *   0x1444e7  movq %rdx, 0x10(%rdi)     ; out+0x10
+   *   0x1444eb  movq 0x10(%rsi), %rdx     ; rdx = stackB->+0x10
+   *   0x1444ef  movq %rdx, 0x18(%rdi)     ; out+0x18
+   *   0x1444f3  movl 0x98(%rcx), %ecx     ; ecx = state->stackIndex (32-bit)
+   *   0x1444f9  movl %ecx, 0x20(%rdi)     ; out+0x20
+   *
+   * A pure snapshot: it reads five values and writes them into the caller's buffer. No branch, no
+   * call, no store into `this` or into either stack object — SwapStack is the only writer of the
+   * index, and this method just copies it out.
+   *
+   * THE RECEIVER IS IN %rsi. The returned struct is 0x24 bytes, larger than the 16 bytes the SysV
+   * ABI returns in registers, so the caller passes a hidden out-pointer in %rdi and every explicit
+   * argument shifts one register right. Reading %rdi as `this` here would decode
+   * `movq 0x90(%rsi)` as a load from the FIRST argument of a method that has none, and every field
+   * would come from the wrong object — which is why the oracle passes a poisoned out-buffer AND a
+   * poisoned receiver and checks which one got written.
+   *
+   * BOTH STACK POINTERS ARE DEREFERENCED UNGUARDED (@0x1444e3, @0x1444eb), so a null in either
+   * faults on the machine; the `!` assertions model that rather than inventing null checks.
+   *
+   * @returns the 0x24-byte snapshot the machine writes through the out-pointer.
+   */
+  GetStackState(): HGStackState {
+    // @0x1444c7 movq 0x90(%rsi),%rcx — the state pointer, loaded unguarded.
+    const state = this.state!;
+    // @0x1444ce / @0x1444d5 — out+0x00 = state->stackA.
+    const stackA = state.stackA;
+    // @0x1444d8 / @0x1444df — out+0x08 = state->stackB.
+    const stackB = state.stackB;
+    // @0x1444e3 / @0x1444e7 — out+0x10 = stackA->+0x10 (unguarded dereference).
+    const stackAAt10 = stackA!.at10;
+    // @0x1444eb / @0x1444ef — out+0x18 = stackB->+0x10 (unguarded dereference).
+    const stackBAt10 = stackB!.at10;
+    // @0x1444f3 / @0x1444f9 — out+0x20 = state->stackIndex, moved as a 32-bit value.
+    const stackIndex = state.stackIndex | 0;
+    return { stackA, stackB, stackAAt10, stackBAt10, stackIndex };
   }
 }
