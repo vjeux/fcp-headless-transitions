@@ -215,40 +215,6 @@ print('yes' if any(r.get('state')=='APPROVED' and r.get('commit_id')=='$HEAD_SHA
   # try the merge (auto = waits for the just-posted status if still settling)
   # LAST GATE BEFORE AN IRREVERSIBLE MERGE: does the approval actually cover what we are merging?
   #
-  # GitHub REBINDS a review to a later commit on its own. Measured on #585: the review was submitted
-  # at 18:41:58Z and is bound to a merge commit created at 18:42:37Z — THIRTY-NINE SECONDS AFTER the
-  # verdict. pr_land's own update-branch produces that commit, and GitHub carries the review forward
-  # along the first-parent chain (observed up to two hops). So "which commit is the review on?" is
-  # not a fact the reviewer controls, and sending commit_id at POST time (#619) cannot help: the
-  # rebinding happens afterwards. Reviewer 4 diagnosed this after reviewer 3 read it as a POST race.
-  #
-  # The question that IS answerable at merge time is the one that matters: is the code the reviewer
-  # signed the same code we are about to land? Compare the PR's own CONTRIBUTION — the three-dot
-  # delta against main — at the approved commit and at the head. Identical means the only difference
-  # is main merging in, which is what the carry is for. Different means a rebind walked the approval
-  # onto an author change nobody reviewed, and we refuse.
-  APPROVED_AT=$(ghr api "repos/$SLUG/pulls/$PR/reviews" --paginate 2>/dev/null | python3 -c "
-import json,sys
-try: rs=json.load(sys.stdin)
-except Exception: raise SystemExit
-a=[r for r in rs if r.get('state')=='APPROVED']
-print(a[-1]['commit_id'] if a else '')
-" 2>/dev/null)
-  MERGE_SHA=$(ghr pr view "$PR" --repo "$SLUG" --json headRefOid --jq .headRefOid 2>/dev/null)
-  if [ -n "$APPROVED_AT" ] && [ -n "$MERGE_SHA" ] && [ "$APPROVED_AT" != "$MERGE_SHA" ]; then
-    git fetch -q origin main "$APPROVED_AT" "$MERGE_SHA" >/dev/null 2>&1 || true
-    CA=$(git diff "origin/main...$APPROVED_AT" 2>/dev/null | shasum | cut -d" " -f1)
-    CB=$(git diff "origin/main...$MERGE_SHA" 2>/dev/null | shasum | cut -d" " -f1)
-    if [ -n "$CA" ] && [ -n "$CB" ] && [ "$CA" != "$CB" ]; then
-      echo "pr_land: REFUSING to merge PR #$PR — the approval is bound to ${APPROVED_AT:0:8} but the"
-      echo "  head is ${MERGE_SHA:0:8}, and the PR's contribution DIFFERS between them. GitHub rebinds"
-      echo "  a review to later commits on its own, so an approval can walk onto code nobody read."
-      echo "  Re-review the current head, or dismiss and re-sign it deliberately."
-      exit 6
-    fi
-  fi
-  # LAST GATE BEFORE AN IRREVERSIBLE MERGE: does the approval actually cover what we are merging?
-  #
   # GitHub REBINDS a review to a later commit on its own. On #585 the review was submitted at
   # 18:41:58Z and is bound to a merge commit created at 18:42:37Z — thirty-nine seconds after the
   # verdict — and pr_land's own `update-branch` is what produced that commit. So "which commit is
