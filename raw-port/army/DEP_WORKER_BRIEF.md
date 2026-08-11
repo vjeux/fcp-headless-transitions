@@ -32,7 +32,14 @@ cap is auto-closed and its symbol re-queued to the append-only claim queue.
 Prints `CLAIMED_UNIT` then TSV rows `<FW>\t<Class>\t<mangled>\t<demangled>`. Usually ONE function;
 multiple rows = a dependency CYCLE (mutual recursion) — port them together in one branch. The instant
 `next` hands you a unit it is claimed FOREVER (append-only) — you can never collide, and you never
-release/defer/mark-done. If you can't finish a unit, just STOP it and claim the next. STL templates
+release/defer/mark-done. If you can't finish a unit, REQUEUE it with a reason and claim the next:
+
+    python3 raw-port/army/tools/depclaim.py drop <mangled> "<why it is not portable yet>"
+
+Without that call the symbol is gone for good — `next` skips every symbol in claims.jsonl, and for
+5,799 claims this project had ZERO reopens, so every honest refusal permanently deleted a work item.
+Dropping is the RIGHT call when a dep is unported, a virtual/indirect target is unresolved, or the
+body is genuinely out of scope; just don't let it cost the unit. STL templates
 and already-built symbols are auto-filtered. `NO_READY_UNIT` = queue drained, STOP.
 
 ### The only legitimate throw
@@ -80,6 +87,20 @@ union it — re-applying methods into a class body is AUTHOR work). Do EXACTLY t
    `/tmp/rebase_pr_<PR>_theirs/<file>` (the branch's version). With the edit tool, ADD ONLY the
    branch's net-new methods into main's class body. NEVER delete main's methods. Keep every @0xADDR.
 3. `bash raw-port/army/gate/gate.sh <file>` in $WT — must print GATE: PASS.
+3b. **`git -C "$WT" diff --name-only origin/main...HEAD` (THREE dots) — the only paths listed must
+   be the ones you edited.** Three dots is what a merge applies; a two-dot `diff origin/main` in a
+   worktree whose main has moved lists later-landed files as `D` and looks like mass deletion when
+   nothing of the sort will happen (measured; see the CORRECTION at the top of OPS_LOG). The real
+   hazard is per-FILE: your copy of a file you DID touch may predate main's, which reverts methods
+   inside it. So also confirm you started from main's CURRENT version of each listed file.
+   rebase_pr.sh prepared $WT from origin/main as it was AT THAT MOMENT, and on a busy swarm main
+   moves while you are merging. What that costs you is NOT the deletion of unrelated files (a merge
+   applies the three-dot delta, so those survive — I measured this after claiming otherwise); it is
+   that your copy of the file you are editing may be older than main's, so your push reverts
+   whatever landed in it. `gate.sh` cannot see that either — G6 only inspects the file you hand it,
+   against the version in YOUR tree. If anything unexpected appears:
+       `git -C "$WT" fetch origin main && git -C "$WT" reset --hard origin/main`
+   then re-apply your merge on top (copy your edited files aside first), re-gate, and re-check.
 4. `git -C "$WT" add -A && git -C "$WT" commit -q -m "rebase <branch> onto origin/main (re-apply net-new methods)"`
 5. `git -C "$WT" push -f origin "HEAD:<branch>"` — force-pushes the SAME branch; PR #N updates IN
    PLACE (do NOT open a new PR). Then `bash raw-port/army/tools/wt_pool.sh release "$WT"`.

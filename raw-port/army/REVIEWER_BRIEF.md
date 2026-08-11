@@ -43,7 +43,16 @@ Your loop:
        steady_clock hides) → status FAILURE ("needs reviewer re-derivation"). The mechanical gate
        does NOT clear flags; only your adversarial re-derivation does.
      - clean PASS, 0 flags → status SUCCESS.
-3. If gate FAIL → `gh pr review <PR#> --request-changes -b "<one-line reason>"`.
+3. If gate FAIL → `ghapp/pr_review.sh <PR#> request-changes "<one-line reason>"`.
+   **Use GitHub's real review system for every verdict — never a bare comment.** Since the two
+   GitHub Apps landed (see `GITHUB_APPS.md`), the reviewer identity (`vjeux-reviewer[bot]`) is a
+   different principal from the worker that authored the PR, so `APPROVE` and `REQUEST_CHANGES` both
+   work. A `request-changes` is a real blocking verdict that shows in the GitHub UI and in the API;
+   the old "red status + prose comment" workaround exists only for the pre-app fallback path.
+   On ACCEPT, sign your verdict with the evidence line you would have commented:
+       `ghapp/pr_review.sh <PR#> approve "<one-line evidence: what you re-derived and why it matches>"`
+   then `pr_land.sh <PR#>`. (`pr_land` also approves as a backstop, and `pr_review.sh` is idempotent
+   per (PR, head SHA), so your specific evidence wins and no duplicate review is posted.)
    Regression fail → REBASE, do NOT skip-and-loop (see "REBASE OWNERSHIP" below): run
    `python3 raw-port/army/tools/rebase_helper.py <Class>`. If it exits 0 it pushed a rebased branch
    (gate + merge that). If it exits 6 (NEEDS_WORKER_REBASE — add/add on a shared class body), the fix
@@ -54,7 +63,7 @@ Your loop:
 4. If gate PASS: do the SEMANTIC adversarial review below (classify → oracle → reach → LINE-BY-LINE,
    re-deriving disasm INDEPENDENTLY from the binary). If the PR had G5 FLAGs, after you confirm it is
    genuinely faithful re-run `pr_gate.sh <PR#> --reviewed` to post the green status. If genuinely
-   faithful and status is green: `gh pr merge <PR#> --squash --auto --delete-branch`. GitHub merges
+   faithful and status is green: `pr_land.sh <PR#>` (NEVER a bare `gh pr merge` — that bypasses the guard that refuses to merge over an un-dismissed CHANGES_REQUESTED, which is how the rejected #108 landed). GitHub merges
    SERVER-SIDE once the required status is green — the local tree is NEVER touched. (Auto-merge waits
    for the status if still pending.) The same gh token opened the PR, so a GitHub "approving review"
    is blocked (self-approve); the REQUIRED CHECK is the STATUS, and your judgment is enforced because
@@ -105,6 +114,17 @@ For the changed .ts file and each exported function it claims to port:
      DIVERGED  -> wrong math. REJECT.
      FAILED    -> the port threw / crashed. REJECT (it implements nothing).
    Use autoreg.py to check if a descriptor already exists / can be auto-generated for the symbol.
+   ARCHITECTURE — READ THIS BEFORE YOU TRUST A VERIFIED. The ports are transcribed from the **x86_64**
+   slice, but this box is arm64, so `oracle.resolve` (dlsym) and `local_call` (`nm -n`) both reach the
+   **arm64** slice. Where the slices disagree the oracle compares your port against code it did not
+   transcribe, and it fails TOWARD "equal"/VERIFIED — on `OZChannelRef::operator!=` it called all 900
+   cases equal because arm64 libc++ puts the string's `is_long` bit at +0x17, not +0x00. A false
+   VERIFIED is worse than no oracle, because you sign on it. The tools now print a warning; when the
+   symbol touches a std::string / std::map, or any layout you have not confirmed identical in both
+   slices, re-run the harness under Rosetta so dlopen maps the x86_64 slice:
+       arch -x86_64 /usr/bin/python3 my_oracle.py      # dlsym works normally for `nm` type T symbols
+   Plain struct offsets (`this+0x38`) are fixed by the C++ declaration and are the same in both slices,
+   so most Tier-1/2 differentials are unaffected — but check, do not assume. See OPS_LOG "Open".
    NEVER hand-build a descriptor for an INSTANCE method (needs `this`) — it segfaults / fabricates
    values (proven: PCException::report -> exit 139). Instance methods are Tier-3 (step 3).
 
@@ -131,10 +151,10 @@ Your verdict is expressed by the `faithfulness-gate` commit STATUS + your merge 
 (`pr_gate.sh` posts the status; branch protection makes it the required check). Keep your judgment
 classification the same:
 - ACCEPT (merge allowed) ONLY when verdict ∈ {VERIFIED, LIKELY_REAL(+your line-by-line sign), TRAP, EMPTY}.
-  Post green via `pr_gate.sh <PR#>` (or `--reviewed` if it had G5 flags) THEN `gh pr merge <PR#> --squash --auto --delete-branch`.
+  Post green via `pr_gate.sh <PR#>` (or `--reviewed` if it had G5 flags) THEN `pr_land.sh <PR#>` (NEVER a bare `gh pr merge` — that bypasses the guard that refuses to merge over an un-dismissed CHANGES_REQUESTED, which is how the rejected #108 landed).
 - SKELETON: a DISPATCH_ONLY shell is a HARD G5 REJECT. Do NOT sign a dispatch-only shell as
-  LIKELY_REAL to force it through. `gh pr review <PR#> --request-changes -b "dispatch-only skeleton"`.
-- REJECT stops the merge. `gh pr review <PR#> --request-changes -b "<exactly which instruction the TS omits>"`.
+  LIKELY_REAL to force it through. `ghapp/pr_review.sh <PR#> request-changes "dispatch-only skeleton"`.
+- REJECT stops the merge. `ghapp/pr_review.sh <PR#> request-changes "<exactly which instruction the TS omits>"`.
 - REGRESSION: `pr_gate.sh` runs regression_check.py — if the branch DROPS any @0xADDR symbol/export
   origin/main already has (a stale-base branch), the status is FAILURE. This is NOT a verdict on your
   review; the branch needs a rebase onto current origin/main. See REBASE OWNERSHIP below — you try the
@@ -183,7 +203,7 @@ outrunning it (retry later). It NEVER force-merges — only merges a green, merg
 a PR you have ALREADY semantically verified this run (it does not do your line-by-line for you).
 
 MANUAL equivalent (if you prefer, or pr_land prints REBASE-RACE): post green via `pr_gate.sh <PR#>`
-(or `--reviewed`), then `gh pr merge <PR#> --repo vjeux/fcp-headless-transitions --squash --auto --delete-branch`.
+(or `--reviewed`), then `pr_land.sh <PR#>` (NEVER a bare `gh pr merge` — that bypasses the guard that refuses to merge over an un-dismissed CHANGES_REQUESTED, which is how the rejected #108 landed).
 If it reports BEHIND: `gh api -X PUT repos/vjeux/fcp-headless-transitions/pulls/<PR#>/update-branch`,
 wait for the new head SHA, re-run `pr_gate.sh <PR#>` on it, then merge.
 
@@ -192,8 +212,8 @@ Rules for reviewer-driven merge:
   NEVER merge a REJECT/CHEAT/SKELETON. NEVER merge a PR whose faithfulness-gate status is not success.
 - `pr_gate.sh` re-runs gate.sh (hardened G5) on the BRANCH body with the TRUSTED tools from
   origin/main — it is an independent backstop, so even a mistaken ACCEPT cannot post green on a cheat.
-  If it posts FAILURE after you thought it was fine, your ACCEPT was WRONG — `gh pr review
-  --request-changes` and move on.
+  If it posts FAILURE after you thought it was fine, your ACCEPT was WRONG —
+  `ghapp/pr_review.sh <PR#> request-changes "<why>"` and move on.
 - Regression FAILURE (branch DROPS a symbol origin/main already has) is not a faithfulness fault — the
   branch needs a rebase. Do NOT "comment and skip" forever (that loops). Run `rebase_helper.py <Class>`:
   exit 0 → it pushed a rebased branch, gate+merge that; exit 6 (NEEDS_WORKER_REBASE) → post the

@@ -652,6 +652,231 @@ export class HGNode extends HGObject {
     this.ClearBits(0xffff);
   }
 
+  // ---------------------------------------------------------------------------
+  // UNIT: HGNode::SupportsGLSL() const                         @Helium 0x1221a0
+  //   __ZNK6HGNode12SupportsGLSLEv
+  //
+  // re/disasm: raw-port/re/disasm/Helium.__ZNK6HGNode12SupportsGLSLEv.s (9 lines)
+  //
+  // FULL DISASM (6 real insns @0x1221a0..0x1221ad; 0x1221ae is padding):
+  //   0x1221a0  pushq  %rbp
+  //   0x1221a1  movq   %rsp, %rbp
+  //   0x1221a4  movzbl 0x11(%rdi), %eax   ; al = *(u8*)(this + 0x11)
+  //   0x1221a8  andb   $0x2, %al          ; al &= 0x02
+  //   0x1221aa  shrb   %al                ; al >>= 1   (implicit count 1)
+  //   0x1221ac  popq   %rbp
+  //   0x1221ad  retq
+  //   0x1221ae  nop                       ; padding, not code
+  //
+  // WHICH BIT — the load is of the BYTE at +0x11, which is byte 1 of the u32
+  // `renderPageStrategy` at +0x10 (see the STRUCT LAYOUT block at the top of
+  // this file). So `(*(u8*)(this+0x11)) & 0x02` selects bit 9 of that u32,
+  // i.e. the 0x200 bit — EXACTLY the value the constructor stores there:
+  //   @0x11bc3b  movl $0x200, 0x10(%rbx)   (HGNode::HGNode, already ported
+  //                                          above as renderPageStrategy = 0x200)
+  //   @0x11baa4  movl $0x200, 0x10(%rdi)   (HGNode::Init, likewise)
+  // So a default-constructed HGNode reports SupportsGLSL() == 1, which is the
+  // strongest available confirmation that +0x10 is a capability bitfield and
+  // that bit 9 is the GLSL capability.
+  //
+  // The two IMMEDIATELY ADJACENT accessors are the same six instructions on
+  // the same byte with the next two bits, which pins the bit assignment:
+  //   @0x1221b4/0x1221b8/0x1221ba  SupportsMetal: (u8@+0x11 & 0x04) >> 2
+  //                                               -> bit 10 of +0x10 (0x400)
+  //   @0x1221c4/0x1221c8/0x1221ca  SupportsSWAIR: (u8@+0x11 & 0x08) >> 3
+  //                                               -> bit 11 of +0x10 (0x800)
+  // Both are separate ledger units and are NOT ported here — cited only as
+  // the evidence for the bit numbering.
+  //
+  // RETURN TYPE — there is no `sete`; the machine narrows with `andb` then
+  // `shrb`, leaving the SHIFTED BIT in %al. Following the convention this
+  // port already uses (a `sete`-terminated predicate becomes `boolean`, e.g.
+  // HGLimits::isfragment @0xa7973; an and/shift/cmov-terminated one stays an
+  // integer, e.g. HGFormatUtils::toHGGLContextID @0xa1c08), this returns a
+  // `number` that is 0 or 1.
+  //
+  // FRONTIER CALLEES: zero. One byte load, one mask, one shift —
+  // `depgraph.py deps __ZNK6HGNode12SupportsGLSLEv` reports nothing (0
+  // in-scope callees, 0 externs, 0 indirect). Integer only.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * `HGNode::SupportsGLSL() const` — @Helium 0x1221a0
+   * (__ZNK6HGNode12SupportsGLSLEv).
+   *
+   * Returns bit 1 of the byte at +0x11 — i.e. the 0x200 bit of the
+   * `renderPageStrategy` u32 at +0x10 — as a 0/1 integer. Both the
+   * constructor @0x11bc3b and `Init` @0x11baa4 store 0x200 there, so this
+   * reports 1 on a freshly constructed node.
+   *
+   * Faithful transcription:
+   *   0x1221a4  movzbl 0x11(%rdi), %eax
+   *   0x1221a8  andb   $0x2, %al
+   *   0x1221aa  shrb   %al
+   *
+   * No callees, no externs, no indirect calls; the `const` qualifier matches
+   * the `__ZNK...` mangling and the body only reads.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZNK6HGNode12SupportsGLSLEv.s
+   */
+  SupportsGLSL(): number {
+    // @Helium 0x1221a4: movzbl 0x11(%rdi), %eax — the BYTE at +0x11 is byte 1
+    //   of the u32 modelled here as renderPageStrategy (+0x10).
+    const byteAt0x11 = ((this.renderPageStrategy >>> 8) & 0xff) >>> 0;
+    // @Helium 0x1221a8: andb $0x2, %al
+    const masked = byteAt0x11 & 0x2;
+    // @Helium 0x1221aa: shrb %al  (implicit shift count of 1)
+    return masked >>> 1;
+  }
+
+  // ---------------------------------------------------------------------------
+  // UNIT: HGNode::SupportsMetal() const                        @Helium 0x1221b0
+  //   __ZNK6HGNode13SupportsMetalEv
+  //
+  // re/disasm: raw-port/re/disasm/Helium.__ZNK6HGNode13SupportsMetalEv.s (9 lines)
+  //
+  // FULL DISASM (6 real insns @0x1221b0..0x1221be; 0x1221bf is padding):
+  //   0x1221b0  pushq  %rbp
+  //   0x1221b1  movq   %rsp, %rbp
+  //   0x1221b4  movzbl 0x11(%rdi), %eax   ; al = *(u8*)(this + 0x11)
+  //   0x1221b8  andb   $0x4, %al          ; al &= 0x04
+  //   0x1221ba  shrb   $0x2, %al          ; al >>= 2
+  //   0x1221bd  popq   %rbp
+  //   0x1221be  retq
+  //   0x1221bf  nop                       ; padding, not code
+  //
+  // Byte-for-byte the same shape as `SupportsGLSL` @0x1221a0 immediately
+  // above — same field, next bit up. The BYTE at +0x11 is byte 1 of the u32
+  // `renderPageStrategy` at +0x10, so the 0x04 mask selects bit 10 of that
+  // u32, i.e. the 0x400 bit.
+  //
+  // DEFAULT VALUE — both HGNode::HGNode @0x11bc3b and HGNode::Init @0x11baa4
+  // store exactly `$0x200` into +0x10, and 0x200 & 0x400 == 0. So unlike
+  // `SupportsGLSL` (which reads the one bit those stores DO set), a
+  // default-constructed HGNode reports SupportsMetal() == 0; the capability
+  // has to be turned on elsewhere. That contrast between two otherwise
+  // identical accessors reading the same initialised field is what pins the
+  // bit numbering.
+  //
+  // The third member of the run is `SupportsSWAIR` @0x1221c0
+  // (`andb $0x8 ; shrb $0x3` -> bit 11 / 0x800) — its own ledger unit, NOT
+  // ported here, cited only to complete the bit map.
+  //
+  // RETURN TYPE — no `sete`; the machine leaves the shifted bit in %al, so
+  // this returns a `number` that is 0 or 1, matching `SupportsGLSL` above and
+  // the convention already used in this port.
+  //
+  // FRONTIER CALLEES: zero. One byte load, one mask, one shift —
+  // `depgraph.py deps __ZNK6HGNode13SupportsMetalEv` reports nothing (0
+  // in-scope callees, 0 externs, 0 indirect). Integer only.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * `HGNode::SupportsMetal() const` — @Helium 0x1221b0
+   * (__ZNK6HGNode13SupportsMetalEv).
+   *
+   * Returns bit 2 of the byte at +0x11 — i.e. the 0x400 bit of the
+   * `renderPageStrategy` u32 at +0x10 — as a 0/1 integer. The constructor
+   * @0x11bc3b and `Init` @0x11baa4 both store 0x200 there, which does NOT
+   * include this bit, so a freshly constructed node reports 0.
+   *
+   * Faithful transcription:
+   *   0x1221b4  movzbl 0x11(%rdi), %eax
+   *   0x1221b8  andb   $0x4, %al
+   *   0x1221ba  shrb   $0x2, %al
+   *
+   * No callees, no externs, no indirect calls; the `const` qualifier matches
+   * the `__ZNK...` mangling and the body only reads.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZNK6HGNode13SupportsMetalEv.s
+   */
+  SupportsMetal(): number {
+    // @Helium 0x1221b4: movzbl 0x11(%rdi), %eax — the BYTE at +0x11 is byte 1
+    //   of the u32 modelled here as renderPageStrategy (+0x10).
+    const byteAt0x11 = ((this.renderPageStrategy >>> 8) & 0xff) >>> 0;
+    // @Helium 0x1221b8: andb $0x4, %al
+    const masked = byteAt0x11 & 0x4;
+    // @Helium 0x1221ba: shrb $0x2, %al
+    return masked >>> 2;
+  }
+
+  // ---------------------------------------------------------------------------
+  // `DisableInplaceHardwareBlending` @Helium 0x122100 — DECODE NOTES
+  //
+  // The whole body is one byte-wide store:
+  //
+  //   0x122100  pushq %rbp                ; frame setup (no TS counterpart)
+  //   0x122101  movq  %rsp, %rbp          ; frame setup (no TS counterpart)
+  //   0x122104  movb  $0x0, 0x14c(%rdi)   ; this->field_14c = 0  (ONE byte)
+  //   0x12210b  popq  %rbp                ; frame teardown
+  //   0x12210c  retq
+  //   0x12210d  nopl  (%rax)              ; alignment padding, not executed
+  //
+  // WIDTH MATTERS HERE, and the byte encoding is what settles it: the seven
+  // bytes are `c6 87 4c 01 00 00 00` — `c6` is MOV r/m8, imm8 (modrm `87` =
+  // [rdi]+disp32, disp32 `4c 01 00 00` = 0x14c, imm8 `00`), so exactly ONE byte
+  // at +0x14c is written. It is NOT a u32 store: the neighbours are `field_148`
+  // (i32, the ctor writes -1 @0x11bbe3) and `field_150` (u64, @0x11bbf4), and a
+  // 4-byte store here would clobber 0x14d..0x14f. Confirmed live — see ORACLE.
+  //
+  // WHAT +0x14c IS. The landed layout above already records `0x14c: u8` and the
+  // ctor's `movb $0x0, 0x14c(%rbx)` @0x11bbed; this unit is what NAMES it: the
+  // in-place hardware-blending ENABLE FLAG. Its siblings, each its own ledger
+  // unit and NOT ported here, confirm the grouping:
+  //   0x122110  SetInPlaceHardwareBlendingInfo(HGBlendingInfo const&)
+  //             — two `movups` writing 0x150..0x170
+  //   0x122130  GetInPlaceHardwareBlendingInfo() const — `leaq 0x150(%rdi)`
+  //   0x122140  SetInPlaceHardwareBlendingColor(float const vector[4]&)
+  // So the flag at +0x14c gates the blending-info block that starts at +0x150.
+  // The field KEEPS its landed name `field_14c`: renaming a landed declaration
+  // is exactly what G6 add-only forbids, and the meaning belongs in this
+  // comment, not in a rename that would break every other citation of it.
+  //
+  // FRONTIER CALLEES: zero. One store — `depgraph.py deps
+  // __ZN6HGNode30DisableInplaceHardwareBlendingEv` reports nothing (0 in-scope
+  // callees, 0 externs, 0 indirect).
+  //
+  // Source disassembly:
+  //   raw-port/re/disasm/Helium.__ZN6HGNode30DisableInplaceHardwareBlendingEv.s
+  //
+  // ORACLE — verified by CALLING the live function:
+  //   raw-port/re/oracle/HGNode_DisableInplaceHardwareBlending_oracle.py
+  // A MEMORY-EFFECT differential (the body has no return value): poison a
+  // 0x200-byte arena, call the real Helium function, and diff the arena against
+  // what this port's model would have written. Run under
+  // `arch -x86_64 /usr/bin/python3` so the process executes the x86_64 slice
+  // this transcription came from. Results (2026-08-11):
+  //   * dlsym cross-check PASS — the symbol is exported (`nm` `T`), and dlsym
+  //     and `slide + 0x122100` resolve to the SAME address, so the
+  //     address-based call cannot have landed on the neighbour 16 bytes later.
+  //   * byte self-check PASS — `55 48 89 e5 c6 87 4c 01 00 00 00 5d c3`; the
+  //     disp32 reads 0x14c and the imm8 reads 0x00.
+  //   * 64 trials over varying poison fills: 0 divergences, and the set of
+  //     modified bytes is `[0x14c]` in EVERY trial — 511 of 512 bytes untouched.
+  //   * negative controls, all live: store-at-0x148 64/64, store-at-0x150
+  //     64/64, store-1-instead-of-0 64/64, u32-instead-of-u8 64/64,
+  //     do-nothing 64/64.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * `HGNode::DisableInplaceHardwareBlending()` — @Helium 0x122100
+   * (__ZN6HGNode30DisableInplaceHardwareBlendingEv).
+   *
+   * Clears the in-place hardware-blending flag: one byte-wide store of 0 to
+   * `field_14c` (+0x14c). Nothing is read, nothing is returned, and no other
+   * byte of the object is touched (verified live — see the decode notes above).
+   *
+   * Faithful transcription:
+   *   0x122104  movb $0x0, 0x14c(%rdi)
+   */
+  DisableInplaceHardwareBlending(): void {
+    // @Helium 0x122104: movb $0x0, 0x14c(%rdi) — a ONE-byte store of zero into
+    // the u8 at +0x14c; the u64 at +0x150 and the i32 at +0x148 are untouched.
+    this.field_14c = 0;
+  }
+
   // NOTE: the vtable slot *0x78 for HGNode is HGNode::SetInput @0x11c5f0,
   // and *0x80 is HGNode::GetInput @0x11c8b0. Subclasses that inherit
   // HGNode's default behavior get exactly the methods above.

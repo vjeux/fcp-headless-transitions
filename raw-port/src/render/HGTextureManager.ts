@@ -329,3 +329,314 @@ export class TextureInfo {
     this.f39 = 0;
   }
 }
+
+// -----------------------------------------------------------------------------
+// HGTextureManager::PostTextureDeleteEventList — the deferred texture-delete
+// queue nested inside HGTextureManager.
+// -----------------------------------------------------------------------------
+// SYMBOL PORTED HERE
+//   HGTextureManager::PostTextureDeleteEventList::popEvent()  @Helium 0x48090
+//   __ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv
+//   re/disasm: raw-port/re/disasm/
+//     Helium.__ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv.s
+//
+// FULL DISASM (9 lines, @0x48090..@0x480a6)
+//   __ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv:
+//     0x48090  pushq %rbp
+//     0x48091  movq  %rsp, %rbp
+//     0x48094  movq  0x48(%rdi), %rcx        ; rcx = this->__end_   (+0x48)
+//     0x48098  movq  -0x8(%rcx), %rax        ; rax = rcx[-1]        (the last void*)
+//     0x4809c  addq  $-0x8, %rcx             ; rcx -= one 8-byte element
+//     0x480a0  movq  %rcx, 0x48(%rdi)        ; this->__end_ = rcx
+//     0x480a4  popq  %rbp
+//     0x480a5  retq
+//     0x480a6  nopw  %cs:(%rax,%rax)         ; alignment padding
+//
+// LAYOUT — recovered from the sibling methods, NOT guessed:
+//   +0x00  pthread_mutex_t (0x40 bytes)
+//          The constructor @0x47f50 calls `_pthread_mutex_init(%rdi, 0)` @0x47f72
+//          with %rdi still holding `this`, so the mutex sits at offset 0 and the
+//          next member starts at +0x40 — i.e. it occupies exactly 0x40 bytes,
+//          which is sizeof(pthread_mutex_t) on macOS x86_64.
+//   +0x40  void** __begin_
+//   +0x48  void** __end_
+//   +0x50  void** __end_cap_
+//          The classic libc++ `std::vector<void*>` triple:
+//            * ctor @0x47f64 `movups %xmm0, 0x40(%rdi)` zeroes +0x40/+0x48 and
+//              @0x47f68 `movq $0x0, 0x50(%rdi)` zeroes +0x50 — three null pointers.
+//            * `hasEvent()` @0x48070 is `__begin_ != __end_`
+//              (`movq 0x40(%rdi),%rax ; cmpq 0x48(%rdi),%rax ; setne %al`).
+//            * `addEvent(void*)` @0x42b20 is push_back: compare __end_ (+0x48)
+//              against __end_cap_ (+0x50) @0x42b3c, store on the fast path, else
+//              grow via `__Znwm` @0x42bb1 with libc++'s exact
+//              `max(2*capacity, size+1)` / `0x1fffffffffffffff` overflow guard.
+//            * the ctor's unwind path @0x47f85 `operator delete`s the block at
+//              (%r15) = +0x40 — i.e. __begin_ owns the allocation.
+//
+// FRONTIER CALLEES: none. popEvent has no `callq` at all — two loads, one store,
+// one pointer decrement. No externs, no indirect/virtual call.
+
+/**
+ * The element type of `PostTextureDeleteEventList`'s vector: the `void*` that
+ * `addEvent(void*)` (`__ZN16HGTextureManager26PostTextureDeleteEventList8addEventEPv`
+ * @Helium 0x42b20) stores verbatim @0x42b41 (`movq %rsi, (%r14)`) and that
+ * `popEvent` hands back untouched in %rax @0x48098.
+ *
+ * The binary never dereferences it anywhere in this class, so the port keeps it
+ * opaque rather than inventing a shape for it.
+ */
+export type PostTextureDeleteEvent = unknown;
+
+/**
+ * `pthread_mutex_t` at `PostTextureDeleteEventList+0x00` — an out-of-scope
+ * libSystem type. `lock()` @Helium 0x42b10 and `unlock()` @Helium 0x42c30 are
+ * its only users, and both are separate ledger units; `popEvent` never touches
+ * it. Modelled as an opaque handle so the 0x40-byte member the constructor
+ * initialises (`_pthread_mutex_init` @stub 0x3c5564, called @0x47f72) is
+ * represented rather than silently dropped from the layout.
+ */
+export interface PthreadMutexT {
+  readonly __pthreadMutexT: unique symbol;
+}
+
+/**
+ * `HGTextureManager::PostTextureDeleteEventList` — a mutex-guarded LIFO of
+ * `void*` delete events, held as a libc++ `std::vector<void*>` at +0x40.
+ *
+ * Only `popEvent()` is transcribed in this ledger unit; `lock`, `unlock`,
+ * `addEvent`, `hasEvent`, the constructors and the destructors are their own
+ * units. The member layout above is nonetheless pinned by those siblings'
+ * disassembly (see the LAYOUT block), so no offset here is a guess.
+ *
+ * @Helium 0x47f50 (`__ZN16HGTextureManager26PostTextureDeleteEventListC2Ev`,
+ * the constructor the layout is recovered from)
+ */
+export class PostTextureDeleteEventList {
+  /**
+   * @Helium offset +0x00 — the `pthread_mutex_t` guarding the vector, zero-arg
+   * initialised @0x47f72 by `_pthread_mutex_init(this, nullptr)`. Untouched by
+   * `popEvent`; `null` models the pre-`pthread_mutex_init` state.
+   */
+  mutex_at_0x00: PthreadMutexT | null = null;
+
+  /**
+   * The heap block that `__begin_`/`__end_`/`__end_cap_` point into, one entry
+   * per 8-byte `void*` slot. In the binary this is the single allocation made by
+   * `operator new` @0x42bb1 inside `addEvent`'s grow path and freed by
+   * `operator delete` (the ctor's unwind path @0x47f91 and the destructor
+   * @0x47ff0); the three members below are byte offsets into it, exactly as the
+   * machine holds byte pointers into it.
+   *
+   * @Helium 0x42bb1 (the `__Znwm` that creates the block)
+   */
+  storage: Array<PostTextureDeleteEvent> = [];
+
+  /**
+   * @Helium offset +0x40 — libc++ `__begin_`, as a BYTE offset into `storage`.
+   * Zeroed by the constructor @0x47f64 (`movups %xmm0, 0x40(%rdi)`), compared
+   * against `__end_` by `hasEvent` @0x48074. `popEvent` never reads it.
+   */
+  begin_at_0x40 = 0;
+
+  /**
+   * @Helium offset +0x48 — libc++ `__end_` (one past the last live element), as
+   * a BYTE offset into `storage`. Zeroed by the constructor @0x47f64, advanced
+   * by 8 per `addEvent` @0x42b44, and decremented by 8 by `popEvent` @0x4809c.
+   * This is the only field `popEvent` writes.
+   */
+  end_at_0x48 = 0;
+
+  /**
+   * @Helium offset +0x50 — libc++ `__end_cap_` (one past the last allocated
+   * slot), as a BYTE offset into `storage`. Zeroed by the constructor @0x47f68
+   * (`movq $0x0, 0x50(%rdi)`) and read by `addEvent`'s capacity check @0x42b38.
+   * `popEvent` never touches it — a pop does not shrink the allocation.
+   */
+  endCap_at_0x50 = 0;
+
+  /**
+   * `HGTextureManager::PostTextureDeleteEventList::popEvent()` — @Helium 0x48090
+   * (`__ZN16HGTextureManager26PostTextureDeleteEventList8popEventEv`).
+   *
+   * Faithful line-for-line transcription of the 9-line disassembly quoted above:
+   * read `__end_`, load the element just below it, move `__end_` down by one
+   * 8-byte slot, and return that element. This is `back()` followed by
+   * `pop_back()` fused into one function — legal for `void*` because the element
+   * type is trivially destructible, so libc++ emits no destructor call and the
+   * whole body is two loads, a subtraction and a store.
+   *
+   * NOT thread-safe on its own: the function contains no `callq`, so it never
+   * takes the `pthread_mutex_t` at +0x00. Callers are expected to bracket it
+   * with `lock()` @0x42b10 / `unlock()` @0x42c30 themselves.
+   *
+   * NOT bounds-checked: on an empty list (`__begin_ == __end_`) the machine
+   * still executes `movq -0x8(%rcx), %rax` and reads the 8 bytes below the
+   * buffer, then leaves `__end_` one slot below `__begin_`. We do NOT insert a
+   * guard the disasm doesn't have (PORTING_SPEC Rule 1); the TS mirror reads the
+   * out-of-range index exactly as the binary reads out-of-range memory.
+   *
+   * @0xADDR Helium 0x48090
+   */
+  popEvent(): PostTextureDeleteEvent {
+    // @0x48094  movq 0x48(%rdi), %rcx      ; rcx = this->__end_
+    let rcx = this.end_at_0x48;
+    // @0x48098  movq -0x8(%rcx), %rax      ; rax = *(void**)(rcx - 8)
+    const rax = this.storage[(rcx - 0x8) >> 3];
+    // @0x4809c  addq $-0x8, %rcx           ; rcx -= 8 (one element)
+    rcx = rcx + -0x8;
+    // @0x480a0  movq %rcx, 0x48(%rdi)      ; this->__end_ = rcx
+    this.end_at_0x48 = rcx;
+    // @0x480a4  popq %rbp
+    // @0x480a5  retq                       ; return rax
+    return rax;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HGTextureManager (the OUTER class) — added @Helium 0x4b320
+// ─────────────────────────────────────────────────────────────────────────────
+// Everything above this line models the NESTED value types (`TextureUsage`,
+// `TextureInfo`, `PostTextureDeleteEventList`). The outer class itself had no
+// members ported yet; `storageRecyclingPolicy` is the first, so the class is
+// introduced here rather than in a new file — the file is already named after it
+// (PORTING_SPEC: one FCP class, one file named after the class).
+//
+// Symbol added:
+//   @Helium 0x4b320  HGTextureManager::storageRecyclingPolicy(
+//                        HGTextureManager::TextureStorageRecyclingPolicy)
+//     __ZN16HGTextureManager22storageRecyclingPolicyENS_29TextureStorageRecyclingPolicyE
+//
+// Source disassembly (re-derived with
+// `raw-port/tools/disasm.sh --sym __ZN16HGTextureManager22storageRecyclingPolicyENS_29TextureStorageRecyclingPolicyE Helium`):
+//   raw-port/re/disasm/Helium.__ZN16HGTextureManager22storageRecyclingPolicyENS_29TextureStorageRecyclingPolicyE.s
+//
+// FULL DISASM — the whole function
+//   0x4b320  pushq %rbp                 ; frame setup (no TS counterpart)
+//   0x4b321  movq  %rsp, %rbp
+//   0x4b324  movl  %esi, 0xa8(%rdi)     ; this->storageRecyclingPolicy = arg (u32)
+//   0x4b32a  popq  %rbp
+//   0x4b32b  retq
+//   0x4b32c  nopl  (%rax)               ; padding, not executed
+//
+// A pure setter: one 32-bit store, no validation, no branch, no callee
+// (`depgraph.py deps` lists nothing). `movl` fixes the width at 32 bits, which
+// is mirrored with `>>> 0`.
+
+/**
+ * `HGTextureManager::TextureStorageRecyclingPolicy` — the enum tag stored at
+ * +0xa8. No decoded instruction pins a single enumerator: the setter
+ * @0x4b324 passes `%esi` straight into the slot with no mask, no range check and
+ * no branch, and the export table has no matching getter to compare against
+ * (the only neighbour is `recycleClientStorageTextures(bool)` @0x4b330, a
+ * different field). Modelled as an opaque u32 until a ctor or a comparison site
+ * reveals the values — the same treatment the landed HGRenderJob.ts gives its
+ * own enum tags.
+ */
+export type TextureStorageRecyclingPolicy = number;
+
+/**
+ * `HGTextureManager` — Helium's texture manager. Only the ONE field this unit
+ * writes is modelled; the rest of the (large) layout is undecoded and
+ * deliberately absent (PORTING_SPEC Rule 5).
+ *
+ * @Helium 0x4b320
+ */
+export class HGTextureManager {
+  /**
+   * @Helium HGTextureManager@0xa8 — the u32 `TextureStorageRecyclingPolicy`
+   * enum tag, written by `storageRecyclingPolicy` @0x4b324 via a single
+   * `movl %esi, 0xa8(%rdi)`. Measured on the live setter: the 4 bytes at +0xa8
+   * take the full 32-bit argument and NO other byte of a 0x200-byte object
+   * changes. Zero-initialised until a ctor is transcribed to reveal the true
+   * default.
+   */
+  storageRecyclingPolicy_at_0xa8: TextureStorageRecyclingPolicy = 0; // @Helium HGTextureManager@0xa8
+
+  /**
+   * @Helium HGTextureManager@0xac — a ONE-BYTE flag, written by
+   * `recycleClientStorageTextures` @0x4b334 via a single `movb %sil, 0xac(%rdi)`.
+   * It sits immediately after the u32 policy slot at +0xa8 (0xa8 + 4 = 0xac), and the two
+   * really are independent fields: this setter's own negative control below, and the
+   * already-landed `storageRecyclingPolicy` note that writing +0xac instead of +0xa8 was
+   * wrong in 208/208 cases, prove it from both sides. Measured on the live setter: the byte
+   * at +0xac takes the argument and NO other byte of a 0x200-byte object changes.
+   * Zero-initialised (`false`) until a ctor is transcribed to reveal the true default.
+   */
+  recycleClientStorageTextures_at_0xac: boolean = false; // @Helium HGTextureManager@0xac
+
+  /**
+   * `HGTextureManager::storageRecyclingPolicy(HGTextureManager::TextureStorageRecyclingPolicy)`
+   *   — @Helium 0x4b320
+   *     __ZN16HGTextureManager22storageRecyclingPolicyENS_29TextureStorageRecyclingPolicyE
+   *
+   * Stores the policy enum into the u32 slot at `this+0xa8`. The whole body is
+   * one `movl` between a frame prologue and a `retq` — no validation, no
+   * branching, no callee. Note this is a SETTER despite the getter-style name
+   * (C++ overloading by argument list); the export table has no zero-argument
+   * counterpart.
+   *
+   * ORACLE: verified against the live Helium binary
+   * (raw-port/re/oracle/HGTextureManager_storageRecyclingPolicy_oracle.py). The
+   * symbol is EXPORTED (`nm -arch x86_64` type `T` @0x4b320) and is called under
+   * `arch -x86_64 /usr/bin/python3` — the port is transcribed from the x86_64
+   * slice — on a 0x200-byte object pre-filled with 0xEE. 208 cases (0..3,
+   * INT_MAX, 0x80000000, 0xffffffff, 0xdeadbeef and 200 random u32s): the dword
+   * at +0xa8 held the exact argument in 208/208, and 0 cases changed any other
+   * byte of the object.
+   * NEGATIVE CONTROLS (measured, same 208 cases): a 16-bit store -> 208 wrong
+   * (the upper half would have kept the poison); writing +0xac instead -> 208
+   * wrong; writing +0xa4 instead -> 208 wrong.
+   *
+   * @param policy — the enum value (SysV %esi, u32).
+   */
+  storageRecyclingPolicy(policy: TextureStorageRecyclingPolicy): void {
+    // @0x4b324 — movl %esi, 0xa8(%rdi) : a 32-bit store. `>>> 0` models the
+    //   truncation, so a negative or oversized JS number stores the same bit
+    //   pattern the machine would.
+    this.storageRecyclingPolicy_at_0xa8 = policy >>> 0;
+  }
+
+  /**
+   * `HGTextureManager::recycleClientStorageTextures(bool)` — @Helium 0x4b330
+   *   __ZN16HGTextureManager28recycleClientStorageTexturesEb
+   *
+   * Stores the flag into the one-byte slot at `this+0xac`. The whole body is a single `movb`
+   * between a frame prologue and a `retq` — no validation, no branching, no callee
+   * (`depgraph.py deps` lists nothing). Like its neighbour `storageRecyclingPolicy` above,
+   * this is a SETTER despite the getter-style name; the export table has no zero-argument
+   * counterpart, and the `Eb` mangling makes the single `bool` parameter explicit.
+   *
+   * FULL DISASM (raw-port/re/disasm/
+   * Helium.__ZN16HGTextureManager28recycleClientStorageTexturesEb.s):
+   *   0x4b330  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x4b331  movq  %rsp, %rbp
+   *   0x4b334  movb  %sil, 0xac(%rdi)     ; this->recycleClientStorageTextures = (byte)arg
+   *   0x4b33b  popq  %rbp
+   *   0x4b33c  retq
+   *   0x4b33d  nopl  (%rax)               ; padding, not executed
+   *
+   * `movb` fixes the width at ONE byte — this is the detail that matters, because the u32
+   * policy slot at +0xa8 ends exactly where this field begins, so a 32-bit store here would
+   * silently corrupt the neighbour (and a 32-bit store into +0xa8 would corrupt this flag).
+   *
+   * ORACLE: raw-port/re/oracle/HGTextureManager_recycleClientStorage_oracle.py. The symbol is
+   * EXPORTED (`nm -arch x86_64` type `T`), called at x86_64 vmaddr + the loaded image's slide
+   * under `arch -x86_64 /usr/bin/python3` (the port cites x86_64 offsets; calling the arm64
+   * slice fails silently toward VERIFIED — OPS_LOG). On a 0x200-byte object pre-filled with
+   * 0xAA, for ALL 256 possible argument bytes: the byte at +0xac holds the argument in
+   * 256/256, and NO other byte of the object changes in any case — which is what rules out a
+   * wider store. A further 3 cases call `storageRecyclingPolicy` and this setter in sequence
+   * and confirm neither disturbs the other's slot: 0/3 interfered.
+   *
+   * Typed `boolean` per the `b` mangling and the landed `PCImage::setIsPremultiplied`
+   * @ProCore 0x4af6c precedent for the identical `movb %sil, off(%rdi)` shape; the measured
+   * full-byte behaviour is recorded above so a future getter port can choose with evidence.
+   *
+   * @param recycle — the `bool` argument (SysV %rsi; only its low byte %sil is stored).
+   */
+  recycleClientStorageTextures(recycle: boolean): void {
+    // @0x4b334 — movb %sil, 0xac(%rdi) : a ONE-byte store, verified live to leave every other
+    //   byte of the object — including the u32 policy slot at +0xa8 — untouched.
+    this.recycleClientStorageTextures_at_0xac = recycle;
+  }
+}

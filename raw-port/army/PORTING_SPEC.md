@@ -1,5 +1,18 @@
 # Porting Spec — the contract every army agent obeys
 
+## Nested-class file naming: `Outer__Inner` (double underscore)
+
+One C++ class = one `.ts` file, and a NESTED class joins its outer names with a **double**
+underscore: `OZOpticalFlow::Private::CacheFileHeader` -> `OZOpticalFlow__Private__CacheFileHeader.ts`
+(precedent: `PCBezierNamespace__SampledContour.ts`).
+
+This is not cosmetic. Two workers filed the same class under `_` and `__` and **both landed**, so
+main now carries two files modelling one C++ class with two struct layouts that can silently drift —
+and they already differ: each copy holds addresses the other lacks. `check_duplicate_classes.py`
+normalizes underscore runs so the variant is rejected, but the convention is what prevents the work
+being done twice in the first place.
+
+
 This is the discipline that keeps the port FAITHFUL. It is derived from real mistakes already made
 and corrected on this project (a hand-written Newton "bezierSegment" and a paraphrased interp
 string-enum were both DELETED because they were rewrites, not transcriptions).

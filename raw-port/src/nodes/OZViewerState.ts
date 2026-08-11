@@ -42,9 +42,29 @@
 //   * __ZN13OZViewerState13getResolutionEv
 //       — OZViewerState::getResolution() @Ozone 0x36e2e0
 //         (raw-port/re/disasm/__ZN13OZViewerState13getResolutionEv.s — 23 lines)
+//   * __ZN13OZViewerState13getResolutionEPdS0_
+//       — OZViewerState::getResolution(double*, double*) @Ozone 0x36e270
+//         (raw-port/re/disasm/__ZN13OZViewerState13getResolutionEPdS0_.s — 19 lines)
+//         The DOUBLE out-parameter OVERLOAD of the sret fp32 getResolution()
+//         above: same field, same branch shape, different constants and a
+//         different ABI. Exposed as `getResolutionInto` because JS has no
+//         overloading — see its doc comment.
 //   * __ZNK13OZViewerState10isSnappingEv
 //       — OZViewerState::isSnapping() const @Ozone 0x36e670
+//   * __ZN13OZViewerState23getFullscreenViewOffsetEv
+//       — OZViewerState::getFullscreenViewOffset() @Ozone 0x36e650
+//         (raw-port/re/disasm/__ZN13OZViewerState23getFullscreenViewOffsetEv.s
+//          — 8 lines)
 //         (raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s — 8 lines)
+//   * __ZN13OZViewerState23setFullscreenViewOffsetERK9PCVector2IiE
+//       — OZViewerState::setFullscreenViewOffset(PCVector2<int> const&)
+//         @Ozone 0x36e230
+//         (raw-port/re/disasm/
+//          __ZN13OZViewerState23setFullscreenViewOffsetERK9PCVector2IiE.s — 7 lines)
+//   * __ZN13OZViewerState15setMirroringHMDEb
+//       — OZViewerState::setMirroringHMD(bool) @Ozone 0x36e5a0
+//         (raw-port/re/disasm/__ZN13OZViewerState15setMirroringHMDEb.s — 7 lines)
+//         one `movb %sil, 0x102(%rdi)` — u8 flag field @+0x102.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s)
@@ -77,6 +97,57 @@
 //   0x36e2d9  retq
 //   0x36e2da  nopw    (%rax,%rax)                ; padding — no effect
 
+// -----------------------------------------------------------------------------
+// FULL DISASM (raw-port/re/disasm/__ZN13OZViewerState23getFullscreenViewOffsetEv.s)
+// -----------------------------------------------------------------------------
+//   0x36e650  pushq   %rbp                       ; frame prologue
+//   0x36e651  movq    %rsp, %rbp
+//   0x36e654  movq    %rdi, %rax                 ; return the sret pointer in %rax
+//                                                ; (System-V: a MEMORY-class return
+//                                                ;  makes %rdi the hidden out-param
+//                                                ;  and %rsi the real `this`)
+//   0x36e657  movq    0x104(%rsi), %rcx          ; rcx = *(u64*)(this + 0x104)
+//                                                ; ONE unaligned 8-byte read covering
+//                                                ; both int32 lanes at +0x104/+0x108
+//   0x36e65e  movq    %rcx, (%rdi)               ; store those 8 bytes into the
+//                                                ; caller's return slot
+//   0x36e661  popq    %rbp                       ; frame epilogue
+//   0x36e662  retq
+//   0x36e663  nopw    %cs:(%rax,%rax)            ; padding — no effect
+//
+// The hidden-sret calling convention is what identifies the return type as a
+// BY-VALUE class rather than a plain 8-byte scalar: an 8-byte POD would come
+// back in %rax directly. The type itself is named by the matching setter,
+// `OZViewerState::setFullscreenViewOffset(PCVector2<int> const&)`
+// (__ZN13OZViewerState23setFullscreenViewOffsetERK9PCVector2IiE) @Ozone 0x36e230,
+// whose body is the exact mirror image of this getter:
+//   0x36e234  movq (%rsi), %rax        ; read the 8 bytes of the PCVector2<int>
+//   0x36e237  movq %rax, 0x104(%rdi)   ; write them to this + 0x104
+// so `PCVector2<int>` is 8 bytes and lives at OZViewerState+0x104.
+
+/**
+ * `PCVector2<int>` — the 8-byte, two-lane integer vector that
+ * `getFullscreenViewOffset()` returns and
+ * `setFullscreenViewOffset(PCVector2<int> const&)` @Ozone 0x36e230 accepts.
+ *
+ * Both accessors move the whole thing as a single `movq`, so the only facts the
+ * binary pins here are: 8 bytes total, and the class is non-trivial enough for
+ * the System-V ABI to give it MEMORY class (hence the sret pointer in %rdi).
+ * The two `int` lanes at +0x00 and +0x04 come from the `PCVector2IiE`
+ * mangling — `I i E` is the template argument `int`.
+ *
+ * `PCVector2` itself is a ProCore template with its own (not-yet-ported) ledger
+ * entries; this interface models only the storage the Ozone accessors touch.
+ *
+ * @0xADDR Ozone 0x36e657 (the 8-byte read) / 0x36e237 (the mirroring write)
+ */
+export interface PCVector2Int {
+  /** +0x00 (int32) — lane 0, the low half of the `movq` @Ozone 0x36e657. */
+  x: number;
+  /** +0x04 (int32) — lane 1, the high half of the same `movq`. */
+  y: number;
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // The class
 // ═════════════════════════════════════════════════════════════════════════
@@ -99,6 +170,19 @@ export class OZViewerState {
   dynamicResolution: number = 0; // u8 field @+0x24
 
   /**
+   * @Ozone +0x58 (u8) — the "render full view" flag, written by
+   * `setRenderFullView(bool)` @0x36e554 via `movb %sil, 0x58(%rdi)`.
+   *
+   * The single-BYTE store (`movb` of `%sil`, the low byte of the second
+   * integer argument register) is what fixes both the offset and the width:
+   * this is a C++ `bool`, one byte, and nothing adjacent is touched. Modelled
+   * as a `number` in [0, 255] so the exact byte the machine writes stays
+   * legible; no reader of this slot is ported yet, so nothing here interprets
+   * it further.
+   */
+  renderFullViewAt58: number = 0; // u8 field @+0x58
+
+  /**
    * @Ozone +0x20 (u32) — the resolution-mode discriminator read by
    * `getResolution()` @0x36e2e7 via `movl 0x20(%rsi), %esi`. A 32-bit
    * load whose value is compared against 1 and 2 to choose a resolution
@@ -118,6 +202,40 @@ export class OZViewerState {
   snappingFlags: number = 0; // u8 packed-bitfield @+0x3a
 
   /**
+   * @Ozone +0x34 (8-byte qword) — copied wholesale by
+   * `cloneSettings(OZViewerState const&)` @0x36dfc4 via a single
+   * `movq 0x34(%rsi),%rax ; movq %rax,0x34(%rdi)`. The `movq` copies the
+   * raw 8 bytes with no interpretation, so we preserve them as an opaque
+   * `bigint` (u64) to keep every bit exact. The internal semantics of this
+   * slot (whether it is a double, a pair of u32s, or a pointer) are OUT OF
+   * SCOPE until a method that READS a typed view of it is ported.
+   */
+  settingsQwordAt34: bigint = 0n; // opaque u64 @+0x34
+
+  /**
+   * @Ozone +0x3c (u8) — copied by `cloneSettings` @0x36dfcc via
+   * `movzbl 0x3c(%rsi),%eax ; movb %al,0x3c(%rdi)` (byte load, byte store).
+   * A single settings byte; its bit semantics are OUT OF SCOPE until a
+   * reader is ported. Modelled as a `number` in [0, 255].
+   */
+  settingsByteAt3c: number = 0; // u8 @+0x3c
+
+  /**
+   * @Ozone +0x3d (u8) — copied by `cloneSettings` @0x36dfd3 via
+   * `movzbl 0x3d(%rsi),%eax ; movb %al,0x3d(%rdi)`, directly adjacent to
+   * +0x3c. A second settings byte kept in the same clone set. Modelled as
+   * a `number` in [0, 255].
+   *
+   * NAMED by its writer: `setCompensateAspectRatio(bool)` @0x36e404 stores the
+   * incoming `bool` into exactly this slot (`movb %sil, 0x3d(%rdi)`), so the
+   * byte is the viewer's "compensate aspect ratio" flag. The field keeps its
+   * offset-based name because `cloneSettings` — the method that introduced it —
+   * treats it as an opaque settings byte, and renaming a landed field would
+   * churn its callers; the role is recorded here instead.
+   */
+  settingsByteAt3d: number = 0; // u8 @+0x3d  (a.k.a. compensateAspectRatio)
+
+  /**
    * @Ozone +0x38 (u32, packed display-flags word) — the 32-bit word read by
    * `isDisplay3DGrid()` @0x36e684 via `movl 0x38(%rdi), %eax`. That accessor
    * consumes only the two bits in mask 0xA000 (bit 13 = 0x2000, bit 15 =
@@ -126,6 +244,26 @@ export class OZViewerState {
    * ported). Modelled as a `number` interpreted as an unsigned 32-bit word.
    */
   displayFlags_at_0x38: number = 0; // u32 packed-bitfield @+0x38
+
+  /**
+   * @Ozone +0x102 (u8) — the "mirroring HMD" flag byte written by
+   * `setMirroringHMD(bool)` @0x36e5a4 via `movb %sil, 0x102(%rdi)`.
+   *
+   * The store is a plain 8-bit `movb` of the argument register's low byte
+   * (`%sil` = low byte of `%rsi`, the second System-V integer argument):
+   * the setter neither masks the value to 0/1 nor reads the field back, so
+   * this unit learns only that ONE byte lives at +0x102 and that it holds
+   * whatever byte the caller supplied. Modelled as a `number` in [0, 255]
+   * rather than a `boolean` so that fidelity is preserved — a C++ `bool`
+   * argument is 0 or 1 by ABI, but the instruction copies the byte
+   * verbatim, and the getter that reads it back is a separate ledger unit
+   * which may or may not mask it.
+   *
+   * This also pushes the known lower bound on `sizeof(OZViewerState)` to
+   * >= 0x103; the bytes between +0x3e and +0x102 remain UNDECODED and no
+   * field is invented for them (Rule 5).
+   */
+  mirroringHMD_at_0x102: number = 0; // u8 flag @+0x102
 
   /**
    * `OZViewerState::getDynamicResolution()` @Ozone 0x36e2d0
@@ -360,5 +498,418 @@ export class OZViewerState {
     // (flags & 0xC000) === 0xC000  ⇔  (~flags & 0xC000) === 0.
     const MASK_0xC000 = 0xc000; // @0x36e6a9 imm — bits 0x4000 | 0x8000
     return (this.displayFlags_at_0x38 & MASK_0xC000) === MASK_0xC000;
+  }
+
+  /**
+   * `OZViewerState::cloneSettings(OZViewerState const&)` @Ozone 0x36dfc0
+   *   — __ZN13OZViewerState13cloneSettingsERKS_
+   *
+   * Faithful line-for-line transcription of the 12-line disassembly. `%rdi`
+   * is `this` (the destination), `%rsi` is the `OZViewerState const&` source.
+   * The body copies THREE adjacent settings slots from src into this:
+   *   0x36dfc0  pushq  %rbp
+   *   0x36dfc1  movq   %rsp, %rbp
+   *   0x36dfc4  movq   0x34(%rsi), %rax     ; rax = src->+0x34 (8-byte qword)
+   *   0x36dfc8  movq   %rax, 0x34(%rdi)     ; this->+0x34 = rax
+   *   0x36dfcc  movzbl 0x3c(%rsi), %eax     ; eax = (u8) src->+0x3c
+   *   0x36dfd0  movb   %al, 0x3c(%rdi)      ; this->+0x3c = al
+   *   0x36dfd3  movzbl 0x3d(%rsi), %eax     ; eax = (u8) src->+0x3d
+   *   0x36dfd7  movb   %al, 0x3d(%rdi)      ; this->+0x3d = al
+   *   0x36dfda  popq   %rbp
+   *   0x36dfdb  retq
+   *   0x36dfdc  nopl   (%rax)               ; padding
+   *
+   * SEMANTICS: copy the "settings" sub-state (one 8-byte qword at +0x34 and
+   * two adjacent bytes at +0x3c, +0x3d) from another OZViewerState into this
+   * one. No return value; a pure field-to-field copy — no branches, no
+   * callees, no externs.
+   *
+   * Note the qword at +0x34 (bytes +0x34..+0x3b) and the bytes at +0x3c/+0x3d
+   * are contiguous but copied with distinct widths (one movq, two byte
+   * moves), so they are modelled as three separate fields to match exactly
+   * what the machine touches.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN13OZViewerState13cloneSettingsERKS_.s (12 lines)
+   */
+  cloneSettings(src: OZViewerState): void {
+    // @0x36dfc4..0x36dfc8  movq 0x34(%rsi),%rax ; movq %rax,0x34(%rdi)
+    //   Copy the raw 8-byte qword at +0x34. BigInt.asUintN(64,...) preserves
+    //   the exact 64-bit pattern the movq moves.
+    this.settingsQwordAt34 = BigInt.asUintN(64, src.settingsQwordAt34);
+    // @0x36dfcc..0x36dfd0  movzbl 0x3c(%rsi),%eax ; movb %al,0x3c(%rdi)
+    //   Copy the u8 at +0x3c (byte width preserved with & 0xff).
+    this.settingsByteAt3c = src.settingsByteAt3c & 0xff;
+    // @0x36dfd3..0x36dfd7  movzbl 0x3d(%rsi),%eax ; movb %al,0x3d(%rdi)
+    //   Copy the u8 at +0x3d.
+    this.settingsByteAt3d = src.settingsByteAt3d & 0xff;
+  }
+
+  /**
+   * `OZViewerState::setMirroringHMD(bool)` @Ozone 0x36e5a0
+   *   — __ZN13OZViewerState15setMirroringHMDEb
+   *
+   * Faithful line-for-line transcription of the 6-instruction body — a
+   * single-byte store, no read-back, no branch, no return value:
+   *
+   *   0x36e5a0  pushq  %rbp                     ; frame prologue
+   *   0x36e5a1  movq   %rsp, %rbp
+   *   0x36e5a4  movb   %sil, 0x102(%rdi)        ; *(u8*)(this + 0x102) = (u8)arg
+   *   0x36e5ab  popq   %rbp                     ; frame epilogue
+   *   0x36e5ac  retq                            ; void
+   *   0x36e5ad  nopl   (%rax)                   ; alignment padding
+   *
+   * System-V x86_64: `%rdi` = `this`, `%rsi` = the `bool` argument, and
+   * `%sil` is `%rsi`'s low byte. The `movb` writes exactly that byte to
+   * +0x102 — it is NOT masked to 0/1 and NOT sign/zero-extended, so the
+   * port stores `arg & 0xff` (the byte the machine copies) rather than
+   * normalising to a boolean.
+   *
+   * The parameter is typed `number` for the same reason: the mangled name
+   * says `b` (C++ `bool`, so callers pass 0 or 1), but the instruction
+   * copies whatever 8 bits arrive, and typing it `boolean` would silently
+   * normalise any other byte a caller could produce.
+   *
+   * Returns void — %rax is never written before `retq`.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — one store.
+   * Confirmed via `depgraph.py deps __ZN13OZViewerState15setMirroringHMDEb`
+   * (no dependencies reported).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN13OZViewerState15setMirroringHMDEb.s (7 lines)
+   */
+  setMirroringHMD(mirroringHMD: number): void {
+    // @0x36e5a0..0x36e5a1 — prologue (no TS-visible effect).
+    // @0x36e5a4           — movb %sil, 0x102(%rdi): store the argument's
+    //                       low byte into the u8 field at +0x102.
+    this.mirroringHMD_at_0x102 = mirroringHMD & 0xff;
+    // @0x36e5ab..0x36e5ac — epilogue + retq (no return value).
+  }
+
+  /**
+   * `OZViewerState::setResolutionMode(OZResolution mode)` @Ozone 0x36e260
+   *   — __ZN13OZViewerState17setResolutionModeE12OZResolution
+   *
+   * The setter for the SAME +0x20 field `getResolution()` @0x36e2e7 reads.
+   * A single 32-bit store; no clamping, no validation, no other field
+   * touched, returns void.
+   *
+   * FULL DISASM (4 real insns @0x36e260..0x36e268; 0x36e269 is padding):
+   *   0x36e260  pushq %rbp
+   *   0x36e261  movq  %rsp, %rbp
+   *   0x36e264  movl  %esi, 0x20(%rdi)   ; this->resolutionMode = mode
+   *   0x36e267  popq  %rbp
+   *   0x36e268  retq
+   *   0x36e269  nopl  (%rax)             ; padding, not code
+   *
+   * That the destination is exactly the field `getResolution()` consumes is
+   * what fixes the meaning of the argument: `getResolution()` @0x36e2ec
+   * compares that same u32 against 1 and 2 to pick 0.5f / 0.25f, defaulting
+   * to 1.0f — so `OZResolution` values 1 and 2 are half- and
+   * quarter-resolution and anything else is full-resolution. This method
+   * invents no policy of its own; it just writes the word.
+   *
+   * `movl` is a 32-bit store, so the argument is truncated to 32 bits —
+   * mirrored with `| 0`, matching the 32-bit `movl 0x20(%rsi), %esi` load on
+   * the getter side.
+   *
+   * Zero in-scope callees, zero externs, zero indirect calls — one store.
+   * (`depgraph.py deps __ZN13OZViewerState17setResolutionModeE12OZResolution`
+   * prints nothing; there is no `callq` in the body.)
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN13OZViewerState17setResolutionModeE12OZResolution.s
+   */
+  setResolutionMode(mode: number): void {
+    // @0x36e260..0x36e261 — prologue (no TS-visible effect).
+    // @0x36e264           — movl %esi, 0x20(%rdi): 32-bit store of the arg.
+    this.resolutionMode = mode | 0;
+    // @0x36e267..0x36e268 — epilogue + retq (void).
+  }
+
+  /**
+   * @Ozone +0x104 (int32) — lane 0 of the `PCVector2<int>` fullscreen view
+   * offset. Read by `getFullscreenViewOffset()` @0x36e657 and written by
+   * `setFullscreenViewOffset()` @0x36e237; both do it with a single unaligned
+   * 8-byte `movq` spanning this field and the one at +0x108. Note the offset is
+   * NOT 8-byte aligned (0x104 = 260), which is exactly what you expect from two
+   * `int`s packed at +0x104/+0x108 rather than one 64-bit member.
+   */
+  fullscreenViewOffsetX_at_0x104: number = 0; // int32 @+0x104
+
+  /**
+   * @Ozone +0x108 (int32) — lane 1 of the same `PCVector2<int>`. Covered by the
+   * upper half of the `movq 0x104(%rsi), %rcx` @0x36e657.
+   */
+  fullscreenViewOffsetY_at_0x108: number = 0; // int32 @+0x108
+
+  /**
+   * `OZViewerState::getFullscreenViewOffset()` — @Ozone 0x36e650
+   * (`__ZN13OZViewerState23getFullscreenViewOffsetEv`).
+   *
+   * Faithful line-for-line transcription of the 8-line disassembly quoted in
+   * the file header: copy the 8 bytes at `this + 0x104` into the caller's
+   * return slot and hand that slot back.
+   *
+   * The C++ signature returns `PCVector2<int>` BY VALUE, which the System-V ABI
+   * classifies as MEMORY — so the machine receives the destination in %rdi and
+   * the real `this` in %rsi, copies 8 bytes, and returns the destination
+   * pointer in %rax (`movq %rdi, %rax` @0x36e654). In TypeScript the caller does
+   * not pass storage, so the port returns a fresh object holding the same two
+   * lanes; that is the same value contract, with the ABI's out-param mechanics
+   * left to the ABI.
+   *
+   * Zero in-scope callees, zero externs, no branches — one 8-byte load, one
+   * 8-byte store.
+   *
+   * @0xADDR Ozone 0x36e650
+   */
+  getFullscreenViewOffset(): PCVector2Int {
+    // @0x36e650..0x36e651 — prologue (no TS-visible effect).
+    // @0x36e654           — movq %rdi, %rax: the sret slot is also the return
+    //                       value; in TS that slot is the object we build below.
+    // @0x36e657           — movq 0x104(%rsi), %rcx: ONE 8-byte read of both
+    //                       int32 lanes at +0x104 and +0x108.
+    // @0x36e65e           — movq %rcx, (%rdi): store both lanes into the slot.
+    // @0x36e661..0x36e662 — epilogue + retq.
+    return {
+      x: this.fullscreenViewOffsetX_at_0x104,
+      y: this.fullscreenViewOffsetY_at_0x108,
+    };
+  }
+
+  /**
+   * `OZViewerState::setRenderFullView(bool)` — @Ozone 0x36e550
+   * (__ZN13OZViewerState17setRenderFullViewEb).
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZN13OZViewerState17setRenderFullViewEb.s):
+   *
+   *   0x36e550  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x36e551  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x36e554  movb  %sil, 0x58(%rdi)     ; this->renderFullViewAt58 = arg
+   *   0x36e558  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x36e559  retq                       ; void return
+   *   0x36e55a  nopw  (%rax,%rax)          ; alignment padding, not executed
+   *
+   * A plain unsynchronized single-BYTE store and nothing else: no lock, no
+   * callees, no externs, no indirect/virtual dispatch, no validation of the
+   * incoming value, no return value, and no notification of any observer.
+   * `%sil` is the low byte of the second integer argument register — the
+   * `bool` parameter under the SysV AMD64 ABI — and `movb` writes exactly that
+   * one byte, leaving +0x59 and everything else untouched.
+   *
+   * The port stores 0/1 for a JS boolean, or the caller's raw low byte if a
+   * number is passed, mirroring what the register actually holds.
+   *
+   * @param renderFullView the new flag (`%sil`).
+   */
+  setRenderFullView(renderFullView: boolean | number): void {
+    // @0x36e554  movb %sil, 0x58(%rdi) — one byte, verbatim.
+    this.renderFullViewAt58 =
+      typeof renderFullView === "boolean"
+        ? renderFullView
+          ? 1
+          : 0
+        : renderFullView & 0xff;
+  }
+
+  /**
+   * `OZViewerState::setCompensateAspectRatio(bool)` — @Ozone 0x36e400
+   * (__ZN13OZViewerState24setCompensateAspectRatioEb).
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZN13OZViewerState24setCompensateAspectRatioEb.s):
+   *
+   *   0x36e400  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x36e401  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x36e404  movb  %sil, 0x3d(%rdi)     ; this->settingsByteAt3d = arg
+   *   0x36e408  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x36e409  retq                       ; void return
+   *   0x36e40a  nopw  (%rax,%rax)          ; alignment padding, not executed
+   *
+   * The same shape as the sibling `setRenderFullView(bool)` @0x36e554 — one
+   * unsynchronized `movb` of `%sil` (the SysV `bool` argument byte) and
+   * nothing else: no lock, no callees, no externs, no indirect/virtual
+   * dispatch, no validation, no return value.
+   *
+   * It writes an EXISTING modelled slot rather than a new one: +0x3d is the
+   * byte `cloneSettings` @0x36dfd3 copies (`movzbl 0x3d(%rsi),%eax ; movb
+   * %al,0x3d(%rdi)`), so this setter is what NAMES that clone-set byte as the
+   * compensate-aspect-ratio flag. Adjacent +0x3c is a different slot and stays
+   * untouched, exactly as the single-byte store implies.
+   *
+   * @param compensateAspectRatio the new flag (`%sil`).
+   */
+  setCompensateAspectRatio(compensateAspectRatio: boolean | number): void {
+    // @0x36e404  movb %sil, 0x3d(%rdi) — one byte, verbatim.
+    this.settingsByteAt3d =
+      typeof compensateAspectRatio === "boolean"
+        ? compensateAspectRatio
+          ? 1
+          : 0
+        : compensateAspectRatio & 0xff;
+  }
+
+  /**
+   * `OZViewerState::setFullscreenViewOffset(PCVector2<int> const&)`
+   *   @Ozone 0x36e230 — __ZN13OZViewerState23setFullscreenViewOffsetERK9PCVector2IiE
+   *
+   * FULL DISASM (7 lines — raw-port/re/disasm/
+   * __ZN13OZViewerState23setFullscreenViewOffsetERK9PCVector2IiE.s):
+   *
+   *   0x36e230  pushq %rbp                   ; frame prologue
+   *   0x36e231  movq  %rsp, %rbp
+   *   0x36e234  movq  (%rsi), %rax           ; rax = *(u64*)offset  — BOTH lanes
+   *   0x36e237  movq  %rax, 0x104(%rdi)      ; this[+0x104] = rax   — BOTH lanes
+   *   0x36e23e  popq  %rbp                   ; frame epilogue
+   *   0x36e23f  retq                         ; void
+   *
+   * A whole-struct store, not two field stores: because `PCVector2<int>` is two
+   * adjacent 32-bit ints, the compiler moves all 8 bytes with a single `movq`
+   * through `%rax`. Reading the pair back out of that quadword: the low half is
+   * the vector's first member (x -> +0x104) and the high half the second
+   * (y -> +0x108), little-endian. The two `| 0` truncations below mirror the
+   * 32-bit lane width the template argument fixes.
+   *
+   * This is the exact inverse of `getFullscreenViewOffset()` @0x36e650 above,
+   * which reads the same quadword with one `movq 0x104(%rsi), %rcx` @0x36e657 —
+   * the two methods pin the same pair of lanes from both directions.
+   *
+   * The parameter is a `const&` (`RK9PCVector2IiE`), so `%rsi` is a pointer to
+   * the caller's vector and the method only READS through it — it takes no
+   * ownership, copies no further, and the source object is untouched.
+   *
+   * There is no read-back, no clamp, no comparison against the current value
+   * and no branch: the method unconditionally overwrites both lanes with
+   * whatever the caller supplied.
+   *
+   * Zero in-scope callees, zero externs, zero indirect calls — `depgraph.py`
+   * reports `deps: []`, `n_extern_oos: 0`, `indirect: 0`; there is no `callq`
+   * anywhere in the body.
+   *
+   * @param offset  `%rsi` — the source `PCVector2<int>`, by const reference.
+   */
+  setFullscreenViewOffset(offset: { readonly x: number; readonly y: number }): void {
+    // @0x36e230..0x36e231 — prologue (no TS-visible effect).
+    // @0x36e234  movq (%rsi), %rax      ; load both 32-bit lanes at once
+    // @0x36e237  movq %rax, 0x104(%rdi) ; store both 32-bit lanes at once
+    this.fullscreenViewOffsetX_at_0x104 = offset.x | 0;
+    this.fullscreenViewOffsetY_at_0x108 = offset.y | 0;
+    // @0x36e23e..0x36e23f — epilogue + retq (void).
+  }
+
+  /**
+   * `OZViewerState::getResolution(double* outX, double* outY)` — @Ozone 0x36e270
+   *   — __ZN13OZViewerState13getResolutionEPdS0_
+   *
+   * The DOUBLE OUT-PARAMETER OVERLOAD of `getResolution()` @0x36e2e0 above.
+   * Two distinct FCP symbols at two addresses with two different ABIs: the
+   * landed one returns a {float,float} pair by sret with `movss` and reads an
+   * fp32 table @0x70bc80; this one takes two `double*` and writes each with
+   * `movsd` from a DOUBLE table @0x709190. JS has no overloading, so this entry
+   * point is named `getResolutionInto` (it fills caller-provided outputs) —
+   * the same "one entry point per mangled symbol" treatment the landed
+   * PCString.ts gives its ctor overloads.
+   *
+   * Faithful line-for-line transcription of the 19-line disassembly:
+   *
+   *   0x36e270  pushq %rbp                    ; prologue
+   *   0x36e271  movq  %rsp, %rbp
+   *   0x36e274  movl  0x20(%rdi), %edi        ; edi = this->resolutionMode (u32 load)
+   *   0x36e277  xorl  %eax, %eax              ; eax = 0 (upper bits of the index)
+   *   0x36e279  cmpl  $0x1, %edi              ; flags = mode - 1
+   *   0x36e27c  sete  %cl                     ; cl = (mode == 1)
+   *   0x36e27f  cmpl  $0x2, %edi              ; flags = mode - 2
+   *   0x36e282  je    0x36e29c                ; mode == 2 -> the quarter-res tail
+   *   0x36e284  movb  %cl, %al                ; al = 0 or 1  (rax is 0-extended)
+   *   0x36e286  leaq  0x39af03(%rip), %rcx    ; rcx = &TABLE  (0x36e28d + 0x39af03
+   *                                           ;                = 0x709190)
+   *   0x36e28d  movsd (%rcx,%rax,8), %xmm0    ; xmm0 = TABLE[al]  (8-byte stride)
+   *   0x36e292  movsd %xmm0, (%rdx)           ; *outY = xmm0   (%rdx = 3rd arg)
+   *   0x36e296  movsd %xmm0, (%rsi)           ; *outX = xmm0   (%rsi = 2nd arg)
+   *   0x36e29a  popq  %rbp
+   *   0x36e29b  retq
+   *   ; QUARTER-RES TAIL (@0x36e29c):
+   *   0x36e29c  movsd 0x39a0fc(%rip), %xmm0   ; xmm0 = 0.25    (0x36e2a4 + 0x39a0fc
+   *                                           ;                 = 0x7083a0)
+   *   0x36e2a4  movsd %xmm0, (%rdx)
+   *   0x36e2a8  movsd %xmm0, (%rsi)
+   *   0x36e2ac  popq  %rbp
+   *   0x36e2ad  retq
+   *   0x36e2ae  nop                           ; padding, not executed
+   *
+   * CONSTANTS, resolved as (next-instruction address + displacement) and read
+   * out of Ozone's __TEXT,__const:
+   *   @0x709190  double 1.0   — TABLE[0], the mode != 1 && mode != 2 case
+   *   @0x709198  double 0.5   — TABLE[1], the mode == 1 (half-res) case
+   *   @0x7083a0  double 0.25  — the mode == 2 (quarter-res) scalar, loaded by its
+   *                            own rip-relative `movsd`, NOT as TABLE[2]
+   *
+   * Decode notes:
+   *   * BOTH out pointers receive the SAME scalar — this is a uniform scale
+   *     factor, not an (x, y) pair of different values. Note the store ORDER is
+   *     `(%rdx)` first then `(%rsi)`, i.e. the SECOND out-parameter is written
+   *     before the first; with two distinct pointers that is unobservable, and
+   *     when a caller passes the same pointer twice both writes are the same
+   *     value anyway.
+   *   * `xorl %eax,%eax` before `movb %cl,%al` is what makes the index exactly
+   *     0 or 1 — the table is 2 entries and is never indexed by the mode itself,
+   *     so a mode of 7 or -1 reads TABLE[0] (full res), never out of bounds.
+   *   * the `cmpl` pair is AT&T `dst - src` (PORTING_SPEC): `sete` after
+   *     `cmp $1` fires on mode == 1, `je` after `cmp $2` on mode == 2.
+   *
+   * Zero in-scope callees, zero externs — a branch and a table read.
+   *
+   * ORACLE: verified by CALLING the live function
+   * (raw-port/re/oracle/OZViewerState_getResolution_double_oracle.py). Ozone is
+   * loaded outside the app bundle by preloading its @rpath chain depth-first
+   * (raw-port/re/oracle/ozone_loader.py) and the harness refuses to run outside
+   * an x86_64 process. 17 modes (-4..8, INT_MAX, INT_MIN, 0xffffffff, 1):
+   * both out pointers received the expected value in 17/17, compared as RAW u64
+   * BIT PATTERNS; each store was exactly 8 bytes wide (24 guard bytes after each
+   * output were untouched); and the object itself was never modified. Measured
+   * mapping: 1 -> 0.5, 2 -> 0.25, everything else (including every negative
+   * mode) -> 1.0.
+   * NEGATIVE CONTROLS (same 17 cases): swapping modes 1 and 2 -> 3 wrong; a
+   * SIGNED table index letting a negative mode read TABLE[-1] -> 5 wrong;
+   * dropping the mode == 2 early exit so it falls into the table -> 1 wrong;
+   * always returning full resolution -> 3 wrong.
+   *
+   * @param outX — the first `double*` (SysV %rsi); receives the scale factor.
+   * @param outY — the second `double*` (SysV %rdx); receives the SAME value.
+   */
+  getResolutionInto(outX: Float64Array, outY: Float64Array): void {
+    // @0x36e274 — movl 0x20(%rdi), %edi : a 32-BIT load of the mode field. The
+    //   two compares below are on that 32-bit value, so `>>> 0` reproduces the
+    //   machine's view (and makes the negative-mode cases fall to TABLE[0],
+    //   exactly as measured).
+    const mode = this.resolutionMode >>> 0;
+
+    // @0x709190 — the 2-entry double table. Both entries are exactly
+    //   representable, but they are declared from their addresses, not guessed.
+    const TABLE: readonly number[] = [1.0, 0.5]; // @Ozone 0x709190, @Ozone 0x709198
+    const QUARTER_RES = 0.25; // @Ozone 0x7083a0
+
+    // @0x36e27f/@0x36e282 — cmpl $0x2, %edi ; je 0x36e29c : the quarter-res tail
+    //   is a separate constant load, not a third table entry.
+    if (mode === 2) {
+      // @0x36e2a4 — movsd %xmm0, (%rdx) ; @0x36e2a8 — movsd %xmm0, (%rsi).
+      outY[0] = QUARTER_RES;
+      outX[0] = QUARTER_RES;
+      return;
+    }
+
+    // @0x36e27c/@0x36e284 — sete %cl ; movb %cl, %al : the index is 1 iff the
+    //   mode is exactly 1, and 0 for EVERY other value.
+    const index = mode === 1 ? 1 : 0;
+    // @0x36e28d — movsd (%rcx,%rax,8), %xmm0 : the 8-byte-stride table read.
+    const scale = TABLE[index];
+    // @0x36e292 — movsd %xmm0, (%rdx) : the SECOND out-parameter is written first.
+    outY[0] = scale;
+    // @0x36e296 — movsd %xmm0, (%rsi).
+    outX[0] = scale;
+    // @0x36e29a/@0x36e29b — epilogue + retq (void).
   }
 }

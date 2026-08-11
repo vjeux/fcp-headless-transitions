@@ -36,7 +36,48 @@ def layer2():
     ok = "test_classify: PASS" in r.stdout
     print("LAYER 2 (structural classifier):", "PASS" if ok else "FAIL")
     if not ok: print(r.stdout[-800:], r.stderr[-400:])
-    return ok
+    # 2b — RESOLUTION, not just classification. "Given the right .s, is the verdict right?" is only
+    # half the contract; the other half is "is it the right .s at all?". A class name that is a
+    # substring of another class's name resolved to the WRONG class's body (PR #253: HGRenderNode ->
+    # OZHGRenderNodeBase::finished, DISPATCH_ONLY) — a false REJECT there, and a false ACCEPT
+    # wherever the wrong body happens to be EMPTY. Locked by fixtures in test_find_disasm.py.
+    r2 = run([sys.executable, os.path.join(HERE, "test_find_disasm.py")])
+    ok2 = "test_find_disasm: PASS" in r2.stdout
+    print("LAYER 2b (disasm resolution — right function, not just right verdict):",
+          "PASS" if ok2 else "FAIL")
+    if not ok2: print(r2.stdout[-1200:], r2.stderr[-400:])
+    # 2c — the same question one level FINER, and for G5 itself: within the right class, is it the
+    # right METHOD? #322 made a bare-key hit prove it names the CLASS, but not the method, so
+    # find_disasm(<class>) handed whichever of the class's methods was cached to EVERY export in the
+    # file — 11 fabricated cheat verdicts on one landed file, triggered by deriving the disasm the
+    # worker brief REQUIRES. Locked by fixtures in test_g5_bare_key.py.
+    r3 = run([sys.executable, os.path.join(HERE, "test_g5_bare_key.py")])
+    ok3 = "test_g5_bare_key: PASS" in r3.stdout
+    print("LAYER 2c (G5 bare-key guard — right method, not just right class):",
+          "PASS" if ok3 else "FAIL")
+    if not ok3: print(r3.stdout[-1200:], r3.stderr[-400:])
+    # 2d — the status reconciler's fast path must agree with the reference it replaced. The
+    # depth/enclosing-class test decides whether a throw-only body demotes a unit from `ported` to
+    # `stub`; drift there moves the headline number silently, in the flattering direction. The
+    # batch scanner is 29x faster than the per-def originals, which remain in the tree AS the
+    # reference this compares against.
+    r4 = run([sys.executable, os.path.join(HERE, "test_brace_context.py")])
+    ok4 = "BRACE_CONTEXT: PASS" in r4.stdout
+    print("LAYER 2d (status reconciler brace-context — fast path == reference):",
+          "PASS" if ok4 else "FAIL")
+    if not ok4: print(r4.stdout[-1200:], r4.stderr[-400:])
+
+    # 2e — the rebase path. Not a cheat-detection layer: a work-PRESERVATION one. Three failures in
+    # one day routed finished work into the discard pile — a cited .s filename read as a symbol and
+    # false-BAILed a disjoint union, a class-keyed branch guess handed a reviewer another PR's
+    # content, and a rebase silently dropped the branch's non-src files (an oracle harness, lost to
+    # a force-push). None could be caught by a gate: each produces output that is itself gate-clean.
+    r5 = run([sys.executable, os.path.join(HERE, "test_rebase_tools.py")])
+    ok5 = "test_rebase_tools: PASS" in r5.stdout
+    print("LAYER 2e (rebase path — no phantom symbols, no branch guessing, no dropped files):",
+          "PASS" if ok5 else "FAIL")
+    if not ok5: print(r5.stdout[-1200:], r5.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5
 
 def _reach(spec, expect):
     import tempfile
@@ -54,6 +95,31 @@ def _reach(spec, expect):
 
 def layer3():
     D = os.path.join(REPO, "raw-port", "re", "disasm")
+    # SELF-HEAL THE FIXTURE DISASM. `raw-port/re/disasm/` is gitignored (it is a generated cache), so
+    # a freshly leased pool worktree has NONE of it — and Layer 3 resolves its fixtures from there.
+    # Result: prove_all PASSES in the canonical checkout and FAILS with `got=UNKNOWN` in any pool
+    # worktree. That is a trap, because REVIEWER_BRIEF tells every reviewer to run prove_all at
+    # startup and to sign nothing unless it passes: a reviewer running it from a leased worktree
+    # either stops working or learns to ignore the verifier. Both are worse than the bug.
+    # Regenerating is cheap now (disasm.sh is indexed since #148 — sub-second), so rebuild whatever
+    # is missing, and fall back to the canonical cache if the binary cannot be read.
+    os.makedirs(D, exist_ok=True)
+    sh = os.path.join(REPO, "raw-port", "tools", "disasm.sh")
+    CANON_D = os.path.expanduser("~/random/final-cut-pro-transitions/raw-port/re/disasm")
+    for fname, args in (
+        ("ProChannel.OZBezierInterpolator.interpolate.s",
+         ["OZBezierInterpolator", "interpolate", "ProChannel"]),
+        ("ProChannel.__ZN15OZDynamicSpline15setVertexSmoothEPvbRK6CMTime.s",
+         ["--sym", "__ZN15OZDynamicSpline15setVertexSmoothEPvbRK6CMTime", "ProChannel"]),
+    ):
+        dst = os.path.join(D, fname)
+        if os.path.exists(dst):
+            continue
+        subprocess.run(["bash", sh] + args, capture_output=True, cwd=REPO)
+        if not os.path.exists(dst) and os.path.exists(os.path.join(CANON_D, fname)):
+            import shutil; shutil.copy(os.path.join(CANON_D, fname), dst)
+        if not os.path.exists(dst):
+            print(f"   NOTE: could not materialize Layer-3 fixture {fname}")
     specs = [
       ({"symbol":"__ZN15OZDynamicSpline15setVertexSmoothEPvbRK6CMTime",
         "module":"raw-port/src/channels/OZDynamicSpline.ts","export":"OZDynamicSpline_setVertexSmooth",
