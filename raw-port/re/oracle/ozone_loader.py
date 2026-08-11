@@ -80,17 +80,50 @@ def image_slide(fw):
     raise SystemExit(f"{want} is not in the loaded image list")
 
 
+def _inventory(fw):
+    """The swarm's cached symbol table: `<addr> <T|t> <mangled>`, one file per
+    framework. Checked FIRST, and it answers ~1000x faster than nm."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for base in (os.path.abspath(os.path.join(here, "..", "..", "army", "inventory")),
+                 os.path.expanduser("~/random/final-cut-pro-transitions/raw-port/army/inventory")):
+        cand = os.path.join(base, f"{fw}.syms.txt")
+        if os.path.exists(cand):
+            return cand
+    return None
+
+
 def nm_addr(fw, symbol):
-    """x86_64 vmaddr of a symbol, INCLUDING local (`t`) ones. `-arch x86_64` is not
-    optional — without it nm answers from the arm64 slice."""
-    path = FW_PATH.get(fw, fw)
-    out = subprocess.run(["nm", "-n", "-arch", "x86_64", path],
+    """x86_64 vmaddr of a symbol, INCLUDING local (`t`) ones.
+
+    PERF, and it matters at swarm scale: running `nm` over
+    /Applications/Final Cut Pro.app/.../<FW> costs 60-120s and a full core — the file
+    is a ~78 MB FAT binary and the corp security stack rescans it on every open. So:
+      1. `raw-port/army/inventory/<FW>.syms.txt`, the pre-built cache (~0.08s);
+      2. else `nm -n -arch x86_64 /tmp/<FW>.x86_64`, the THIN slice disasm.sh already
+         extracted;
+      3. the fat original is never read.
+    `-arch x86_64` is not optional in step 2: a bare `nm` answers from the arm64 slice
+    even inside a Rosetta process, and the resulting address points at some other
+    function entirely (OPS_LOG).
+    """
+    inv = _inventory(fw)
+    if inv:
+        with open(inv) as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) == 3 and parts[2] == symbol:
+                    return int(parts[0], 16)
+        raise SystemExit(f"{symbol} not in {inv}")
+
+    thin = f"/tmp/{fw}.x86_64"
+    target = thin if os.path.exists(thin) else FW_PATH.get(fw, fw)
+    out = subprocess.run(["nm", "-n", "-arch", "x86_64", target],
                          capture_output=True, text=True).stdout
     for line in out.splitlines():
         parts = line.split()
         if len(parts) == 3 and parts[2] == symbol:
             return int(parts[0], 16)
-    raise SystemExit(f"{symbol} not found in the x86_64 slice of {path}")
+    raise SystemExit(f"{symbol} not found in the x86_64 slice of {target}")
 
 
 def local_fn(fw, symbol, restype, argtypes):
