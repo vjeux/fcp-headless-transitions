@@ -132,6 +132,20 @@ if [ "$rc" = "5" ]; then FAIL=1; REASON="dup-ledger (already on main)"; elif [ "
 # files modelling one class means two struct layouts that silently drift.
 # --new-only judges the DELTA: a PR that adds no new duplicate passes even while main carries the
 # existing 7, which is what makes wiring this in possible today rather than after a cleanup.
+# THE MACHINERY ITSELF IS UNPROTECTED. G6, regression_check and dup_check all guard
+# raw-port/src/**.ts; every other file — the tools, the gates, the verifiers, OPS_LOG — is guarded by
+# nothing, and a whole-file write from a stale copy reverts a peer's landed fix with a CLEAN merge and
+# a GREEN gate. It happened twice today, once to a swarm_doctor rework 40 minutes after it was pushed,
+# and both agents were doing exactly what they had been asked to do. What is measured is the deletion
+# the MERGE APPLIES (three dots) of lines main still has — not whether the branch is stale, which is a
+# different question and the one that got the first version of this guard inverted. A deletion the
+# author declares with `reverts-ok: <path>` in the commit message passes and is still printed.
+# The `-f` test is not decoration: `python3 <missing file>` also exits 2, so without it a tool that
+# has not landed yet would be indistinguishable from a real REJECT.
+if [ -f raw-port/army/tools/stale_file_check.py ]; then
+  python3 raw-port/army/tools/stale_file_check.py origin/main HEAD; rc=$?
+  if [ "$rc" = "2" ]; then FAIL=1; REASON="deletes lines that are on main without a reverts-ok: declaration"; fi
+fi
 python3 raw-port/army/tools/check_duplicate_classes.py --new-only origin/main; rc=$?
 if [ "$rc" = "2" ]; then FAIL=1; REASON="introduces a duplicate class file (one C++ class = one .ts)";
 elif [ "$rc" != "0" ]; then FAIL=1; REASON="check_duplicate_classes errored rc=$rc"; fi
