@@ -186,6 +186,33 @@ function CFURLCreateWithString(
   );
 }
 
+/**
+ * `CFTypeRef _CFRetain(CFTypeRef cf)` — CoreFoundation.framework extern,
+ * reached through the ProCore symbol stub 0xde018 (called from
+ * `PCURL::PCURL(__CFURL const*)` [C1] @0x7007).
+ *
+ * LIFETIME primitive, so per the RESOLVED CFRetain/CFRelease ruling the
+ * faithful boundary model is the IDENTITY, not a throw: JS GC owns the
+ * surrogate, there is no native refcount for a fake retain to corrupt, and
+ * the real call returns its argument unchanged. Landed precedent:
+ * `infra/PCCFRef_CFArray.ts` / `infra/PCCFRef_CFData.ts` ship
+ * `CFRelease` as a no-op and `channels/DisablePrioritizedWritesRAII.ts`
+ * ships `objc_retain` as `return lock`.
+ *
+ * Note the split this file already makes correctly one screen up:
+ * `CFURLGetString` and `CFURLCreateWithString` are VALUE-PRODUCING — JS
+ * cannot fabricate a CFURL — so those must throw. This one must not.
+ *
+ * It also matters for a reason independent of the ruling: `movq %rbx,(%r14)`
+ * @0x700c is the JOIN POINT of both paths, so the machine performs that
+ * store for NULL and non-NULL alike. A throw here would unwind at 0x7007 and
+ * delete the only real-work instruction this constructor has, for every
+ * non-NULL argument — i.e. exactly the inputs it exists for.
+ */
+function CFRetain(cf: CFURLRef): CFURLRef {
+  return cf; // @0x7007 stub 0xde018 — TS-side identity.
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // The class
 // ═════════════════════════════════════════════════════════════════════════
@@ -253,5 +280,78 @@ export class PCURL {
     // @0x70e7 — this->url = clone (takes the +1 retain).
     this.url = clone;
     // @0x70ea..0x70f0 — epilogue.
+  }
+
+  /**
+   * `PCURL::PCURL(__CFURL const*)` [C1 complete-object] — @ProCore 0x6ff2
+   * (__ZN5PCURLC1EPK7__CFURL).
+   *
+   * The adopting constructor: take an owning retain on the caller's CFURL (if
+   * any) and store it in the +0x00 slot.
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x6ff2  pushq %rbp                ; frame setup (no TS counterpart)
+   *   0x6ff3  movq  %rsp, %rbp          ; frame setup (no TS counterpart)
+   *   0x6ff6  pushq %r14                ; callee-saved spill (no TS counterpart)
+   *   0x6ff8  pushq %rbx                ; callee-saved spill (no TS counterpart)
+   *   0x6ff9  movq  %rsi, %rbx          ; rbx = url (the argument)
+   *   0x6ffc  movq  %rdi, %r14          ; r14 = this
+   *   0x6fff  testq %rsi, %rsi          ; url == NULL ?
+   *   0x7002  je    0x700c              ;   NULL -> skip the retain
+   *   0x7004  movq  %rbx, %rdi          ; arg1 = url
+   *   0x7007  callq _CFRetain           ; stub 0xde018 — take the owning retain
+   *   0x700c  movq  %rbx, (%r14)        ; this->url = url   (BOTH paths)
+   *   0x700f  popq  %rbx                ; epilogue
+   *   0x7010  popq  %r14
+   *   0x7012  popq  %rbp
+   *   0x7013  retq
+   *
+   * SEMANTICS: the retain is CONDITIONAL (only for a non-NULL argument) but the
+   * store is UNCONDITIONAL — 0x700c is the join point of both paths, so a NULL
+   * argument still writes NULL into the slot. Unlike the copy ctor @0x70b6
+   * above, this one does NOT roundtrip through `_CFURLGetString` /
+   * `_CFURLCreateWithString`: it adopts the CALLER'S url object itself and just
+   * bumps its refcount, so the wrapper and the caller share one CFURL.
+   *
+   * The `testq %rsi,%rsi ; je` @0x6fff is a NULL test on ZF, not an ordered
+   * compare. Nothing else is touched — no other field is written, and the
+   * `this->url = NULL` pre-store the copy ctor does @0x70bf has no counterpart
+   * here (the single store covers every path).
+   *
+   * C1 ONLY: this is the complete-object flavour. The base-object C2 symbol is
+   * a separate ledger unit and is not modelled here.
+   *
+   * FRONTIER CALLEE: `_CFRetain` (ProCore stub 0xde018) — the only call in the
+   * body; an out-of-scope CoreFoundation LIFETIME primitive, so it is modelled
+   * as the identity per the RESOLVED CFRetain/CFRelease ruling (see the stub
+   * above), which is what keeps the @0x700c store on both paths. No in-scope
+   * callee, no indirect and no virtual dispatch.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProCore.__ZN5PCURLC1EPK7__CFURL.s (16 lines)
+   *
+   * ORACLE — raw-port/re/oracle/PCURL_ctorFromCFURL_oracle.py
+   *   (+ PCURL_ctorFromCFURL_driver.mts;
+   *    arch -x86_64 /usr/bin/python3 raw-port/re/oracle/PCURL_ctorFromCFURL_oracle.py)
+   * The C1 symbol is exported, so it is called live on a 32-byte 0xCD-poisoned
+   * arena. Measured: a NULL argument stores 0x0 and a non-NULL one stores the
+   * CFURLRef itself, with the 24 bytes past the field untouched in both cases,
+   * and CFGetRetainCount moving 5 -> 6 exactly once (the conditional retain
+   * @0x7007). The shipped port agrees on both paths. Negative control — the
+   * pre-fix model in which `_CFRetain` throws — DIVERGES: the store never
+   * happens for a non-NULL argument, because the unwind at 0x7007 skips
+   * 0x700c. That is the defect review found, reproduced by execution.
+   *
+   * @param url  the CFURLRef to adopt (may be NULL).
+   */
+  constructFromCFURL(url: CFURLRef | null): void {
+    // @0x6fff-0x7002  testq %rsi,%rsi ; je 0x700c — skip the retain on NULL.
+    if (url !== null) {
+      // @0x7004/@0x7007  movq %rbx,%rdi ; callq _CFRetain — the owning retain.
+      CFRetain(url);
+    }
+    // @0x700c  movq %rbx,(%r14) — the store is on BOTH paths, NULL included.
+    this.url = url;
   }
 }
