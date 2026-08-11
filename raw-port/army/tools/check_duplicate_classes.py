@@ -21,17 +21,59 @@ def _norm(b):
     b = re.sub(r'_+', '_', b)      # Outer__Inner__Leaf == Outer_Inner_Leaf
     return b.lower()
 
+# --new-only <BASE>: judge ONLY the duplicates this change INTRODUCES.
+#
+# WHY. This guard works and has never once been invoked: its own docstring and PORTING_SPEC call it a
+# CI guard, but no gate, no pr_gate and no prove_all runs it — so it reported into the void while 7
+# duplicates accumulated on main (5 classes filed twice across layer directories; OPS_LOG had
+# recorded only one of them). Wiring the ABSOLUTE check in today would red-gate every PR in the repo
+# for a mess none of them created, which is presumably why nobody ever wired it. So gate on the
+# DELTA: a PR that adds no new duplicate passes even while main is dirty, and plain mode still
+# reports the existing ones for someone to merge deliberately — never blindly, since each copy may
+# hold addresses the other lacks.
+NEW_ONLY = None
+if "--new-only" in sys.argv:
+    NEW_ONLY = sys.argv[sys.argv.index("--new-only") + 1]
+
+def _dupes_at(ref):
+    """{normalized class -> [paths]} for duplicates present at a git ref."""
+    import subprocess
+    out = subprocess.run(["git", "ls-tree", "-r", "--name-only", ref, "--", "raw-port/src"],
+                         capture_output=True, text=True).stdout.split()
+    m = collections.defaultdict(list)
+    for q in out:
+        if q.endswith(".ts"):
+            b = os.path.basename(q)[:-3]
+            if b.endswith('_stub') or '.vtable' in b: continue
+            m[_norm(b)].append(q)
+    return {k: v for k, v in m.items() if len(v) > 1}
+
 paths=collections.defaultdict(list)
 for p in glob.glob('raw-port/src/**/*.ts',recursive=True):
     b=os.path.basename(p)[:-3]
     if b.endswith('_stub') or '.vtable' in b: continue   # explicit stub/vtable side-files are allowed
     paths[_norm(b)].append(os.path.relpath(p))
 dups={k:v for k,v in paths.items() if len(v)>1}
+pre = _dupes_at(NEW_ONLY) if NEW_ONLY else {}
+# COUNT, not key presence: a class already forked on main is exactly the population most
+# likely to gain ANOTHER copy, and `k not in pre` gave those five classes no protection at
+# all — a PR taking OZScene from 2 copies to 3 gated green (reviewer 4, measured on this
+# branch). Count rather than path-set membership is deliberate: the path-set form also
+# fires when a PR MOVES one of the pre-existing copies between layer directories, which
+# does not increase duplication and would red-gate a cleanup.
+judged = ({k: v for k, v in dups.items() if len(v) > len(pre.get(k, []))}
+          if NEW_ONLY else dups)
 for k,v in sorted(dups.items()):
-    print(f"DUPLICATE class '{k}': {v}")
+    tag = ("" if (not NEW_ONLY or k in judged)
+           else f"   [pre-existing at {NEW_ONLY} — not judged]")
+    print(f"DUPLICATE class '{k}': {v}{tag}")
     if len({os.path.basename(x) for x in v}) > 1:
         print("    ^ same class under DIFFERENT naming conventions — the landed convention is")
         print("      Outer__Inner (double underscore). Merge them; do not delete blindly, each copy")
         print("      may hold addresses the other lacks.")
-print(f"\ncheck_duplicate_classes: {len(dups)} duplicate(s) -> {'REJECT' if dups else 'PASS'}")
-sys.exit(2 if dups else 0)
+if NEW_ONLY:
+    print(f"\ncheck_duplicate_classes: {len(dups)} duplicate(s) present, {len(judged)} NEW vs {NEW_ONLY}"
+          f" -> {'REJECT' if judged else 'PASS'}")
+else:
+    print(f"\ncheck_duplicate_classes: {len(dups)} duplicate(s) -> {'REJECT' if dups else 'PASS'}")
+sys.exit(2 if judged else 0)
