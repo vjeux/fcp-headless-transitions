@@ -109,16 +109,28 @@ def layer2():
     print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
           "PASS" if ok8 else "FAIL")
     if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
-    # 2i — the self-heal that clears attempt counters whose PR has already merged. It only looked at
+    # 2i — swarm_doctor's COVERAGE check, the one assertion that re-states a queue's behaviour
+    # (it lifts each selector, then re-applies rebase_claim's status-description grep). A
+    # re-statement that drifts does not fail loudly: it accuses PRs the queue is handing out, or
+    # certifies stranded ones, in the report AGENT_ENTRY tells every agent to trust — and the first
+    # version of that check did report two live PRs backwards in one run. Pinned here because
+    # rebase_claim can now select a CONFLICTED PR without reading any description. Offline (gh, sh
+    # and from_main are stubbed), ~0.2s, every case mutation-checked inside the suite.
+    r9 = run([sys.executable, os.path.join(HERE, "test_queue_coverage.py")])
+    ok9 = "test_queue_coverage: PASS" in r9.stdout
+    print("LAYER 2i (queue coverage — the doctor follows the queues instead of disagreeing):",
+          "PASS" if ok9 else "FAIL")
+    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
+    # 2j — the self-heal that clears attempt counters whose PR has already merged. It only looked at
     # counters AT the cap, while swarm_doctor flags any dead counter at all, so the tool reporting
     # the fault and the tool fixing it disagreed by construction and the board could never go green.
     # Offline, function extracted from the shipped file, stubbed gh. ~0.5s.
-    r9 = run(["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")])
-    ok9 = "test_reap_dead_counters: PASS" in r9.stdout
-    print("LAYER 2i (dead attempt counters — the reaper can reach what the doctor reports):",
-          "PASS" if ok9 else "FAIL")
-    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
+    r10 = run(["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")])
+    ok10 = "test_reap_dead_counters: PASS" in r10.stdout
+    print("LAYER 2j (dead attempt counters — the reaper can reach what the doctor reports):",
+          "PASS" if ok10 else "FAIL")
+    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
 
 def _reach(spec, expect):
     import tempfile
