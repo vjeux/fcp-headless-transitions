@@ -14,6 +14,7 @@
 // interning that FCP does for binary streams.
 
 import { attrName } from "./scopes.js";
+import type { PCSerializerParseTarget } from "./PCSerializerReadStream.js";
 
 export class PCStreamElement {
   /** XML tag name (e.g. "scenenode", "parameter", "layer", "clip"). */
@@ -27,6 +28,46 @@ export class PCStreamElement {
   /** Element text content (for value-carrying elements). */
   text: string;
   children: PCStreamElement[];
+
+
+  /**
+   * @ProCore PCStreamElement layout **+0x0c** — one byte, the "this element has
+   * been handed to its serializer" flag.
+   *
+   * Established by the constructor
+   * `PCStreamElement::PCStreamElement(unsigned, PCScope*, PCSerializer*)`
+   * @ProCore 0x286e0, which ZEROES it: `xorl %eax, %eax` @0x286f1 then
+   * `movb %al, 0xc(%rdi)` @0x286f3 — hence the initial value 0 here. The only
+   * writer in the currently-transcribed set is
+   * `PCSerializerReadStream::processElement` @ProCore 0x2682f
+   * (`movb $0x1, 0xc(%rdx)`), which sets it to 1 immediately BEFORE dispatching
+   * to the element's serializer — and deliberately does NOT set it on its
+   * NULL-serializer path.
+   *
+   * Modelled as the byte the machine writes (0 or 1) rather than as a
+   * `boolean`, so the store the disasm performs is the store this field
+   * receives; readers of the slot are separate ledger units.
+   */
+  processedFlagAt0xc = 0;
+
+  /**
+   * @ProCore PCStreamElement layout **+0x18** — the `PCSerializer*` this
+   * element was constructed with: the object whose `parseElement` virtual
+   * consumes it.
+   *
+   * Established by the same constructor @ProCore 0x286e0, from its third
+   * pointer argument: `movq %rcx, 0x18(%rdi)` @0x286fa (the mangled name
+   * `__ZN15PCStreamElementC2EjP7PCScopeP12PCSerializer` types that argument
+   * `PCSerializer*`; the sibling `PCScope*` lands one slot lower at +0x10
+   * @0x286f6). NULL is a legal state — `processElement` @ProCore 0x2682a tests
+   * for it and answers `false` — so the field defaults to null, and the
+   * abstraction-level constructor above (which models the XML reader's own
+   * element creation) leaves it unset until an owner attaches itself.
+   *
+   * Typed by the one slot the decoded call site uses; see
+   * {@link PCSerializerParseTarget} for how vtable slot 7 was resolved.
+   */
+  serializerAt0x18: PCSerializerParseTarget | null = null;
 
   constructor(tagName: string, scope: string, type = 0) {
     this.tagName = tagName;
