@@ -156,15 +156,45 @@ def layer2():
     print("LAYER 2l (cross-queue lease — one PR is never handed to two workers):",
           "PASS" if ok12 else "FAIL")
     if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
-    # 2m — a driver that does not terminate. Two mutants held a core for 2h31m because 69 of 69
+    # 2s — the self-heal that clears attempt counters whose PR has already merged. It only looked at
+    # counters AT the cap, while swarm_doctor flags any dead counter at all, so the tool reporting
+    # the fault and the tool fixing it disagreed by construction and the board could never go green.
+    # Offline, function extracted from the shipped file, stubbed gh. ~0.5s.
+    #
+    # LETTER AND VARIABLES, third renumbering of this block (2i -> 2j -> 2l -> 2s): main took 2l and
+    # r12/ok12 for the cross-queue lease above. Keeping BOTH sides is the only safe resolution — a
+    # layer that is not in the file cannot fail
+    # (army/ops/2026-08-11-every-tooling-pr-conflicts-on-prove-alls-layer-tail.md) — and the VARIABLE
+    # has to move with the letter, which is the half that is easy to miss: two blocks both assigning
+    # `ok12` still PRINT correctly, because each print follows its own assignment, while the single
+    # `return` names `ok12` once, so the later block's result silently decides the verdict for both
+    # and a RED layer returns PASS. Measured, and filed as
+    # army/ops/2026-08-11-two-prove-all-layers-sharing-an-ok-variable-make-a-red-layer.md. One
+    # worker is holding five merges on this tail right now, allocated disjointly in both letters and
+    # variables: #656 2m/2n/2o r13-r15, #715 2p r16, #714 2q r17, #655 2r r18/r19, this one 2s r20.
+    r20 = run(["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")])
+    ok20 = "test_reap_dead_counters: PASS" in r20.stdout
+    print("LAYER 2s (dead attempt counters — the reaper can reach what the doctor reports):",
+          "PASS" if ok20 else "FAIL")
+    if not ok20: print(r20.stdout[-1200:], r20.stderr[-400:])
+    # 2u — a driver that does not terminate. Two mutants held a core for 2h31m because 69 of 69
     # driver spawns had no timeout: "a mutant must fail" had been read as "returns a wrong answer",
     # never as "never returns". Offline, real node on a two-line fixture. ~6s.
-    r13 = run(["bash", os.path.join(TOOLS, "test_driver_timeout.sh")])
-    ok13 = "test_driver_timeout: PASS" in r13.stdout
-    print("LAYER 2m (driver timeout — a hang is a kill, not a pending result):",
-          "PASS" if ok13 else "FAIL")
-    if not ok13: print(r13.stdout[-1200:], r13.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11 and ok12 and ok13
+    #
+    # LETTER AND VARIABLES: this block went out as 2m/r13, and main has since taken 2l/r12 (cross-
+    # queue lease) and 2s/r20 (dead counters), while 2m/2n/2o r13-r15 are claimed by #656's merge.
+    # 2u/r22 collides with none of them. The variable moves with the letter because that half is
+    # the dangerous one: two blocks both assigning `ok13` still PRINT correctly, while the single
+    # `return` names it once, so the later block's result silently decides the verdict for both and
+    # a RED layer returns PASS (measured; filed as
+    # army/ops/2026-08-11-two-prove-all-layers-sharing-an-ok-variable-make-a-red-layer.md).
+    r22 = run(["bash", os.path.join(TOOLS, "test_driver_timeout.sh")])
+    ok22 = "test_driver_timeout: PASS" in r22.stdout
+    print("LAYER 2u (driver timeout — a hang is a kill, not a pending result):",
+          "PASS" if ok22 else "FAIL")
+    if not ok22: print(r22.stdout[-1200:], r22.stderr[-400:])
+    return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
+            and ok11 and ok12 and ok20 and ok22)
 
 def _reach(spec, expect):
     import tempfile
