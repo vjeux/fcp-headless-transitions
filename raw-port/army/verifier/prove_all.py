@@ -99,7 +99,17 @@ def layer2():
     print("LAYER 2g (pr_land approval carry — tree identity, never fail-open):",
           "PASS" if ok7 else "FAIL")
     if not ok7: print(r7.stdout[-1200:], r7.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7
+    # 2h — the walk that recovers WHICH HEAD a reviewer signed. GitHub re-points a review's
+    # commit_id forward onto every `Merge branch 'main' into …` that update-branch makes (+3s to
+    # +39s after submission; two hops on #585), so 2g's comparison is only as good as the walk that
+    # finds the reviewed commit. One hop too far compares against an older head; one too few
+    # compares a commit with itself and always agrees. 0.3s.
+    r8 = run(["bash", os.path.join(TOOLS, "test_pr_land_signed_head.sh")])
+    ok8 = "TEST_PR_LAND_SIGNED_HEAD: PASS" in r8.stdout
+    print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
+          "PASS" if ok8 else "FAIL")
+    if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8
 
 def _reach(spec, expect):
     import tempfile
