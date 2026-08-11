@@ -101,6 +101,36 @@ def gh_json(args, tries=3):
 
 
 # ── 1. COVERAGE: every open PR must be claimable by SOME queue ──────────────────────────────────
+def check_pr_base():
+    """#46: every reviewer tool in the swarm assumes a PR's base is `main`, and none of them checked.
+
+    `pr_gate.sh` diffs `origin/main...HEAD` and feeds that file list to regression_check/dup_check;
+    `pr_land.sh` merges with `gh pr merge --squash --auto --delete-branch`, which targets the PR's
+    OWN base. For a PR stacked on another PR's branch those answer different questions: the status
+    covers every commit in the stack, and the merge goes somewhere branch protection does not apply,
+    with --delete-branch removing a branch a third PR is based on. Measured when this landed:
+    `grep -c baseRefName` was 0 in review_claim.sh, rework_claim.sh, rebase_claim.sh, swarm_doctor.py
+    and every file under army/tools and army/gate, while #649 -> main, #650 -> tools/lease-ownership
+    and #651 -> tools/review-claim-g5 were all open and all claimable by review_claim.
+
+    Note what this check does NOT do: it does not ask the queues to skip such a PR. A PR no queue
+    offers is stranded, which this log already records three times — the right place to stop is the
+    two tools that would act wrongly (both now refuse), and the right thing here is to make the
+    condition visible. `pr_submit.sh` passes `--base main`, so only a hand-rolled `gh pr create`
+    produces one, which is how every ops/tooling PR is opened."""
+    prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 --json number,baseRefName,headRefName")
+    if prs is None:
+        return record("pr-base", UNKNOWN, f"could not list open PRs to check their base: {err}", "#46")
+    off = [f"#{p['number']} -> {p.get('baseRefName')}" for p in prs
+           if p.get("baseRefName") != "main"]
+    if off:
+        return record("pr-base", FAIL,
+                      f"{len(off)} open PR(s) do not target main, so pr_gate's verdict and pr_land's "
+                      f"merge target disagree: {', '.join(off[:8])} — retarget with "
+                      f"`gh pr edit <n> --base main`", "#46")
+    record("pr-base", OK, f"all {len(prs)} open PR(s) target main")
+
+
 def check_queue_coverage():
     """The generalisation of two separate incidents, both 'work no queue could see'.
 
@@ -667,6 +697,66 @@ def check_rebase_actionable():
            + live)
 
 
+def check_rebase_branch_naming():
+    """The union rebase must be able to FIND the branch it just pushed.
+
+    THE INCIDENT (2026-08-11, worker 1, on #660 `port/OZChannelBase__slot3`): `rebase_helper.py`
+    derives the CLASS from the PR — stripping `__slot<N>` — and pushes `port/<Class>_rebased`.
+    `rebase_pr.sh` re-derived that name from the BRANCH, stripping only `_rebased`, so it looked for
+    `port/<Class>__slot<N>_rebased`. That ref does not exist: `git diff` fataled, the empty side made
+    `comm` report EVERY file as missing, and the last guard printed "REFUSING to force-push — the
+    rebased branch is missing files the PR has" about a union that was sitting on the remote,
+    gate-green, complete. The PR returned to the queue unchanged, and at 3/3 attempts the rebase
+    queue CLOSES it (#28's shape, on work that was already done).
+
+    It is invisible on `port/<Class>` PRs, where the two spellings coincide — and `__slot<N>` is the
+    NORMAL shape under contention (#240 creates it whenever a class is being worked in two slots).
+
+    Two halves:
+      * the GUARD — does `rebase_pr.sh` on origin/main take the branch name from rebase_helper's own
+        output, or does it still compose one out of `$CLS`/`$BR`? Two derivations of one name is the
+        bug; asking the tool that pushed it is the fix.
+      * the LIVE state — `port/*_rebased` refs on the remote. The success path force-pushes the union
+        onto the PR branch and DELETES that temp ref, so a lingering one is a rebase that was
+        computed, pushed, and never landed. Each is a worker unit spent for nothing and a PR one
+        attempt closer to being auto-closed.
+    """
+    src = from_main("raw-port/army/tools/rebase_pr.sh")
+    if not src:
+        return record("rebase-branch-naming", UNKNOWN,
+                      "could not read rebase_pr.sh from origin/main", "#660")
+    m = re.search(r'if \[ "\$rc" = 0 \]; then(.*?)\nfi\n', src, re.S)
+    if not m:
+        return record("rebase-branch-naming", UNKNOWN,
+                      "could not locate rebase_pr.sh's rebase_helper-exit-0 branch — it has been "
+                      "restructured; re-read it rather than trusting this check", "#660")
+    block = m.group(1)
+    recomposed = re.search(r'port/\$\{?CLS\}?_rebased', block)
+    asks_helper = "_rh.log" in block
+
+    orphans, err = None, None
+    # A newline-delimited name list, not JSON, so `sh` rather than `gh_json`.
+    r = sh(f"gh api repos/{SLUG}/branches?per_page=100 --jq '.[].name'")
+    if r.returncode == 0:
+        orphans = [b for b in r.stdout.split() if b.endswith("_rebased")]
+    else:
+        err = (r.stderr or "").strip() or "no answer"
+
+    live = ("could not list branches (%s)" % err) if orphans is None else (
+        "no orphan port/*_rebased branch on the remote" if not orphans else
+        "ORPHAN union branches on the remote right now (each is a completed rebase that never "
+        "landed): " + ", ".join(sorted(orphans)))
+
+    if recomposed or not asks_helper:
+        return record("rebase-branch-naming", FAIL,
+                      "rebase_pr.sh re-derives the rebased branch name instead of taking it from "
+                      "rebase_helper's output, so every PR on a `port/<Class>__slot<N>` branch "
+                      "refuses its own completed union as 'missing files' and burns a rebase "
+                      "attempt; " + live, "#660")
+    record("rebase-branch-naming", OK,
+           "rebase_pr.sh takes the union branch name from rebase_helper's own output; " + live)
+
+
 # How many commits the window must hold before a percentage over it means anything. Below this the
 # check reports ok and says how far it has filled: 20% of five commits is one commit.
 OPS_WINDOW_MIN = 40
@@ -731,10 +821,10 @@ def check_ops_contention():
            f"convention landed")
 
 
-CHECKS = [check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
+CHECKS = [check_pr_base, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
-          check_brief_flags_exist, check_rebase_actionable,
+          check_brief_flags_exist, check_rebase_actionable, check_rebase_branch_naming,
           check_ops_contention]
 
 
