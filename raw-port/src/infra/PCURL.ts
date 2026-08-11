@@ -186,6 +186,24 @@ function CFURLCreateWithString(
   );
 }
 
+/**
+ * `CFTypeRef _CFRetain(CFTypeRef cf)` — CoreFoundation.framework extern,
+ * reached through the ProCore symbol stub 0xde018 (called from
+ * `PCURL::PCURL(__CFURL const*)` [C1] @0x7007). TRUE out-of-scope extern, the
+ * same boundary policy as `CFURLGetString` / `CFURLCreateWithString` above:
+ * this port has no CoreFoundation runtime, and faking a retain would corrupt
+ * the ownership model PCURL's dtor depends on, so it throws @0xde018.
+ */
+function CFRetain(_cf: CFURLRef): void {
+  throw new Error(
+    "_CFRetain @ProCore 0x7007 (stub 0xde018) — CoreFoundation extern " +
+      "(TRUE out-of-scope boundary). Called from PCURL::PCURL(__CFURL const*) " +
+      "[C1 @0x6ff2] to take this wrapper's owning retain on the incoming " +
+      "CFURLRef. Not transcribed; wire a real CoreFoundation runtime here if " +
+      "a parity harness needs the actual retain.",
+  );
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // The class
 // ═════════════════════════════════════════════════════════════════════════
@@ -253,5 +271,64 @@ export class PCURL {
     // @0x70e7 — this->url = clone (takes the +1 retain).
     this.url = clone;
     // @0x70ea..0x70f0 — epilogue.
+  }
+
+  /**
+   * `PCURL::PCURL(__CFURL const*)` [C1 complete-object] — @ProCore 0x6ff2
+   * (__ZN5PCURLC1EPK7__CFURL).
+   *
+   * The adopting constructor: take an owning retain on the caller's CFURL (if
+   * any) and store it in the +0x00 slot.
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x6ff2  pushq %rbp                ; frame setup (no TS counterpart)
+   *   0x6ff3  movq  %rsp, %rbp          ; frame setup (no TS counterpart)
+   *   0x6ff6  pushq %r14                ; callee-saved spill (no TS counterpart)
+   *   0x6ff8  pushq %rbx                ; callee-saved spill (no TS counterpart)
+   *   0x6ff9  movq  %rsi, %rbx          ; rbx = url (the argument)
+   *   0x6ffc  movq  %rdi, %r14          ; r14 = this
+   *   0x6fff  testq %rsi, %rsi          ; url == NULL ?
+   *   0x7002  je    0x700c              ;   NULL -> skip the retain
+   *   0x7004  movq  %rbx, %rdi          ; arg1 = url
+   *   0x7007  callq _CFRetain           ; stub 0xde018 — take the owning retain
+   *   0x700c  movq  %rbx, (%r14)        ; this->url = url   (BOTH paths)
+   *   0x700f  popq  %rbx                ; epilogue
+   *   0x7010  popq  %r14
+   *   0x7012  popq  %rbp
+   *   0x7013  retq
+   *
+   * SEMANTICS: the retain is CONDITIONAL (only for a non-NULL argument) but the
+   * store is UNCONDITIONAL — 0x700c is the join point of both paths, so a NULL
+   * argument still writes NULL into the slot. Unlike the copy ctor @0x70b6
+   * above, this one does NOT roundtrip through `_CFURLGetString` /
+   * `_CFURLCreateWithString`: it adopts the CALLER'S url object itself and just
+   * bumps its refcount, so the wrapper and the caller share one CFURL.
+   *
+   * The `testq %rsi,%rsi ; je` @0x6fff is a NULL test on ZF, not an ordered
+   * compare. Nothing else is touched — no other field is written, and the
+   * `this->url = NULL` pre-store the copy ctor does @0x70bf has no counterpart
+   * here (the single store covers every path).
+   *
+   * C1 ONLY: this is the complete-object flavour. The base-object C2 symbol is
+   * a separate ledger unit and is not modelled here.
+   *
+   * FRONTIER CALLEE: `_CFRetain` (ProCore stub 0xde018) — the only call in the
+   * body; a TRUE out-of-scope CoreFoundation extern (see the stub above). No
+   * in-scope callee, no indirect and no virtual dispatch.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProCore.__ZN5PCURLC1EPK7__CFURL.s (16 lines)
+   *
+   * @param url  the CFURLRef to adopt (may be NULL).
+   */
+  constructFromCFURL(url: CFURLRef | null): void {
+    // @0x6fff-0x7002  testq %rsi,%rsi ; je 0x700c — skip the retain on NULL.
+    if (url !== null) {
+      // @0x7004/@0x7007  movq %rbx,%rdi ; callq _CFRetain — the owning retain.
+      CFRetain(url);
+    }
+    // @0x700c  movq %rbx,(%r14) — the store is on BOTH paths, NULL included.
+    this.url = url;
   }
 }
