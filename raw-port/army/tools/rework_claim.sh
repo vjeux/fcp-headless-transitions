@@ -38,6 +38,24 @@ CAP="${REWORK_ATTEMPT_CAP:-3}"; LEASE_MIN="${REWORK_LEASE_MIN:-90}"
 
 lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
   local lk="$LEAS/$1"
+  # ── THE OTHER WORKER QUEUE'S LEASE COUNTS TOO ─────────────────────────────────────────────────
+  # A PR that is CHANGES_REQUESTED *and* CONFLICTING is selected by BOTH worker queues, and until
+  # now neither looked at the other's lease directory — so two workers were handed the same PR.
+  # Measured 2026-08-11 on #656 (a 936-line tooling PR): a peer took the REBASE lease at 13:32:36
+  # and was 43 files into a merge in ~/.fct-pool/wt/3 when this queue handed the same PR to worker 8
+  # at 13:33:42, 66 seconds later. Nothing in either tool could see the collision; the second worker
+  # only found it because `git checkout` refused a branch another worktree already held.
+  # The combination became common the same hour: #643 taught `rebase_claim` to select DIRTY PRs
+  # (right, and it un-stranded four), and the side effect is that every rejected+conflicted PR is
+  # now double-claimable. Both workers then reconcile the same conflicts and one of them loses the
+  # race at push time — the duplicated-evidence waste this log already records for the REWORK queue
+  # alone ("two workers can transcribe the same reviewer's finding").
+  # Same staleness window as our own leases, so a dead peer cannot block the PR forever.
+  local peer="$STATE/rebase_leases/$1"
+  if [ -d "$peer" ] && [ -z "$(find "$peer/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
+    echo "rework_claim: PR #$1 is already leased by the REBASE queue — skipping (a rejected PR that also conflicts is in both queues; one worker is enough)" >&2
+    return 1
+  fi
   mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; return 0; }
   if [ -n "$(find "$lk/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
     echo "$(date +%s)" > "$lk/held"; return 0; fi
@@ -54,21 +72,37 @@ reap_dead_counters () {
   # at the cap and keeps real work invisible — the fix alone does not free the state it created
   # (OPS_LOG #28), which is why two PRs had to be un-stranded by hand this session.
   #
-  # So the queue reaps its own dead state on every claim. Cheap (only counters at or past the cap are
-  # checked, and only their state field), self-limiting, and it removes a standing manual chore that
-  # otherwise depends on somebody noticing.
-  local f b n st
+  # THE CAP FILTER WAS THE BUG. This used to check only counters already AT the cap, to bound the
+  # number of API calls — one `gh pr view` each. But swarm_doctor's dead-counters check flags ANY
+  # counter whose PR has merged or closed, so the tool that reports the fault and the tool that
+  # fixes it disagreed by construction: #554 sat at 1/3, merged, and the doctor asked a human to
+  # `rm` it on every run while this function was coded to skip it forever. Every dead counter I
+  # cleared by hand today was under the cap. A counter for a merged PR is garbage at any value.
+  #
+  # Checking them all costs nothing extra because they now go in ONE aliased GraphQL query instead
+  # of one call per counter: 6 counters, 0.575s, one round trip. That is cheaper than the old
+  # capped-only loop was, so the bound the filter existed to provide is no longer needed.
+  local f b nums="" q="" resp k st
   for f in "$ATT"/*; do
     [ -f "$f" ] || continue
     b="$(basename "$f")"; case "$b" in *.sha) continue;; esac
     case "$b" in ''|*[!0-9]*) continue;; esac
-    n=$(cat "$f" 2>/dev/null || echo 0)
-    [ "${n:-0}" -ge "$CAP" ] || continue
-    st=$(gh pr view "$b" --repo "$SLUG" --json state --jq .state 2>/dev/null)
-    if [ "$st" = "MERGED" ] || [ "$st" = "CLOSED" ]; then
-      rm -f "$f" "$f.sha" 2>/dev/null
-      echo "rework_claim: reaped a dead counter for PR #$b ($st) — it was masquerading as stranded work" >&2
-    fi
+    nums="$nums $b"
+  done
+  [ -z "$nums" ] && return 0
+  for b in $nums; do q="$q p$b: pullRequest(number: $b) { state }"; done
+  resp=$(gh api graphql -f query="query { repository(owner: \"${SLUG%%/*}\", name: \"${SLUG##*/}\") { $q } }" \
+           --jq '.data.repository | to_entries[] | "\(.key) \(.value.state)"' 2>/dev/null)
+  # An unanswered query is not evidence. Reaping on silence would clear a LIVE counter and re-offer
+  # work the cap is deliberately holding back, which is the failure the cap exists to prevent.
+  [ -z "$resp" ] && return 0
+  printf '%s\n' "$resp" | while read -r k st; do
+    b="${k#p}"
+    case "$st" in
+      MERGED|CLOSED)
+        rm -f "$ATT/$b" "$ATT/$b.sha" 2>/dev/null
+        echo "rework_claim: reaped a dead counter for PR #$b ($st) — it was masquerading as stranded work" >&2 ;;
+    esac
   done
 }
 
