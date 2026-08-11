@@ -293,6 +293,30 @@ LAYER2 = [
      "slot liveness — a dead agent must not read as a full roster",
      ["bash", os.path.join(TOOLS, "test_slot_liveness.sh")],
      "test_slot_liveness: PASS"),
+    # THE STALE-FILE GUARD'S OWN SUITE. `stale_file_check.py` is a HARD gate inside pr_gate, ABOVE
+    # the "no raw-port/src ports to gate" early exit, so it runs on the whole non-src population —
+    # 15 of the 16 open PRs when it landed. A later edit that broke its still-on-main filter, or its
+    # insertion rule, would hard-fail honest PRs across the entire queue, and the one artifact that
+    # could catch that is its test: 16 cases, 6 killed mutants (`pre_image`, `no_filter`, `no_ack`,
+    # `lax_flag`, `no_token_rule`, `unordered`) plus an assertion that pr_gate still calls it above
+    # that early exit. It shipped with NO caller — prove_all, test_guards, pr_gate and swarm_doctor
+    # referenced it zero times — which is OPS_LOG row 44's shape ("a guard that exists, works, and
+    # is never called is indistinguishable from no guard at all, and reads as reassurance"). Offline:
+    # scratch repos with a real bare origin, no gh. Measured in a pool worktree under swarm load: 76s.
+    #
+    # LABEL: this block was 2i -> 2j -> 2l -> 2m -> 2t against the old hand-numbered tail, and main
+    # has since taken 2t for the queue-base check. As a ROW there is no r<N>/ok<N> left to share —
+    # the half of that collision that could turn a RED layer into a PASS — so the merge is just a
+    # free label: 2B, the next after main's 2A. check_layer_labels() refuses a duplicate before any
+    # layer runs.
+    #
+    # TOKEN: verified by RUNNING the suite in this worktree, not guessed — the real line is
+    # `TEST_STALE_FILE_CHECK: PASS (16 cases, 6 mutants killed)`, and the failing form of the same
+    # line says FAIL, so the token cannot match a red run.
+    ("2B",
+     "stale-file guard — a deletion main still has is caught, an insertion is not",
+     ["bash", os.path.join(TOOLS, "test_stale_file_check.sh")],
+     "TEST_STALE_FILE_CHECK: PASS"),
 ]
 
 def check_layer_labels():

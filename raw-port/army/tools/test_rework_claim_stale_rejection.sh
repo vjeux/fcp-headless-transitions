@@ -22,17 +22,25 @@ ok   () { echo "  ok   — $1"; pass=$((pass+1)); }
 bad  () { echo "  FAIL — $1"; echo "         $2"; fail=$((fail+1)); }
 
 # --- the fake gh ------------------------------------------------------------------------------
-# `gh pr list`  -> the three candidate PRs, all CHANGES_REQUESTED.
+# `gh pr list`  -> the three candidate PRs, all CHANGES_REQUESTED ($FAKE_PRLIST); when the call asks
+#                  for `statusCheckRollup` it is the SECOND ARM's query and is served $FAKE_SFLIST
+#                  (the open PRs whose latest faithfulness-gate is a FAILURE).
 # `gh api .../pulls/<n>/reviews` -> the commit each rejection was recorded against, from $TMP/rej.<n>
 #                                   (an ABSENT file models a transport failure: empty output).
+# `gh api .../commits/<sha>/statuses` -> that head's faithfulness-gate DESCRIPTION, from $TMP/desc.<sha>
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/gh" <<'FAKE'
 #!/bin/bash
 case "$1 $2" in
   "pr list")
+    for a in "$@"; do case "$a" in *statusCheckRollup*) [ -f "$FAKE_SFLIST" ] && cat "$FAKE_SFLIST"; exit 0;; esac; done
     cat "$FAKE_PRLIST" ;;
   "api "*)
-    for a in "$@"; do case "$a" in repos/*/pulls/*/reviews) n=$(echo "$a" | cut -d/ -f5);; esac; done
+    n=""; s=""
+    for a in "$@"; do case "$a" in
+      repos/*/pulls/*/reviews) n=$(echo "$a" | cut -d/ -f5);;
+      repos/*/commits/*/statuses) s=$(echo "$a" | cut -d/ -f5); [ -f "$FAKE_DIR/desc.$s" ] && cat "$FAKE_DIR/desc.$s"; exit 0;;
+    esac; done
     # FLAKY MODE: for the PR named in $FAKE_FLAKY, the first N calls die the way `gh` really dies on
     # this box (TLS verify failure, empty stdout, non-zero exit) and later calls answer normally.
     if [ -n "$FAKE_FLAKY" ] && [ "$n" = "$FAKE_FLAKY" ]; then
@@ -54,6 +62,7 @@ printf '#!/bin/bash\nexit 0\n' > "$TMP/bin/git"; chmod +x "$TMP/bin/git"
 export FAKE_DIR="$TMP"
 export FAKE_FLAKY=""
 export FAKE_PRLIST="$TMP/prlist"
+export FAKE_SFLIST="$TMP/sflist"
 export PATH="$TMP/bin:$PATH"
 export HOME="$TMP/home"
 mkdir -p "$HOME/random/final-cut-pro-transitions"
@@ -63,7 +72,7 @@ export FCT_STATE_DIR="$HOME/.fct-pool"
 # 501 = rejection on the CURRENT head (still the author's turn)
 # 502 = rejection on an OLDER head (already reworked -> the reviewer's turn)
 # 503 = the reviews API answers nothing (transport failure -> must NOT be skipped)
-printf '502\tport/Reworked\tbbbbbbbbbbbb\n503\tport/Unknown\tcccccccccccc\n501\tport/Standing\taaaaaaaaaaaa\n' > "$FAKE_PRLIST"
+printf '502\tport/Reworked\tbbbbbbbbbbbb\trejection\n503\tport/Unknown\tcccccccccccc\trejection\n501\tport/Standing\taaaaaaaaaaaa\trejection\n' > "$FAKE_PRLIST"
 printf 'aaaaaaaaaaaa\n' > "$TMP/rej.501"
 printf 'oldoldoldold\n' > "$TMP/rej.502"
 # no rej.503 on purpose
@@ -90,21 +99,64 @@ else
 fi
 
 # --- CASE 3: a standing rejection on the CURRENT head is still offered --------------------------
-printf '501\tport/Standing\taaaaaaaaaaaa\n' > "$FAKE_PRLIST"
+printf '501\tport/Standing\taaaaaaaaaaaa\trejection\n' > "$FAKE_PRLIST"
 out=$(run)
 echo "$out" | grep -q "CLAIMED 501" \
   && ok "a rejection recorded against the current head is still worker work" \
   || bad "the queue must still offer a genuine, unanswered rejection" "got: $out"
 
 # --- CASE 4: the attempt counter is not charged for a skipped PR --------------------------------
-printf '502\tport/Reworked\tbbbbbbbbbbbb\n501\tport/Standing\taaaaaaaaaaaa\n' > "$FAKE_PRLIST"
+printf '502\tport/Reworked\tbbbbbbbbbbbb\trejection\n501\tport/Standing\taaaaaaaaaaaa\trejection\n' > "$FAKE_PRLIST"
 run >/dev/null
 [ ! -f "$FCT_STATE_DIR/rework_attempts/502" ] \
   && ok "a skipped PR is not charged an attempt (that is how #143 reached 3/3)" \
   || bad "a PR skipped as already-reworked must not burn its cap" \
          "attempts=$(cat "$FCT_STATE_DIR/rework_attempts/502" 2>/dev/null)"
 
-# --- CASE 5: a TRANSIENT failure of the reviews call must not defeat the guard ------------------
+# ================================================================================================
+# THE SECOND ARM — a PR the GATE reddened for something only its author can fix.
+#
+# `pr_gate.sh`'s stale-file guard posts `faithfulness-gate = failure` described as "deletes lines
+# that are on main without a reverts-ok: declaration". There is no REVIEW to select on, so before
+# this arm the PR was claimable by nothing: rebase_claim greps regression|rebase|add-only|G6|gate
+# reject, review_claim skips a FAILURE that is latest-for-head, and this queue read reviewDecision
+# alone. Raised on the review of #600; these cases are what stop it coming back.
+# ================================================================================================
+printf '' > "$FAKE_PRLIST"          # nobody is CHANGES_REQUESTED
+printf '601\tfix/DeletesLines\tddddddddffff\n' > "$FAKE_SFLIST"
+printf 'deletes lines that are on main without a reverts-ok: declaration\n' > "$TMP/desc.ddddddddffff"
+
+# --- CASE 5: the gate-red PR is offered, with the remedy in the claim line -----------------------
+out=$(run)
+if echo "$out" | grep -q "CLAIMED 601"; then
+  ok "a PR red for the stale-file guard is routed to a worker (it belonged to no queue before)"
+  echo "$out" | grep -q "reverts-ok" \
+    && ok "the claim line carries the gate's own reproducer, since there is no review body" \
+    || bad "a stale-file claim must name the remedy" "got: $out"
+else
+  bad "the stale-file arm must offer the PR" "got: $out"
+fi
+
+# --- CASE 6: an OLD rejection on that same PR must not make the arm skip it ----------------------
+# The head is red RIGHT NOW; a rejection recorded three heads ago says nothing about that, and the
+# arm-1 test would read it as "waiting on a reviewer" and drop the PR back into no-queue.
+printf 'oldoldoldold\n' > "$TMP/rej.601"
+out=$(run)
+echo "$out" | grep -q "CLAIMED 601" \
+  && ok "a stale-file row is not skipped by the already-reworked test (its status is on THIS head)" \
+  || bad "an old rejection must not suppress a CURRENT mechanical failure" "got: $out"
+rm -f "$TMP/rej.601"
+
+# --- CASE 7: a gate failure for a DIFFERENT reason is NOT this queue's ---------------------------
+# `regression (rebase needed)` belongs to rebase_claim; claiming it here would be two queues holding
+# one PR, which is what the lease exists to prevent.
+printf 'regression (rebase needed): DIRTY on OPS_LOG.md\n' > "$TMP/desc.ddddddddffff"
+out=$(run)
+echo "$out" | grep -q "CLAIMED 601" \
+  && bad "a regression/rebase failure must stay with the REBASE queue" "got: $out" \
+  || ok "the arm matches only the stale-file wording, not every red gate"
+
+# --- CASE 8: a TRANSIENT failure of the reviews call must not defeat the guard ------------------
 # This is the failure that actually happened. `gh` on this box intermittently exits non-zero with a
 # TLS verification error and succeeds on the very next call; the guard read that as "no answer",
 # failed open, and handed out #655 — whose author had already reworked it twice. The retry is what
@@ -112,6 +164,8 @@ run >/dev/null
 rm -f "$FCT_STATE_DIR/rework_leases/502" "$FCT_STATE_DIR/rework_attempts/502" 2>/dev/null
 rmdir "$FCT_STATE_DIR/rework_leases/502" 2>/dev/null
 rm -f "$TMP/flaky.count"
+printf '' > "$FAKE_SFLIST"          # arm 2 is not what this case is about
+printf 'aaaaaaaaaaaa\n' > "$TMP/rej.502"   # 502's rejection is on an OLD head (cases 6-8 removed it)
 export FAKE_FLAKY=502 FAKE_FLAKY_FAILS=1
 printf '502\tport/Reworked\tbbbbbbbbbbbb\n501\tport/Standing\taaaaaaaaaaaa\n' > "$FAKE_PRLIST"
 out=$(run)
