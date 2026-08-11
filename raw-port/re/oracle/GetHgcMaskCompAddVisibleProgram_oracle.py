@@ -37,6 +37,8 @@ import ctypes, json, os, re, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ozone_loader  # noqa: E402
+# A driver that does not terminate is a mutant that was KILLED, not a pending result (#719).
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 FW = "Ozone"
 VMADDR = 0x6D5550
@@ -54,7 +56,7 @@ def run_driver(module_path=None):
     if module_path:
         env["GETHGCMASKCOMPADD_TS"] = module_path
     p = subprocess.run(["node", "--experimental-strip-types", DRIVER],
-                       capture_output=True, text=True, env=env)
+                       capture_output=True, text=True, env=env, timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         raise SystemExit("TS driver failed:\n" + p.stdout + p.stderr)
     return bytes.fromhex(json.loads(p.stdout)["hex"])

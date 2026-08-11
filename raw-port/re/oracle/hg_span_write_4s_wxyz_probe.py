@@ -29,6 +29,8 @@ THE CORPUS IS BUILT AROUND THE THREE THINGS THAT ARE EASY TO GET WRONG:
     above 1.0, denormals, and 1.0 — the machine answers 0 for NaN, and ties go to EVEN.
 """
 import ctypes, json, os, platform, struct, subprocess, sys
+# A driver that does not terminate is a mutant that was KILLED, not a pending result (#719).
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 FCP = "/Applications/Final Cut Pro.app/Contents"
 HELIUM = FCP + "/Frameworks/Helium.framework/Versions/A/Helium"
@@ -47,7 +49,7 @@ RPATHS = [FCP + "/Frameworks", FCP + "/Frameworks/Flexo.framework/Versions/A/Fra
 
 
 def deps(path):
-    out = subprocess.run(["otool", "-L", path], capture_output=True, text=True).stdout
+    out = subprocess.run(["otool", "-L", path], capture_output=True, text=True, timeout=DRIVER_TIMEOUT).stdout
     return [l.split()[0] for l in out.splitlines()[1:] if l.strip()]
 
 
@@ -197,7 +199,8 @@ DRIVER = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 ts = {}
 if os.path.exists(DRIVER):
     r = subprocess.run(["node", "--experimental-strip-types", DRIVER],
-                       input=json.dumps(CASES), capture_output=True, text=True)
+                       input=json.dumps(CASES), capture_output=True, text=True,
+                       timeout=DRIVER_TIMEOUT)
     if r.returncode != 0:
         check("D the TypeScript port runs", False, (r.stderr or "")[-300:])
     else:
