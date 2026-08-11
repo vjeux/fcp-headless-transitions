@@ -20,6 +20,16 @@ CAP="${REBASE_ATTEMPT_CAP:-3}"; LEASE_MIN="${REBASE_LEASE_MIN:-90}"
 
 lease_free () { # <PR> : 0 if we can take it (free or stale), else 1
   local lk="$LEAS/$1"
+  # THE OTHER WORKER QUEUE'S LEASE COUNTS TOO — see the long note in rework_claim.sh. A PR that is
+  # CHANGES_REQUESTED *and* CONFLICTING is selected by BOTH worker queues, and #643 (which taught
+  # this selector to see DIRTY branches) made that combination common. Measured on #656: two
+  # workers held the two leases 66 seconds apart and both started reconciling the same 936-line
+  # PR. Same staleness window as our own leases, so a dead peer cannot block the PR forever.
+  local peer="$STATE/rework_leases/$1"
+  if [ -d "$peer" ] && [ -z "$(find "$peer/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
+    echo "rebase_claim: PR #$1 is already leased by the REWORK queue — skipping (a rejected PR that also conflicts is in both queues; one worker is enough)" >&2
+    return 1
+  fi
   mkdir "$lk" 2>/dev/null && { echo "$(date +%s)" > "$lk/held"; return 0; }
   if [ -n "$(find "$lk/held" -mmin +$LEASE_MIN 2>/dev/null)" ]; then
     echo "$(date +%s)" > "$lk/held"; return 0; fi
