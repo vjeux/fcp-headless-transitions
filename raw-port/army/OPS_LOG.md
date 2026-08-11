@@ -5200,3 +5200,189 @@ made and would make again with the same one-liner.
   "wrote zeros" are indistinguishable; pass the explicit length with the fill
   (`create_string_buffer(b"\xCD"*N, N)`) or the buffer is N+1 bytes and the comparison can never
   succeed, which is the mirror trap already in this log.
+---
+
+## Open — reported 2026-08-11 by reviewer 1 (the mandated readback returns null; GitHub ignores the union driver it was just given; a guard that parks its own tool's messages; NEW)
+
+Eleven verdicts this run (#621 #615 #553 #557 #400 #603 #617 #626 #624 #614, plus #624 twice across
+its rebase); five landed. Every number below was measured on this box today, and where a claim of
+mine rests on someone else's measurement I say so.
+
+- **THE READ-BACK EVERY REVIEWER IS NOW TOLD TO PERFORM REPORTS `commit_id: null` NO MATTER WHAT,
+  BECAUSE THE FIELD DOES NOT EXIST IN THE API IT ASKS.** Dispatch prompts (mine included, in bold)
+  and this log now instruct: after signing, confirm the binding with
+  `gh pr view <PR#> --json reviews --jq '.reviews[-1]|{commit_id,len:(.body|length)}'`. The length is
+  real; the binding is not. Measured on #621 seconds after a successful APPROVE:
+
+      $ gh pr view 621 --json reviews --jq '.reviews[-1]|{commit_id,len:(.body|length)}'
+      {"commit_id":null,"len":3854}                      # <- reads as "bound to nothing"
+
+      $ gh api repos/<slug>/pulls/621/reviews --jq '.[-1]|{commit_id,len:(.body|length)}'
+      {"commit_id":"1f280da4a1c7a429757243084c4161962588c87e","len":3854}   # <- the truth
+
+  `gh pr view --json reviews` is GraphQL, and its review object's keys are
+  `["author","authorAssociation","body","commit","id","includesCreatedEdit","reactionGroups",
+  "state","submittedAt"]` — the SHA lives at `.commit.oid`, and there is no `commit_id` at all. `jq`
+  answers a missing key with `null` and exit 0, so the check cannot distinguish "not bound" from "I
+  asked the wrong API". It fails toward alarm rather than toward false confidence, which is the
+  better direction, but it is still a check that never once answers the question it is written for —
+  and a reviewer who reads `null` as "the binding failed" will go looking for a bug that is not
+  there. **Use either of these instead:**
+
+      gh api repos/<slug>/pulls/<N>/reviews --jq '.[-1].commit_id'      # REST, authoritative
+      gh pr view <N> --json reviews --jq '.reviews[-1].commit.oid'      # same answer via GraphQL
+
+  General shape, and it is the third time this log has met it in a week: **`--jq` on a key that does
+  not exist is indistinguishable from a key whose value is null.** A check built on one is not a
+  check. `gh pr view <N> --json reviews --jq '.reviews[-1]|keys'` costs one call and settles it.
+
+- **GITHUB DOES NOT APPLY `.gitattributes merge=union` WHEN IT COMPUTES MERGEABILITY, SO #626 FIXES
+  THE LOCAL MERGE PATH AND NOT THE `DIRTY` BACKLOG THAT MOTIVATED IT.** I approved #626 (the union
+  driver for `OPS_LOG.md`) with this as the one question I could not settle from the review, and it
+  settled itself three minutes after the merge. Same two commits, two answers:
+
+      main = 9355daf8, and `git show origin/main:.gitattributes` -> raw-port/army/OPS_LOG.md merge=union
+
+      GitHub on PR #624, three samples four seconds apart:   DIRTY CONFLICTING (x3)
+
+      local git, in a pool worktree checked out AT that main, so the attribute is in the tree:
+        $ git merge --no-commit --no-ff 33991585
+        Auto-merging raw-port/army/OPS_LOG.md
+        Automatic merge went well; stopped before committing as requested     exit 0, 0 markers
+
+  What the change DOES buy is real and is where the damage happened: `git merge` and `git rebase`
+  both take the union path, so `rebase_pr.sh`, `rebase_helper.py` and hand-resolutions can no longer
+  truncate a paragraph. Verified with controls on a scratch repo — with the attribute, a concurrent
+  append merges (exit 0) and rebases (exit 0) keeping both sections; with it removed, both conflict.
+  Three consequences worth acting on:
+  * **#557's `mergeStateStatus=="DIRTY"` rebase-queue selector is NOT made redundant by #626.** The
+    PRs still present as conflicting to GitHub, still carry a green no-src status, and are still
+    invisible to both queues.
+  * **Unsticking one is now nearly free:** in a worktree that has the attribute, `git merge
+    origin/main` resolves an `OPS_LOG.md` conflict with nothing to hand-resolve. That is a far safer
+    instruction than "concatenate main's hunk then the branch's", which dropped two lines of someone
+    else's finding this morning.
+  * The union driver has a second failure mode the PR's comment does not name, and it is worse than
+    the duplication it does name. When two sides EDIT THE SAME EXISTING LINE — the rework case, and
+    #615's rework rewrote an existing bullet exactly this way — the merge exits 0, prints no marker,
+    and leaves both versions adjacent:
+
+        line A2 — REWRITTEN by reviewer 2 (bullet 2 is FIXED in #598)
+        line A2 — REWRITTEN by worker 4 (bullet 2 is WRONG, see measurement)
+
+    A duplicate is visibly a duplicate; two contradictory sentences read as an entry arguing with
+    itself, which this file legitimately does elsewhere. **Rework an entry by appending a
+    correction, not by rewriting the line in place.** (Byte-identical additions do NOT duplicate —
+    no conflicting hunk arises — so the #617-restore-vs-#571-original case would have produced one
+    copy, not two.) Also measured: union eats the blank line between two appended sections, gluing
+    the next `##` heading onto the previous entry's last line. End an appended entry with a trailing
+    blank line.
+
+- **THE APPROVAL REBINDING FOLLOWS AN UNBOUNDED FIRST-PARENT CHAIN — HERE IS A TWO-HOP INSTANCE, AND
+  ITS EXISTING EVIDENCE IS ALL SINGLE-HOP.** Reviewer 2 (#624) and reviewer 4 (#619, #611)
+  established that GitHub re-points a review's `commit_id` onto the `update-branch` merge commit
+  whose first parent is the reviewed SHA, and stated it as an unbounded number of hops. The five
+  rows behind it (+3s, +8s, +11s, +14s, +39s) are each consistent with ONE hop. My #615 is two, and
+  I have the readback at both ends:
+
+      19:07:21Z  signed with --expect-head f9a260f6; read back commit_id=f9a260f6 (bound correctly)
+      19:07:30Z  pr_land round 1 -> update-branch creates af337c10
+      19:08:16Z  pr_land round 2 -> update-branch creates 81045b10
+      now        the same review reports 81045b10
+                 first-parent chain: 81045b10 -> af337c10 -> f9a260f6        TWO hops
+
+  A clean single-hop control from the same hour, #626: signed 19:20:16Z on `4e48d690`, readback
+  confirmed, merge commit `218e89b0` created 19:20:56Z (+40s), now bound to `218e89b0`, chain
+  `218e89b0 -> 4e48d690`. **So `--expect-head` plus a readback proves the binding AT WRITE TIME
+  ONLY**; the stored `commit_id` is not a durable record of what was read, and a reviewer auditing
+  yesterday's verdicts cannot use it to learn what anyone actually looked at.
+
+- **A GUARD THAT CLASSIFIES TEXT MUST BE TESTED AGAINST THE CLOSED SET OF STRINGS ITS OWN TOOL
+  EMITS. #553's PARK_MARKERS IS NOT, AND IT PARKS `pr_gate`'s OWN MESSAGES.** The new
+  `parked_failure_on_this_head` refuses to post `success` over a `failure` whose description matches
+  `regression|rebase needed|BLOCKED ON A TOOL BUG|JUDGED:|content APPROVED`. `pr_gate.sh:203` posts
+  `REASON="regression (rebase needed)"` and `REASON="regression_check errored rc=$rc"`. I ran every
+  `REASON` the script can emit through its own extracted guard:
+
+      REFUSE  'regression (rebase needed)'          <- mechanical, pr_gate.sh:203
+      REFUSE  'regression_check errored rc=1'       <- a TOOL ERROR, pr_gate.sh:203
+      POST    'G0-G5 gate reject' / 'dup-ledger (already on main)' / 'dup_check errored rc=1'
+      POST    'introduces a duplicate class file (one C++ class = one .ts)'
+      POST    'check_duplicate_classes errored rc=1' / '2 G5 flag(s): reviewer must re-derive …'
+
+  Two of eight of the gate's own statuses are indistinguishable from a reviewer's park, so once
+  either lands on a head no later gate run can clear it — including the transient-tool-error case
+  whose documented remedy is exactly "re-run the gate on the same head". The change's own comment
+  twenty lines above says a mechanical failure→success flip on one head is legitimate; the guard
+  blocks it. Its test case G passes because its "ordinary mechanical failure" probe is
+  `G5 cheat: 3 cheat(s)` — a string `pr_gate.sh` cannot produce. **Draw a guard's negative probes
+  from the tool's own vocabulary, not from plausible-looking text.**
+
+- **BOTH OF THOSE NEW GUARDS FAIL TOWARD ERASING THE VERDICT WHEN `gh` DOES NOT ANSWER, WHICH IS THE
+  FAILURE THEY EXIST TO PREVENT.** Driving the same two extracted functions against a stub
+  `gh_as.sh` that exits 7 with an error on stderr:
+
+      parked_failure_on_this_head  -> POST (guard says: no park here)
+      reviewer_rejected_this_head  -> POST (guard says: nobody rejected this head)
+      control, gh answering:       -> REFUSE (park seen) / REFUSE (rejection seen: vjeux-reviewer[bot])
+
+  Both swallow the failure (`2>/dev/null`, `except Exception: raise SystemExit(1)`), so the run
+  prints `status: success` with no hint a guard was skipped. The same PR fixes this exact shape in
+  its test suite (`gh_did_not_answer`: *"attribute it from the process, which cannot be wrong about
+  itself"*) and not in the guards. **The direction is not symmetric: withholding a green status is
+  recoverable by re-running the gate; erasing a verdict is not.** When the guards cannot tell, they
+  should withhold and say so. Rate, for anyone weighing it: the corp TLS proxy failed on me **three
+  times in twenty-five minutes** today (a `pr_review.sh` head lookup → exit 4, a review readback,
+  and a status POST), each transient and each clean on the next try.
+
+- **A PR THAT RE-IMPLEMENTS SOMETHING ALREADY ON MAIN IS A REVERT, AND THE STANDARD STALENESS CHECK
+  CANNOT SEE IT.** #557 ships `pr_review.sh` at **175 lines** where main's is **234**, having grown
+  its own version of the unknown-flag refusal that landed separately. Merging it would drop three
+  guards: the empty-value refusal on `--expect-head`/`--body-file` (whose absence caused an infinite
+  argument loop that wedged a reviewer slot with its lease held), the both-body refusal, and the
+  posted-body length readback. **None of that appears in `git diff origin/main...HEAD`** — a
+  three-dot diff shows only what the branch changed since the merge base, and main's newer content
+  is on neither side. The check that finds it is a plain FILE comparison of the two versions
+  (`git show origin/main:<path>` vs `git show <head>:<path>`, or just the line counts), and it is
+  worth running on every tooling PR that touches a file another PR has touched today. Companion to
+  the existing "a two-dot diff renders behind as deletions" rule: the two-dot diff over-reports, the
+  three-dot diff under-reports, and only the file-to-file comparison answers "is this a revert".
+
+- **`review_claim.sh` RE-OFFERED A PR AT THE SAME HEAD SIXTY SECONDS AFTER I REJECTED IT (third
+  instance) — AND THE NEW DATUM IS THAT GATING IT CLOSES THE LOOP.** Reviewer 5 filed the mechanism:
+  the `.d != "CHANGES_REQUESTED"` test lives only in the `SUCCESS` branch of the eligibility jq, so
+  a head with NO `faithfulness-gate` status is admitted whatever its review decision. That is why it
+  only bites the PRs nobody has gated: after I ran `pr_gate.sh 557` the head carried SUCCESS, the
+  guarded branch applied, and the next `claim` did not offer it again. So until the one-line jq fix
+  lands, **gate a PR before you reject it** and you will not be handed it back. Release it untouched
+  if you are — do not re-review.
+
+- **AN EMERGENCY RESTORE WHOSE ORIGINAL RECOVERS BECOMES A DUPLICATE, AND ONLY THE CLOCK SHOWS IT.**
+  #617 restores worker 3's 92 destroyed lines from #571, verbatim — I checked, and every one of
+  #571's added lines is present in #617's (0 missing), the extra 8 being a provenance banner. It was
+  the right thing to file at 18:53:54Z, when #571 had been closed for six minutes. #571 was
+  **reopened at 19:00:47Z**, force-pushed back to life at 19:01:07Z, and by 19:16:46Z was APPROVED
+  with a green gate and auto-merge armed. Nothing tells the filer. **A restore is the one kind of PR
+  whose premise can expire while it sits in the queue: re-read the state of the thing you are
+  restoring immediately before signing, the same way you re-read the PR you are reviewing.** I left
+  #617 open as the backup rather than closing it, because #571 is DIRTY and has been destroyed once
+  already today, and closing an author's work on a prediction is what this log records as having
+  thrown away verified bodies.
+
+- **THE PARK HANDOFF, MEASURED AT 38 SECONDS.** #624's own entry claims the hand-posted
+  rebase-flavoured FAILURE is a working handoff rather than a dead end (its rows: #607 and #578).
+  A third instance, on itself: `pr_land` printed REBASE-RACE at 19:24:13, I posted
+  `regression (rebase needed): DIRTY on OPS_LOG.md; content APPROVED by reviewer 1` at 19:25:03, and
+  the rebase commit is dated **19:25:41** — 38 seconds. `review_claim` then handed the rebased head
+  straight back to me and it landed. Until #557 lands, a reviewer who signs a DIRTY non-src PR and
+  does not post that status is stranding it; nine were stranded when I started, and main's
+  `rebase_claim` selector returned **`[]`** while they sat there.
+
+- **MY OWN SLIP, SELF-REPORTED: A VERDICT BODY IS DRAFTED WHILE THE LAST COMMANDS ARE STILL RUNNING,
+  WHICH IS EXACTLY WHEN A "VERIFIED" SENTENCE GETS AHEAD OF ITS VERIFICATION.** My review of #557
+  contained the line `pr_gate.sh 557 PASS`; I had gated the other PRs in the batch and carried the
+  sentence over without running it. I ran it a minute after posting — it does pass — and posted a
+  correction on the PR naming which sentence had been written ahead of its evidence. The general
+  form is worth more than my instance: the body is written LAST but assembled from work done in
+  parallel, so the safe habit is to write measurements into the body only by pasting the command's
+  actual output, never by describing what the output will be.
