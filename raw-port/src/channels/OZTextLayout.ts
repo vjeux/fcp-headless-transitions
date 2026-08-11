@@ -104,6 +104,10 @@
 //
 // -----------------------------------------------------------------------------
 // D1 / D0 ARE `ud2` TRAPS
+// (and so is every non-virtual THUNK to them — see destroy_D1_thunk6720_trap,
+//  which ports __ZThn6720_N12OZTextLayoutD1Ev @0x6dc610; the six bytes
+//  `55 48 89 e5 0f 0b` are identical across D1 @0x6dc5d0, its Thn200/Thn216/
+//  Thn240/Thn6720/Thn18968 thunks and the Thn6720 D0 @0x6dc670)
 // -----------------------------------------------------------------------------
 // The D1 (`~OZTextLayout` @0x6dc5d0) and D0 (`~OZTextLayout` @0x6dc630)
 // entry points are BOTH the two-byte sequence
@@ -537,6 +541,60 @@ export class OZTextLayout {
         "shipping Ozone binary (bytes: `pushq %rbp; movq %rsp,%rbp; " +
         "ud2`). The delete-thunk entry point has been ICF-folded to a " +
         "hard trap — call destroy() instead.",
+    );
+  }
+
+  /**
+   * `non-virtual thunk to OZTextLayout::~OZTextLayout()` — D1 thunk
+   *   @Ozone 0x6dc610 (__ZThn6720_N12OZTextLayoutD1Ev).
+   *
+   * A DISTINCT exported symbol from the un-thunked D1 @0x6dc5d0 above, at its
+   * own address, and its own ledger unit. `Thn6720` is the Itanium-ABI
+   * non-virtual thunk whose job is to subtract 6720 (0x1a40) from `this` before
+   * chaining — the adjustment for the base subobject a caller holds a pointer to
+   * when it destroys this object through that base's vtable slot.
+   *
+   * Here it never gets as far as adjusting anything. The whole body is
+   *
+   *   0x6dc610  pushq %rbp                 ; frame prologue
+   *   0x6dc611  movq  %rsp, %rbp
+   *   0x6dc614  ud2                        ; immediate #UD — an intentional trap
+   *   0x6dc616  nopw  %cs:(%rax,%rax)      ; padding, not executed
+   *
+   * i.e. the same three instructions as the un-thunked D1/D0: there is no
+   * `addq $-0x1a40, %rdi` and no `jmp` to a real destructor, so this entry point
+   * is a deliberate "unreachable" marker, not a forwarding thunk. Reading it as
+   * "undecoded" would be wrong — the trap IS the behaviour, and the throw below
+   * is the faithful port of it (PORTING_SPEC Rule 3's loud gap, except that here
+   * the loudness is what the machine itself does).
+   *
+   * The whole family is traps, which is what settles the reading: D1 @0x6dc5d0,
+   * the D1 thunks Thn200 @0x6dc5e0, Thn216 @0x6dc5f0, Thn240 @0x6dc600,
+   * Thn6720 @0x6dc610 and Thn18968 @0x6dc620, and the D0 thunk Thn6720
+   * @0x6dc670 all begin with the identical six bytes `55 48 89 e5 0f 0b`. The
+   * real teardown for this class is D2 @0x63f850 — `destroy()` above.
+   *
+   * ORACLE (raw-port/re/oracle/OZTextLayout_Thn6720_D1_oracle.py): proven two
+   * ways against the live image, because "the port throws" is only honest if the
+   * machine really traps. STATICALLY, the six bytes at `dyld slide + 0x6dc614`
+   * (and at each of the six siblings above) read back as
+   * `55 48 89 e5 0f 0b` — 7/7. BEHAVIOURALLY, the function is actually CALLED,
+   * in a FORKED CHILD process because a `ud2` raises SIGILL and would otherwise
+   * take the harness down with it: the child died with signal 4 (SIGILL), and
+   * did not return.
+   *
+   * @addr 0x6dc610 (Ozone, D1 non-virtual thunk, this-adjustment 6720 — `ud2` trap)
+   */
+  destroy_D1_thunk6720_trap(): never {
+    // @0x6dc614 — ud2 : the machine raises #UD here (measured: SIGILL).
+    throw new Error(
+      "non-virtual thunk to OZTextLayout::~OZTextLayout D1 @Ozone 0x6dc610 is a " +
+        "`ud2` trap in the shipping binary (bytes: `55 48 89 e5 0f 0b` = " +
+        "`pushq %rbp; movq %rsp,%rbp; ud2`). It never performs its 6720-byte " +
+        "this-adjustment — the entry point is deliberately unreachable, and " +
+        "calling it aborts the process with SIGILL (verified by calling it). " +
+        "The complete-object dtor for this class is D2 @0x63f850 — call " +
+        "destroy() instead.",
     );
   }
 
