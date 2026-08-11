@@ -1,70 +1,233 @@
 #!/usr/bin/env python3
-"""stale_file_check.py — reject a non-src change that DELETES work already on main.
+"""stale_file_check.py — refuse to silently DELETE work that is on main, outside raw-port/src.
 
-WHAT THIS IS, AFTER BEING WRONG ONCE
-------------------------------------
-`raw-port/src/**.ts` is guarded three ways (G6 add-only, regression_check, dup_check). Every other
-file — tools, gates, verifiers, OPS_LOG — is guarded by nothing, and a peer's landed tool fix has
-twice been reverted by an ordinary commit. This closes that gap, using G6's discriminator.
+THE GAP THIS CLOSES
+-------------------
+`raw-port/src/**.ts` is protected three ways: G6 (add-only), `regression_check` (no dropped symbols)
+and `dup_check`. **Every other file in the repo is protected by nothing.** Tools, gates, verifiers,
+OPS_LOG — the machinery the swarm runs on — can be reverted by an ordinary, well-intentioned commit.
 
-THE FIRST VERSION OF THIS FILE WAS INVERTED, and the reason is worth keeping. It asked "did main
-gain lines on this file that my branch's copy lacks?" — which is true of every honest branch that
-simply forked before those lines landed, and git's three-way merge preserves them anyway. Measured
-by reviewer 2 on the live queue: it would have rejected 10 of 15 open non-src PRs, including pure
-`+119/-0` and `+596/-0` appends, while PASSING the exact incident it was written for.
+The mechanism is not a git conflict, which is why nothing catches it. An agent reads a tool, prepares
+a fixed copy (often in /tmp, which the briefs recommend for other good reasons), and writes the WHOLE
+FILE back. Git sees one clean modification. If a peer landed a different fix to that same file in the
+meantime, the whole-file write deletes it, the merge is clean, the gate is green, and the loss
+surfaces only when someone notices the behaviour is gone.
 
-The correct question is the one G6 already asks about src: **what does the merge actually APPLY?**
-That is the three-dot delta (`main...HEAD`). A branch that merges cleanly and deletes nothing shows
-no `-` lines there, no matter how old its base. A branch that would remove landed work shows them —
-which is exactly what a force-pushed stale rebase produces, the real shape of both incidents.
+Measured 2026-08-11: two workers reworking one tool reverted each other's fixes, and one of them
+reverted a swarm_doctor rework 40 minutes after it was pushed. Both were doing exactly what they were
+asked to do.
 
-    python3 raw-port/army/tools/stale_file_check.py <BASE> <HEAD> [paths...]
+WHAT IT MEASURES, AND WHY THE FIRST VERSION MEASURED THE WRONG THING
+--------------------------------------------------------------------
+The first version of this file asked *"did main gain commits on this file after I forked, and am I
+missing their lines?"* Reviewer 2 measured that and it is **inverted** — it passed the incident it
+was written for and rejected changes that provably delete nothing:
 
-EXIT: 0 clean · 2 the change deletes landed work · 1 usage error
+  * the incident's branch is based on a main that ALREADY CONTAINS the peer's fix, so that commit is
+    an ancestor of the merge base, `git log mb..base -- path` is empty, and the file was skipped.
+    The fresher the branch, the blinder the check — and fresh is the normal case;
+  * a stale branch that only APPENDS was rejected, because "my branch does not contain main's newer
+    lines" is a TWO-dot fact about staleness, not a THREE-dot fact about what a merge deletes. A line
+    main gained after the fork point is on neither side of the merge base, so a merge cannot remove
+    it. Ten of the fifteen open non-src PRs failed that way, two of them pure `+119/-0` and `+596/-0`
+    appends.
+
+So this version asks the question G6 already asks about `raw-port/src`, which is the only one that
+matters and is independent of when you forked:
+
+    **does the delta a merge would apply REMOVE lines that are on main right now?**
+
+    removed  = lines whose count drops from the MERGE BASE blob to the HEAD blob   (three dots:
+               exactly what a merge applies)
+    loss     = those of them that are still present in main's CURRENT blob         (if main already
+               deleted the line, your merge removes nothing)
+
+Counting multisets rather than diff hunks means a pure MOVE of a line inside a file is not a loss,
+and a file deletion is correctly the loss of every line in it.
+
+INTENT IS NOT MECHANICALLY DECIDABLE — SO THE AUTHOR ACKNOWLEDGES
+------------------------------------------------------------------
+Plenty of honest changes delete on purpose (removing a condition, replacing an `echo`). No test
+separates an intended deletion from an accidental one, and a guard that hard-fails ten honest PRs is
+switched off within the hour and then protects nothing. So this reports the exact lines the merge
+would remove, and asks the author to say they meant it — in the commit message:
+
+    reverts-ok: raw-port/army/tools/pr_gate.sh      # this path only
+    reverts-ok: all                                 # every path in this change
+
+(`#` in front is fine; any commit in BASE..HEAD counts.) Locally you can pass `--ack <path>` or
+`--ack-all` instead. Unacknowledged deletions are exit 2; acknowledged ones print and pass, so the
+record still names what went and who is answerable for it.
+
+    python3 raw-port/army/tools/stale_file_check.py <BASE> <HEAD> [--ack PATH]... [--ack-all]
+                                                    [--no-blame] [paths...]
+
+EXIT: 0 clean or acknowledged · 2 unacknowledged deletion of work on main · 1 usage/setup error
 """
+import re
 import subprocess
 import sys
+from collections import Counter
+
+SRC_PREFIX = "raw-port/src/"
+ACK_RE = re.compile(r"^\s*#?\s*reverts-ok:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+MAX_REPORTED_LINES = 6
 
 
-def git(*a):
-    return subprocess.run(["git"] + list(a), capture_output=True, text=True)
+def git(*args):
+    return subprocess.run(["git"] + list(args), capture_output=True, text=True)
+
+
+def blob_lines(rev, path):
+    """The file's lines at <rev>, or [] when it does not exist there."""
+    r = git("show", f"{rev}:{path}")
+    if r.returncode != 0:
+        return []
+    return r.stdout.split("\n")
+
+
+def acknowledged_paths(base, head, ack_flags, ack_all):
+    """Paths the author has said they meant to delete from: --ack flags + commit-message tokens."""
+    acks = set(ack_flags)
+    if ack_all:
+        acks.add("all")
+    msgs = git("log", "--format=%B", f"{base}..{head}").stdout
+    for m in ACK_RE.finditer(msgs):
+        for tok in re.split(r"[,\s]+", m.group(1)):
+            if tok:
+                acks.add(tok)
+    return acks
+
+
+def rewritten_in_place(added_lines, line):
+    """Is this removed line a REWRITE rather than a loss?
+
+    A line the branch removes whose text still appears inside a line the SAME change ADDS was
+    edited, not dropped — the shape of most ordinary edits, and the shape reviewer 1 measured on
+    #553 (`echo "ACQUIRED ..."; exit 0` becoming `echo "ACQUIRED ..."` plus a new line above it).
+
+    This LABELS the loss; it deliberately does NOT clear it. `foo(); bar();` shortened to `foo();`
+    also satisfies it, and that is precisely the silent-revert this file exists to catch — so the
+    author still has to say they meant it. What the label buys is that the reader can tell the two
+    apart at a glance instead of opening the diff.
+    """
+    t = line.strip()
+    if len(t) < 8:                     # a brace or a blank matches everything; say nothing
+        return False
+    for a in added_lines:
+        b = a.strip()
+        if len(b) < 8:
+            continue
+        if t in b or b in t:           # either direction: text kept, or text kept and trimmed
+            return True
+    return False
+
+
+def attribute(base, path, line):
+    """Which commit put this line on main? Named so a revert can be judged, not just counted."""
+    r = git("log", "-1", "--format=%h %an, %ar — %s", "-S", line, base, "--", path)
+    out = r.stdout.strip().splitlines()
+    return out[0][:100] if out else ""
 
 
 def main(argv):
-    if len(argv) < 2:
-        print("usage: stale_file_check.py <BASE> <HEAD> [paths...]", file=sys.stderr)
+    ack_flags, ack_all, blame, pos = [], False, True, []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--ack" and i + 1 < len(argv):
+            ack_flags.append(argv[i + 1]); i += 2; continue
+        if a == "--ack-all":
+            ack_all = True; i += 1; continue
+        if a == "--no-blame":
+            blame = False; i += 1; continue
+        if a.startswith("--"):
+            # A flag-shaped typo must not become a PATH and quietly check nothing. This is the
+            # third instance of an unparsed argument silently changing behaviour in one day
+            # (`pr_review.sh` folding --expect-head into the review body; `gh --jq` swallowing
+            # jq flags), so it exits 2 — the code the caller already treats as a hard failure —
+            # rather than 1, which pr_gate.sh would let through.
+            print(f"stale_file_check: unrecognised flag {a} — refusing to run rather than "
+                  f"treating it as a path and checking nothing", file=sys.stderr)
+            return 2
+        pos.append(a); i += 1
+    if len(pos) < 2:
+        print("usage: stale_file_check.py <BASE> <HEAD> [--ack PATH]... [--ack-all] [--no-blame] [paths...]",
+              file=sys.stderr)
         return 1
-    base, head, paths = argv[0], argv[1], argv[2:]
+    base, head, paths = pos[0], pos[1], pos[2:]
+
+    mb = git("merge-base", base, head).stdout.strip()
+    if not mb:
+        print(f"stale_file_check: cannot find a merge base for {base}..{head}", file=sys.stderr)
+        return 1
+
     if not paths:
-        paths = [p for p in git("diff", "--name-only", f"{base}...{head}").stdout.split() if p]
-    paths = [p for p in paths if not p.startswith("raw-port/src/")]   # src is already covered
+        # THREE dots: the delta a merge applies. Added files (A) cannot delete anything.
+        r = git("diff", "--name-status", "--diff-filter=MDRT", f"{base}...{head}")
+        for row in r.stdout.splitlines():
+            cols = row.split("\t")
+            if len(cols) >= 2:
+                paths.append(cols[-1])
+
+    # src/ is already covered by G6 + regression_check + dup_check; this is about everything else.
+    paths = [p for p in paths if p and not p.startswith(SRC_PREFIX)]
     if not paths:
         print("stale_file_check: no non-src files changed -> PASS")
         return 0
 
-    offenders = []
+    losses = []
     for p in paths:
-        # THREE dots: what the merge applies, relative to the merge base. Two dots would report
-        # every line main gained since the fork as a "deletion" — the inversion described above.
-        d = git("diff", f"{base}...{head}", "--", p).stdout
-        dels = [l[1:] for l in d.splitlines()
-                if l.startswith("-") and not l.startswith("---") and len(l.strip()) > 12]
-        if dels:
-            offenders.append((p, dels))
+        mb_c = Counter(l for l in blob_lines(mb, p) if l.strip())
+        head_c = Counter(l for l in blob_lines(head, p) if l.strip())
+        main_c = Counter(l for l in blob_lines(base, p) if l.strip())
+        if not main_c:
+            continue                      # not on main any more: nothing of main's to lose
+        removed = mb_c - head_c           # what the merge applies as deletions (three dots)
+        lost = removed & main_c           # ...of lines main still has
+        n = sum(lost.values())
+        if n:
+            added = list((head_c - mb_c).elements())
+            losses.append((p, n, list(lost.elements()), added))
 
-    if not offenders:
-        print(f"stale_file_check: {len(paths)} non-src file(s), no deletions in the merge -> PASS")
+    if not losses:
+        print(f"stale_file_check: {len(paths)} non-src file(s) checked, "
+              f"the merge removes no line that is on main -> PASS")
         return 0
 
-    print("stale_file_check: REJECT — this change DELETES lines that are on main.\n")
-    for p, dels in offenders:
-        print(f"  {p}: removes {len(dels)} line(s), e.g.")
-        for x in dels[:3]:
-            print(f"      - {x.strip()[:110]}")
-    print("\n  If the deletion is deliberate, say so in the PR body and a reviewer can override.")
-    print("  If it is not, you are almost certainly writing a whole file back from a stale copy:")
+    acks = acknowledged_paths(base, head, ack_flags, ack_all)
+    unacked = [x for x in losses if not ("all" in acks or x[0] in acks)]
+
+    verdict = "REJECT" if unacked else "ACKNOWLEDGED"
+    print(f"stale_file_check: {verdict} — this change removes lines that are on main.\n")
+    for p, n, lines, added in losses:
+        state = "acknowledged by the commit message" if ("all" in acks or p in acks) else "NOT acknowledged"
+        rew = sum(1 for line in lines if rewritten_in_place(added, line))
+        shape = f"{rew} rewritten in place, {n - rew} removed outright" if rew else "removed outright"
+        print(f"  {p}: the merge deletes {n} line(s) main has  [{state}]  ({shape})")
+        for line in lines[:MAX_REPORTED_LINES]:
+            tag = "rewritten" if rewritten_in_place(added, line) else "removed  "
+            print(f"      - [{tag}] {line.strip()[:92]}")
+            if blame:
+                who = attribute(base, p, line)
+                if who:
+                    print(f"        landed by {who}")
+        if n > MAX_REPORTED_LINES:
+            print(f"      … and {n - MAX_REPORTED_LINES} more")
+        print()
+
+    if not unacked:
+        print("  Every deletion above is declared in the commit message -> PASS")
+        return 0
+
+    print("  A whole-file write from a stale copy merges CLEANLY and gates GREEN — that is how a")
+    print("  peer's landed fix disappears without anyone seeing an error. If you did not mean to")
+    print("  remove these lines, reconcile against main's current copy:")
     print("      git fetch origin && git diff HEAD origin/main -- <file>")
-    print("      # re-apply your change on top of main's current version, then re-gate")
+    print("      # re-apply YOUR change on top of main's version, then re-run the gate")
+    print("  If you DID mean it, say so in the commit message and this passes:")
+    for p, _, _, _ in unacked:
+        print(f"      reverts-ok: {p}")
     return 2
 
 

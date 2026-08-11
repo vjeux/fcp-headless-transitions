@@ -144,7 +144,8 @@ if [ "$rc" = "5" ]; then FAIL=1; REASON="dup-ledger (already on main)"; elif [ "
 # has not landed yet would be indistinguishable from a real REJECT.
 if [ -f raw-port/army/tools/stale_file_check.py ]; then
   python3 raw-port/army/tools/stale_file_check.py origin/main HEAD; rc=$?
-  if [ "$rc" = "2" ]; then FAIL=1; REASON="deletes lines that are on main without a reverts-ok: declaration"; fi
+  if [ "$rc" = "2" ]; then FAIL=1; REASON="deletes lines that are on main without a reverts-ok: declaration";
+  elif [ "$rc" != "0" ]; then FAIL=1; REASON="stale_file_check errored rc=$rc"; fi
 fi
 python3 raw-port/army/tools/check_duplicate_classes.py --new-only origin/main; rc=$?
 if [ "$rc" = "2" ]; then FAIL=1; REASON="introduces a duplicate class file (one C++ class = one .ts)";

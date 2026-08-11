@@ -118,14 +118,30 @@ OUT=$(cd "$D" && run main work); RC=$?
 check "G  removing a line main has ALREADY removed loses nothing -> PASS" 0 "$RC" "" "$OUT"
 rm -rf "$D"
 
+# ---------------------------------------------------------------- H: a flag-shaped typo
+# The failure this guards is the one that has now bitten three tools in a day: an argument the
+# parser does not recognise becomes DATA, and the tool then does something harmless-looking
+# instead of what it was asked. Here it would become a PATH, match nothing, and report PASS —
+# switching a hard gate off with a typo. It must refuse, with the exit code the CALLER treats as
+# a failure (2), not the one pr_gate.sh lets through (1).
+D=$(newrepo)
+git -C "$D" checkout -qb work
+printf 'line1\nline3 tail of the tool\n' > "$D/raw-port/army/tools/tool.sh"    # a real deletion
+git -C "$D" commit -qam "drop line2"
+OUT=$(cd "$D" && run main work --ack-al); RC=$?     # note the typo
+check "H  an unrecognised flag REFUSES (exit 2), it does not become a path" 2 "$RC" "unrecognised flag" "$OUT"
+rm -rf "$D"
+
 echo "BASELINE (M0): $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || { echo "TEST_STALE_FILE_CHECK: FAIL"; exit 1; }
 
 # ---------------------------------------------------------------- mutants: watch the suite fail
 if [ -n "${GUARD_OVERRIDE:-}" ]; then exit 0; fi     # a mutant run does not spawn more mutants
 MUTDIR=$(mktemp -d); MFAIL=0
+MUTANTS_RUN=0
 mutate () { # <name> <sed-expr> <case-that-must-break>
   local name="$1" expr="$2" breaks="$3" m="$MUTDIR/$1.py"
+  MUTANTS_RUN=$((MUTANTS_RUN+1))
   sed "$expr" "$GUARD" > "$m"
   if cmp -s "$m" "$GUARD"; then echo "  MUTANT $name — NOT APPLIED (the pattern moved); treat as no evidence"; MFAIL=$((MFAIL+1)); return; fi
   if GUARD_OVERRIDE="$m" bash "${BASH_SOURCE[0]}" >/dev/null 2>&1; then
@@ -144,6 +160,7 @@ mutate pre_image 's|mb_c = Counter(l for l in blob_lines(mb, p)|mb_c = Counter(l
                  "the three-dot rule — measuring against main's tip instead of the merge base (case B)"
 mutate no_filter 's|lost = removed & main_c|lost = removed|'    "the still-on-main filter (case G)"
 mutate no_ack    's|if not unacked:|if False:|'                 "the acknowledgement path (case C)"
+mutate lax_flag  's|            return 2|            return 1|'  "strict flag parsing — exit 1 is a code pr_gate.sh lets through (case H)"
 rm -rf "$MUTDIR"
 [ "$MFAIL" -eq 0 ] || { echo "TEST_STALE_FILE_CHECK: FAIL (a mutant survived)"; exit 1; }
-echo "TEST_STALE_FILE_CHECK: PASS ($PASS cases, 3 mutants killed)"
+echo "TEST_STALE_FILE_CHECK: PASS ($PASS cases, $MUTANTS_RUN mutants killed)"
