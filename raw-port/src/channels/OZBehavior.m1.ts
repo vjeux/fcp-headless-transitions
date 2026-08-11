@@ -12,6 +12,7 @@
 //
 // Scope of this chunk (from `claim.py chunk Ozone OZBehavior 1`):
 //   --  @0x000000000010a8b0  OZBehavior::getSceneNode()            [added later; its own unit]
+//   --  @0x000000000010c880  OZBehavior::getFactoryBase()          [added later; its own unit]
 //   20  @0x000000000010a9a0  OZBehavior::getPasteEntry(OZChannelBase*)
 //   21  @0x000000000010aa70  OZBehavior::allowDrag(OZFactoryBase*, OZChannelBase*, uint, uint*, uint*, uint)
 //   22  @0x000000000010abe0  OZBehavior::prepareForDragOperation(OZPasteList*, OZChannelBase*, uint, uint)
@@ -440,4 +441,51 @@ export function getSceneNode_OZBehavior(self: OZBehaviorFields): unknown {
 export interface OZBehaviorFields {
   /** +0x140 — `OZSceneNode*`; read by getSceneNode @0x10a8b4 and by getScene @0x10a8e4. */
   sceneNodeAt0x140: unknown;
+}
+
+/**
+ * `OZBehavior::getFactoryBase()` -> OZFactoryBase*
+ * @Ozone __ZN10OZBehavior14getFactoryBaseEv @0x10c880..0x10c888
+ *
+ * FULL DISASM — the whole function, five instructions:
+ *   0x10c880  pushq %rbp                 ; frame
+ *   0x10c881  movq  %rsp, %rbp
+ *   0x10c884  movq  %rdi, %rax           ; return this, unchanged
+ *   0x10c887  popq  %rbp
+ *   0x10c888  retq
+ *   0x10c889  nopl  (%rax)               ; alignment padding, not executed
+ *
+ * The receiver is returned VERBATIM: no field read, no displacement, no null check, no branch, no
+ * callee, no indirect or virtual dispatch. So the `OZFactoryBase` sub-object sits at offset 0 of
+ * `OZBehavior` — the C++ upcast is a no-op, which is why the compiler emitted a `movq` and not a
+ * `leaq`, and why this returns null for a null receiver rather than trapping.
+ *
+ * THE CLASS'S OWN ADJUSTOR THUNK IS THE PROOF, and it is eight bytes away in the same file:
+ * `__ZThn16_N10OZBehavior14getFactoryBaseEv` @0x10c960 is the identical function with
+ * `leaq -0x10(%rdi), %rax` in place of the `movq` — the entry used when the caller holds a pointer
+ * to the SECONDARY base 0x10 bytes in. A displacement of any size would look exactly like that, so
+ * the absence of one here is a fact about the primary base and not an accident of the listing.
+ * The thunk is a SEPARATE ledger unit and is deliberately not ported here.
+ *
+ * NEARBY SYMBOLS THAT ARE NOT THIS ONE, none assumed: the sibling `getFactoryBase` overrides of
+ * other classes (`OZSceneNode` @0x8c5e0, `OZEffect` @0xfab40, `OZStyle` @0x14a6c0) are each their
+ * own class's unit — `OZStyle`'s is byte-identical, which is exactly why the disassembly for THIS
+ * address was re-derived rather than matched by shape.
+ *
+ * ORACLED against the live symbol (a local `t` symbol is still callable by address):
+ * `raw-port/re/oracle/OZBehavior_getFactoryBase_probe.py`. Ozone loaded outside the app bundle
+ * under `arch -x86_64` with its `@rpath` chain preloaded depth-first (44 images, 0 failed), the
+ * nine prologue bytes at slide+0x10c880 checked against `554889e54889f85dc3` before the address is
+ * trusted, then five receivers — NULL, 1, 0xdeadbeef, a live arena, and that arena + 0x37 so an
+ * unaligned pointer is in the corpus — each returned bit-for-bit unchanged, and a 0x200-byte arena
+ * poisoned with 0xCD was byte-identical afterwards. Both controls KILLED: the @0x10c960 thunk
+ * returns `this - 0x10`, and `getSceneNode` @0x10a8b0 returns a planted `*(this+0x140)` — so an
+ * identity here is measured, not merely indistinguishable from everything the harness can do.
+ *
+ * @param self the `OZBehavior*` in %rdi.
+ * @returns that same pointer. The C++ return type is `OZFactoryBase*`; the VALUE is the receiver.
+ */
+export function getFactoryBase_OZBehavior(self: OZBehaviorFields): OZBehaviorFields {
+  // @0x10c884 — movq %rdi,%rax : the receiver is the return value.
+  return self;
 }
