@@ -18,6 +18,15 @@
 //                                                                       +0x64 offset/width; the
 //                                                                       getter itself is a
 //                                                                       separate ledger entry)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob24IsRequestedVirtualScreenEi.s
+//                                                                       (IsRequestedVirtualScreen)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob20SetVirtualScreenMaskEj.s
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob20GetVirtualScreenMaskEv.s
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob16SetVirtualScreenEi.s    (these three read only
+//                                                                       to pin the +0xbc
+//                                                                       offset/width and prove it
+//                                                                       is a BITMASK; each is a
+//                                                                       separate ledger entry)
 //
 // This file ports ONLY the methods listed under "Symbols ported here" below.
 // HGRenderJob is a large class (fields at offsets 0xc8 and 0xd8 imply at
@@ -89,6 +98,50 @@
 //       — HGRenderJob::SetGPUGraphicsAPI(HGRenderJob::GPUGraphicsAPI) @Helium 0x54490
 //   * __ZN11HGRenderJob19UsesOnlyGPUResourceEv
 //       — HGRenderJob::UsesOnlyGPUResource() @Helium 0x54b20
+//   * __ZN11HGRenderJob24IsRequestedVirtualScreenEi
+//       — HGRenderJob::IsRequestedVirtualScreen(int) @Helium 0x54ad0
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM — IsRequestedVirtualScreen @0x54ad0
+// -----------------------------------------------------------------------------
+//   0x54ad0  pushq  %rbp                    ; frame prologue
+//   0x54ad1  movq   %rsp, %rbp
+//   0x54ad4  testl  %esi, %esi              ; flags on screen & screen -> SF = sign(screen)
+//   0x54ad6  js     0x54ae6                 ; SF=1 (screen < 0) -> the false tail
+//   0x54ad8  movl   0xbc(%rdi), %eax        ; eax = this->virtualScreenMask (u32 load)
+//   0x54ade  movl   %esi, %ecx              ; ecx = screen (only CL is used by the shift)
+//   0x54ae0  shrl   %cl, %eax               ; LOGICAL right shift; x86 masks the count to
+//                                           ; 5 bits for a 32-bit operand, so the machine
+//                                           ; shifts by (screen & 31) — NOT a saturating or
+//                                           ; zeroing shift. screen=32 re-tests bit 0.
+//   0x54ae2  andb   $0x1, %al               ; keep bit 0 -> the bool return value
+//   0x54ae4  popq   %rbp                    ; epilogue
+//   0x54ae5  retq
+//   0x54ae6  xorl   %eax, %eax              ; false tail: eax = 0
+//   0x54ae8  andb   $0x1, %al               ; (redundant mask the compiler kept)
+//   0x54aea  popq   %rbp                    ; epilogue
+//   0x54aeb  retq
+//   0x54aec  nopl   (%rax)                  ; padding
+//
+// `testl %esi,%esi ; js` is the standard signed-negative test: `test` ANDs the
+// operand with itself, so SF is simply bit 31 of `screen`, and `js` takes the
+// branch exactly when screen < 0. There is NO upper-bound check — the only
+// thing that keeps screen>=32 in range is the hardware's 5-bit shift-count
+// mask, which the port reproduces with JS `>>>` (ECMA-262 ToUint32 + `& 31`,
+// the same masking rule). Modelling it as "return false for screen >= 32"
+// would be a rewrite, and the oracle below measures the difference: 170 of
+// 1,600 cases.
+//
+// The field at +0xbc is pinned as a u32 BITMASK by three sibling methods (each
+// its own ledger entry, read here only for the layout, exactly as
+// GetGPUGraphicsAPI was used for +0x64):
+//   SetVirtualScreenMask(unsigned) @0x545d0  — `movl %esi, 0xbc(%rdi)`  (u32 store)
+//   GetVirtualScreenMask()         @0x54af0  — `movl 0xbc(%rdi), %eax`  (u32 load)
+//   SetVirtualScreen(int)          @0x545b0  — `movl $0x1,%eax ; movl %esi,%ecx ;
+//                                               shll %cl,%eax ; movl %eax,0xbc(%rdi)`
+//                                              i.e. mask = 1 << (screen & 31), which is
+//                                              what makes "bit N = screen N" certain
+//                                              rather than inferred.
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM — SetUserTag @0x54650
@@ -296,6 +349,18 @@ export class HGRenderJob {
    *  non-null (`cmpq $0x0, 0x50(%rdi)` @0x54b46). Its type is undecoded, so it is
    *  modelled as an opaque nullable reference. */
   slot50: unknown | null = null; // @Helium HGRenderJob@0x50
+
+  /** @Helium HGRenderJob@0xbc — the u32 virtual-screen BITMASK (bit N set = virtual
+   *  screen N is requested). Read by IsRequestedVirtualScreen @0x54ad8 via
+   *  `movl 0xbc(%rdi), %eax`; the same dword is written by SetVirtualScreenMask
+   *  @0x545d4 (`movl %esi, 0xbc(%rdi)`), read back by GetVirtualScreenMask @0x54af4
+   *  (`movl 0xbc(%rdi), %eax`) — a matched 32-bit store/load pair that fixes both the
+   *  offset and the width — and set to a single bit by SetVirtualScreen @0x545c1
+   *  (`movl $0x1,%eax ; shll %cl,%eax ; movl %eax,0xbc(%rdi)`), which is what proves
+   *  the dword is a per-screen bit set rather than a screen index. Held as an
+   *  unsigned 32-bit value. Zero-initialised (no screens requested) until a ctor is
+   *  transcribed to reveal the true default. */
+  virtualScreenMask: number = 0; // @Helium HGRenderJob@0xbc
 
   /**
    * `HGRenderJob::SetUserTag(unsigned long long)` @Helium 0x54650
@@ -666,6 +731,60 @@ export class HGRenderJob {
     // @0x5450a..0x5450b — epilogue + retq.
     // ------------------------------------------------------------
     this.metalShaderPrecision = precision >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::IsRequestedVirtualScreen(int)` @Helium 0x54ad0
+   * (__ZN11HGRenderJob24IsRequestedVirtualScreenEi).
+   *
+   * Tests one bit of the virtual-screen mask at `this+0xbc`: returns true iff
+   * virtual screen `screen` is in the requested set. A negative index short-
+   * circuits to false through the `js` tail at @0x54ae6; there is no upper-bound
+   * check at all, so a large index is folded by the hardware's 5-bit shift-count
+   * mask (`shrl %cl` on a 32-bit operand shifts by `screen & 31`). See the FULL
+   * DISASM block in the file header for the line-by-line decode.
+   *
+   * ORACLE: verified against the live Helium binary. The symbol is EXPORTED
+   * (`nm -arch x86_64` type `T` @0x54ad0), so the harness dlopens Helium under
+   * `arch -x86_64 /usr/bin/python3` — the port is transcribed from the x86_64
+   * slice and calling the arm64 image would compare against code this port did
+   * not transcribe — and calls the real method on a 0x200-byte object pre-filled
+   * with 0xEE, with the mask dword planted at +0xbc. 1,600 cases (32 masks: 0, 1,
+   * 2, 0x80000000, 0xffffffff, 0xAAAAAAAA, 0x55555555, 0xEEEEEEEE + 24 random
+   * u32s; x 50 screen indices: -4..39, 63, 64, 127, INT_MAX, INT_MIN, -1):
+   * 1600/1600 bit-identical to this port, and 0 cases mutated any byte of the
+   * object (it is a pure read), with the real GetVirtualScreenMask @0x54af0
+   * confirming the planted dword on every call.
+   * NEGATIVE CONTROLS (measured, same 1,600 cases): dropping the negative-screen
+   * guard -> 84 wrong; treating screen >= 32 as false instead of masking the
+   * shift count to 5 bits -> 170 wrong; always testing bit 0 -> 616 wrong;
+   * reading the neighbouring dword at +0xb8 -> 750 wrong.
+   *
+   * @param screen — the virtual-screen index (SysV %esi, signed int).
+   * @returns whether that screen's bit is set in `virtualScreenMask`.
+   */
+  IsRequestedVirtualScreen(screen: number): boolean {
+    // ------------------------------------------------------------
+    // @0x54ad0..0x54ad1 — prologue (no TS-visible effect).
+    // @0x54ad4 — testl %esi, %esi : flags on `screen & screen`, so SF = bit 31.
+    // @0x54ad6 — js 0x54ae6 : taken iff screen < 0.
+    // ------------------------------------------------------------
+    if (screen < 0) {
+      // @0x54ae6 — xorl %eax, %eax ; @0x54ae8 — andb $0x1, %al : return false.
+      // @0x54aea..0x54aeb — epilogue + retq.
+      return false;
+    }
+    // ------------------------------------------------------------
+    // @0x54ad8 — movl 0xbc(%rdi), %eax : load the u32 mask.
+    // @0x54ade — movl %esi, %ecx      : shift count (CL) = screen.
+    // @0x54ae0 — shrl %cl, %eax       : logical right shift by (screen & 31).
+    //   JS `>>>` applies ToUint32 to both operands and masks the count with
+    //   `& 31`, which is exactly the x86 32-bit shift-count rule — so the
+    //   screen >= 32 wrap-around is reproduced, not approximated.
+    // @0x54ae2 — andb $0x1, %al       : keep bit 0 as the bool result.
+    // @0x54ae4..0x54ae5 — epilogue + retq.
+    // ------------------------------------------------------------
+    return (((this.virtualScreenMask >>> 0) >>> screen) & 1) !== 0;
   }
 }
 
