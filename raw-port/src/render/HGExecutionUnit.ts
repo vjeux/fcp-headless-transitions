@@ -1,7 +1,8 @@
 // raw-port/src/render/HGExecutionUnit.ts
 //
-// FCP `HGExecutionUnit` — Helium.framework. This file ports ONE ledger unit, `SwapStack()`; the
-// rest of the class accretes here as future units claim it (one C++ class = one file). Checked
+// FCP `HGExecutionUnit` — Helium.framework. The class accretes here one ledger unit at a time
+// (one C++ class = one file): `SwapStack()` and `GetStackState()` landed first, and
+// `CommitStack(float vector[4]*, unsigned long)` is added below. Checked
 // before creating the file:
 //   git ls-tree origin/main -r --name-only | grep -i HGExecutionUnit   -> no hits,
 // so this is not the "same class forked into a second layer directory" shape.
@@ -16,6 +17,9 @@
 //       -- HGExecutionUnit::SwapStack()      @Helium 0x144570   (`nm` class T)
 //   * __ZN15HGExecutionUnit13GetStackStateEv
 //       -- HGExecutionUnit::GetStackState()  @Helium 0x1444c0   (`nm` class T)
+//   * __ZN15HGExecutionUnit11CommitStackEPDv4_fm
+//       -- HGExecutionUnit::CommitStack(float vector[4]*, unsigned long)
+//                                            @Helium 0x1445b0   (`nm` class T)
 //
 // FULL DISASM (raw-port/re/disasm/Helium.__ZN15HGExecutionUnit9SwapStackEv.s, 9 instructions):
 //
@@ -60,6 +64,76 @@
 // randoms: 0 divergences, 0 stray bytes. Controls: `x ^= 1` kills 40/45, `x = 1 - x` kills 40/45,
 // and a model that writes the comparison to the RECEIVER instead of the pointee kills 45/45.
 
+// -----------------------------------------------------------------------------
+// CommitStack(float vector[4]*, unsigned long) @Helium 0x1445b0 — the commit half of the vec4
+// stack bump-allocator: it advances the current stack's element count by `n`, but ONLY if the
+// pointer the caller hands back is exactly the stack's current top.
+// -----------------------------------------------------------------------------
+// FULL DISASM (raw-port/re/disasm/Helium.__ZN15HGExecutionUnit11CommitStackEPDv4_fm.s, 18
+// instructions), re-derived with `raw-port/tools/disasm.sh --sym … Helium` after deleting the
+// cached `.s`, and then cross-checked against the raw bytes of the loaded image so that no part of
+// it rests on otool's linear sweep:
+//
+//   0x1445b0  pushq %rbp ; movq %rsp,%rbp        ; frame
+//   0x1445b4  movq  0x90(%rdi), %rax             ; rax = this->state          (+0x90)
+//   0x1445bb  movl  0x98(%rax), %ecx             ; ecx = state->stackIndex    (+0x98, u32)
+//   0x1445c1  movq  0x88(%rax,%rcx,8), %rax      ; rax = (&state->stackA)[index]  (stride 8)
+//   0x1445c9  movq  0x10(%rax), %rcx             ; rcx = stack->+0x10         (the count)
+//   0x1445cd  movq  %rcx, %rdi
+//   0x1445d0  shlq  $0x4, %rdi                   ; rdi = count * 16           (sizeof float4)
+//   0x1445d4  addq  (%rax), %rdi                 ; rdi = stack->base + count*16  = the TOP
+//   0x1445d7  cmpq  %rdi, %rsi                   ; is the caller's pointer that top?
+//   0x1445da  je    0x1445de
+//   0x1445dc  popq %rbp ; retq                   ;   no  -> return, commit NOTHING
+//   0x1445de  addq  %rdx, %rcx                   ;   yes -> count += n
+//   0x1445e1  movq  %rcx, 0x10(%rax)             ;          stored back
+//   0x1445e5  popq %rbp ; retq
+//   0x1445e7  nopw  (%rax,%rax)                  ; alignment padding
+//
+// THE IDENTITY TEST IS THE FUNCTION. There is no bounds check, no capacity check and no error
+// path: a caller that passes anything other than the exact current top gets a silent no-op. That
+// is the shape of a bump allocator whose Reserve hands out `base + count*16` and whose Commit
+// refuses to advance unless the block being committed is still the one on top.
+//
+// THE +0x88 TABLE IS THE LANDED `stackA`/`stackB` PAIR, and this method is what proves they are
+// one indexed array rather than two unrelated fields. `GetStackState` loads +0x88 and +0x90 with
+// two separate instructions, which is equally consistent with two named pointers; here a single
+// `0x88(%rax,%rcx,8)` indexes them by the selector at +0x98 with stride 8, so entry 0 IS `stackA`
+// (+0x88) and entry 1 IS `stackB` (+0x90). The two readings agree on every byte, and the indexed
+// one also explains why the selector can only hold 0 or 1: entry 2 would be at 0x88 + 2*8 = +0x98,
+// which is the selector itself, so the callee would read the index word as a pointer. That is not
+// a deduction from the code alone — the oracle for this unit SEGFAULTED on its first attempt for
+// exactly that reason, having laid out a six-entry table whose later entries overlapped the
+// index field. `SwapStack` writing only 0 or 1 into +0x98 is the other half of the same fact.
+//
+// THE WIDTHS ARE THE WHOLE DEFECT SURFACE OF THIS BODY, so they are grounded in the encodings
+// rather than in the mnemonics. Read out of the loaded image at slide+0x1445b0, the 0x36 bytes of
+// this function are
+//
+//   554889e5 488b8790000000 8b8898000000 488b84c888000000 488b4810 4889cf
+//   48c1e704 480338 4839fe 7402 5dc3 4801d1 48894810 5dc3
+//
+// and the three that matter are `48 c1 e7 04` (REX.W `shlq $0x4, %rdi` — a 64-bit shift, so the
+// four bits shifted out of the top of %rdi are DISCARDED), `48 03 38` (REX.W `addq (%rax), %rdi`,
+// which wraps mod 2^64) and `48 39 fe` (REX.W `cmpq %rdi, %rsi`, a full 64-bit compare). A port
+// that computes the top with unbounded arithmetic is therefore a different function: at
+// count = 2^60 the product count*16 is exactly 2^64, the machine's top comes back around to the
+// base, and the live symbol commits for a pointer the unbounded model says is 2^64 short. The
+// port truncates both operations with `BigInt.asUintN(64, …)`, and the oracle measures the
+// difference rather than asserting it (9 wrap cases through the shipped port; the untruncated
+// body diverges on 5 of them).
+//
+// `movl 0x98(%rax), %ecx` zero-extends into the full %rcx, so the index is used as an unsigned
+// 32-bit value and `>>> 0` models it. The landed methods dereference `state` and the stack
+// pointers unguarded and model that with `!`; CommitStack does the same, so the file has one
+// convention for "the machine would fault here" rather than two.
+//
+// POINTERS AS NUMERIC ADDRESSES. This body compares a caller's pointer against computed pointer
+// arithmetic, so `base` is kept as a `bigint` address in the port's own address space — the
+// convention `raw-port/src/infra/HGAllocAlign.ts` already uses (`operatorNewArray(n: bigint):
+// bigint`). Modelling the stack as a JS array instead would make the one decision this function
+// makes unrepresentable.
+
 /** The object `HGExecutionUnit.state` (+0x90) points at. Only the one field this method touches is
  *  modelled. */
 export interface HGExecutionUnitState {
@@ -78,8 +152,16 @@ export interface HGExecutionUnitState {
  * count or a top-of-stack would be an invention (PORTING_SPEC Rule 5).
  */
 export interface HGExecutionUnitStackSlot {
+  /** +0x00 — the `float vector[4]*` base of the stack's storage, as a numeric address. Read
+   *  @0x1445d4 (`addq (%rax), %rdi`), which is the first instruction in the class to touch it. */
+  base: bigint;
   /** +0x10 — a 64-bit value, read @0x1444e3 (from +0x88's object) and @0x1444eb (from +0x90's). */
   at10: bigint;
+  /* +0x10 is the ELEMENT COUNT, in float4 units — named by CommitStack rather than by
+   * GetStackState, which only copies it out. @0x1445c9 reads it, @0x1445d0 multiplies it by 16
+   * (the size of a float4) to reach the top of the stack, and @0x1445e1 writes it back advanced
+   * by the caller's `n`. The landed field name stays `at10`: renaming a landed declaration is
+   * what the add-only rule forbids, and nothing here needs a second name for one word. */
 }
 
 /**
@@ -178,5 +260,71 @@ export class HGExecutionUnit {
     // @0x1444f3 / @0x1444f9 — out+0x20 = state->stackIndex, moved as a 32-bit value.
     const stackIndex = state.stackIndex | 0;
     return { stackA, stackB, stackAAt10, stackBAt10, stackIndex };
+  }
+
+  /**
+   * `HGExecutionUnit::CommitStack(float vector[4]*, unsigned long)` -> void
+   * @Helium __ZN15HGExecutionUnit11CommitStackEPDv4_fm @0x1445b0..0x1445e6
+   *
+   * Every instruction is listed in the file header. Advance the current stack's count by `n`, but
+   * only when `ptr` is exactly `base + count*16` computed in 64-bit registers — otherwise return
+   * having changed nothing.
+   *
+   * There is a SECOND overload at @Helium 0x1445f0,
+   * `CommitStack(HGVec*, unsigned long)` (`__ZN15HGExecutionUnit11CommitStackEP5HGVecm`), which is
+   * a separate symbol and a separate unit; it is not transcribed here.
+   *
+   * ORACLED against the live exported symbol:
+   * `raw-port/re/oracle/HGExecutionUnit_CommitStack_vec4_oracle.py` builds the real three-level
+   * structure in ctypes memory — execution unit, state, and a stack behind each table index — and
+   * runs under `arch -x86_64` after checking the eleven prologue bytes at slide+0x1445b0 against
+   * `554889e5488b8790000000`. 360 cases: 60 randomized (index, count, n) triples crossed with six
+   * pointers — the exact top, top-16, top+16, the base, null and a foreign address — requiring the
+   * count to advance for the top and to stay put for every other pointer. **360/360 agree, with 0
+   * stray writes** anywhere in the execution unit, the state object, the untouched stack, or the
+   * chosen stack outside its +0x10 word.
+   *
+   * Those counts are drawn from ordinary values and can never reach the 64-bit wrap of the top
+   * computation, so the oracle carries a second block of 9 cases that runs THIS FILE through
+   * `HGExecutionUnit_CommitStack_vec4_driver.mts` and compares the port against the live symbol
+   * directly — a live-versus-model harness cannot see a divergence that lives in the port's own
+   * arithmetic. **9/9 agree**, including count = 2^60 with the caller passing the base, where
+   * `count*16` is exactly 2^64. Priced as a mutant: the same block against a body that computes
+   * the top without `BigInt.asUintN` kills 5 of 9. The four survivors are the three ordinary-count
+   * controls and the one wrap case that must NOT commit (a body that never commits at the wrap
+   * agrees there by accident), which is what says the block measures the port and not itself.
+   *
+   * @param ptr the pointer the caller is committing, as a numeric address.
+   * @param n   how many float4 elements to commit (SysV %rdx, u64).
+   */
+  CommitStack(ptr: bigint, n: bigint): void {
+    // @0x1445b4 movq 0x90(%rdi),%rax — loaded unguarded, as in the two methods above.
+    const state = this.state!;
+    // @0x1445bb movl 0x98(%rax),%ecx — zero-extended into the full register.
+    const index = state.stackIndex >>> 0;
+    // @0x1445c1 movq 0x88(%rax,%rcx,8),%rax — entry `index` of the +0x88 table, stride 8: entry 0
+    // is stackA (+0x88) and entry 1 is stackB (+0x90). An index of 2 or more addresses +0x98 and
+    // beyond, i.e. the machine loads the selector word itself and dereferences it as a pointer; a
+    // two-slot model cannot represent that, so it is a loud throw rather than a quiet clamp.
+    if (index > 1) {
+      throw new Error(
+        `HGExecutionUnit::CommitStack @Helium 0x1445c1: stackIndex ${index} indexes past the ` +
+          "two-entry table at state+0x88, where the machine would load the selector at +0x98 " +
+          "and dereference it as a stack pointer",
+      );
+    }
+    const stack = (index === 0 ? state.stackA : state.stackB)!;
+    // @0x1445c9 movq 0x10(%rax),%rcx.
+    const count = stack.at10;
+    // @0x1445cd/@0x1445d0/@0x1445d4 — rdi = base + (count << 4), in 64-bit registers. BOTH
+    // truncations are the instruction: `shlq $0x4` (48 c1 e7 04) discards the four bits it shifts
+    // out of %rdi, and `addq (%rax), %rdi` (48 03 38) wraps mod 2^64. Without them the top lands
+    // where no 64-bit pointer can be and the compare below never fires — see THE WIDTHS in the
+    // file header for the measurement.
+    const top = BigInt.asUintN(64, stack.base + BigInt.asUintN(64, count << 4n));
+    // @0x1445d7/@0x1445da — cmpq %rdi, %rsi ; je. Anything but the exact top returns silently.
+    if (ptr !== top) return; // @0x1445dc
+    // @0x1445de/@0x1445e1 — addq %rdx, %rcx ; movq %rcx, 0x10(%rax).
+    stack.at10 = BigInt.asUintN(64, count + n);
   }
 }
