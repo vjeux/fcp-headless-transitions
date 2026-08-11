@@ -132,19 +132,55 @@ def layer2():
     print("LAYER 2j (a PR's base must be main — the gate and the merge target must agree):",
           "PASS" if ok10 else "FAIL")
     if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
-    # 2k — AND NO QUEUE MAY OFFER SUCH A PR IN THE FIRST PLACE. 2j stops the two tools that would
+    # 2k — WHICH QUEUE OWNS A G5-FLAGGED PR. The gate cannot clear a NO-DISASM blind spot itself; it
+    # fails with "reviewer must re-derive disasm" and hands the PR back to a reviewer. No queue
+    # offered it: review_claim excluded every FAILURE, rebase_claim takes regression/rebase only,
+    # rework_claim takes CHANGES_REQUESTED only. #645 sat claimable-by-nobody until queue-coverage
+    # noticed. Offline, jq-backed fixtures with the real status descriptions. ~1s.
+    # (2k, not 2i or 2j: written when 2i was free, then main took 2i (queue coverage) and 2j
+    #  (PR base) while this PR was open. Renumbered again on this rebase, as its own note asked —
+    #  two layers claiming one letter is the kind of silent collision this suite exists to refuse.
+    #  Third collision on this line today; the letters are allocated by whoever merges first.)
+    r11 = run(["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")])
+    ok11 = "test_review_claim_g5: PASS" in r11.stdout
+    print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
+          "PASS" if ok11 else "FAIL")
+    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    # 2l — the cross-queue lease guard. A PR that is CHANGES_REQUESTED *and* CONFLICTING sits in
+    # BOTH worker queues, and until #643 taught rebase_claim to see DIRTY branches that combination
+    # was rare. It is not rare now: measured the same hour, two workers held the two leases on #656
+    # 66 seconds apart and both began reconciling the same 936-line PR. Offline, ~0.2s, and each
+    # case is mutation-checked inside the suite.
+    r12 = run(["bash", os.path.join(TOOLS, "test_cross_queue_lease.sh")])
+    ok12 = "TEST_CROSS_QUEUE_LEASE: PASS" in r12.stdout
+    print("LAYER 2l (cross-queue lease — one PR is never handed to two workers):",
+          "PASS" if ok12 else "FAIL")
+    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
+    # 2t — AND NO QUEUE MAY OFFER SUCH A PR IN THE FIRST PLACE. 2j stops the two tools that would
     # act wrongly on an off-main PR; this stops the three queues that hand it out. Both halves are
     # wanted: #650 reached a reviewer's signature and #656 was leased to a WORKER as a rebase task
     # whose DIRTY was a conflict with a peer branch, and the refusals do not give those slots back.
     # `check_pr_base` keeps such a PR VISIBLE, which is what makes skipping it safe rather than
     # stranding (see the note in that check and the ops/ entry). Offline, jq-backed fixtures; the
     # mutation cases strip the clause from a copy of each tool and require the wrong answer. ~2s.
-    r11 = run(["bash", os.path.join(TOOLS, "test_queue_base_main.sh")])
-    ok11 = "test_queue_base_main: PASS" in r11.stdout
-    print("LAYER 2k (a queue may only offer PRs that can reach main):",
-          "PASS" if ok11 else "FAIL")
-    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
-    return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11)
+    r21 = run(["bash", os.path.join(TOOLS, "test_queue_base_main.sh")])
+    ok21 = "test_queue_base_main: PASS" in r21.stdout
+    print("LAYER 2t (a queue may only offer PRs that can reach main):",
+          "PASS" if ok21 else "FAIL")
+    if not ok21: print(r21.stdout[-1200:], r21.stderr[-400:])
+    # LETTER AND VARIABLES: this block held 2k/r11, which main has since taken for the G5
+    # queue-ownership suite above. Renumbered to 2t/r21 rather than resolved "take mine",
+    # which would have reverted main's layer while the file still parsed and the suite still
+    # passed with a layer missing. The VARIABLE moves with the letter: two blocks that both
+    # assign `ok11` still PRINT correctly, because each print follows its own assignment,
+    # while the single `return` names `ok11` once — so the later block's result silently
+    # decides the verdict for both and a RED layer returns PASS (measured; filed as
+    # army/ops/2026-08-11-two-prove-all-layers-sharing-an-ok-variable-make-a-red-layer.md).
+    # One worker is holding six merges on this tail, allocated disjointly in letters AND
+    # variables: #656 2m/2n/2o r13-r15, #715 2p r16, #714 2q r17, #655 2r r18/r19,
+    # #651 2s r20, this one 2t r21.
+    return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
+            and ok11 and ok12 and ok21)
 
 def _reach(spec, expect):
     import tempfile
