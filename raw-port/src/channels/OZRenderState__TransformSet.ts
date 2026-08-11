@@ -80,11 +80,25 @@
 //   0x277160  pivot(bool)        andl $0x3ff8 / orq $0x7      bits 0..2
 //   0x277180  rotation(bool)     andl $0x3fc7 / orq $0x38     bits 3..5     <- ported here
 //   0x2771a0  scale(bool)        andl $0x3e3f / orq $0x1c0    bits 6..8
-//   0x2771c0  shear(bool)        (its own unit; masks not decoded here)
+//   0x2771c0  shear(bool)        andl $0x39ff / orq $0x600    bits 9..10   (its own unit)
 //   0x2771e0  translation(bool)  andl $0x07ff / orq $0x3800   bits 11..13  <- ported here
 //
 // Each AND mask is 0x3FFF with that method's group removed, which is what identifies the field as a
-// 14-bit set of five 3-bit groups. Each of those is its own ledger unit and its own export; `rotation` and
+// 14-bit set of FOUR 3-bit groups AND ONE 2-BIT GROUP — `shear` at bits 9..10 is the odd one, and
+// 3+3+3+2+3 = 14 is what closes the arithmetic. An earlier version of this line said "five 3-bit
+// groups", which is 15 bits and does not even close on itself; reviewer 4 caught it and it is
+// corrected here from the bytes, read out of the loaded image in one pass rather than inferred from
+// the pattern:
+//
+//   pivot        554889e5 488b07 89c1 81e1f83f0000 4883c807   -> andl $0x3ff8 / orq $0x007
+//   rotation     554889e5 488b07 89c1 81e1c73f0000 4883c838   -> andl $0x3fc7 / orq $0x038
+//   scale        554889e5 488b07 89c1 81e13f3e0000 480dc0010000 -> andl $0x3e3f / orq $0x1c0
+//   shear        554889e5 488b07 89c1 81e1ff390000 480d00060000 -> andl $0x39ff / orq $0x600
+//   translation  554889e5 488b07 89c1 81e1ff070000 480d00380000 -> andl $0x07ff / orq $0x3800
+//
+// This matters beyond a wrong sentence: `pivot`, `scale` and `shear` are unclaimed units of the
+// same body, and their author reads this header first. "Five 3-bit groups" would have sent the
+// shear worker looking for three bits at 9..11. Each of those is its own ledger unit and its own export; `rotation` and
 // `translation` are transcribed here, and `pivot`/`scale`/`shear` are added to this file as they
 // are claimed (ADD-only: a landed export and its citations are never rewritten).
 //
@@ -104,9 +118,9 @@
 // meant transcribing a pan tool's selector into a bit mask.
 
 /**
- * `OZRenderState::TransformSet` — a bit set of five 3-bit transform-component groups packed into
- * one 64-bit word at offset +0x00. Only what this method grounds is modelled (PORTING_SPEC Rule 5):
- * the word itself. Nothing here names what the three bits within a group MEAN — no decoded method
+ * `OZRenderState::TransformSet` — a 14-bit set of transform-component groups (four of 3 bits and
+ * one of 2, see the header table) packed into one 64-bit word at offset +0x00. Only what this method grounds is modelled (PORTING_SPEC Rule 5):
+ * the word itself. Nothing here names what the bits within a group MEAN — no decoded method
  * distinguishes them, so calling them anything would be an invention.
  */
 export interface OZRenderState__TransformSet_Fields {

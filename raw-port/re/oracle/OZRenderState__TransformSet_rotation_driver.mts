@@ -30,11 +30,18 @@ function run(c: Case): Record<string, string> {
   const { mask: MASK, bits: BITS, fn } = MASKS[c.method]!;
   const bits = BigInt("0x" + c.bits);
   const arg = BigInt("0x" + c.arg);
-  const lo32 = Number(BigInt.asUintN(32, arg)) >>> 0; // what %esi holds
-  const on = lo32 !== 0;
+  // Hand the port the RAW value and let IT truncate. The driver used to pass
+  // `Number(BigInt.asUintN(32, arg)) >>> 0`, which applies the very operation the port is being
+  // tested for, so the 32-vs-64 case the corpus advertises (`arg = 0x1_0000_0000`, whose low 32
+  // bits are zero and which the machine must therefore treat as FALSE) measured the driver's
+  // asUintN and not the port's `>>> 0`. Measured after reviewer 4 pointed at it: with the old
+  // driver, mutating both bodies to `enable !== 0` still scored 288/288 VERIFIED — the control was
+  // dead and the count looked healthy. An instrument must not perform the operation under test on
+  // its subject's input.
+  const on = Number(BigInt.asUintN(32, arg)) >>> 0 !== 0;   // what %esi holds, for the MODELS only
 
   const self = { bits };
-  port[fn]!(self, lo32);
+  port[fn]!(self, Number(BigInt.asUintN(53, arg)));
 
   return {
     port: hex(self.bits),
