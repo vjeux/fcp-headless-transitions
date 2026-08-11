@@ -103,6 +103,35 @@ def _callonce_singleton_cheat(dpath, name, body_text, file_class):
                 "port models the __call_once boundary (std_call_once helper or a throw at the libc++ "
                 "callq), never a fabricated construction." % (name, "; ".join(why)))
     return None
+# A class METHOD body. G5 only ever looked for `export function`, so for a file whose bodies live in
+# a class it analysed NOTHING and reported "0 cheats, 0 flags -> PASS". Measured over raw-port/src:
+# 946 of 1603 files (59%) contain ONLY class methods, so for the majority of the codebase the
+# anti-cheat gate was inert while printing green. reviewer-03 demonstrated it: the IDENTICAL
+# Pattern-C body is `G5 CHEAT / exit 2` as an export function and `0 cheats, 0 flags / PASS` wrapped
+# in `class X {}`.
+INCOMPLETE_RE = re.compile(r'not yet transcribed|pending transcription|unimplemented|\\bunimpl\\b|\\bTODO\\b|not transcribed|frontier callee', re.I)
+
+_METHOD_RE = re.compile(
+    r'^[ \t]{2,4}(?!(?:if|for|while|switch|catch|return|function|constructor)\b)'
+    r'(?:public\s+|private\s+|protected\s+|static\s+|readonly\s+|async\s+|get\s+|set\s+)*'
+    r'([A-Za-z_]\w*)\s*\(', re.M)
+
+def _ts_methods(text):
+    """Yield (name, params, ret, start) for class methods — same tuple shape as _ts_functions."""
+    out = []
+    for m in _METHOD_RE.finditer(text):
+        name = m.group(1)
+        i = m.end(); depth = 1; j = i
+        while j < len(text) and depth:
+            if text[j] == '(': depth += 1
+            elif text[j] == ')': depth -= 1
+            j += 1
+        k = text.find('{', j)
+        ret = text[j:k].lstrip(': ').strip() if k > 0 else ""
+        out.append((name, _parse_params(text[i:j-1]), ret, m.start()))
+    return out
+
+
 def _ts_functions(text):
     """Yield (name, params:[(pname,ptype)], ret, start_index) for each exported function."""
     out = []
@@ -174,6 +203,50 @@ def check_file(path):
             ce = _callonce_singleton_cheat(gpath, f"{file_class}::getInstance", text, file_class)
             if ce:
                 errs.append(f"{path}: {ce}")
+    # CLASS-METHOD SWEEP. The per-fn loop below only ever saw `export function`, so in a file whose
+    # bodies live in a class it examined nothing and the gate printed "0 cheats, 0 flags -> PASS".
+    # 946 of 1603 landed files (59%) are exactly that shape.
+    #
+    # Scope, deliberately: the reach FUZZ cannot run on a method (it would have to construct the
+    # instance), so this does the half that needs no instance — classify the disasm and look for the
+    # Pattern-C shape: a REAL body whose TS throws incompleteness. Reachability is unproven, so this
+    # FLAGS (reviewer must clear) rather than hard-rejecting. Flagging all 946 files instead would
+    # cry wolf on the whole codebase and teach agents to ignore G5 — the failure mode G7 already
+    # showed. This catches the cheat while staying quiet on honest ports.
+    for mname, _mp, _mr, mstart in _ts_methods(text):
+        if mname in ("super", "constructor", "this"):
+            continue                      # a call, not a method declaration
+        body = text[mstart:mstart + 4000]
+        if not INCOMPLETE_RE.search(body):
+            continue                      # no incompleteness throw -> nothing for this check to say
+        pre = text[:mstart][-4000:]
+        msyms = SYM_RE.findall(pre) or file_syms
+        mdpath = None
+        # The symbol MUST relate to this method, and its disasm MUST name this class. Without both
+        # guards this re-introduces exactly the disease #307/#322 fixed: a method resolves to the
+        # first symbol cited anywhere in the file and gets a confident verdict about a DIFFERENT
+        # function. Measured while writing this — without the guards, 5 landed files flagged and all
+        # five resolved to the same unrelated "9 instrs, 3 stores" body, including a match on the
+        # `super(` call in a constructor. Unresolvable is the honest answer; the NO-DISASM flag
+        # already covers it.
+        for sym in sorted(set(msyms), key=lambda x: (0 if mname.lower() in x.lower() else 1, x)):
+            if mname.lower() not in sym.lower():
+                continue                  # not this method's symbol — do not guess
+            cand = find_disasm(sym)
+            if cand and (_names_class(os.path.basename(cand), file_class)
+                         or mname.lower() in os.path.basename(cand).lower()):
+                mdpath = cand
+                break
+        if not mdpath:
+            continue                      # no disasm to judge against; the NO-DISASM flag covers it
+        mcls = classify(mdpath)
+        if mcls.get("class") == "REAL":
+            flags.append(f"{path}: G5 CLASS-METHOD — {mname}: disasm classifies REAL "
+                         f"({mcls.get('instrs')} instrs, {mcls.get('stores')} stores) but the method "
+                         f"body throws incompleteness. Reachability is NOT proven here (the fuzz "
+                         f"cannot construct the instance), so the reviewer must decide: transcribe "
+                         f"the real instructions, or show the throw is unreachable.")
+
     for name, params, ret, start in fns:
         pre = text[:start][-4000:]
         fwm = FW_RE.search(pre) or FW_RE.search(text)
