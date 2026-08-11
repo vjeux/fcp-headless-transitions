@@ -68,16 +68,158 @@ export function CMTimeMake(value: bigint | number, timescale: number): CMTime {
   return { value: BigInt(value), timescale, flags: kCMTimeFlags_Valid, epoch: 0n };
 }
 
+// ── Shared internals of the four CoreMedia value operations ───────────────────
+// These four functions (CMTimeGetSeconds / CMTimeAdd / CMTimeSubtract /
+// CMTimeMultiplyByFloat64) are the CoreMedia system ABI, so their ground truth is the LIVE
+// framework rather than a disassembly: they were re-derived by differential measurement against
+// /System/Library/Frameworks/CoreMedia.framework/CoreMedia (see
+// raw-port/re/oracle/CMTime_coremedia_oracle.py, which reproduces every number quoted below).
+// The three rules the previous model was missing, each measured:
+//
+//  1. A COMMON TIMESCALE IS NEGOTIATED, then REDUCED BY REPEATED TRUNCATED HALVING until every
+//     operand — and the result — fits in int64. CMTimeAdd starts from lcm(ts1, ts2) (falling back
+//     to 1e9 when that lcm exceeds INT32_MAX); CMTimeMultiplyByFloat64 starts from the input's own
+//     timescale for an integral multiplier and from max(timescale, 1e9) otherwise. Measured:
+//       CMTimeAdd((2^62,600), (2^31,30000))  -> (7201916332177843850, 937)
+//         937 is 30000 halved five times with truncation: 15000, 7500, 3750, 1875, 937.
+//       CMTimeMultiplyByFloat64((2^62,600), 32.0) -> (9100393743030045696, 37)   [600 -> 37]
+//  2. THE OPERANDS ARE CONVERTED INTO THAT TIMESCALE FIRST, ROUNDING HALF AWAY FROM ZERO, and only
+//     then combined. This is why a fractional multiplier does not simply scale `value`:
+//       CMTimeMultiplyByFloat64((100,600), 0.5): 100/600 -> 166666667/1e9 (rounded up from
+//       166666666.67), and 166666667 x 0.5 = 83333333.5 -> 83333334, NOT 50/600.
+//     The conversion is exact integer arithmetic (int64 in the framework, bigint here) — only the
+//     multiply by the Float64 goes through a double.
+//  3. HasBeenRounded is set when a conversion actually rounded, when the timescale had to be
+//     reduced, or — for the multiply only, because that step is a double — when the magnitude of
+//     the result exceeds 2^51. The 2^51 threshold is sharp and independent of the timescale:
+//     1 x 2^51 @600 -> flags 0x1, 1 x (2^51+1) @600 -> flags 0x3 (bisected on the live framework).
+//
+// DOMAIN. Verified bit-exact over 200,000 randomized cases (two seeds) plus the 341-call gate grid
+// for POSITIVE timescales and FINITE multipliers, which is CMTime's documented contract
+// (CMTime.h: "the timescale must be positive") and everything any ported FCP caller can build.
+// `raw-port/re/oracle/CMTime_coremedia_oracle.py` re-runs that corpus on demand and reports the
+// two classes OUTSIDE the domain separately, because measurement shows CoreMedia's answers there
+// are artefacts of its own saturating conversions rather than a rule worth imitating:
+//   * a multiplier of +/-Infinity on a finite time (47 of 679 such calls differ). The SIGN of the
+//     infinity CoreMedia returns is not the sign of the product: (100,600) x +Inf -> +Inf but
+//     (473,7) x +Inf -> -Inf, with no monotone boundary between them. This port returns the
+//     mathematical sign. A NaN multiplier IS modelled: invalid for a finite time, sign-flip for an
+//     infinite one, both stable across every case measured.
+//   * a negative or zero timescale in CMTimeAdd/CMTimeSubtract (72 of 773 such calls differ).
+//     CoreMedia negotiates a SIGNED lcm — C's truncating gcd, so gcd(-300,600) is -300 and the
+//     lcm 600 — and rejects a non-positive one, which this port reproduces. What it does NOT
+//     reproduce is the special treatment of a timescale of magnitude 1: live CoreMedia rejects
+//     (1,-1) + (1,600) and (1,600) + (1,-1), yet accepts (1,-1) + (1,-600) -> (-601,600), while
+//     the signed-lcm rule alone predicts the opposite for all three. Measured, unexplained, and
+//     unreachable from a CMTime built by CMTimeMake.
+
+const kCMTime_I64_MAX = 9223372036854775807n;
+const kCMTime_I64_MIN = -9223372036854775808n;
+/** The magnitude past which CMTimeMultiplyByFloat64 reports HasBeenRounded. @const measured */
+const kCMTime_RoundedAbove = 2251799813685248n;      // 2^51
+/** (double)INT64_MAX == 2^63 exactly — CoreMedia's own overflow comparison is done in double. */
+const kCMTime_I64_MAX_AS_DOUBLE = 9223372036854775808;
+/** The timescale CoreMedia negotiates when it cannot use the operands' own. @const measured */
+const kCMTime_PreferredTimescale = 1000000000;
+
+function cmTimeInvalid(): CMTime {
+  return { value: 0n, timescale: 0, flags: 0, epoch: 0n };
+}
+function cmTimeInfinity(positive: boolean): CMTime {
+  return {
+    value: 0n,
+    timescale: 0,
+    flags: kCMTimeFlags_Valid |
+      (positive ? kCMTimeFlags_PositiveInfinity : kCMTimeFlags_NegativeInfinity),
+    epoch: 0n,
+  };
+}
+function cmTimeIndefinite(): CMTime {
+  return { value: 0n, timescale: 0, flags: kCMTimeFlags_Valid | kCMTimeFlags_Indefinite, epoch: 0n };
+}
+
+/**
+ * The candidate timescales, in the order CoreMedia tries them: the negotiated one, then that
+ * halved with truncation, down to +/-1. A zero timescale has itself as its only candidate (a
+ * CMTime with timescale 0 is passed through the same-timescale path, never converted).
+ */
+function cmTimeCandidates(base: number): number[] {
+  if (base === 0) return [0];
+  const sign = base < 0 ? -1 : 1;
+  let mag = Math.abs(base);
+  const out: number[] = [];
+  for (;;) {
+    out.push(sign * mag);
+    if (mag <= 1) break;
+    mag = Math.trunc(mag / 2);
+  }
+  return out;
+}
+
+/**
+ * Convert `value` from `ts` into `newTs`, rounding half away from zero, in exact integer
+ * arithmetic. Returns null when the converted value does not fit in int64 — which is the signal
+ * that drives the halving loop above. `inexact` reports whether the division had a remainder,
+ * which is one of the three sources of HasBeenRounded.
+ */
+function cmTimeConvert(
+  value: bigint,
+  ts: number,
+  newTs: number,
+): { value: bigint; inexact: boolean } | null {
+  if (newTs === ts) return { value, inexact: false };   // no conversion at all: exact by definition
+  if (ts === 0) return null;
+  const num = value * BigInt(newTs);
+  const den = BigInt(ts);
+  const absNum = num < 0n ? -num : num;
+  const absDen = den < 0n ? -den : den;
+  let q = absNum / absDen;
+  const rem = absNum - q * absDen;
+  if (rem * 2n >= absDen) q += 1n;                      // half away from zero
+  if ((num < 0n) !== (den < 0n)) q = -q;
+  if (q > kCMTime_I64_MAX || q < kCMTime_I64_MIN) return null;
+  return { value: q, inexact: rem !== 0n };
+}
+
+/** Round a double half away from zero and clamp into int64, the way the framework's store does. */
+function cmTimeRoundAndClamp(x: number): bigint {
+  const r = x >= 0 ? Math.floor(x + 0.5) : Math.ceil(x - 0.5);
+  const b = BigInt(r);
+  if (b > kCMTime_I64_MAX) return kCMTime_I64_MAX;
+  if (b < kCMTime_I64_MIN) return kCMTime_I64_MIN;
+  return b;
+}
+
 /**
  * CMTimeGetSeconds(t) — convert rational time to a double (seconds).
  * @CoreMedia public API — CMTime.h: `Float64 CMTimeGetSeconds(CMTime time)`.
- * Per Apple docs: returns NaN if timescale is 0 (invalid time), +/-Infinity if the flags
- * indicate an infinite time. Otherwise returns value/timescale as a double.
+ * Per Apple docs: returns NaN for an invalid time, +/-Infinity if the flags indicate an infinite
+ * time. Otherwise returns value/timescale as a double.
+ *
+ * Measured order of tests (each line is a live-framework result, all with Valid set):
+ *   flags 0x11 Indefinite      -> NaN     flags 0x15/0x19/0x1d -> NaN   (Indefinite outranks the
+ *   flags 0x05 PositiveInf     -> +Inf     infinity bits here, unlike in CMTimeAdd, where an
+ *   flags 0x09 NegativeInf     -> -Inf     infinity outranks Indefinite)
+ *   flags 0x0d Pos|NegInf      -> +Inf    (PositiveInfinity is tested first)
+ *   (100,0) -> +Inf   (0,0) -> NaN   (1,-600) -> -0.0016666666666666668  (no normalization)
+ * A time whose Valid bit is clear returns NaN — the previously landed body returned value/timescale
+ * for it, which is where 11 of the oracle's divergences came from.
+ *
+ * ONE KNOWN, UNFIXABLE-IN-JS DIFFERENCE: for (0, 0) the framework computes 0.0/0.0 on x86_64,
+ * whose default NaN has the sign bit SET (0xfff8000000000000); JavaScript's NaN is always
+ * 0x7ff8000000000000. Constructing the negative NaN through a DataView would be a rewrite of the
+ * hardware's divide rather than a transcription of it, so the payload is left alone and stated
+ * here. Every other NaN CoreMedia returns from this function is positive.
  */
 export function CMTimeGetSeconds(t: CMTime): number {
+  if ((t.flags & kCMTimeFlags_Valid) === 0) return NaN;
+  if ((t.flags & kCMTimeFlags_Indefinite) !== 0) return NaN;
   if ((t.flags & kCMTimeFlags_PositiveInfinity) !== 0) return Number.POSITIVE_INFINITY;
   if ((t.flags & kCMTimeFlags_NegativeInfinity) !== 0) return Number.NEGATIVE_INFINITY;
-  if (t.timescale === 0) return NaN;
+  if (t.timescale === 0) {
+    if (t.value === 0n) return NaN;
+    return t.value > 0n ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+  }
   return Number(t.value) / t.timescale;
 }
 
@@ -96,40 +238,144 @@ export function CMTimeCompare(a: CMTime, b: CMTime): number {
 }
 
 /**
+ * The shared body of CMTimeAdd and CMTimeSubtract. CoreMedia implements the two as one routine
+ * with the second operand's sign (and its infinity bits) flipped for the subtract, which the
+ * measurements confirm right down to the flag precedence: (Valid|PosInf) - (Valid|NegInf) is
+ * +Infinity while (Valid|PosInf) + (Valid|NegInf) is kCMTimeInvalid.
+ *
+ * The order of the tests below is measured, not assumed — the live framework's answers for
+ * a=(100,600,f1) OP b=(100,600,f2), each combination checked:
+ *   either Valid bit clear                      -> kCMTimeInvalid (before anything else; a
+ *                                                  flags-0x04 "infinity without Valid" is invalid)
+ *   a is +Inf                                   -> b has the NegativeInfinity BIT ? invalid : +Inf
+ *   a is -Inf                                   -> b has the PositiveInfinity BIT ? invalid : -Inf
+ *   b alone is infinite                         -> that infinity, PositiveInfinity bit first
+ *                                                  (0x1d as b of a subtract gives -Infinity)
+ *   either Indefinite                           -> kCMTimeIndefinite  (infinity outranks it here)
+ *   epochs differ and neither is zero           -> kCMTimeInvalid   (7 + 2 -> invalid; 5 + 5 -> 0;
+ *                                                  5 + 0 -> 5; 0 + 5 -> 5; -3 + 0 -> -3)
+ *   either value is zero                        -> the other operand, unconverted, keeping ITS
+ *                                                  timescale: (0,600) + (7,3) -> (7,3), not
+ *                                                  (1400,600). A subtract tests b first, which is
+ *                                                  why (0,3) - (0,600) is (0,3) while
+ *                                                  (0,3) + (0,600) is (0,600).
+ * HasBeenRounded is inherited from either input and set by a conversion that rounds; unlike the
+ * multiply there is no magnitude threshold, because this path never touches a double:
+ * (2^62,600) + (1,1) -> (4611686018427388504, 600) with flags 0x1.
+ */
+function cmTimeAddSub(a: CMTime, b: CMTime, subtract: boolean): CMTime {
+  if ((a.flags & kCMTimeFlags_Valid) === 0 || (b.flags & kCMTimeFlags_Valid) === 0) {
+    return cmTimeInvalid();
+  }
+  // The subtract flips b's infinity bits; the flipped pair is what a's infinity is tested against.
+  const bPos = subtract ? (b.flags & kCMTimeFlags_NegativeInfinity) !== 0
+                        : (b.flags & kCMTimeFlags_PositiveInfinity) !== 0;
+  const bNeg = subtract ? (b.flags & kCMTimeFlags_PositiveInfinity) !== 0
+                        : (b.flags & kCMTimeFlags_NegativeInfinity) !== 0;
+  if ((a.flags & kCMTimeFlags_PositiveInfinity) !== 0) {
+    return bNeg ? cmTimeInvalid() : cmTimeInfinity(true);
+  }
+  if ((a.flags & kCMTimeFlags_NegativeInfinity) !== 0) {
+    return bPos ? cmTimeInvalid() : cmTimeInfinity(false);
+  }
+  // a is finite: b's own sign is resolved with PositiveInfinity first, then negated for a subtract.
+  let bSign = 0;
+  if ((b.flags & kCMTimeFlags_PositiveInfinity) !== 0) bSign = 1;
+  else if ((b.flags & kCMTimeFlags_NegativeInfinity) !== 0) bSign = -1;
+  if (subtract) bSign = -bSign;
+  if (bSign !== 0) return cmTimeInfinity(bSign > 0);
+  if ((a.flags & kCMTimeFlags_Indefinite) !== 0 || (b.flags & kCMTimeFlags_Indefinite) !== 0) {
+    return cmTimeIndefinite();
+  }
+  if (a.timescale === 0 || b.timescale === 0) return cmTimeInvalid();
+  if (a.epoch !== 0n && b.epoch !== 0n && a.epoch !== b.epoch) return cmTimeInvalid();
+  const epoch = a.epoch === b.epoch ? 0n : (a.epoch !== 0n ? a.epoch : b.epoch);
+  const flags = kCMTimeFlags_Valid |
+    (((a.flags | b.flags) & kCMTimeFlags_HasBeenRounded) !== 0 ? kCMTimeFlags_HasBeenRounded : 0);
+
+  // Zero fast path: x +/- 0 needs no common timescale, so the other operand comes back untouched.
+  if (subtract) {
+    if (b.value === 0n) return { value: a.value, timescale: a.timescale, flags, epoch };
+    if (a.value === 0n && b.value !== kCMTime_I64_MIN) {
+      return { value: -b.value, timescale: b.timescale, flags, epoch };
+    }
+  } else {
+    if (a.value === 0n) return { value: b.value, timescale: b.timescale, flags, epoch };
+    if (b.value === 0n) return { value: a.value, timescale: a.timescale, flags, epoch };
+  }
+
+  // Negotiate the common timescale: lcm(ts1, ts2), computed with C's truncating division so the
+  // sign follows the framework's; 1e9 when that overflows int32. Same-timescale is its own path
+  // (it is how (1,-600) + (1,-600) -> (2,-600) survives while (1,-600) + (1,600) is rejected).
+  let base: number;
+  if (a.timescale === b.timescale) {
+    base = a.timescale;
+  } else {
+    let g = a.timescale;
+    let h = b.timescale;
+    while (h !== 0) {
+      const r = Math.abs(g) % Math.abs(h);
+      const rem = g < 0 ? -r : r;                       // C's %, which keeps the dividend's sign
+      g = h;
+      h = rem;
+    }
+    const lcm = Math.trunc(a.timescale / g) * b.timescale;
+    if (lcm <= 0) return cmTimeInvalid();
+    base = lcm <= 2147483647 ? lcm : kCMTime_PreferredTimescale;
+  }
+
+  let overflowSign = 1;
+  for (const cts of cmTimeCandidates(base)) {
+    const ca = cmTimeConvert(a.value, a.timescale, cts);
+    if (ca === null) continue;
+    const cb = cmTimeConvert(b.value, b.timescale, cts);
+    if (cb === null) continue;
+    const sum = subtract ? ca.value - cb.value : ca.value + cb.value;
+    if (sum > kCMTime_I64_MAX || sum < kCMTime_I64_MIN) {
+      overflowSign = sum > 0n ? 1 : -1;
+      continue;                                          // reduce the timescale and try again
+    }
+    const rounded = ca.inexact || cb.inexact ||
+      (flags & kCMTimeFlags_HasBeenRounded) !== 0;
+    return {
+      value: sum,
+      timescale: cts,
+      flags: kCMTimeFlags_Valid | (rounded ? kCMTimeFlags_HasBeenRounded : 0),
+      epoch,
+    };
+  }
+  // Not representable at any timescale down to 1: the framework returns the signed infinity.
+  return cmTimeInfinity(overflowSign > 0);
+}
+
+/**
  * CMTimeAdd(a, b) — rational sum with a common timescale.
  * @CoreMedia public API — CMTime.h: `CMTime CMTimeAdd(CMTime addend1, CMTime addend2)`.
  * Called from ProCore via __stubs at 0xde3a2 (referenced by PC_CMTimeSaferAdd at 0x8f903).
- * CoreMedia picks a common timescale and may set kCMTimeFlags_HasBeenRounded if the
- * intermediate int64 arithmetic overflows and it has to reduce precision — the PC_CMTime
- * "safer" wrappers below detect that condition (flags == Valid|HasBeenRounded, i.e. 0x3)
- * and retry with GCD-reduced inputs.
- * Here we use bigint so the overflow never actually happens; we still model the
- * ProCore wrappers because they are callable by other code that expects them to exist.
+ * Worked examples from the live framework, all reproduced by this port:
+ *   (100,600) + (7,3)          -> (1500,600)    lcm(600,3) = 600
+ *   (1,44100) + (1,48000)      -> (307,7056000) lcm; 160 + 147
+ *   (1,1000000) + (1,1000001)  -> (2000,1e9, HasBeenRounded)   lcm exceeds INT32_MAX
+ *   (2^62,600) + (2^62,600)    -> (2^62,300)    sum overflows int64, halve the timescale; the
+ *                                               halving is EXACT here, so NOT rounded
+ *   (2^63-1,600) + (2^63-1,600)-> (4611686018427387904,150, HasBeenRounded)  two halvings
+ * The HasBeenRounded contract is what PC_CMTimeSaferAdd below reacts to, so getting it right here
+ * is what makes that wrapper's GCD retry reachable at all.
  */
 export function CMTimeAdd(a: CMTime, b: CMTime): CMTime {
-  if (a.timescale === b.timescale) {
-    return { value: a.value + b.value, timescale: a.timescale, flags: kCMTimeFlags_Valid, epoch: 0n };
-  }
-  const ts = a.timescale * b.timescale;
-  const av = a.value * BigInt(b.timescale);
-  const bv = b.value * BigInt(a.timescale);
-  return { value: av + bv, timescale: ts, flags: kCMTimeFlags_Valid, epoch: 0n };
+  return cmTimeAddSub(a, b, false);
 }
 
 /**
  * CMTimeSubtract(a, b) — rational difference with a common timescale.
  * @CoreMedia public API — CMTime.h: `CMTime CMTimeSubtract(CMTime minuend, CMTime subtrahend)`.
  * Called from ProCore via __stubs at 0xde3f0 (referenced by PC_CMTimeSaferSubtract at 0x8fa26).
- * Same common-timescale reduction as CMTimeAdd; same HasBeenRounded-on-overflow contract.
+ * Same routine as CMTimeAdd with the subtrahend negated — including its infinity bits, so
+ * (100,600,Valid|PosInf) - (1,1,Valid|NegInf) is +Infinity where the add of the same pair is
+ * kCMTimeInvalid. Worked example: (2^62,600) - (-2^62,600) -> (4611686018427387904, 300).
  */
 export function CMTimeSubtract(a: CMTime, b: CMTime): CMTime {
-  if (a.timescale === b.timescale) {
-    return { value: a.value - b.value, timescale: a.timescale, flags: kCMTimeFlags_Valid, epoch: 0n };
-  }
-  const ts = a.timescale * b.timescale;
-  const av = a.value * BigInt(b.timescale);
-  const bv = b.value * BigInt(a.timescale);
-  return { value: av - bv, timescale: ts, flags: kCMTimeFlags_Valid, epoch: 0n };
+  return cmTimeAddSub(a, b, true);
 }
 
 /**
@@ -137,23 +383,74 @@ export function CMTimeSubtract(a: CMTime, b: CMTime): CMTime {
  * @CoreMedia public API — CMTime.h:
  *   `CMTime CMTimeMultiplyByFloat64(CMTime time, Float64 multiplier)`.
  * Called from ProCore via __stubs at 0xde3d8 (referenced by __ZmlRK6CMTimed at 0x5816e).
- * Per Apple docs: computes value' = round(time.value * multiplier), preserves timescale,
- * epoch, and validity flags (may set HasBeenRounded on precision loss). Multiplication by a
- * negative multiplier flips the sign of value (there is NO separate "flip flags" step —
- * this is why ProCore uses `operator*(t, -1.0)` to negate a CMTime).
+ *
+ * NOT `round(value * multiplier)` with the timescale preserved — that was the landed model, and it
+ * is wrong for every non-integral multiplier, which is 175 of the CoreMedia oracle's 341 calls.
+ * What the live framework does, measured:
+ *
+ *   1. Pick a base timescale. An INTEGRAL multiplier keeps the input's own; anything else moves to
+ *      max(timescale, 1e9) — nanoseconds, unless the input is already finer:
+ *        (7, 1000000001) x 0.5   -> (4, 1000000001)   the timescale is NOT coarsened to 1e9
+ *      "Integral" is the C round-trip `(double)(int64_t)m == m`, so 2^63 counts (its saturating
+ *      conversion comes back as 2^63) while 9.3e18 does not: (1,600) x 2^63 keeps timescale 600
+ *      and saturates, (1,600) x 9.3e18 goes to the 1e9 chain and returns (0, 238).
+ *   2. Walk that timescale down by truncated halving until BOTH the converted value and the
+ *      product fit in int64. Each candidate converts the ORIGINAL value exactly, half away from
+ *      zero, and only then multiplies:
+ *        (2^62,600) x 0.5  -> (3662447312967750656, 953)   953 = 1e9 halved 20 times
+ *        (100,600)  x 1e18 -> (6000000000000000000, 37)    convert 100@600 -> 37 gives 6, x 1e18
+ *      Converting first is the whole difference: scaling the value and converting afterwards gives
+ *      6166666666666666368 for that second case, which is not what the framework returns.
+ *   3. Round the product half away from zero and clamp into int64. The clamp is reachable because
+ *      the fit test is a DOUBLE comparison against (double)INT64_MAX == 2^63, so a product of
+ *      exactly 2^63 passes the test and then saturates: (2^62,600) x 2.0 -> (INT64_MAX, 600).
+ *   4. Exhausting the chain means the result is not representable at any timescale: the framework
+ *      returns the signed infinity. (2^62,600) x 1e5 -> +Infinity.
+ *
+ * Flags: Valid, plus HasBeenRounded when the conversion rounded, the timescale had to be reduced,
+ * or |result| > 2^51 (see the block comment above for the bisected threshold). The epoch and the
+ * timescale of a non-reduced result are preserved; an infinite or indefinite input propagates
+ * before any of this, with Indefinite outranking the infinity bits (flags 0x1d -> Indefinite).
+ * A NaN multiplier invalidates a finite time, and flips the sign of an infinite one — `m >= 0` is
+ * false for NaN, which is exactly how the framework behaves: (100,600,Valid|PosInf) x NaN is
+ * -Infinity, not invalid.
  */
 export function CMTimeMultiplyByFloat64(t: CMTime, multiplier: number): CMTime {
-  if ((t.flags & kCMTimeFlags_Valid) === 0) {
-    // Invalid / indefinite times propagate as-is (Apple's contract).
-    return { value: t.value, timescale: t.timescale, flags: t.flags, epoch: t.epoch };
+  if ((t.flags & kCMTimeFlags_Valid) === 0) return cmTimeInvalid();
+  if ((t.flags & kCMTimeFlags_Indefinite) !== 0) return cmTimeIndefinite();
+  if ((t.flags & (kCMTimeFlags_PositiveInfinity | kCMTimeFlags_NegativeInfinity)) !== 0) {
+    const positive = (t.flags & kCMTimeFlags_PositiveInfinity) !== 0;
+    return cmTimeInfinity(multiplier >= 0 ? positive : !positive);
   }
-  const secs = Number(t.value) * multiplier;               // value * m (as double)
-  const rounded = Math.round(secs);                        // Apple rounds to nearest int64
-  // Detect loss of precision -> set HasBeenRounded (mirrors CoreMedia's flag contract).
-  const rounded_bi = BigInt(rounded);
-  let flags = kCMTimeFlags_Valid;
-  if (Number(rounded_bi) !== secs) flags |= kCMTimeFlags_HasBeenRounded;
-  return { value: rounded_bi, timescale: t.timescale, flags, epoch: t.epoch };
+  if (Number.isNaN(multiplier)) return cmTimeInvalid();
+  if (!Number.isFinite(multiplier)) {
+    // Out of the modelled domain — see the DOMAIN note in the block comment above.
+    if (t.value === 0n) return cmTimeInvalid();
+    return cmTimeInfinity((t.value > 0n) === (multiplier > 0));
+  }
+  const integral = Number.isInteger(multiplier) &&
+    Math.abs(multiplier) <= kCMTime_I64_MAX_AS_DOUBLE;
+  const base = integral ? t.timescale : Math.max(t.timescale, kCMTime_PreferredTimescale);
+  for (const cts of cmTimeCandidates(base)) {
+    const converted = cmTimeConvert(t.value, t.timescale, cts);
+    if (converted === null) continue;
+    const product = Number(converted.value) * multiplier;
+    if (!(Math.abs(product) <= kCMTime_I64_MAX_AS_DOUBLE)) continue;
+    const value = cmTimeRoundAndClamp(product);
+    const magnitude = value < 0n ? -value : value;
+    // ...and an input that was already flagged stays flagged. The gate's fixed 341-call grid holds
+    // no already-rounded input, so this term is invisible there; the randomized corpus in
+    // raw-port/re/oracle/CMTime_coremedia_oracle.py fails 154 of 4088 multiplies without it.
+    const rounded = converted.inexact || magnitude > kCMTime_RoundedAbove || cts !== base ||
+      (t.flags & kCMTimeFlags_HasBeenRounded) !== 0;
+    return {
+      value,
+      timescale: cts,
+      flags: kCMTimeFlags_Valid | (rounded ? kCMTimeFlags_HasBeenRounded : 0),
+      epoch: t.epoch,
+    };
+  }
+  return cmTimeInfinity((t.value >= 0n) === (multiplier >= 0));
 }
 
 // ── kCMTimeRoundingMethod (CoreMedia CMTime.h enum) ────────────────────────────
