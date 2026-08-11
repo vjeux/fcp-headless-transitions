@@ -58,7 +58,14 @@ wt_has_work () {
   # tsgo cache (raw-port/.gate.tsbuildinfo) whenever the leased branch predates the .gitignore entry
   # for it — so release saw "live work", refused, and the slot LEAKED FOREVER (worker-02 had to
   # reset --hard by hand). A build cache is not work; src and re/ are.
-  [ -n "$(git -C "$wt" status --porcelain -- raw-port/src raw-port/re 2>/dev/null)" ] && return 0
+  # EXCLUDE the regenerable disasm cache. raw-port/re/disasm/*.s is a gitignored, sub-second-
+  # regenerable artifact — and running an oracle differential (exactly what the reviewer brief asks
+  # for) deletes and rewrites those files. Counting them as "live work" made release refuse, so every
+  # hand-leased reviewer worktree LEAKED its slot: the more reviewers did the highest-value work, the
+  # faster the pool drifted back toward the POOL_FULL deadlock of #12. #258 force-released pr_gate's
+  # lease but not a reviewer's. Real work is source; a cache is not.
+  [ -n "$(git -C "$wt" status --porcelain -- raw-port/src 2>/dev/null)" ] && return 0
+  [ -n "$(git -C "$wt" status --porcelain -- raw-port/re 2>/dev/null | grep -v ' raw-port/re/disasm/')" ] && return 0
   # HEAD reachable from some origin/* ref => pushed => nothing to lose
   if [ -n "$(git -C "$wt" rev-list -n1 origin/main..HEAD 2>/dev/null)" ]; then
     [ -z "$(git -C "$wt" branch -r --contains HEAD 2>/dev/null)" ] && return 0
