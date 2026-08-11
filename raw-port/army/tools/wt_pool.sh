@@ -54,7 +54,11 @@ make_wt () { # create pool worktree #N if missing; echo its path
 wt_has_work () {
   local wt="$1"
   [ -e "$wt/.git" ] || return 1
-  [ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ] && return 0
+  # Scope the dirty check to real port artifacts. A bare `status --porcelain` also reports the warm
+  # tsgo cache (raw-port/.gate.tsbuildinfo) whenever the leased branch predates the .gitignore entry
+  # for it — so release saw "live work", refused, and the slot LEAKED FOREVER (worker-02 had to
+  # reset --hard by hand). A build cache is not work; src and re/ are.
+  [ -n "$(git -C "$wt" status --porcelain -- raw-port/src raw-port/re 2>/dev/null)" ] && return 0
   # HEAD reachable from some origin/* ref => pushed => nothing to lose
   if [ -n "$(git -C "$wt" rev-list -n1 origin/main..HEAD 2>/dev/null)" ]; then
     [ -z "$(git -C "$wt" branch -r --contains HEAD 2>/dev/null)" ] && return 0
@@ -65,10 +69,25 @@ wt_has_work () {
 # atomically claim a free slot (mkdir lock). reclaims a lease older than WT_POOL_STALE min (agent died).
 claim_slot () {
   local tag="$1"; local deadline=$(( $(date +%s) + WAIT )); local stale="${WT_POOL_STALE:-120}"
+  # Disposable gate leases expire FAST. A pr_gate run takes ~1-2 min; if its lease is still held
+  # after GATE_STALE_MIN the holder died before its cleanup trap ran (killed, crashed, context-cut).
+  # #258 made those reclaimable-when-dirty, but only after the 120-min worker timeout — and a leak
+  # fills all 16 slots in ~10 minutes, so the self-heal arrived two hours after the deadlock. A
+  # worker's port/<Class> lease keeps the long timeout; only throwaway checkouts get the short one.
+  local gate_stale="${GATE_STALE_MIN:-15}"
   while :; do
     for i in $(seq 1 "$NPOOL"); do
       local lk="$LEASES/$i"
       if mkdir "$lk" 2>/dev/null; then echo "$tag $(date +%s)" > "$lk/holder"; echo "$i"; return 0; fi
+      # FAST PATH: a disposable gate lease older than gate_stale is a dead holder — take it.
+      case "$(cat "$lk/holder" 2>/dev/null)" in
+        gate/*)
+          if [ -n "$(find "$lk/holder" -mmin +$gate_stale 2>/dev/null)" ]; then
+            echo "$tag $(date +%s)" > "$lk/holder"
+            log "wt_pool: reclaimed abandoned gate slot $i (>${gate_stale}min)"
+            echo "$i"; return 0
+          fi;;
+      esac
       # reclaim stale lease — but NEVER steal a worktree that still holds live work. The stale
       # timeout (default 120min) is a guess about a dead agent, and it guessed wrong in production:
       # a reviewer reclaimed slot 2 while worker-04 was mid-edit and its in-progress file was wiped
