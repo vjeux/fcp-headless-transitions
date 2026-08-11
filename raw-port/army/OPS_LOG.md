@@ -35,6 +35,201 @@ detail to reproduce. That is how this list grows.
 | 19 | Units handed out as READY whose real callee was unported | `depgraph`'s DIRECT regex only matched `__Z*`, so a `jmp _PCPrint` (defined in ProCore 0x64e7, unported) produced no edge at all | #280 — plain-C callees defined in the 5 frameworks now count as in-scope deps (READY 15,958 → 15,701) |
 | 20 | G5 judged a port against **another class's** disassembly — a false REJECT on an honest port (#253), and a false ACCEPT wherever the wrong body was EMPTY | `find_disasm`'s last-resort key is the bare CLASS name, globbed as an unanchored substring: `*HGRenderNode*.s` matched `__ZN18OZHGRenderNodeBase8finishedEv.s` (DISPATCH_ONLY). 84 of 916 class-key lookups resolved to a DIFFERENT class (62 REAL, 19 EMPTY, 3 DISPATCH_ONLY). It only fires when the exact symbol's `.s` is missing — the NORMAL state in a pool worktree (#16), i.e. where the gate actually runs. Same shape as the 2026-07-29 parseElement cheat, through a second door | #302 — a bare identifier must match a WHOLE name component (Itanium `<len><Class>`, or a whole dotted component), never a substring; ties resolve deterministically; `sorted(set(...))` in G5's symbol ranking (PYTHONHASHSEED-dependent, so the verdict changed run to run) fully sorted. Locked by `verifier/test_find_disasm.py`, wired into prove_all as LAYER 2b |
 | 21 | G5 computed **476 of its 1,745 verdicts from a different class's function** — `AUPassThrough_D1` judged against `LiMaterialLayer::D1` (TRAP), `AdvanceScopingWindowTask_performTask` against `UpdateScrubRateTask::performTask` (EMPTY), every `*_ctor` export in the repo against one arbitrary framework's ctor | #307 anchored the CLASS key but left the BARE METHOD key: when no cited mangled symbol and no `<Class>.<method>` resolves, G5 falls back to `find_disasm(method)` / `find_disasm(class)`, and a method name alone is shared by hundreds of unrelated classes. Same both-ways harm: a wrong EMPTY/TRAP waves an empty-body-for-REAL-work port through, a wrong REAL condemns an honest @0xADDR-cited sibling stub as class-C | #317 — a bare-key hit must still NAME the class being ported (export-name prefix, else the file's class), via the shared `names_class` rule; otherwise it is discarded and the existing NO-DISASM FLAG asks the reviewer to re-derive. 476 fabricated verdicts -> 0, at the cost of flags on 106 landed files |
+| 22 | Load hit 73 on a 10-core box with 16 agents; `nm` processes pinned a core each for 60-120s | Agents answered one-off symbol questions with `nm -arch x86_64 "/Applications/Final Cut Pro.app/.../Flexo"` — a **78 MB fat** binary, rescanned by Defender/Cyberhaven on every open. The same answer was already cached in `army/inventory/<FW>.syms.txt` (144,642 defined symbols, all 5 frameworks). Measured: **nm on fat Flexo >120s vs `grep` on the cache 0.078s (~1000x)**. Same shape as #10 | **Use the cached inventory.** `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` -> `<addr> <T|t> <mangled>`. Only for UNDEFINED symbols or a flag the cache cannot answer, run nm against the THIN slice `/tmp/<FW>.x86_64` (regenerate with `lipo -thin x86_64`) and capture it ONCE into a variable instead of piping nm twice in one command. **Measured follow-up: thinning barely helps** — under swarm load the same nm took 4m24s fat vs 3m54s thin, so the cost is the symbol-table walk + the security stack, not the fat header. The cache is the only real fix; if it is stale, ONE agent should regenerate it for everyone with `dump_syms.sh` |
+| 23 | 9 concurrent identical `mark_ported.py` runs, ~4 min each at 176% CPU | It is a GLOBAL, idempotent, whole-repo reconciliation, but every agent runs it after every merge, so N agents produce N identical answers and N full scans of `src/` | `pgrep -f mark_ported` first and **skip if one is already running** — that run's result covers your commit too. A coalescing lock inside the tool is the stronger fix and is still open |
+
+---
+
+## Open — reported 2026-08-11 by worker 1 (G5 resolution; FIX PROPOSED in this same change)
+
+- **G5 judged 63% of the corpus's exports against SOME OTHER METHOD OF THE SAME CLASS — and the
+  trigger was obeying the worker brief.** #302/#317 made a resolved disasm prove it NAMES THE CLASS.
+  Nothing made it name the METHOD, and the cited-symbol loop took the first cited symbol that
+  resolved to any `.s` at all (the method-name ranking was only a *preference*). So one arbitrary
+  body — whichever of the class's methods happened to be warm in `re/disasm/` — became the verdict
+  for **every export in the file**.
+
+  Measured live on the landed `channels/OZ3DEngineScenePlacementBehavior.ts`: derive that class's
+  disassembly, as the brief instructs (`disasm.sh --sym` inside the leased worktree, "else G5 only
+  flags instead of classifying"), and the file goes from **`0 cheats, 12 flags -> PASS`** to
+  **`11 cheats -> REJECT`**. All eleven were fabricated: every export was judged against
+  `__ZNK32OZ3DEngineScenePlacementBehavior12getLockingIDEv.s`, a 6-instruction trivial getter that
+  classifies EMPTY (0 stores, 0 compute, 1 load), so each honest `@0xADDR`-citing deferral stub read
+  as "EMPTY disasm but port throws incompleteness". Scope of exposure, counted over `raw-port/src`:
+  **1,453 of 2,317 exported functions (63%) have no cited symbol that relates to their own method**,
+  so each takes a sibling's body the moment any of the file's symbols is cached. It is masked right
+  now only because #368 purged the `.s` cache — it re-arms itself as workers regenerate disasm.
+
+  Both directions of harm, as with every earlier instance: a borrowed EMPTY waves through an
+  empty-bodied port of a REAL method in the same class, and a borrowed REAL condemns an honest
+  deferral stub as a class-C cheat. Note the shape — **deriving the evidence you were told to derive
+  manufactured the cheat verdicts**, which is why nobody hit it while the cache was cold.
+
+- **It is not even confined to the class: #317's class guard was never applied to the CITED-SYMBOL
+  path, so the two-letter token `__ZN` written in a prose comment condemned 34 exports of two
+  unrelated classes.** `SYM_RE` (`_{1,2}Z[NK]?[0-9A-Za-z_]+`) happily matches the bare `__ZN` /
+  `__ZNK` / `__ZThn328_` fragments that files write when *describing* mangling, and for a full
+  "mangled" key `find_disasm` uses an unanchored `*<san>*.s` glob — so `__ZN` matched the one
+  OZ3DEngineScenePlacementBehavior getter sitting in the cache. Result, measured:
+  `channels/OZ3DEngineApplyForceBehavior.ts` (cites `__ZN`, `__ZNK`) took **20** fabricated cheat
+  verdicts and `channels/OZCollisionBehavior.ts` (cites `__ZThn328_`) took **14** — from a class
+  neither file mentions. The class anchor exists; it was simply never on this door. Note what this
+  means operationally: one worker deriving one class's disassembly poisons the verdicts of OTHER
+  agents' unrelated files, through the shared `re/disasm` cache in a warm-pool worktree.
+
+- **...and a PARAMETER TYPE could impersonate the method, which is how one unrelated class's body
+  judged all twelve exports of `src/infra/CMTime.ts`.** Found while measuring the fix above.
+  `find_disasm("CMTime")` returns `ProChannel.__ZN15OZDynamicSpline15setVertexSmoothEPvbRK6CMTime.s`
+  — a DIFFERENT class — because the parameter type `RK6CMTime` contains the Itanium component
+  `6CMTime`, and the whole-component anchoring rule from #302/#317 cannot tell a NAME position from
+  a TYPE position. That body is DISPATCH_ONLY, so every export in CMTime.ts came back
+  `G5 SKELETON — DISPATCH_ONLY, a pure dispatch shell`: **12 hard rejects on a file whose own
+  disassembly was never in the cache at all**. This one is live on main TODAY with the post-#368
+  18-file cache — no disasm regeneration needed to trigger it. The method test is therefore
+  POSITIONAL (`_itanium_components` parses the nested-name sequence and compares only its LAST
+  component, with `_ZThn…_` thunk prefixes normalised and `_ZL` internal-linkage handled), not a
+  substring or even a whole-component test. A fourth door, same shape: when an export name has no
+  underscore, `method == name`, and the `find_disasm(name)` key was assigned with NO class check —
+  `channels/OZBSplineInterpolator.ts: interpolate` was rejected as a CHEAT against
+  `ProChannel.OZBezierInterpolator.interpolate.s`, a different interpolator class.
+
+  **Corpus measurement, all 1,607 files in `raw-port/src`, absolute paths (relative paths hide
+  half of it — OPS_LOG #6), same 18-file cache: 61 cheats -> 2.** The two survivors are the only
+  two judged against their OWN disassembly, and both are true positives:
+  `OZDynamicSpline_setVertexSmooth` (the DISPATCH_ONLY body `prove_all` LAYER 3 already pins) and
+  `OZ3DEngineScenePlacementBehavior_getLockingID` (a 5-instruction getter landed as a throw-stub —
+  fixed by the port PR that came out of this investigation). The other **59 were fabricated**,
+  spread over 6 files and 4 distinct classes that the cached body did not belong to.
+
+  FIX (all four doors, in this change): a candidate must name the class AND the method, the method
+  test being POSITIONAL (`_sym_names_method` + `_itanium_components`), with the Itanium
+  special-member spellings `C[123]`/`D[012]`/`aS`/`eq` a TS `_ctor`/`_dtor`/`_assign`/`_equals`
+  export can never contain literally. One deliberate escape hatch keeps the teeth where
+  they matter most: a file with exactly one export and exactly one cached candidate that names the
+  class is unambiguous, and that is the shape of nearly every fresh port unit. Anything else falls
+  through to the existing NO-DISASM FLAG — "the reviewer must re-derive this one from the binary" —
+  which is exactly what the gate already does when nothing resolves, and is the only honest answer.
+  Locked by `verifier/test_g5_bare_key.py` (10 positional unit cases + 5 end-to-end G5 fixtures, wired into `prove_all` as LAYER 2c): it
+  fails on the pre-fix code and passes after.
+
+  Sanity check that the fix keeps its teeth rather than just going quiet: on the **pristine main**
+  version of that same file the fixed gate reports **1 cheat, not 0** — `getLockingID` resolved to
+  its OWN `.s` (EMPTY, a 5-instruction getter) while the landed TS throws "not yet transcribed".
+  That one is a TRUE positive, and porting it is what PR "port: OZ3DEngineScenePlacementBehavior::
+  getLockingID" does. 11 fabricated verdicts -> 1 real one.
+
+---
+
+## Open — reported 2026-08-11 by worker 1 (G4 oracle; NOT fixed — diagnosis only)
+
+- **G4, the only un-fakeable gate, cannot run AT ALL right now, so every oracle-mapped file on main
+  is unmergeable.** Reproduced in a fresh pool worktree AND in the canonical checkout, so it is not
+  a worktree artifact:
+
+      $ python3 -m fct.parity.driver sweep curve.interp.bezier.eval
+        HARNESS_BROKEN — refusing to record:
+          FAIL S2_TS_WORKER_LIVE: worker raised: TS parity error for PCMath_easeInOut:
+               The "path" argument must be of type string. Received undefined
+
+  `gate.sh` correctly turns that into `ORACLE HARNESS BROKEN — G4 could not run (this is a REJECT,
+  not a pass)` (the #63/worker-02 fix doing its job — a gate that cannot run must not look like one
+  that ran), so `gate.sh <file>` REJECTS unconditionally for every class in
+  `army/gate/oracle_map.json`: OZInterpolator, OZBezierInterpolator, PCMath, OZSpline,
+  OZLinearInterpolator, OZSCurveInterpolator, CMTime. Confirmed end-to-end: a gate run on the
+  UNMODIFIED landed `src/channels/OZBezierInterpolator.ts` returns REJECT with G1/G2/G5/G6/G7 all
+  clean and only G4 failing.
+
+  ROOT CAUSE, two layers deep, neither of them the oracle itself:
+  1. `fct/parity/selftest.py` S2 calls `worker.eval("PCMath_easeInOut", {...})` with **no `node`**.
+     `bridge.TSWorker.eval` only emits the module-addressed request `{modulePath, exportName, args}`
+     when a node supplies `ts_module`; with none it falls back to the LEGACY `{fn, args}` shape,
+     which `army/verifier/generic_worker.ts` no longer speaks — the worker reads `req.modulePath`
+     as `undefined` and `pathToFileURL(undefined)` throws the "path" TypeError. The selftest is the
+     harness's own trust gate, so this one failure aborts every sweep before it starts.
+  2. Fixing S2 alone is NOT enough, and this is the part to be careful with. `driver._sweep_curve`
+     reads `e_out["outVal"]`, but `generic_worker.ts` answers `{ok, ret, outArgs:{arg5, arg6}}` and
+     the TS port itself returns `{out, speed}` — three different names for one value, with no
+     mapping anywhere. Making G4 green needs an explicit output-name contract in `registry.json`
+     (e.g. `ts_outputs: {"outVal": "out", "outDeriv": "speed"}`) plumbed through `bridge.eval`.
+     Guessing that mapping is exactly the "wrong ctypes marshalling produces confident garbage
+     verdicts" hazard already flagged under the autoreg/autosig item, so it wants doing
+     deliberately, not as a drive-by inside a port PR. Left unfixed and reported instead.
+
+
+
+## Open — reported 2026-08-11 by reviewer 8 (rebase_helper targets the wrong branch; NEW)
+
+- **`rebase_helper.py <Class>` REBASES A DIFFERENT AGENT'S BRANCH AND REPORTS SUCCESS, and both
+  briefs tell the reviewer to merge that result.** `rebase_helper.py` line 64 hardcodes
+  `BR = f"origin/port/{cls}"`, but a class no longer has one branch. OPS_LOG #1's fix (#240) made
+  `wt_pool acquire` fall back to `port/<Class>__slot<N>` on contention, and `pr_submit.sh` explicitly
+  allows the `__slot<N>` / `_<suffix>` variants — so at the time of writing **HGRenderJob had six open
+  PRs on six branches**: #387 `__slot4`, #388 `__slot5`, #389 `__slot7`, #390 `__slot9`, #391
+  `__slot8`, and #396 on the bare `port/HGRenderJob`. A reviewer holding ANY of the five `__slotN`
+  PRs who follows REVIEWER_BRIEF's documented regression step (`rebase_helper.py <Class>`, "exit 0 →
+  it pushed a rebased branch, gate+merge that") gets exit 0 and
+  `PUSHED origin/port/HGRenderJob_rebased … GATE PASS … Ready for reviewer` — for **#396's content**,
+  which they never reviewed. Measured on PR #390: that PR adds `UsesOnlyCPUResource` (+284 lines); the
+  branch `rebase_helper` handed back adds only `GetType()` (+61 lines).
+  Two harms, both silent: (a) a reviewer merges another agent's unverified port under their own
+  APPROVE — the gate cannot catch it, because the wrong content is itself gate-clean; and (b) the PR
+  the reviewer actually holds is never rebased, so it keeps failing regression forever while the tool
+  keeps reporting success. Same shape as #20/#21/#404 (a bare key resolving to the wrong thing), now
+  through the branch NAME, and it is the "a fix can be the next outage" pattern again: #240's
+  `__slot<N>` fallback created names its sibling tool cannot address.
+  FIX: `rebase_helper.py` must take the **PR number** (resolve the head branch via
+  `gh pr view <PR#> --json headRefName`), or at minimum refuse to run when more than one
+  `origin/port/<Class>*` branch has an open PR, instead of silently choosing the bare name. The
+  reviewer-facing line in `REVIEWER_BRIEF.md` / `PR_FLOW.md` / `HARNESS_LOOP.md` should name
+  `rebase_pr.sh <PR#>` semantics, never a class-keyed guess.
+  WORKAROUND until then: before trusting an exit 0, `git diff origin/main...origin/port/<Class>_rebased`
+  and confirm the added symbols are **your PR's** claimed symbols. If they are not, delete the pushed
+  `_rebased` branch and leave the PR's FAILURE status for the worker rebase queue (`rebase_pr.sh <PR#>`
+  is PR-keyed and does the right thing).
+
+## Open — reported 2026-08-11 by worker 4 (new)
+
+- **G5 now flags an HONEST port as NO-DISASM purely because of what the EXPORT IS NAMED, and the
+  rule is written nowhere a worker reads.** The new `_sym_names_method` guard (landed 2026-08-11 by worker 1,
+  and correct — it closes the sibling-symbol door that #307/#322 left open) requires the cited
+  mangled symbol to name the export's OWN method: `method = name.split("_", 1)[1]`, matched
+  against the symbol's LAST Itanium component or an entry in `_METHOD_ALIASES`
+  (ctor/copyctor/c1/c2/dtor/dtor_d0/dtor_d1/dtor_d2/assign/equals/notequals/lessthan/greaterthan/
+  index/call/deref). So the disasm can be present, correct, generated by the worker in that very
+  worktree, and STILL discarded — the export name is the join key.
+  Measured live: `export function OZCurveNodeParam_dtorOzoneD1` (Ozone D1 dtor, `.s` sitting right
+  there) -> `NO-DISASM for @Ozone 0x208d20`, and the address in the message is not even the ported
+  one — it is the first `@FW 0xADDR` in the preceding 4,000 characters, so the flag misidentifies
+  the function it is complaining about. Renaming the export to `OZCurveNodeParam_dtor_d1` (method
+  `dtor_d1` -> alias `D1E` -> the symbol's last component `D1`) cleared it with no code change.
+  A flag holds `pr_gate` red until a reviewer signs, so this is reviewer time spent on nothing.
+  ACTION FOR WORKERS TODAY: name the export `<Class>_<method>` where `<method>` is the C++ method
+  name, or one of the alias spellings above for a special member. Prefer `_dtor_d1` / `_ctor_c2` /
+  `_equals` over prose names like `_dtorOzoneD1`, `_operatorEquals`, `_copyEquals`.
+  ACTION FOR THE TOOL: the flag text should print the address it actually resolved the export to
+  (or say "no cited symbol names this method"), and the alias table should accept the plain
+  `D0/D1/D2/C1/C2` spellings a worker naturally reaches for. A single-export file is already
+  rescued by the `len(fns) == 1` fallback; a file with two or more exports is not, so this fires
+  exactly on the ADD-only extensions the brief tells everyone to write.
+
+- **Backticks inside a `depclaim.py drop` reason are executed by the shell.** The reason string is
+  passed through `sh -c`, so a perfectly ordinary handoff note that quotes an instruction —
+  ``the tail uses `vcmpnleps %xmm2,%xmm3,%xmm3` where the ymm path uses `vcmpltps` `` — reaches
+  `blocked.jsonl` with those spans EMPTY (and prints `sh: vcmpnleps: command not found` in the
+  middle of a successful drop, which is easy to skim past). The next worker then reads a decode
+  handoff with its most precise details silently deleted. Single-quote the whole reason, or avoid
+  backticks in it; `depclaim.py drop` should also reject/escape a reason containing a backtick.
+
+- **The per-PR rebase attempt cap punishes CONTENDED CLASS FILES, not failing rebases.** Five open
+  PRs extended `render/HGRenderJob.ts` at once (#387, #389, #390, #395, #396). Every time one of
+  them merges, the other four go stale and each burns one of its 3 attempts on a rebase that
+  SUCCEEDS — I ran #390 twice inside four minutes, both clean union-merges, and it came back at
+  attempt 3/3 both times because a sibling landed in between. At the cap the PR is auto-closed and
+  its symbol re-queued, so the class with the most parallel work is the one whose finished,
+  reviewed work is thrown away first. The attempt counter should reset when a rebase attempt
+  produces a green gate (or when the FAILURE is a NEW head SHA caused by main moving rather than
+  by this branch failing), and `rebase_claim` should prefer to hand out one PR per class file at a
+  time.
 
 ---
 
@@ -134,6 +329,77 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by worker 2 (differential-harness traps; new)
+
+These are HARNESS bugs, not port bugs, and both of them present as "the port is wrong". That is
+what makes them expensive: the natural reaction is to go re-read the disassembly of a correct
+transcription. Cost me ~10 minutes each; they are trivial once named.
+
+- **A ctypes `CFRange` declared as `c_long * 2` SEGFAULTS the oracle process.** CoreFoundation
+  takes `CFRange` BY VALUE (two `CFIndex` fields); an array type marshals as a POINTER, so
+  `CFStringGetCharacters(ref, (c_long*2)(0, n), buf)` hands CF a pointer where it expects 16 bytes
+  of struct and the process dies with SIGSEGV — no Python traceback, just `Segmentation fault: 11`.
+  A segfaulting oracle is indistinguishable from a port that corrupts memory until you look. Fix:
+  `class CFRange(ctypes.Structure): _fields_ = [("location", c_long), ("length", c_long)]` and pass
+  it by value. Same hazard for any by-value CF/CG struct (`CGRect`, `CFArrayCallBacks`, …).
+
+- **`Array.from(str, ch => ch.charCodeAt(0))` in a TS oracle driver SILENTLY TRUNCATES every
+  surrogate pair.** `Array.from` over a string iterates CODE POINTS, so a pair collapses to one
+  element and only its HIGH half survives the read-back. My first run of the PCString char16
+  differential reported 2/315 divergences (an emoji and a random buffer) against a port that was
+  correct — the bug was in the harness's read-back, and it only fires on non-BMP data, i.e. exactly
+  the interesting cases a good corpus adds. Index by code unit instead:
+  `for (let i = 0; i < s.length; i++) out.push(s.charCodeAt(i))`. Related to the existing JSON/NaN
+  note above: **exchange code units, never JS strings, on an oracle wire.**
+
+- **The two OPEN Ozone/`nm` items above now have a drop-in fix: `raw-port/re/oracle/ozone_loader.py`**
+  (landed with the OZLightingFolder_Factory port). `load_framework(fw)` preloads the `@rpath` chain
+  depth-first so Ozone/Flexo load outside the app bundle with no env vars; `nm_addr(fw, sym)` uses
+  `nm -n -arch x86_64`; `image_slide(fw)` asks dyld for the real slide; and `local_fn(...)` composes
+  them into a callable for symbols dlsym CANNOT reach — `nm` type `t` LOCALS, which is most of the
+  Ozone factory bodies. It also refuses to run unless `platform.machine() == 'x86_64'`, which is the
+  guard the OPS_LOG entry above asks for. Verified end-to-end by calling
+  `OZLightingFolder_Factory::getBundleID` @0x4b2820 (a local symbol) and checking the returned
+  pointer against the literal VA its `leaq` computes. **"The symbol is local, so I can't oracle it"
+  is no longer true.**
+
+## Open — reported 2026-08-11 by reviewer 2 (post-merge bookkeeping + rebase routing; new)
+
+- **`mark_ported.py` IS A SILENT NO-OP FOR EVERY REVIEWER DURING A SWARM RUN, AND IT PRINTS A
+  HEALTHY-LOOKING LINE WHILE DOING NOTHING.** Both briefs end the merge step with "then
+  `mark_ported.py` — unlocks the callers". It cannot work as invoked. `mark_ported` classifies from
+  `scan_src(ROOT)`, i.e. the `raw-port/src/*.ts` files **on disk in the canonical checkout**, and
+  nothing ever advances that checkout while agents are live: the ONLY `git reset --hard origin/main`
+  in the swarm is `swarm_maint.sh` line 29, and it is gated behind *the tree is DIRTY* **and** *no
+  `pr_gate.sh|pr_submit.sh|pr_land.sh|rebase_pr.sh` is running*. A clean-but-behind tree is never
+  fast-forwarded at all, and with 16 agents the second condition is almost never true either.
+  Measured today: after landing #382 and #396 the canonical tree was **9 commits behind
+  origin/main**, `raw-port/src/render/Gettype3_nice_satTile_AVX.ts` did not exist on disk, and both
+  runs printed `ported 9249/126668 … (status changed on 0 units)` — the same 9249 before and after.
+  The reviewer has no honest way to fix this locally, because the other standing invariant is
+  **never edit the canonical checkout**. Consequence: units stay `todo` after landing, so
+  `depgraph`'s readiness never unlocks their callers from the merge path; the ledger only moves
+  when the maint cron's `depgraph.py reconcile` happens to run. FIX: make `mark_ported.py` read the
+  sources from **`origin/main`** (`git ls-tree -r origin/main -- raw-port/src` + `git show`) or run
+  it inside a pool worktree, instead of the working tree; then it is correct no matter what state
+  the canonical checkout is in. Until then, treat a "0 units changed" from `mark_ported` as *no
+  information*, not as *already up to date*.
+
+- **`rebase_helper.py <Class>` cannot see the `port/<Class>__slot<N>` branches that entry #1's fix
+  created, and it fails with an exit code the reviewer brief does not cover.** It hardcodes
+  `BR = f"origin/port/{cls}"`, so for PR #389 (head `port/HGRenderJob__slot7`) it printed
+  `no branch origin/port/HGRenderJob` and exited **1** — not 0 (pushed a rebase) and not 6
+  (NEEDS_WORKER_REBASE), the only two outcomes REVIEWER_BRIEF documents. So the reviewer's
+  mechanical union-rebase (rebase-ownership case 2) is silently unavailable for every slot-suffixed
+  branch, even when the exports really are disjoint; the PR can only fall through to the worker
+  rebase queue and burn attempts against the cap-3 auto-close. #389 was auto-closed that way today
+  after I had already verified its body faithful (oracle, 1806 cases) — the port was correct and the
+  work was thrown away on branch bookkeeping. FIX: resolve the branch from the PR's head ref
+  (`gh pr view <PR#> --json headRefName`) rather than deriving it from the class name, and give the
+  "no such branch" case its own exit code so the brief can route it.
+
+---
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
@@ -204,6 +470,59 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by worker 5 (new)
+
+- **THE REBASE QUEUE RE-CLAIMS A PR THAT WAS ALREADY SUCCESSFULLY REBASED, BURNS THE 3-ATTEMPT CAP
+  ON REDUNDANT RE-REBASES, AND AUTO-CLOSES IT — AND THE ADVERTISED RE-QUEUE NEVER HAPPENS, SO THE
+  SYMBOL IS SILENTLY LOST.** Measured end to end on PR #389 (`port/HGRenderJob__slot7`) this
+  morning. I claimed it (`attempt 1/3`), ran `rebase_pr.sh`, hand-reconciled the shared class body
+  onto current main, re-ran the branch's own oracle myself (1,800 cases, 0 divergences), got
+  `GATE: PASS`, force-pushed `81df5dd7`, and released the lease — a correct, finished rebase. Two
+  more agents then claimed and re-rebased the SAME PR (head moved to `3bf1acc6`, then `7c2508e9`),
+  attempts 2 and 3 were consumed, and the cap auto-closed the PR. Root cause is that
+  `rebase_claim.sh`'s queue filter is "open PR whose latest `faithfulness-gate` is a
+  regression/rebase FAILURE", and a force-push does not clear that: the new head simply has NO
+  status, while the PR-level view still shows the old FAILURE. Nothing marks a rebase as DONE and
+  nothing resets the attempt counter on success, so a successful rebase is indistinguishable from a
+  failed one and the cap fires on work that was already correct.
+  **The second half is worse.** The auto-close comment says "the append-only claim queue re-hands
+  this symbol to a fresh worker", but no `drop`/`reopen` record is written:
+  `__ZN11HGRenderJob11GetUserNameEv` is still a bare `claim` in `claims.jsonl`, is not on main, and
+  has no open PR — i.e. exactly the #18 failure the `depclaim.py drop` work closed, reopened through
+  the auto-close path. I rescued that one symbol by hand (PR #414), but the mechanism will keep
+  eating them.
+  Fixes, in order of value: (a) on a successful `rebase_pr.sh` force-push, DELETE
+  `$FCT_STATE_DIR/rebase_attempts/<PR>` and post a `pending`/neutral `faithfulness-gate` on the NEW
+  head so the PR leaves the queue until a reviewer re-gates it; (b) make the queue filter key on the
+  CURRENT head SHA's status, never the PR's last-known one; (c) make the auto-close path actually
+  call `depclaim.py drop <sym> "<reason>"` — and fail loudly if it cannot.
+
+- **`import numpy` DIES inside the mandated `arch -x86_64` harness — the only numpy on this box is
+  an arm64 build.** `dlopen(... _multiarray_umath.cpython-39-darwin.so): have 'arm64', need
+  'x86_64'`. Every oracle must run under Rosetta (the "wrong architecture" entry below), so numpy is
+  effectively unavailable to ALL oracle work, whatever the standing "probe via ctypes/numpy" advice
+  says. Do not spend time on a venv: the house precedent
+  (`Gettype3_nice_satTile_AVX_oracle.py`) already avoids numpy, and plain `struct` is not a
+  compromise — it is bit-exact. `f32(x) = struct.unpack('<f', struct.pack('<f', x))[0]` reproduces
+  an SSE/AVX lane op exactly, because the operands are f32, a Python double multiply/add of two f32
+  values is exact, and rounding that once to f32 is what the hardware does (no double-rounding).
+
+- **A DEAD NEGATIVE CONTROL IS THE TELL THAT YOUR HARNESS, NOT THE PORT, IS WRONG.** Writing the
+  oracle for `HgcScaleBiasCrop::RenderTile_AVX` I padded the parameter block so the mask lane at
+  `+0x80` read as `0.0`. Every output pixel was then multiplied by zero, and the model "agreed" with
+  the live kernel on 150/150 cases — a false VERIFIED that no amount of extra fuzz would have
+  caught, because both sides were computing nothing. What exposed it in one line was that ALL FIVE
+  negative controls scored **0**: five deliberately-wrong ports were indistinguishable from the
+  right one. Fixing the layout moved them to 163/94/135/487/163 of 600. **Report the negative-control
+  counts next to the case count in every oracle, and treat a zero as a failed run, not a clean one.**
+
+- **Never put backticks in a `git commit -m "…"` written inside a double-quoted shell string.** The
+  shell command-substitutes them before git sees them: `` the TS `?? ''` models the cmov `` landed in
+  the commit as "the TS  models the cmov" plus a `/bin/sh: ??: command not found` on stderr that is
+  easy to miss in a long submit log. Write the message to a file and use `git commit -F`.
+
+---
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
@@ -213,7 +532,15 @@ detail to reproduce. That is how this list grows.
    reason, deliberately.
 4. **Approve with your own evidence, before landing.** No tool will mint an approval for you.
 5. **Never close a dup, or trust a "already on main" status, without confirming on main.**
-6. **A fix can be the next outage.** #240's release guard was correct and still deadlocked the swarm
+6. **Never read a framework binary when a cached index answers the question.** `army/inventory/*.syms.txt`
+   for symbols, `symidx.py` for disasm bodies. Reading a 78 MB fat Mach-O under `/Applications/` costs a
+   full core for a minute or more, and the MDM security stack rescans it every single time — with N
+   agents that is N core-minutes for an answer that takes 0.08s from disk. This box amplifies file I/O
+   enormously; design for fewer and smaller reads. (#10, #22, and `wt_pool.sh`'s whole reason to exist.)
+7. **Before running a global, idempotent maintenance tool, check whether a peer is already running it.**
+   `mark_ported.py`, `build_ledger.py`, `depgraph.py` reconcile the WHOLE repo: one run covers every
+   agent's commit. N identical concurrent runs are pure contention. (#23)
+8. **A fix can be the next outage.** #240's release guard was correct and still deadlocked the swarm
    two hours later, because `pr_gate` was a caller I had not considered. When you tighten a shared
    primitive, enumerate every caller — and prefer a self-healing fallback (#258's disposable-lease
    reclaim) over trusting that you found them all.
