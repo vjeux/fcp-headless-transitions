@@ -115,8 +115,27 @@ claim_slot () {
           gate/*) echo "$tag $(date +%s)" > "$lk/holder"; log "wt_pool: reclaimed stale disposable gate slot $i"; echo "$i"; return 0;;
         esac
         if wt_has_work "$WTDIR/$i"; then
-          log "wt_pool: slot $i lease is stale but the worktree has UNCOMMITTED/UNPUSHED work — not stealing it"
-          continue
+          # A DEAD AGENT'S WORK MUST NOT HOLD A SLOT FOREVER. This used to `continue`
+          # unconditionally, so a lease whose holder died mid-unit — leaving a half-written .ts —
+          # was NEVER reclaimed. Not "reclaimed late": never. Agents die routinely (context
+          # exhaustion every 30-60 min; one executor restart killed all 16 at once and left four
+          # such leases), so the pool bled slots permanently, and adding worktrees does not fix it —
+          # they fill too, just more slowly.
+          #
+          # The protection is right: #240 added it after a reviewer's reclaim wiped a worker's
+          # in-progress file. So do not choose between losing work and leaking the slot — RESCUE the
+          # work, then take the slot. After ABANDON_MIN (default 3h, far past any real unit) the
+          # diff and any unpushed commits are written to $POOL/rescue/ and the slot returns.
+          abandon="${WT_POOL_ABANDON_MIN:-180}"
+          if [ -z "$(find "$lk/holder" -mmin +$abandon 2>/dev/null)" ]; then
+            log "wt_pool: slot $i lease is stale but the worktree has UNCOMMITTED/UNPUSHED work — not stealing it"
+            continue
+          fi
+          mkdir -p "$POOL/rescue" 2>/dev/null
+          rescue="$POOL/rescue/slot${i}-$(date +%Y%m%d-%H%M%S)"
+          git -C "$WTDIR/$i" diff HEAD > "$rescue.uncommitted.patch" 2>/dev/null
+          git -C "$WTDIR/$i" format-patch origin/main --stdout > "$rescue.commits.patch" 2>/dev/null
+          log "wt_pool: slot $i ABANDONED >${abandon}min with work — rescued to $rescue.*.patch, reclaiming"
         fi
         echo "$tag $(date +%s)" > "$lk/holder"; log "wt_pool: reclaimed stale slot $i (clean)"; echo "$i"; return 0
       fi
