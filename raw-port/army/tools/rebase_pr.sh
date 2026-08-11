@@ -60,7 +60,66 @@ if [ "$rc" = 0 ]; then
          git push -q origin --delete "port/${CLS}_rebased" 2>/dev/null || true; exit 0; }
   echo "REBASE_UNION: pushed port/${CLS}_rebased (reviewer merges that)"; exit 0
 fi
-if [ "$rc" = 3 ]; then echo "rebase_pr: PR #$PR not stale / nothing to rebase (rebase_helper exit 3)"; exit 3; fi
+# ---- rebase_helper exit 3 = "this branch changes no .ts files" --------------------------------
+# THAT IS NOT "nothing to rebase", and printing it as one turned the REBASE QUEUE into a no-op loop
+# that ends by CLOSING the PR. Measured 2026-08-11 on #400 — APPROVED, +153 lines of OPS_LOG, its
+# own gate saying `regression (rebase needed): DIRTY on OPS_LOG.md` — where this line printed
+# "not stale / nothing to rebase" and exited 0-ish while `rebase_claim.sh` kept re-offering the PR;
+# at 3/3 attempts that queue closes it, with a comment about a shared-class conflict and a promise
+# to re-hand "the symbol" that means nothing for a docs/tooling PR. EVERY ops PR is in this class,
+# because rebase_helper only ever looks at `raw-port/src/**/*.ts`.
+# So ask the question the caller actually has — does this PR merge? — of the only thing that knows.
+if [ "$rc" = 3 ]; then
+  MRG=""
+  for _ in 1 2 3 4; do
+    MRG=$(gh pr view "$PR" --repo "$SLUG" --json mergeable --jq .mergeable 2>/dev/null)
+    # UNKNOWN means GitHub has not finished computing the merge yet. Asking again IS the handling;
+    # a guess in either direction is an answer we would then act on (declare a conflicted PR clean,
+    # or churn a clean one).
+    [ "$MRG" = "UNKNOWN" ] || [ -z "$MRG" ] || break
+    sleep 3
+  done
+  if [ "$MRG" = "MERGEABLE" ]; then
+    echo "rebase_pr: PR #$PR changes no .ts files and merges cleanly — nothing to rebase (rebase_helper exit 3)"; exit 3
+  fi
+  if [ -z "$MRG" ] || [ "$MRG" = "UNKNOWN" ]; then
+    echo "rebase_pr: PR #$PR changes no .ts files and GitHub will not say whether it merges (${MRG:-no answer}) — NOT claiming it is clean"; exit 3
+  fi
+  echo "rebase_pr: PR #$PR changes no .ts files and is $MRG — rebase_helper cannot see it; merging origin/main in place"
+  WT="$(bash raw-port/army/tools/wt_pool.sh acquire "${CLS//\//_}")"
+  [ -z "$WT" ] && { echo "rebase_pr: pool busy, retry"; exit 3; }
+  git -C "$WT" fetch -q origin "$BR" 2>/dev/null; git -C "$WT" fetch -q origin main 2>/dev/null
+  git -C "$WT" checkout -q -B "$BR" "origin/$BR" 2>/dev/null || {
+    echo "rebase_pr: cannot check out $BR"; bash raw-port/army/tools/wt_pool.sh release "$WT" >/dev/null 2>&1; exit 1; }
+  # A MERGE, and pushed WITHOUT -f. The result is a descendant of the PR head, so the branch can
+  # only GAIN commits: this path cannot drop a file, which is the property the .ts paths need a
+  # name-list guard to recover (#25/#449) and the reason not to reuse `rebase` here.
+  if git -C "$WT" merge --no-edit origin/main >/tmp/rebase_pr_${PR}_merge.log 2>&1; then
+    if git -C "$WT" push origin "HEAD:$BR" >/dev/null 2>&1; then
+      echo "REBASE_CLEAN: merged current origin/main into $BR and pushed (PR #$PR updates in place)"
+      bash raw-port/army/tools/wt_pool.sh release "$WT" >/dev/null 2>&1; exit 0
+    fi
+    echo "rebase_pr: merge was clean but the push failed — worktree left at $WT"; exit 1
+  fi
+  CONF=$(git -C "$WT" diff --name-only --diff-filter=U | tr '\n' ' ')
+  cat <<NONSRC
+REBASE_MANUAL: PR #$PR ($BR) changes no .ts files and CONFLICTS with main — WORKER AGENT finishes it.
+  Pool worktree, on $BR at the PR head, with the merge IN PROGRESS:  $WT
+  Conflicted:  $CONF
+  STEPS:
+    1. Resolve each conflicted file. For OPS_LOG.md the collision is almost always two sections
+       APPENDED AT THE TAIL by two PRs: keep BOTH, in either order — never choose between them, and
+       never take one side wholesale. A hunk with a NON-EMPTY base is a real edit collision and
+       needs reading.
+    2. git -C "$WT" diff --unified=0 origin/main -- <file> | grep '^-[^-]'    # must print NOTHING:
+       publishing this branch must not delete a line that is on main.
+    3. git -C "$WT" add <files> && git -C "$WT" commit -q -m "merge origin/main into $BR"
+    4. git -C "$WT" push origin "HEAD:$BR"      # NO -f: this is a descendant of the PR head
+    5. bash raw-port/army/tools/wt_pool.sh release "$WT"
+  To abandon instead: git -C "$WT" merge --abort, then release the worktree.
+NONSRC
+  exit 6
+fi
 
 # ---- Attempt 2: plain git rebase in a pool worktree (clean fast-forward / non-conflicting) ----
 WT="$(bash raw-port/army/tools/wt_pool.sh acquire "$CLS")"
