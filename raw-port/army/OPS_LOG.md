@@ -38,6 +38,56 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-10 by worker 1 (oracle reachability; new)
+
+- **THE ROSETTA WORKAROUND FOR THE ARCHITECTURE BUG IS INCOMPLETE, AND THE INCOMPLETE HALF IS
+  SILENT.** The "wrong architecture" entry below says to run the harness under
+  `arch -x86_64 /usr/bin/python3`. That fixes **dlopen** (the process maps the x86_64 slice) but
+  **not `nm`**: a bare `nm -n <binary>` still reports the **ARM64** slice even from a Rosetta
+  process, because `nm` without `-arch` defaults to the host's native architecture regardless of the
+  caller's translation. `fct/parity/local_call.py::_vmaddr` uses exactly a bare `nm -n`, so
+  `local_fn()` under Rosetta computes **(arm64 vmaddr + x86_64 slide)** — an address that is inside
+  the mapped x86_64 image but points at *some other function*. Measured on
+  `HgcToneParamCurve4AntiSymmetric`: the C2 ctor is at `0x2ce5f8` in the arm64 slice and `0x350ce0`
+  in x86_64. It only failed LOUDLY here because the arm64 slice contains **no `RenderTile_AVX`
+  symbol at all** (AVX is x86-only, so those methods do not exist in that slice) — the ctor and
+  `SetParameter` lookups silently succeeded at arm64 addresses and would have been called at the
+  wrong offset. Fix in `_vmaddr`: pass `-arch x86_64` to `nm` (and, ideally, refuse to run when the
+  process is not x86_64, as the file's own comment already argues).
+  Workaround until then: resolve with `nm -n -arch x86_64` yourself and add `_image_slide(fw)`.
+
+- **Ozone AND Flexo *are* dlopen-able outside the app bundle — the standing "they can't be" note is
+  wrong, and it has been suppressing oracles on two of the five frameworks.** The blocker is only
+  `@rpath` resolution, and `DYLD_FRAMEWORK_PATH` genuinely cannot fix it — `/usr/bin/python3` is
+  hardened, so dyld strips every `DYLD_*` variable from it. What DOES work, with no env vars: walk
+  the `@rpath/...` entries of `otool -L`, `ctypes.CDLL(<absolute path>, RTLD_GLOBAL)` each dependency
+  **depth-first**, then load the target — once an image with the right install name is already in
+  the process, dyld satisfies the `@rpath` reference from it. Flexo loads after 36 preloaded images,
+  Ozone after 43 (a few dependencies fail or are missing on disk; it still loads, and lazily-bound
+  symbols are irrelevant to a leaf math call). Verified end-to-end by calling four real functions
+  this way — `FFAudioPlaybackScrubBuffer::calculateBufferPosFrame` (4096/4096 bit-exact),
+  `FFMXFTimecodeCursor::presentationTimeStamp` (2048/2048), `OZRig::begin_descendants` (4096/4096),
+  and `tile_hoist` (3000/3000). **All five in-scope frameworks are oracle-able as of now**, so
+  "the framework won't load" is no longer a reason to sign a port on reading alone.
+  A ~30-line reusable loader is worth adding next to `fct/parity/oracle.load_framework`.
+
+- **Two traps when writing one of these differential harnesses.** (a) `dlsym` wants the symbol
+  WITHOUT the Mach-O leading underscore: `nm` prints `__ZN11HGRenderJob23Set...`, and you pass
+  `_ZN11HGRenderJob23Set...`. (b) Python's `json.dump` emits bare `NaN` / `Infinity`, which
+  **`JSON.parse` rejects** — a float-valued fuzz corpus handed to the TS side dies with a syntax
+  error at line 1. Serialise floats as their raw bit patterns (or hex) and rebuild them with a
+  `DataView` on the TS side; that also makes the comparison bit-exact instead of value-equal, which
+  is what you wanted anyway for signed zero and NaN payloads.
+
+- **`Hgc*RenderTile_AVX` has landed precedent files, but the precedent is a THROW-STUB.**
+  `HgcBT2100_HLG_OETF.ts` is 1071 lines and looks like a fully ported AVX node; its
+  `RenderTile_AVX` is `throw new Error("… not yet transcribed — 227-line …")`. Do not read "this
+  class already landed" as "the AVX body is ported" when sizing one of these units. The
+  constant-pool/ctor documentation in those files IS reusable and is the fastest way into the
+  layout; the pixel loop still has to be transcribed.
+
+---
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,

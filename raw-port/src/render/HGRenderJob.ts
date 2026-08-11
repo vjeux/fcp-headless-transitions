@@ -171,6 +171,18 @@ export type HGRenderJobResource = number;
 export type HGRenderJobRenderThreadPriority = number;
 
 /**
+ * HGRenderJob::MetalShaderPrecision — enum tag stored at +0x88. Values are not
+ * yet enumerated here: `SetMetalShaderPrecision` @Helium 0x54504 passes `esi`
+ * (an unsigned 32-bit int) straight into the slot with no validation, masking
+ * or branching, and its reader `GetMetalShaderPrecision` @Helium 0x54794 hands
+ * the same 32 bits back (`movl 0x88(%rdi), %eax`), so no decoded instruction
+ * pins a single enumerator. Model as an opaque u32 alias until a ctor or a
+ * comparison site reveals the values — same treatment as
+ * `HGRenderJobRenderThreadPriority` above.
+ */
+export type HGRenderJobMetalShaderPrecision = number;
+
+/**
  * `HGRenderJob` — Helium render job. This file ports the setters listed in
  * "Symbols ported here" (see file header); every other method is a
  * separate ledger entry. Field offsets not yet decoded are omitted; the
@@ -210,6 +222,14 @@ export class HGRenderJob {
    *  `movl %esi, 0x70(%rdi)`. Zero-initialised to a neutral tag until a
    *  ctor is transcribed to reveal the true default. */
   renderThreadPriority: HGRenderJobRenderThreadPriority = 0; // @Helium HGRenderJob@0x70
+
+  /** @Helium HGRenderJob@0x88 — the u32 HGRenderJob::MetalShaderPrecision
+   *  enum tag. Written by SetMetalShaderPrecision @0x54504 via a single
+   *  `movl %esi, 0x88(%rdi)`, and read back by GetMetalShaderPrecision
+   *  @0x54794 via `movl 0x88(%rdi), %eax` — a matched 32-bit store/load pair,
+   *  which is what fixes both the offset and the width. Zero-initialised to a
+   *  neutral tag until a ctor is transcribed to reveal the true default. */
+  metalShaderPrecision: HGRenderJobMetalShaderPrecision = 0; // @Helium HGRenderJob@0x88
 
   /**
    * `HGRenderJob::SetUserTag(unsigned long long)` @Helium 0x54650
@@ -411,6 +431,57 @@ export class HGRenderJob {
     // @0x544b7..0x544b8 — epilogue + retq.
     // ------------------------------------------------------------
     this.renderThreadPriority = priority >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::SetMetalShaderPrecision(HGRenderJob::MetalShaderPrecision)`
+   *   @Helium 0x54500
+   *   (__ZN11HGRenderJob23SetMetalShaderPrecisionENS_20MetalShaderPrecisionE)
+   *
+   * Faithful line-for-line transcription of a 7-line function: writes the u32
+   * argument to the `metalShaderPrecision` slot at `this+0x88`. Structural twin
+   * of `SetRenderThreadPriority` above, one slot over. No callees, no
+   * validation, no side effects. From raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob23SetMetalShaderPrecisionENS_20MetalShaderPrecisionE.s:
+   *
+   *   0x54500  pushq %rbp                    ; frame prologue
+   *   0x54501  movq  %rsp, %rbp
+   *   0x54504  movl  %esi, 0x88(%rdi)        ; this->metalShaderPrecision (u32) = esi
+   *   0x5450a  popq  %rbp                    ; epilogue
+   *   0x5450b  retq
+   *   0x5450c  nopl  (%rax)                  ; padding — not executed
+   *
+   * The width is `movl`, so a 32-bit store; nothing adjacent is touched and the
+   * enum value is stored verbatim (no mask, no range check, no branch).
+   *
+   * ORACLE: verified against the live Helium binary. Both this setter and its
+   * reader `GetMetalShaderPrecision` @0x54790 are EXPORTED (`nm` type `T`), so
+   * the harness dlopens Helium under `arch -x86_64 /usr/bin/python3` (the port
+   * is transcribed from the x86_64 slice), calls the real setter on a 0x200-byte
+   * buffer pre-filled with 0xEE, and then checks (a) the raw dword at +0x88,
+   * (b) the value the real getter returns, and (c) that no other byte of the
+   * buffer changed. 1,536 cases over 0, 1, 2, 3, 0x7fffffff, 0x80000000,
+   * 0xffffffff and random u32s: 1536/1536 agreed with this port on all three
+   * checks — the stored dword, the real getter's round-trip, and the untouched
+   * remainder (zero buffers showed a collateral write, so the store really is
+   * the 4 bytes at +0x88 and nothing else).
+   * NEGATIVE CONTROLS (measured): storing only 16 bits -> 1238 of 1536 wrong;
+   * sign-extending with `| 0` instead of `>>> 0` -> 630 wrong; writing the
+   * neighbouring renderThreadPriority slot instead -> 1494 wrong.
+   *
+   * @param precision — HGRenderJob::MetalShaderPrecision enum value
+   *                    (SysV %esi, u32).
+   */
+  SetMetalShaderPrecision(precision: HGRenderJobMetalShaderPrecision): void {
+    // ------------------------------------------------------------
+    // @0x54500..0x54501 — prologue (no TS-visible effect).
+    // @0x54504 — movl %esi, 0x88(%rdi) : store u32 at offset +0x88.
+    //   `>>> 0` models the 32-bit truncation, so a negative / oversized JS
+    //   number stores the same bit-pattern the machine would (identical
+    //   treatment to SetRenderThreadPriority above).
+    // @0x5450a..0x5450b — epilogue + retq.
+    // ------------------------------------------------------------
+    this.metalShaderPrecision = precision >>> 0;
   }
 }
 
