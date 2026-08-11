@@ -51,12 +51,70 @@ cmd_claim () {
   git fetch -q origin main 2>/dev/null || true
   # candidate PRs whose LATEST faithfulness-gate is FAILURE
   local cand
+  # TWO WAYS A PR NEEDS A REBASE; this queue could only see one of them.
+  #
+  #  (a) the gate said so — a regression/rebase FAILURE (handled below by description).
+  #  (b) GITHUB SAYS THE BRANCH CONFLICTS (mergeStateStatus DIRTY). For a PR touching no
+  #      raw-port/src, pr_gate short-circuits to SUCCESS without running regression_check at all —
+  #      so a conflicted docs/tooling PR is GREEN, invisible here, and review_claim will not re-offer
+  #      it either because it is already APPROVED. It then sits open forever.
+  #
+  # That is not hypothetical: swarm_doctor has been reporting APPROVED, green, DIRTY PRs as orphans
+  # no queue can claim for most of today (#523, #554, #571, #600), and reviewers were unsticking them
+  # by HAND-POSTING a fake `regression (rebase needed)` status just to make this filter see them.
+  # Ask GitHub whether the branch conflicts instead of inferring it from a status nobody posted.
+  # LAZY FIELD: `mergeStateStatus` is computed ON DEMAND. The first query after a change returns
+  # UNKNOWN and merely TRIGGERS the computation; a later one returns the real answer. Measured by
+  # reviewer 1, three `gh pr list` calls six seconds apart with nothing else changing:
+  #     12:11:11  DIRTY [557,553,400]                         UNKNOWN [622,621,617,614,611,603,571,…]
+  #     12:11:17  DIRTY [622,621,617,614,571,557,554,553,523]  UNKNOWN [400]
+  #     12:11:22  DIRTY [ … ]                                  UNKNOWN []
+  # cmd_claim makes ONE list call and a worker takes ONE claim, so on a cold query most of the
+  # queue — including the conflicted PRs this branch exists to select — reports UNKNOWN and is
+  # silently skipped. So ask once to start the computation, then ask for real. The warm-up is a
+  # separate statement rather than a retry INSIDE the assignment on purpose: swarm_doctor lifts
+  # this `cand=$(gh pr list …)` assignment verbatim to audit the queue, and it makes its own
+  # `pr list` call (with mergeStateStatus) before doing so — so the selector it runs is warm for
+  # exactly the same reason this one is, and the two cannot disagree about what is DIRTY.
+  gh pr list --repo "$SLUG" --state open --limit 100 --json number,mergeStateStatus >/dev/null 2>&1
+  sleep 1
   cand=$(gh pr list --repo "$SLUG" --state open --limit 100 \
-      --json number,headRefName,headRefOid,statusCheckRollup \
-      --jq '.[] | select([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE") | "\(.number)\t\(.headRefName)\t\(.headRefOid)"' 2>/dev/null)
+      --json number,headRefName,headRefOid,statusCheckRollup,mergeStateStatus \
+      --jq '.[] | select(([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE") or .mergeStateStatus=="DIRTY") | "\(.number)\t\(.headRefName)\t\(.headRefOid)\t\(.mergeStateStatus)"' 2>/dev/null)
   [ -z "$cand" ] && { echo "NONE"; return 1; }
-  while IFS=$'\t' read -r num br sha; do
+  while IFS=$'\t' read -r num br sha ms; do
     [ -z "$num" ] && continue
+    # A DIRTY branch needs a rebase whatever the gate says — the conflict IS the evidence, so skip
+    # the description check for it (the gate may even be green; see the note above).
+    if [ "${ms:-}" = "DIRTY" ]; then
+      af="$ATT/$num"; sf="$ATT/$num.sha"; n=$(cat "$af" 2>/dev/null || echo 0)
+      last=$(cat "$sf" 2>/dev/null || echo "")
+      if [ -n "$last" ] && [ "$last" != "$sha" ]; then
+        n=0; echo 0 > "$af"
+        echo "rebase_claim: PR #$num head moved ($last -> $sha) since its last attempt — counter reset (progress, not failure)" >&2
+      fi
+      if [ "${n:-0}" -ge "$CAP" ]; then
+        approved=$(gh pr view "$num" --repo "$SLUG" --json reviewDecision --jq .reviewDecision 2>/dev/null)
+        if [ "$approved" = "APPROVED" ]; then
+          echo "rebase_claim: PR #$num is at the cap but is APPROVED — NOT closing verified work; it stays queued." >&2
+          n=0; echo 0 > "$af"
+        else
+          # SAY SO. Not closing a conflicted PR is the right call — closing an author's work is a
+          # human's decision (#28) — but the PR then lands back in "no queue can claim it", which
+          # is this branch's own abstract, and it is worse than the state it replaces because a
+          # COUNTER is hiding it rather than a filter: nothing about the PR looks wrong. The other
+          # cap path prints its decisions; this one used to `continue` in silence.
+          echo "rebase_claim: PR #$num conflicts with main and is at $n/$CAP attempts on head ${sha:0:8} — NOT offering it and NOT closing it; a human decides (swarm_doctor reports it as uncovered)." >&2
+          continue
+        fi
+      fi
+      if lease_free "$num"; then
+        echo "$((n+1))" > "$af"; echo "$sha" > "$sf"
+        echo "CLAIMED $num $br   (conflicts with main; attempt $((n+1))/$CAP on head ${sha:0:8})"
+        return 0
+      fi
+      continue
+    fi
     # confirm the failure reason is a regression/rebase (REST has the description; GraphQL doesn't)
     local desc; desc=$(gh api "repos/$SLUG/commits/$sha/statuses" \
       --jq '[.[]|select(.context=="faithfulness-gate")][0].description' 2>/dev/null)
