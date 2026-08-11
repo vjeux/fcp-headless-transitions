@@ -33,6 +33,15 @@ case "$1 $2" in
     cat "$FAKE_PRLIST" ;;
   "api "*)
     for a in "$@"; do case "$a" in repos/*/pulls/*/reviews) n=$(echo "$a" | cut -d/ -f5);; esac; done
+    # FLAKY MODE: for the PR named in $FAKE_FLAKY, the first N calls die the way `gh` really dies on
+    # this box (TLS verify failure, empty stdout, non-zero exit) and later calls answer normally.
+    if [ -n "$FAKE_FLAKY" ] && [ "$n" = "$FAKE_FLAKY" ]; then
+      c=$(cat "$FAKE_DIR/flaky.count" 2>/dev/null || echo 0); c=$((c+1)); echo "$c" > "$FAKE_DIR/flaky.count"
+      if [ "$c" -le "${FAKE_FLAKY_FAILS:-1}" ]; then
+        echo "tls: failed to verify certificate: x509: certificate signed by unknown authority" >&2
+        exit 1
+      fi
+    fi
     [ -f "$FAKE_DIR/rej.$n" ] && cat "$FAKE_DIR/rej.$n"
     ;;
 esac
@@ -43,6 +52,7 @@ chmod +x "$TMP/bin/gh"
 printf '#!/bin/bash\nexit 0\n' > "$TMP/bin/git"; chmod +x "$TMP/bin/git"
 
 export FAKE_DIR="$TMP"
+export FAKE_FLAKY=""
 export FAKE_PRLIST="$TMP/prlist"
 export PATH="$TMP/bin:$PATH"
 export HOME="$TMP/home"
@@ -93,6 +103,25 @@ run >/dev/null
   && ok "a skipped PR is not charged an attempt (that is how #143 reached 3/3)" \
   || bad "a PR skipped as already-reworked must not burn its cap" \
          "attempts=$(cat "$FCT_STATE_DIR/rework_attempts/502" 2>/dev/null)"
+
+# --- CASE 5: a TRANSIENT failure of the reviews call must not defeat the guard ------------------
+# This is the failure that actually happened. `gh` on this box intermittently exits non-zero with a
+# TLS verification error and succeeds on the very next call; the guard read that as "no answer",
+# failed open, and handed out #655 — whose author had already reworked it twice. The retry is what
+# closes it, so the case makes the FIRST call fail and asserts the PR is still skipped.
+rm -f "$FCT_STATE_DIR/rework_leases/502" "$FCT_STATE_DIR/rework_attempts/502" 2>/dev/null
+rmdir "$FCT_STATE_DIR/rework_leases/502" 2>/dev/null
+rm -f "$TMP/flaky.count"
+export FAKE_FLAKY=502 FAKE_FLAKY_FAILS=1
+printf '502\tport/Reworked\tbbbbbbbbbbbb\n501\tport/Standing\taaaaaaaaaaaa\n' > "$FAKE_PRLIST"
+out=$(run)
+export FAKE_FLAKY=""
+if grep -q "PR #502 already reworked" "$TMP/err"; then
+  ok "one transient TLS failure does not defeat the already-reworked guard (it retries)"
+else
+  bad "a retryable transport failure must not fail open into handing out finished work" \
+      "stdout: $out ; stderr: $(cat "$TMP/err")"
+fi
 
 echo
 echo "REWORK_CLAIM_STALE_REJECTION: $pass passed, $fail failed"
