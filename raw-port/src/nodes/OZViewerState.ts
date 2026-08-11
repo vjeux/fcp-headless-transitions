@@ -49,6 +49,11 @@
 //         (raw-port/re/disasm/__ZN13OZViewerState23getFullscreenViewOffsetEv.s
 //          — 8 lines)
 //         (raw-port/re/disasm/__ZNK13OZViewerState10isSnappingEv.s — 8 lines)
+//   * __ZN13OZViewerState23setFullscreenViewOffsetERK9PCVector2IiE
+//       — OZViewerState::setFullscreenViewOffset(PCVector2<int> const&)
+//         @Ozone 0x36e230
+//         (raw-port/re/disasm/
+//          __ZN13OZViewerState23setFullscreenViewOffsetERK9PCVector2IiE.s — 7 lines)
 //   * __ZN13OZViewerState15setMirroringHMDEb
 //       — OZViewerState::setMirroringHMD(bool) @Ozone 0x36e5a0
 //         (raw-port/re/disasm/__ZN13OZViewerState15setMirroringHMDEb.s — 7 lines)
@@ -738,5 +743,53 @@ export class OZViewerState {
           ? 1
           : 0
         : compensateAspectRatio & 0xff;
+  }
+
+  /**
+   * `OZViewerState::setFullscreenViewOffset(PCVector2<int> const&)`
+   *   @Ozone 0x36e230 — __ZN13OZViewerState23setFullscreenViewOffsetERK9PCVector2IiE
+   *
+   * FULL DISASM (7 lines — raw-port/re/disasm/
+   * __ZN13OZViewerState23setFullscreenViewOffsetERK9PCVector2IiE.s):
+   *
+   *   0x36e230  pushq %rbp                   ; frame prologue
+   *   0x36e231  movq  %rsp, %rbp
+   *   0x36e234  movq  (%rsi), %rax           ; rax = *(u64*)offset  — BOTH lanes
+   *   0x36e237  movq  %rax, 0x104(%rdi)      ; this[+0x104] = rax   — BOTH lanes
+   *   0x36e23e  popq  %rbp                   ; frame epilogue
+   *   0x36e23f  retq                         ; void
+   *
+   * A whole-struct store, not two field stores: because `PCVector2<int>` is two
+   * adjacent 32-bit ints, the compiler moves all 8 bytes with a single `movq`
+   * through `%rax`. Reading the pair back out of that quadword: the low half is
+   * the vector's first member (x -> +0x104) and the high half the second
+   * (y -> +0x108), little-endian. The two `| 0` truncations below mirror the
+   * 32-bit lane width the template argument fixes.
+   *
+   * This is the exact inverse of `getFullscreenViewOffset()` @0x36e650 above,
+   * which reads the same quadword with one `movq 0x104(%rsi), %rcx` @0x36e657 —
+   * the two methods pin the same pair of lanes from both directions.
+   *
+   * The parameter is a `const&` (`RK9PCVector2IiE`), so `%rsi` is a pointer to
+   * the caller's vector and the method only READS through it — it takes no
+   * ownership, copies no further, and the source object is untouched.
+   *
+   * There is no read-back, no clamp, no comparison against the current value
+   * and no branch: the method unconditionally overwrites both lanes with
+   * whatever the caller supplied.
+   *
+   * Zero in-scope callees, zero externs, zero indirect calls — `depgraph.py`
+   * reports `deps: []`, `n_extern_oos: 0`, `indirect: 0`; there is no `callq`
+   * anywhere in the body.
+   *
+   * @param offset  `%rsi` — the source `PCVector2<int>`, by const reference.
+   */
+  setFullscreenViewOffset(offset: { readonly x: number; readonly y: number }): void {
+    // @0x36e230..0x36e231 — prologue (no TS-visible effect).
+    // @0x36e234  movq (%rsi), %rax      ; load both 32-bit lanes at once
+    // @0x36e237  movq %rax, 0x104(%rdi) ; store both 32-bit lanes at once
+    this.fullscreenViewOffsetX_at_0x104 = offset.x | 0;
+    this.fullscreenViewOffsetY_at_0x108 = offset.y | 0;
+    // @0x36e23e..0x36e23f — epilogue + retq (void).
   }
 }
