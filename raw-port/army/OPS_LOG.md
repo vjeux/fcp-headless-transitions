@@ -39,6 +39,34 @@ detail to reproduce. That is how this list grows.
 
 ## Open — known, not yet fixed
 
+- **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
+  2026-08-10, found on PR #330.) Every port in this repo is transcribed from the **x86_64** slice —
+  `disasm.sh` thins to `/tmp/<FW>.x86_64` and every `@0xADDR` citation is an x86_64 offset. But the
+  oracle runs in the box's native **arm64** process: `fct.parity.oracle.resolve` dlsym's the arm64
+  image, and `local_call._vmaddr` reads a bare `nm -n`, which on Apple silicon reports arm64
+  addresses. So the differential compares the TS port against *code the port did not transcribe*.
+
+  Usually harmless — a plain struct offset is fixed by the C++ declaration, so it is the same in both
+  slices (the HGRenderNode +0xb0/+0xa0, Json::Value::swapPayload and CZString oracles all cross-checked
+  clean). It is **not** harmless wherever the two slices disagree, and the flagship case is libc++'s
+  `std::string`: the x86_64 slice uses `is_long` = **bit 0 of byte +0x00**, short size = `byte0 >> 1`,
+  long data at **+0x10**; the arm64 slice uses `is_long` = **sign bit of byte +0x17**, short size = that
+  byte unshifted, long data at **+0x00**. Feed x86_64-layout objects to the arm64 body and every string
+  reads as EMPTY — on `OZChannelRef::operator!=` the oracle answered "equal" to all 900 cases, i.e. it
+  reported the port and the binary agreeing when it was comparing nothing. **A silent false VERIFIED is
+  worse than no oracle**, because a reviewer signs on it. (Same hazard class for FMA contraction in the
+  pure-math parity nodes: arm64 may fuse a multiply-add that x86_64 does not, moving the last ulp.)
+
+  WORKAROUND — proven, use it whenever layout or codegen could differ: run the harness under Rosetta so
+  dlopen maps the x86_64 slice the port was transcribed from.
+
+      arch -x86_64 /usr/bin/python3 my_oracle.py     # then dlsym normally for `nm` type T symbols
+
+  With that one change the same 900-case OZChannelRef differential went from 877 bogus "divergences"
+  to 0 real ones. The real fix is for `oracle.py`/`local_call.py` to either re-exec themselves under
+  `arch -x86_64` or refuse to run when `platform.machine() != 'x86_64'`, so nobody can get a confident
+  verdict out of the wrong slice by accident.
+
 - **`depgraph.py` does not trace `std::call_once` proxy/lambda initializers**, nor function pointers
   handed to `pthread_create`/`dispatch_group_async_f`, so units are still handed out READY while their
   real call chain has unported deps. No longer *destructive* — #280 makes the unit requeueable with

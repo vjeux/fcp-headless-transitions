@@ -31,6 +31,29 @@ live callable and returns a dict of named outputs.
 import ctypes
 import os
 
+# ── ARCH GUARD (reviewer-2, 2026-08-10, OPS_LOG "oracle calls the wrong architecture") ──────────
+# Every port in this repo is transcribed from the x86_64 slice (disasm.sh thins to /tmp/<FW>.x86_64
+# and every @0xADDR is an x86_64 offset), but on Apple silicon this process is arm64, so dlopen maps
+# the ARM64 slice and `nm -n` reports ARM64 vmaddrs. Where the two slices disagree — libc++'s
+# std::string SSO layout is the flagship, FMA contraction another — the differential silently
+# compares the port against code it did not transcribe, and it fails TOWARD "equal"/VERIFIED. A
+# false VERIFIED is worse than no oracle, because a reviewer signs on it. Say so, loudly, once.
+# Re-run under Rosetta to oracle the slice the port was actually transcribed from:
+#     arch -x86_64 /usr/bin/python3 <your harness>.py
+import platform as _platform, sys as _sys
+_ARCH_WARNED = []
+def _warn_arch_once():
+    if _ARCH_WARNED or _platform.machine() == "x86_64":
+        return
+    _ARCH_WARNED.append(1)
+    print("WARNING [fct.parity]: this process is %s, but every port is transcribed from the x86_64 "
+          "slice. dlopen/nm are resolving the ARM64 slice, so any symbol whose layout or codegen "
+          "differs between slices (libc++ std::string SSO, FMA contraction) will be compared against "
+          "code the port did not transcribe — and it fails toward VERIFIED. Re-run under "
+          "`arch -x86_64 /usr/bin/python3` to oracle the x86_64 slice." % _platform.machine(),
+          file=_sys.stderr)
+
+
 FW = "/Applications/Final Cut Pro.app/Contents/Frameworks"
 
 # Framework short-name -> absolute dylib path inside the FCP bundle.
@@ -290,6 +313,7 @@ def _dlsym_name(symbol):
 
 def resolve(framework, symbol):
     """Return a ctypes function pointer for an exported symbol, or raise OracleError."""
+    _warn_arch_once()
     lib = load_framework(framework)
     name = _dlsym_name(symbol)
     try:
