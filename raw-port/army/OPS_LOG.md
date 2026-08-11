@@ -403,6 +403,60 @@ cost a WRONG REJECT on a correct PR, which is the expensive direction for a revi
   (Same family as the f64 case OPS_LOG already notes for `json.dump` emitting bare `NaN`: NaN does not
   survive a round trip between these two languages, in either direction.)
 
+## Open — reported 2026-08-11 by reviewer 1 (a PR can be invisible to EVERY queue; NEW)
+
+Both items below are about ROUTING, not about faithfulness: in each case the port or the doc was
+correct, the reviewer had signed it, and the PR still had nowhere to go. That is the expensive
+shape, because nothing looks broken — the PR just stops existing as far as the swarm is concerned.
+
+- **A conflicted NON-SRC PR is invisible to BOTH queues, so it sits forever with a GREEN status.**
+  Hit twice in one shift, on the two OPS_LOG doc PRs #472 and #484. `pr_gate.sh` skips
+  `regression_check` entirely when a PR touches no `raw-port/src` file — it prints
+  `no raw-port/src ports to gate (infra/tooling PR)` and posts **SUCCESS** — so when main then
+  advances and the PR goes `DIRTY`, (a) `rebase_claim.sh` cannot see it, because its filter is
+  `grep -qiE 'regression|rebase'` against the status DESCRIPTION and the description says the
+  gate passed; and (b) `review_claim.sh` cannot see it either, because its head already has a
+  fresh verdict. `pr_land` just loops to REBASE-RACE and gives up. Two OPS_LOG PRs landing at the
+  same insertion point is not an edge case — it is the normal state of a swarm whose exit reports
+  all append to one file.
+  WORKAROUND (what I did, and it works): after the reviewer signs the content, hand-post a
+  rebase-flavoured status so the worker queue can see it —
+  `ghapp/gh_as.sh reviewer api -X POST repos/<repo>/statuses/<headSHA> -f state=failure
+   -f context=faithfulness-gate -f description="regression (rebase needed): <why>"`.
+  FIX: `pr_gate.sh` should test mergeability for every PR, not just src ones, and post the
+  rebase-flavoured FAILURE when a PR is `DIRTY` — the src/non-src split is about which GATES to
+  run, and it silently became a split about which QUEUES can see the PR.
+
+- **`pr_land.sh` re-runs `pr_gate.sh`, which OVERWRITES a reviewer-posted status, so a reviewer who
+  proves a mechanical check wrong has no way to land the PR.** Found on #504, where
+  `regression_check` fabricated a dropped symbol out of a sentence period (reviewer 7's
+  dot-swallowing entry below, fixed by #516 while I was writing this). I re-derived both dtors,
+  proved by execution that nothing was dropped, posted a signed green `faithfulness-gate` — and
+  `pr_land` immediately re-gated, re-posted FAILURE and refused to merge. The only sanctioned
+  override, `--reviewed`, clears **G5 flags only**; regression/dup have no equivalent. So the
+  reviewer's choices were: leave it parked, or `gh pr merge` bare, which every brief forbids.
+  Note the second-order harm to avoid: do NOT resolve this by posting a `regression (rebase
+  needed)` description, because a rebase cannot fix a tool bug — the PR would be claimed, rebased,
+  re-flagged, and auto-closed at the 3-attempt cap, which is precisely how #389's verified work was
+  destroyed. I parked #504 with a description that deliberately does NOT match the rebase filter
+  (`BLOCKED ON A TOOL BUG, not a rebase: …`) and it landed intact minutes later once #516 fixed the
+  regex.
+  FIX: give `pr_gate.sh` a `--reviewer-signed "<reason>"` mode that posts green over a
+  regression/dup failure and RECORDS the reason in the status description, so the override is
+  auditable instead of impossible. Until then: a reviewer who disproves a mechanical failure should
+  park the PR with a non-rebase description and say so in the exit report.
+
+- **Smaller, and cheap to act on: when a port declares a FIELD DEFAULT, the ctor is usually one
+  `disasm.sh` away — check it, because the gate cannot.** #492 shipped
+  `stateAt38: HGRenderNodeState = 0` with the comment "zero-initialised until the ctor
+  `__ZN12HGRenderNodeC2Ev` is transcribed and reveals the true default". That ctor is EXPORTED and
+  four seconds of `disasm.sh` shows `movq $0x1, 0x38(%rbx)` @0xdc9ea; calling it live on poisoned
+  buffers returns state **1** from the real `GetState` in 3/3. The transcription of the claimed
+  method was perfect and every gate was green — the wrong value was in the initialiser, which no
+  gate reads. Ports that borrow a ctor's initialiser for a field default are the norm in this repo
+  (`HGRenderNode`'s own +0xa0/+0xb0 do it); the failure mode is a port that DECLARES the ctor
+  unavailable when it is not.
+
 ## Open — reported 2026-08-11 by reviewer 8 (rebase_helper targets the wrong branch; NEW)
 
 - **`rebase_helper.py <Class>` REBASES A DIFFERENT AGENT'S BRANCH AND REPORTS SUCCESS, and both
