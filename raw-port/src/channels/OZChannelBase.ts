@@ -78,6 +78,90 @@ function dynamic_cast_to_OZChannelObjectRootBase_stub(
  */
 let sIDGenerator: number = 0;  // @ProChannel __ZL12sIDGenerator
 
+/**
+ * Opaque handle to a `CFStringRef` (`const __CFString*`) — the argument type of
+ * `OZChannelBase::setParameterCtlrClassName(__CFString const*)` @0x49870 and
+ * the type of the +0x58 slot it drives. CoreFoundation is out of port scope, so
+ * the value is carried as an opaque identity: the ported code only ever
+ * COMPARES it (`cmpq` @0x4987e, `testq` @0x49886/@0x49894) and passes it to the
+ * two CF entry points below — it never dereferences it.
+ */
+export interface CFStringRef {
+  readonly __cfType: "CFString";
+  handle: unknown;
+}
+
+/**
+ * `_CFRelease(CFTypeRef)` — out-of-scope CoreFoundation extern, modelled as a
+ * JS NO-OP.
+ *
+ * Entered through the ProChannel symbol stub @0xaca50, from BOTH setters in
+ * this file: `callq _CFRelease` @ProChannel 0x49851
+ * (setLabelCtlrClassName, +0x50 slot) and @ProChannel 0x4988b
+ * (setParameterCtlrClassName, +0x58 slot).
+ *
+ * WHY A NO-OP AND NOT A THROW. `_CFRelease` is a LIFETIME/OWNERSHIP primitive:
+ * it returns void and produces no value a JS port could be accused of
+ * fabricating — all it does is decrement a CoreFoundation retain count that
+ * this port does not maintain, because the JS garbage collector owns the
+ * `CFStringRef` surrogate instead. The faithful boundary model is therefore
+ * "do nothing", and that is the settled, landed convention here: the RESOLVED
+ * extern-boundary ruling in REVIEWER_BRIEF.md ("LIFETIME / OWNERSHIP
+ * primitives → JS NO-OP … VALUE-PRODUCING externs → THROW with @0xADDR"), and
+ * the same stub address 0xaca50 is already modelled as a documented no-op by
+ * `raw-port/src/infra/PCCFRef_CFArray.ts` on main, with `PCCFRef_CFData.ts`
+ * and `PCCFRef_CFDictionary.ts` doing the same.
+ *
+ * It also has to be a no-op for the setters to work at all: both release
+ * sites sit on the ordinary reachable path (any non-NULL previous value), so
+ * a throw here would make "replace an existing class name" raise on every
+ * real call.
+ */
+function CFRelease(_cfObject: CFStringRef): void {
+  // NO-OP. @ProChannel stub 0xaca50 — refcount decrement; the JS GC owns the
+  // CFStringRef surrogate, so there is nothing to release at this boundary.
+}
+
+/**
+ * `_CFRetain(CFTypeRef)` — out-of-scope CoreFoundation extern, modelled as a
+ * JS NO-OP.
+ *
+ * TAIL-JUMPED through the ProChannel symbol stub @0xaca56, from BOTH setters
+ * in this file: `jmp _CFRetain` @ProChannel 0x49866 (setLabelCtlrClassName,
+ * +0x50 slot) and @ProChannel 0x498a0 (setParameterCtlrClassName, +0x58
+ * slot).
+ *
+ * Same boundary and the same RESOLVED ruling as `_CFRelease` above: the
+ * retain/release family are lifetime/ownership primitives, so the faithful JS
+ * model is a no-op — the JS GC owns the `CFStringRef` surrogate, and the
+ * retain count this instruction bumps has no representation in the port. Only
+ * VALUE-PRODUCING externs throw, because those are the ones whose return value
+ * JS cannot fabricate. Landed precedent: the PCCFRef family on main
+ * (`PCCFRef_CFArray.ts`, `PCCFRef_CFData.ts`, `PCCFRef_CFDictionary.ts`) and
+ * `PCCFRefTraits_CGColorSpace` / `PCCFRefTraits_vImageConverter`.
+ *
+ * ON THE RETURN TYPE. The C API is `CFTypeRef CFRetain(CFTypeRef)` — it hands
+ * back its argument unchanged, which is what the "retain-family returns its
+ * arg" half of the ruling refers to. NEITHER call site in this file consumes
+ * that value: both are the tail `jmp` of a `void` C++ setter
+ * (`__ZN13OZChannelBase21setLabelCtlrClassNameEPK10__CFString` and
+ * `__ZN13OZChannelBase25setParameterCtlrClassNameEPK10__CFString` both return
+ * void), so the value CFRetain leaves in %rax is discarded by every caller.
+ * Typing it `void` here keeps the tail-call shape of the transcription exact
+ * (`return CFRetain(name)` in a void method mirrors `jmp _CFRetain`) without
+ * inventing a value nothing reads.
+ *
+ * As with the release side, both retain sites are on the ordinary reachable
+ * path (any non-NULL new value), so a throw here would make setting a class
+ * name on a fresh object raise.
+ */
+function CFRetain(_cfObject: CFStringRef): void {
+  // NO-OP. @ProChannel stub 0xaca56 — refcount increment; the JS GC owns the
+  // CFStringRef surrogate. The C API returns its argument unchanged, and
+  // neither tail-jmp call site in this file reads that value (both setters are
+  // void).
+}
+
 export class OZChannelBase {
   id = 0;
   name = "";
@@ -151,6 +235,45 @@ export class OZChannelBase {
    */
   shouldIgnoreDynamicIDs(): boolean {
     // @0x000000000001fc14  xorl %eax, %eax
+    return false;
+  }
+
+  /**
+   * `OZChannelBase::isObjectRef() const` — @Flexo 0x217b40
+   *   (__ZNK13OZChannelBase11isObjectRefEv)
+   *
+   * FULL DISASM (raw-port/re/disasm/Flexo.__ZNK13OZChannelBase11isObjectRefEv.s
+   * — 7 lines):
+   *
+   *   0x217b40  pushq %rbp                ; frame prologue
+   *   0x217b41  movq  %rsp, %rbp
+   *   0x217b44  xorl  %eax, %eax          ; eax = 0 — the entire computation
+   *   0x217b46  popq  %rbp                ; frame epilogue
+   *   0x217b47  retq                      ; return false
+   *   0x217b48  nopl  (%rax,%rax)         ; alignment pad — no effect
+   *
+   * A constant `return false`: the base-class default answer to "is this
+   * channel an object reference?", which the object-ref subclasses override.
+   * The body really is empty — one `xorl` and the frame — so this port is the
+   * whole function, not a stub standing in for undecoded work.
+   *
+   * THREE COPIES. This symbol is statically linked into three of the five
+   * in-scope frameworks, with the same five instructions in each (verified by
+   * re-deriving all three and diffing the mnemonics + operands):
+   *   @Flexo      0x217b40   (the address the ledger unit names, cited above)
+   *   @Ozone      0x1fb70    (identical, including the trailing `nopl` pad)
+   *   @ProChannel 0x518d4    (identical instructions; no trailing `nopl` — the
+   *                           pad is alignment for whatever follows, not code)
+   * The sibling `shouldIgnoreDynamicIDs()` just above cites its Ozone copy for
+   * the same reason, so both conventions already coexist in this file; the
+   * addresses are recorded here rather than picking one silently.
+   *
+   * ZERO callees: no call, no branch, no memory access, no in-scope callee, no
+   * extern, no indirect or virtual dispatch (`depgraph.py deps
+   * __ZNK13OZChannelBase11isObjectRefEv` lists nothing).
+   */
+  isObjectRef(): boolean {
+    // @0x217b44  xorl %eax, %eax  ; @0x217b47 retq — the constant false.
     return false;
   }
 
@@ -1426,5 +1549,193 @@ export class OZChannelBase {
   calcHashForState(_stream: PCSerializerWriteStream, _time: CMTime): void {
     // @0x4bed4..0x4bed5 — prologue; @0x4bed8..0x4bed9 — epilogue + retq.
     // There is no instruction in between. Doing nothing IS the transcription.
+  }
+
+  /**
+   * @ProChannel offset +0x58 — the retained `CFStringRef` parameter-controller
+   * class name.
+   *
+   * Decoded from `setParameterCtlrClassName(__CFString const*)` @0x49870,
+   * which reads it (`movq 0x58(%rdi), %rdi` @0x4987a), compares it against the
+   * incoming pointer (@0x4987e), stores the new pointer into it
+   * (`movq %rbx, 0x58(%r14)` @0x49890) and drives the CoreFoundation
+   * refcount pair around both. Ownership: the slot holds a RETAINED reference
+   * (the setter Releases the old value and Retains the new one), and NULL is a
+   * legal state — both sides of the swap are null-checked in the binary. The
+   * initial value is NULL because nothing in the decoded set writes it first.
+   */
+  parameterCtlrClassNameAt58: CFStringRef | null = null;
+
+  /**
+   * `OZChannelBase::setParameterCtlrClassName(__CFString const*)`
+   *   — @ProChannel 0x49870
+   *   — __ZN13OZChannelBase25setParameterCtlrClassNameEPK10__CFString
+   *
+   * The textbook CoreFoundation setter: identity-guard, Release the old,
+   * store, Retain the new.
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x49870  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x49871  movq  %rsp, %rbp            ; frame setup (no TS counterpart)
+   *   0x49874  pushq %r14                  ; callee-saved spill (no TS counterpart)
+   *   0x49876  pushq %rbx                  ; callee-saved spill (no TS counterpart)
+   *   0x49877  movq  %rdi, %r14            ; r14 = this
+   *   0x4987a  movq  0x58(%rdi), %rdi      ; rdi = this->parameterCtlrClassNameAt58 (OLD)
+   *   0x4987e  cmpq  %rsi, %rdi            ; flags on old - new (POINTER identity)
+   *   0x49881  je    0x498a5               ;   old == new -> return, no refcount traffic
+   *   0x49883  movq  %rsi, %rbx            ; rbx = new
+   *   0x49886  testq %rdi, %rdi            ; old == NULL ?
+   *   0x49889  je    0x49890               ;   NULL -> skip the release
+   *   0x4988b  callq _CFRelease            ; stub 0xaca50 — release the OLD value
+   *   0x49890  movq  %rbx, 0x58(%r14)      ; this->parameterCtlrClassNameAt58 = new
+   *   0x49894  testq %rbx, %rbx            ; new == NULL ?
+   *   0x49897  je    0x498a5               ;   NULL -> return without retaining
+   *   0x49899  movq  %rbx, %rdi            ; arg1 = new
+   *   0x4989c  popq  %rbx                  ; epilogue BEFORE the tail jump
+   *   0x4989d  popq  %r14
+   *   0x4989f  popq  %rbp
+   *   0x498a0  jmp   _CFRetain             ; stub 0xaca56 — TAIL CALL, retain the NEW value
+   *   0x498a5  popq  %rbx                  ; shared early-out epilogue
+   *   0x498a6  popq  %r14
+   *   0x498a8  popq  %rbp
+   *   0x498a9  retq                        ; void return
+   *
+   * SEMANTICS and ORDERING, exactly as the machine does it:
+   *   1. `cmpq %rsi, %rdi ; je` @0x4987e is a POINTER-IDENTITY test (equality
+   *      on ZF, not an ordered compare), so passing the value already stored
+   *      is a complete no-op — no Release, no store, no Retain. That guard is
+   *      what makes the self-assignment `x.set(x.get())` safe.
+   *   2. The OLD value is released BEFORE the new pointer is stored, and only
+   *      when it is non-NULL (@0x49886).
+   *   3. The store @0x49890 happens unconditionally on the non-identical path,
+   *      NULL included — so this method is also the way the slot is cleared.
+   *   4. The Retain of the NEW value happens LAST, through a tail jump, and
+   *      only when it is non-NULL (@0x49894). Because it is a tail call the
+   *      callee returns straight to this function's caller.
+   *
+   * FRONTIER CALLEES: `_CFRelease` @0xaca50 and `_CFRetain` @0xaca56 are TRUE
+   * out-of-scope CoreFoundation externs (see the two boundary stubs above the
+   * class), modelled as documented JS NO-OPs per the RESOLVED
+   * lifetime/ownership-primitive ruling — so the ordinary path through this
+   * setter runs to completion. They are the only two calls in the body; there
+   * is no in-scope callee (`depgraph.py deps` lists none), no indirect and no
+   * virtual dispatch.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProChannel.__ZN13OZChannelBase25setParameterCtlrClassNameEPK10__CFString.s
+   *   (23 lines)
+   */
+  setParameterCtlrClassName(
+    this: OZChannelBase,
+    name: CFStringRef | null,
+  ): void {
+    // @0x4987a  movq 0x58(%rdi),%rdi — the OLD value.
+    const old = this.parameterCtlrClassNameAt58;
+    // @0x4987e-0x49881  cmpq %rsi,%rdi ; je 0x498a5 — pointer identity.
+    if (old === name) {
+      return;
+    }
+    // @0x49886-0x4988b  testq %rdi,%rdi ; je ; callq _CFRelease — release the
+    //   OLD value first, and only when it is non-NULL.
+    if (old !== null) {
+      CFRelease(old);
+    }
+    // @0x49890  movq %rbx,0x58(%r14) — store the new pointer, NULL included.
+    this.parameterCtlrClassNameAt58 = name;
+    // @0x49894-0x49897  testq %rbx,%rbx ; je 0x498a5 — nothing to retain.
+    if (name === null) {
+      return;
+    }
+    // @0x49899/@0x498a0  movq %rbx,%rdi ; jmp _CFRetain — TAIL CALL.
+    return CFRetain(name);
+  }
+
+  /**
+   * @ProChannel offset +0x50 — the retained `CFStringRef` LABEL-controller
+   * class name.
+   *
+   * The sibling slot of {@link parameterCtlrClassNameAt58}, eight bytes lower.
+   * Decoded from `setLabelCtlrClassName(__CFString const*)` @0x49836: read
+   * (`movq 0x50(%rdi), %rdi` @0x49840), compared against the incoming pointer
+   * (@0x49844) and written (`movq %rbx, 0x50(%r14)` @0x49856), with the same
+   * CoreFoundation Release/Retain pair around it. Same ownership contract: a
+   * RETAINED reference, NULL legal, initial value NULL.
+   */
+  labelCtlrClassNameAt50: CFStringRef | null = null;
+
+  /**
+   * `OZChannelBase::setLabelCtlrClassName(__CFString const*)`
+   *   — @ProChannel 0x49836
+   *   — __ZN13OZChannelBase21setLabelCtlrClassNameEPK10__CFString
+   *
+   * The instruction-for-instruction TWIN of `setParameterCtlrClassName`
+   * @0x49870 above (same 23-line shape, same two CF stubs, same branch
+   * structure) with the +0x50 slot in place of +0x58 — they sit 0x3a bytes
+   * apart in ProChannel's text and differ ONLY in that displacement.
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x49836  pushq %rbp                  ; frame setup (no TS counterpart)
+   *   0x49837  movq  %rsp, %rbp            ; frame setup (no TS counterpart)
+   *   0x4983a  pushq %r14                  ; callee-saved spill (no TS counterpart)
+   *   0x4983c  pushq %rbx                  ; callee-saved spill (no TS counterpart)
+   *   0x4983d  movq  %rdi, %r14            ; r14 = this
+   *   0x49840  movq  0x50(%rdi), %rdi      ; rdi = this->labelCtlrClassNameAt50 (OLD)
+   *   0x49844  cmpq  %rsi, %rdi            ; flags on old - new (POINTER identity)
+   *   0x49847  je    0x4986b               ;   old == new -> return, no refcount traffic
+   *   0x49849  movq  %rsi, %rbx            ; rbx = new
+   *   0x4984c  testq %rdi, %rdi            ; old == NULL ?
+   *   0x4984f  je    0x49856               ;   NULL -> skip the release
+   *   0x49851  callq _CFRelease            ; stub 0xaca50 — release the OLD value
+   *   0x49856  movq  %rbx, 0x50(%r14)      ; this->labelCtlrClassNameAt50 = new
+   *   0x4985a  testq %rbx, %rbx            ; new == NULL ?
+   *   0x4985d  je    0x4986b               ;   NULL -> return without retaining
+   *   0x4985f  movq  %rbx, %rdi            ; arg1 = new
+   *   0x49862  popq  %rbx                  ; epilogue BEFORE the tail jump
+   *   0x49863  popq  %r14
+   *   0x49865  popq  %rbp
+   *   0x49866  jmp   _CFRetain             ; stub 0xaca56 — TAIL CALL, retain the NEW value
+   *   0x4986b  popq  %rbx                  ; shared early-out epilogue
+   *   0x4986c  popq  %r14
+   *   0x4986e  popq  %rbp
+   *   0x4986f  retq                        ; void return
+   *
+   * Same ordering guarantees as the parameter-side twin: pointer-identity
+   * guard first (equality on ZF @0x49844, so re-setting the stored value is a
+   * complete no-op), then Release-old (only when non-NULL), then the store
+   * (unconditional, NULL included — this is also how the slot is cleared), then
+   * Retain-new LAST through a tail jump (only when non-NULL).
+   *
+   * FRONTIER CALLEES: the same two TRUE out-of-scope CoreFoundation externs —
+   * `_CFRelease` (ProChannel stub @0xaca50, called @0x49851) and `_CFRetain`
+   * (stub @0xaca56, tail-jumped @0x49866) — both modelled as documented JS
+   * NO-OPs per the RESOLVED lifetime/ownership-primitive ruling, so the
+   * ordinary path through this setter runs to completion. No in-scope callee
+   * (`depgraph.py deps` lists none), no indirect and no virtual dispatch.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProChannel.__ZN13OZChannelBase21setLabelCtlrClassNameEPK10__CFString.s
+   *   (25 lines)
+   */
+  setLabelCtlrClassName(this: OZChannelBase, name: CFStringRef | null): void {
+    // @0x49840  movq 0x50(%rdi),%rdi — the OLD value.
+    const old = this.labelCtlrClassNameAt50;
+    // @0x49844-0x49847  cmpq %rsi,%rdi ; je 0x4986b — pointer identity.
+    if (old === name) {
+      return;
+    }
+    // @0x4984c-0x49851  testq %rdi,%rdi ; je ; callq _CFRelease.
+    if (old !== null) {
+      CFRelease(old);
+    }
+    // @0x49856  movq %rbx,0x50(%r14) — store the new pointer, NULL included.
+    this.labelCtlrClassNameAt50 = name;
+    // @0x4985a-0x4985d  testq %rbx,%rbx ; je 0x4986b — nothing to retain.
+    if (name === null) {
+      return;
+    }
+    // @0x4985f/@0x49866  movq %rbx,%rdi ; jmp _CFRetain — TAIL CALL.
+    return CFRetain(name);
   }
 }
