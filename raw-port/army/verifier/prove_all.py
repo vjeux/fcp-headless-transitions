@@ -173,10 +173,10 @@ def layer2():
     # result silently decides the verdict for both and a red suite returns PASS. The return line
     # still collides with every sibling; that one is unavoidable and is a pure union.
     r17 = run(["bash", os.path.join(TOOLS, "test_publish_guard.sh")])
-    ok17 = "TEST_PUBLISH_GUARD: PASS" in r14.stdout
+    ok17 = "TEST_PUBLISH_GUARD: PASS" in r17.stdout
     print("LAYER 2q (publish guard — a force-push cannot empty a PR or drop its files):",
           "PASS" if ok17 else "FAIL")
-    if not ok17: print(r17.stdout[-1200:], r14.stderr[-400:])
+    if not ok17: print(r17.stdout[-1200:], r17.stderr[-400:])
     return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11
             and ok12 and ok17)
 
