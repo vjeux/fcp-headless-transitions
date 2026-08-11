@@ -328,6 +328,90 @@ export class TextureInfo {
     this.f38 = 0;
     this.f39 = 0;
   }
+
+  /**
+   * `HGTextureManager::TextureInfo::TextureInfo()` — the DEFAULT constructor
+   *   — @Helium 0x0000000000046ed0
+   *   mangled: __ZN16HGTextureManager11TextureInfoC2Ev   (the C2 base-object
+   *   variant; the C1 complete-object twin @0x46ef0 is a SEPARATE ledger unit
+   *   with a byte-identical body — it is already cited in this class's
+   *   docstring above as the evidence for `sizeof == 0x3a`, and porting it is
+   *   not claimed here.)
+   *
+   * A static rather than a second `constructor`, because TypeScript allows one
+   * constructor per class and the 6-argument C1 above already owns it. Same
+   * shape the repo uses elsewhere for a non-primary ctor
+   * (`PCVLCParser.construct(dst, …)`, `OZProcessControlWrapper.construct(dst)`,
+   * `HGLayerParams_ctor_default(self)`), and it keeps the C++ semantics honest:
+   * a C2 ctor is handed storage in `%rdi` and initialises it in place.
+   *
+   * Disasm (x86_64 slice — 8 real instructions, the whole function):
+   *   0x46ed0  55              pushq   %rbp
+   *   0x46ed1  48 89 e5        movq    %rsp, %rbp
+   *   0x46ed4  0f 57 c0        xorps   %xmm0, %xmm0      ; xmm0 = 0
+   *   0x46ed7  0f 11 47 2a     movups  %xmm0, 0x2a(%rdi) ; zero [0x2a, 0x3a)
+   *   0x46edb  0f 11 47 20     movups  %xmm0, 0x20(%rdi) ; zero [0x20, 0x30)
+   *   0x46edf  0f 11 47 10     movups  %xmm0, 0x10(%rdi) ; zero [0x10, 0x20)
+   *   0x46ee3  0f 11 07        movups  %xmm0, (%rdi)     ; zero [0x00, 0x10)
+   *   0x46ee6  5d              popq    %rbp
+   *   0x46ee7  c3              retq
+   *   0x46ee8  nopl (%rax,%rax)                          ; padding
+   *
+   * FOUR OVERLAPPING 16-BYTE STORES, and the overlap is the interesting part:
+   * the first one is at +0x2a, not +0x30, so it ends exactly at 0x3a and
+   * OVERWRITES the last six bytes the +0x20 store will write. That is the
+   * compiler covering a 58-byte object with 16-byte stores and no tail loop —
+   * and it is what pins `sizeof(TextureInfo) == 0x3a`, since a 0x40-byte object
+   * would have been cleared to 0x40. The union of the four ranges is exactly
+   * [0x00, 0x3a): every field of this class, and not one byte more.
+   *
+   * There is no read of any field, no branch, and no call — `depgraph.py deps`
+   * lists nothing.
+   *
+   * MEASURED AGAINST THE LIVE BINARY
+   * (raw-port/re/oracle/HGTextureManager_TextureInfo_ctor_default_oracle.py,
+   * under `arch -x86_64 /usr/bin/python3`; the symbol is exported `T`, so it is
+   * reached with dlsym rather than by slide+offset):
+   *   - the dlsym'd address is slide+0x46ed0 and the 24 mapped opcode bytes are
+   *     the ones transcribed above
+   *   - over a 0x80-byte 0xCD-poisoned arena, bytes [0x00, 0x3a) come back ZERO
+   *     and bytes [0x3a, 0x80) are still 0xCD — the extent, measured, not
+   *     inferred from the displacements
+   *   - repeated on an arena pre-filled with 0xFF and with a counting pattern:
+   *     same 58 bytes zeroed, same boundary
+   *   - CONTROLS that must be caught, and are (byte counts against the arena
+   *     the LIVE ctor produced, at Helium slide 0x10d726000): "zeroes 0x40
+   *     bytes" differs in 6, "zeroes 0x38" — the +0x2a store dropped — differs
+   *     in 2, "zeroes 0x30" in 10, "zeroes nothing" in 58. None dead
+   *   - the TS port is then EXECUTED against the same expectation: every field
+   *     of a TextureInfo pre-filled with non-zero junk reads back 0 / 0n, which
+   *     is the same 58 bytes in this model's terms
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN16HGTextureManager11TextureInfoC2Ev.s
+   *
+   * @Helium 0x0000000000046ed0
+   */
+  static construct(dst: TextureInfo): void {
+    // 0x46ed4-0x46ed7: xorps %xmm0,%xmm0 ; movups %xmm0, 0x2a(%rdi)
+    //   [0x2a, 0x3a) — the tail of f30 plus both u8 flags.
+    dst.f38 = 0;
+    dst.f39 = 0;
+    // 0x46edb: movups %xmm0, 0x20(%rdi) — [0x20, 0x30): f20, f28.
+    dst.f20 = 0n;
+    dst.f28 = 0n;
+    // ...and f30 at +0x30, whose bytes are covered by the +0x2a store above.
+    dst.f30 = 0n;
+    // 0x46edf: movups %xmm0, 0x10(%rdi) — [0x10, 0x20): format, type, pixels.
+    dst.format = 0;
+    dst.type = 0;
+    dst.pixels = 0n;
+    // 0x46ee3: movups %xmm0, (%rdi) — [0x00, 0x10): the four u32 heads.
+    dst.target = 0;
+    dst.width = 0;
+    dst.height = 0;
+    dst.internalFormat = 0;
+  }
 }
 
 // -----------------------------------------------------------------------------
