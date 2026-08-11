@@ -179,6 +179,18 @@ LAYER2 = [
      "dead attempt counters — the reaper can reach what the doctor reports",
      ["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")],
      "test_reap_dead_counters: PASS"),
+    # 2u — a driver that does not terminate. Two mutants held a core for 2h31m because 69 of 69
+    # driver spawns had no timeout: "a mutant must fail" had been read as "returns a wrong answer",
+    # never as "never returns". Offline, real node on a two-line fixture. ~28s.
+    #
+    # LETTER: this block went out as 2m, was renumbered 2u against the hand-written tail, and is now
+    # a ROW — which is the point of main's refactor: there is no variable to collide any more, only
+    # a label, and check_layer_labels() refuses a duplicate before anything runs. Kept 2u because it
+    # is what the reviewer verified and what the PR body cites.
+    ("2u",
+     "driver timeout — a hang is a kill, not a pending result",
+     ["bash", os.path.join(TOOLS, "test_driver_timeout.sh")],
+     "test_driver_timeout: PASS"),
 ]
 
 def check_layer_labels():

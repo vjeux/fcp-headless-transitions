@@ -37,6 +37,7 @@ round-trip hazard. `>>> 0` on the TS side and `& 0xffffffff` here keep both
 sides in the same unsigned domain.
 """
 import ctypes, json, os, re, subprocess, sys, tempfile
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))          # raw-port/
@@ -93,7 +94,7 @@ def corpus():
 def run_driver(module_path, inputs):
     p = subprocess.run(
         ["node", "--experimental-strip-types", DRIVER, module_path],
-        input=json.dumps({"inputs": inputs}), capture_output=True, text=True)
+        input=json.dumps({"inputs": inputs}), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         raise SystemExit("driver failed for %s:\n%s\n%s"
                          % (module_path, p.stdout[-2000:], p.stderr[-2000:]))

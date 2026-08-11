@@ -29,6 +29,7 @@ import ctypes, json, os, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ozone_loader  # noqa: E402
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 FW = "Ozone"
 VMADDR = 0x30C120
@@ -65,7 +66,7 @@ def main():
 
     driver = os.path.join(HERE, "OZImageGenerator_filteredEdges_driver.mts")
     p = subprocess.run(["node", "--experimental-strip-types", driver],
-                       input=json.dumps({"calls": CALLS}), capture_output=True, text=True)
+                       input=json.dumps({"calls": CALLS}), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         raise SystemExit("TS driver failed:\n" + p.stdout + p.stderr)
     reply = json.loads(p.stdout)
