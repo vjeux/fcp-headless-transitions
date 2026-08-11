@@ -3421,10 +3421,10 @@ rejected, two routed to the rebase queue). Everything below was measured on this
   a judgement call, produce it — a rejection should be reserved for what only the author can decide.**
   Say in the approval that you wrote it, so the author still learns the rule.
 
-- **`--expect-head` CANNOT CLOSE THE RACE IT EXISTS FOR, AND A REVIEW LEASE DOES NOT STOP A PEER FROM
-  MOVING THE HEAD YOU ARE REVIEWING.** Measured on PR #599 today, twenty minutes after I reviewed and
-  landed the fix that added the flag. I verified head `581e29c7`, passed exactly that SHA, and the
-  tool agreed with me:
+- **A REVIEW'S `commit_id` MOVES AFTER IT IS SUBMITTED: `pr_land`'s OWN `update-branch` DRAGS THE
+  SIGNATURE FORWARD ONTO CODE NOBODY READ, AND NOTHING THE SIGNER SENDS CAN PREVENT IT.** Measured on
+  PR #599 today, twenty minutes after I reviewed and landed the fix that added `--expect-head`. I
+  verified head `581e29c7`, passed exactly that SHA, and the tool agreed with me:
 
       $ pr_review.sh 599 approve --expect-head 581e29c7… --body-file …
       pr_review: PR #599 @ 581e29c7 -> APPROVED (as vjeux-reviewer[bot], body 5246 chars)
@@ -3432,31 +3432,72 @@ rejected, two routed to the rebase queue). Everything below was measured on this
       $ gh api …/pulls/599/reviews --jq '.[-1].commit_id'
       46ddcf82…          <- NOT the SHA it just printed, and not the SHA I read
 
-  The flag did its job and the signature still landed on unread code, because it closes the wrong
-  window. `pr_review.sh` compares `EXPECT_HEAD` against a head **it resolves itself** with
-  `gh pr view`, and then POSTs; the head can move in the second between those two calls, and GitHub
-  binds the review to the head at WRITE time. `46ddcf82` is a `Merge branch 'main'` — the shape
-  `pr_land`'s `update-branch` produces — so what moved it was **another reviewer slot landing the PR
-  I held the review lease on.** The lease is advisory between reviewers pulling from the queue; it
-  does not gate `pr_land`, so a peer's merge attempt can rewrite the head of a PR under active
-  review at any moment.
+  I first read that as the write-time race `--expect-head` exists for — the head moving in the second
+  between `gh pr view` and the POST. **It is not, and the difference decides where the fix goes.**
+  Reviewer 4 hit the same thing twice on #585 and #610, and the three cases together rule the race
+  out, because the commit a review is bound to **did not exist when the review was submitted**
+  (re-measured independently by worker 2 on the rework of this entry, with
+  `gh api …/pulls/<N>/reviews --jq '.[]|"\(.submitted_at) \(.commit_id)"'` against
+  `gh api …/commits/<sha> --jq .commit.committer.date`):
 
-  I was lucky: the two heads differ only by main, the 152 added lines are byte-identical, and my
-  verdict is sound. The general case is not lucky — this is exactly the #384 shape (an APPROVE bound
-  to a head carrying +119 unreviewed lines) reappearing after its fix, one layer deeper.
-  WHAT ACTUALLY CLOSES IT: GitHub's create-review API accepts a `commit_id`, and `pr_review.sh`
-  already sends one — it sends the head it resolved rather than the SHA the caller VERIFIED. Send
-  `EXPECT_HEAD` when it is given, and a review can only ever attach to the code its author read; the
-  API rejects a stale one rather than silently rebinding. That is a one-token change and it makes the
-  flag mean what its own help text says.
-  UNTIL THEN: **read the review back and compare the `commit_id`, not just the body length** —
-  `gh api repos/<slug>/pulls/<N>/reviews --jq '.[-1]|"\(.state) \(.commit_id) \(.body|length)"'`.
-  The body-length check #596 added catches a destroyed body; only the `commit_id` catches a
-  destroyed BINDING, and today they failed independently.
-  RELATED, worth fixing at the same time: `pr_land.sh` should refuse to `update-branch` a PR that
-  currently holds a review lease, or `review_claim.sh` should expose the lease so `pr_land` can see
-  it. Two reviewers working the same PR from opposite ends is the #7/#224 race with the roles
-  swapped.
+      PR    review submitted_at   bound commit   its committer date   delta
+      #585  18:41:58Z             7280342e       18:42:37Z            +39s
+      #610  18:45:35Z             99e5acd2       18:45:43Z             +8s
+      #599  18:50:18Z             46ddcf82       18:50:21Z             +3s
+
+  `+3s` reads like a race; `+39s` cannot be one. No POST binds to a commit that a later step of the
+  same landing creates thirty-nine seconds afterwards.
+
+  THE MECHANISM, and it is visible in the commits themselves. All three bound commits are
+  `Merge branch 'main' into <branch>`, committed by **`web-flow` / GitHub** — i.e. server-side, which
+  in this swarm means `pr_land.sh:26`'s `ghr api -X PUT repos/$SLUG/pulls/$PR/update-branch`. And
+  their **first parent is exactly the SHA the reviewer verified**:
+
+      46ddcf82  parents 581e29c7, 16e3ebdc     <- #599, first parent = the head I signed
+      99e5acd2  parents 395effd3, 18924b46     <- #610, first parent = that reviewer's --expect-head
+      7280342e  parents 5b360273, 46e0efcf     <- #585, and 5b360273 parents 7cdf1d47, f2442de3
+
+  #585 is the instructive one: the review at 18:41:58 was signed on `7cdf1d47`, `update-branch`
+  produced `5b360273` at 18:42:10, a second one produced `7280342e` at 18:42:37, and the review is
+  now recorded against the **second** of them. Same review id, same body, same `submitted_at`; only
+  `commit_id` moved. **The binding follows the first-parent chain of server-side update-branch
+  merges, an unbounded number of hops, minutes after signing.** That is not a window a writer can
+  close; it is the platform re-pointing a record that is already written.
+
+  SO THE ONE-TOKEN FIX I ORIGINALLY PROPOSED HERE ("send `EXPECT_HEAD` as the `commit_id`") IS
+  ALREADY IMPLEMENTED AND IS A NO-OP. `origin/main:…/ghapp/pr_review.sh:205` posts
+  `json.dumps({'commit_id':'$HEAD_SHA','event':…,'body':…})` — it does send one — and when
+  `--expect-head` is supplied and accepted, `EXPECT_HEAD == HEAD_SHA` by construction, because lines
+  156-163 exit 5 otherwise. On all three rows above the SHA sent was exactly the SHA the reviewer
+  read. It was sent, it was accepted, and the binding moved anyway. Publishing that recommendation
+  would have had somebody implement a no-op and then trust it, which is strictly worse than the
+  current state where nobody believes the binding is safe. **Delete the idea, keep the flag:**
+  `--expect-head` genuinely closes the OTHER window — a head that moved before the POST — and it
+  should still be passed on every verdict. It just cannot reach past the POST.
+
+  WHAT ACTUALLY CLOSES IT — promoted from the footnote this entry filed it as, because it is the
+  whole remedy: **stop the head from moving under a live review.** `pr_land.sh` must not
+  `update-branch` a PR that holds a review lease (or must re-verify the approval against the new head
+  after it does), and `review_claim.sh` should expose the lease so `pr_land` can see it. Two reviewer
+  slots working one PR from opposite ends is #7/#224 with the roles swapped, and here the second one
+  is not even reviewing — it is landing.
+
+  UNTIL THEN, AND NOTE THE AMENDED TIMING: **read the `commit_id` back AFTER THE PR LANDS, not after
+  you sign** —
+
+      gh api repos/<slug>/pulls/<N>/reviews --jq '.[-1]|"\(.state) \(.commit_id) \(.body|length)"'
+
+  On all three of these, re-reading immediately after the POST would have shown the correct SHA; the
+  rebinding happened later, inside `pr_land`. So what the check buys you at that point is weaker than
+  "refuse to sign" — it is "this approval is now recorded against a commit I did not read, and I will
+  say so in a comment". Pair it with #596's body-length check rather than substituting for it: the
+  length catches a destroyed BODY, the `commit_id` catches a moved BINDING, and today they failed
+  independently.
+
+  I was lucky on #599: the two heads differ only by main, the 152 added lines are byte-identical, and
+  my verdict stands (reviewer 4 re-checked this). The general case is not lucky — it is the #384
+  shape (an APPROVE bound to a head carrying +119 unreviewed lines) reappearing after its fix, one
+  layer deeper, and one layer further from the signer.
 ---
 
 ## Open — reported 2026-08-11 by worker 2 (a tool copy that reads an empty ledger; a rebase base that moves under you; a decoy process that is not there; NEW)
