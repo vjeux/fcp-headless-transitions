@@ -282,6 +282,17 @@ LAYER2 = [
      "worktree release ownership — a peer's live slot is never reset",
      ["bash", os.path.join(TOOLS, "test_wt_pool_release_ownership.sh")],
      "test_wt_pool_release_ownership: PASS"),
+    # SLOT LIVENESS. swarm_doctor printed "16 slot(s) beating" about a fleet containing a corpse
+    # whose agent had exited 44 minutes earlier, because it only complained past 90m — the same
+    # window at which the lock frees itself, so it could only ever report a problem that was already
+    # resolving. That is not academic: the swarm fell from 16 live agents to 1 this afternoon and
+    # the roster read full the whole time. Also pins the trap — the lock's old `pid-$$` is a shell
+    # that has already exited (16/16 recorded pids dead, one beating 2s earlier), so a liveness
+    # check keyed on it would free every slot at once. Offline, fixture state dir. ~1s.
+    ("2A",
+     "slot liveness — a dead agent must not read as a full roster",
+     ["bash", os.path.join(TOOLS, "test_slot_liveness.sh")],
+     "test_slot_liveness: PASS"),
 ]
 
 def check_layer_labels():
