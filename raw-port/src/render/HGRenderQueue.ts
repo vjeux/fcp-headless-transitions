@@ -25,6 +25,9 @@
 //   @Helium 0x62620  HGRenderQueue::SetDebugQueueVerboseMask(unsigned int) (FULL)
 //                    mangled: __ZN13HGRenderQueue24SetDebugQueueVerboseMaskEj
 //                    DECODE:  raw-port/re/disasm/Helium.__ZN13HGRenderQueue24SetDebugQueueVerboseMaskEj.s
+//   @Helium 0x62630  HGRenderQueue::GetDebugQueueVerboseMask() (FULL)
+//                    mangled: __ZN13HGRenderQueue24GetDebugQueueVerboseMaskEv
+//                    DECODE:  raw-port/re/disasm/Helium.__ZN13HGRenderQueue24GetDebugQueueVerboseMaskEv.s
 //
 //   @Helium 0x62600  HGRenderQueue::SetSerializeCustomRenderJobsFlag(bool) (FULL)
 //                    mangled: __ZN13HGRenderQueue32SetSerializeCustomRenderJobsFlagEb
@@ -167,6 +170,44 @@ export class HGRenderQueue {
   SetDebugQueueVerboseMask(mask: number): void {
     // @Helium 0x62624: movl %esi, 0x44(%rdi)
     this.debugQueueVerboseMask = mask >>> 0;
+  }
+
+  /**
+   * `HGRenderQueue::GetDebugQueueVerboseMask()` — Helium @0x00062630
+   * (mangled `__ZN13HGRenderQueue24GetDebugQueueVerboseMaskEv`).
+   *
+   * Full transcription — every instruction of the function, in order
+   * (raw-port/re/disasm/Helium.__ZN13HGRenderQueue24GetDebugQueueVerboseMaskEv.s):
+   *
+   *   0x62630  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x62631  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x62634  movl  0x44(%rdi), %eax     ; return this->debugQueueVerboseMask
+   *   0x62637  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x62638  retq
+   *   0x62639  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * The exact inverse of `SetDebugQueueVerboseMask` @0x62620 one slot earlier in
+   * the binary: a single `movl` out of the +0x44 slot, no lock (contrast
+   * `SetRunMode` @0x62560), no callee, no masking — every bit that was stored
+   * comes back, including bits no reader tests.
+   *
+   * The `unsigned int` return (`movl`, never sign-extended by any consumer — see
+   * the field's doc comment for the `testb`/`cmpl` read sites) is modelled with
+   * `>>> 0`, which is a no-op for a field the setter already stored unsigned but
+   * keeps the width explicit at the boundary.
+   *
+   * DIFFERENTIAL against the live binary (the symbol is exported `T`, so dlsym
+   * reaches it; run under `arch -x86_64` because these are x86_64 offsets): with
+   * a 0x200-byte object filled with 0x5A and the mask planted directly at +0x44,
+   * the call returns exactly that u32 for 0, 1, 2, 0x10, 0x40, 0xdeadbeef and
+   * 0xffffffff, and leaves every other byte of the object untouched — confirming
+   * both the offset and that the getter reads nothing else.
+   *
+   * @returns the queue's debug-verbose bitmask (`%eax`).
+   */
+  GetDebugQueueVerboseMask(): number {
+    // @Helium 0x62634: movl 0x44(%rdi), %eax
+    return this.debugQueueVerboseMask >>> 0;
   }
 
   /**
