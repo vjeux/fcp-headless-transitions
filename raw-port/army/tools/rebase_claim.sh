@@ -112,9 +112,13 @@ cmd_claim () {
   # exactly the same reason this one is, and the two cannot disagree about what is DIRTY.
   gh pr list --repo "$SLUG" --state open --limit 100 --json number,mergeStateStatus >/dev/null 2>&1
   sleep 1
+  # `.baseRefName=="main"`: a rebase onto main is not the remedy for a PR that is not TARGETING main
+  # — see the same clause in review_claim.sh. #656 was handed out here while based on #651's branch;
+  # its DIRTY is a conflict with that peer branch, and "rebase it onto main" would either fail or
+  # publish four stacked PRs' content under one number.
   cand=$(gh pr list --repo "$SLUG" --state open --limit 100 \
-      --json number,headRefName,headRefOid,statusCheckRollup,mergeStateStatus \
-      --jq '.[] | select(([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE") or .mergeStateStatus=="DIRTY") | "\(.number)\t\(.headRefName)\t\(.headRefOid)\t\(.mergeStateStatus)"' 2>/dev/null)
+      --json number,headRefName,headRefOid,statusCheckRollup,mergeStateStatus,baseRefName \
+      --jq '.[] | select(.baseRefName=="main") | select(([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state=="FAILURE") or .mergeStateStatus=="DIRTY") | "\(.number)\t\(.headRefName)\t\(.headRefOid)\t\(.mergeStateStatus)"' 2>/dev/null)
   [ -z "$cand" ] && { echo "NONE"; return 1; }
   while IFS=$'\t' read -r num br sha ms; do
     [ -z "$num" ] && continue
