@@ -61,9 +61,12 @@ carry almost all of the benefit:
   `/Applications/Final Cut Pro.app/.../Flexo` instead is a 78 MB fat Mach-O read that costs a full
   core for **over two minutes** under contention — measured ~1000x worse for the same answer
   (OPS_LOG #22). For disasm bodies, use `symidx.py`, never a linear scan of the otool dump
-  (OPS_LOG #10). Only for UNDEFINED symbols, or a flag the cache genuinely cannot answer, run `nm`
-  against the **thin** slice `/tmp/<FW>.x86_64`, never the fat original — and capture it once in a
-  variable instead of piping `nm` twice in one command.
+  (OPS_LOG #10). If you genuinely need something the cache cannot answer (UNDEFINED symbols, say),
+  know that **thinning does not save you**: under swarm load the same `nm` measured 4m24s on the fat
+  binary and 3m54s on the thin `/tmp/<FW>.x86_64` slice — the cost is the symbol-table walk plus the
+  security stack, not the fat header. Prefer the thin slice anyway, budget minutes for it, capture it
+  ONCE into a variable rather than piping `nm` twice in one command, and consider whether one agent
+  should regenerate the cache for everyone instead (`dump_syms.sh`).
 - **Before a global maintenance tool, check for a peer already running it.** `mark_ported.py`,
   `build_ledger.py` and `depgraph.py` reconcile the WHOLE repo and are idempotent: one run covers
   every agent's commit. `pgrep -f mark_ported` and skip if one is live (OPS_LOG #23).
