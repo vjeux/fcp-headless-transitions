@@ -931,4 +931,159 @@ export class OZAudioMixer {
     // structure so a future porter can wire the boundary if ST ever
     // enters scope. See the FULL DISASM in the header comment above.
   }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // `getTrackPan` @Ozone 0x21b550 — DECODE NOTES
+  //
+  // FILE CHOICE, stated because this class has TWO files on main (the open
+  // OPS_LOG "one class, two files" problem, the same shape as OZScene):
+  // `channels/OZAudioMixer.ts` holds only interfaces (`OZAudioMixerFields`,
+  // `TrackLevelObserverState`), while THIS file holds `export class
+  // OZAudioMixer` and every method in the 0x218xxx/0x21bxxx/0x21cxxx address
+  // family — including `postTrackPanRamp` @0x21b020, whose ST boundary policy
+  // this unit follows exactly. A method belongs with its class body, so it
+  // goes here. Nothing in the other file is touched.
+  //
+  // FULL DISASM (raw-port/re/disasm/
+  //   __ZN12OZAudioMixer11getTrackPanEP7STTrackPf.s, 40 lines):
+  //
+  //   0x21b550  pushq %rbp
+  //   0x21b551  movq  %rsp, %rbp
+  //   0x21b554  pushq %r14
+  //   0x21b556  pushq %rbx
+  //   0x21b557  subq  $0x10, %rsp
+  //   0x21b55b  movq  $0x0, -0x18(%rbp)      ; paramOut = NULL (stack out-slot)
+  //   0x21b563  testq %rsi, %rsi             ; track == NULL ?
+  //   0x21b566  je    0x21b590               ; yes -> return false
+  //   0x21b568  movq  %rdx, %rbx             ; rbx = out (float*)
+  //   0x21b56b  leaq  -0x20(%rbp), %rax      ; &modOut
+  //   0x21b56f  movq  %rsi, %rdi             ; arg0 = track
+  //   0x21b572  movq  %rax, %rsi             ; arg1 = &modOut
+  //   0x21b575  callq _STTrackGetPanModule   ; @stub 0x6dcffc
+  //   0x21b57a  testl %eax, %eax
+  //   0x21b57c  je    0x21b595               ; err == 0 -> indexed-parameter path
+  //   ; --- err != 0 path -------------------------------------------------
+  //   0x21b57e  xorl  %edi, %edi             ; arg0 = NULL parameter
+  //   0x21b580  movq  %rbx, %rsi             ; arg1 = out
+  //   0x21b583  callq _STParameterGetCurrentValue  ; @stub 0x6dcfc6
+  //   0x21b588  testl %eax, %eax
+  //   0x21b58a  sete  %r14b                  ; r14 = (err == 0)
+  //   0x21b58e  jmp   0x21b5ab
+  //   ; --- NULL-track path -----------------------------------------------
+  //   0x21b590  xorl  %r14d, %r14d           ; r14 = 0  (return false)
+  //   0x21b593  jmp   0x21b5ab
+  //   ; --- err == 0 path ---------------------------------------------------
+  //   0x21b595  movq  -0x20(%rbp), %rdi      ; arg0 = modOut
+  //   0x21b599  xorl  %r14d, %r14d           ; default return = false
+  //   0x21b59c  leaq  -0x18(%rbp), %rdx      ; arg2 = &paramOut
+  //   0x21b5a0  xorl  %esi, %esi             ; arg1 = index 0
+  //   0x21b5a2  callq _STModuleGetIndexedParameter ; @stub 0x6dcfba
+  //   0x21b5a7  testl %eax, %eax
+  //   0x21b5a9  je    0x21b5b7               ; err == 0 -> read the value
+  //   ; --- epilogue ----------------------------------------------------------
+  //   0x21b5ab  movl  %r14d, %eax
+  //   0x21b5ae  addq  $0x10, %rsp
+  //   0x21b5b2  popq  %rbx
+  //   0x21b5b3  popq  %r14
+  //   0x21b5b5  popq  %rbp
+  //   0x21b5b6  retq
+  //   0x21b5b7  movq  -0x18(%rbp), %rdi      ; arg0 = paramOut
+  //   0x21b5bb  jmp   0x21b580               ; -> _STParameterGetCurrentValue
+  //   0x21b5bd  nopl  (%rax)                 ; padding, not executed
+  //
+  // AT&T DECODE, the one branch this port depends on: `testq %rsi,%rsi` sets
+  // ZF=1 iff rsi == 0, and `je` is taken on ZF=1 — so the jump to 0x21b590
+  // (which zeroes r14 and returns) is the `track == NULL` case. Getting that
+  // inverted would return false for every VALID track and enter the ST path
+  // on a null pointer, so it is worth reading twice.
+  //
+  // Note the shared tail: the err!=0 path at 0x21b57e and the success path at
+  // 0x21b5b7 BOTH land on 0x21b580, differing only in %rdi — NULL in the first
+  // case, the indexed parameter in the second. So the failed-pan-module case
+  // still calls `_STParameterGetCurrentValue(NULL, out)` and returns whatever
+  // that reports; it does not short-circuit. That asymmetry is easy to miss
+  // and is recorded here for whoever wires the boundary.
+  //
+  // CALLEES: three, ALL out-of-scope externs. `_STTrackGetPanModule`,
+  // `_STParameterGetCurrentValue` and `_STModuleGetIndexedParameter` are Apple
+  // Sound-Transport API entry points; checked against the cached inventory of
+  // all five in-scope frameworks, they are defined in NONE of them (0 hits
+  // each), so they are true boundary crossings and not unported in-scope work.
+  // Same policy, and the same three-line justification, as `postTrackPanRamp`
+  // @0x21b020, `isScrubbing` @0x21c65d and `initMixer` @0x2182e9 in this file.
+  //
+  // ORACLE — raw-port/re/oracle/OZAudioMixer_getTrackPan_oracle.py, under
+  // `arch -x86_64 /usr/bin/python3`. COVERAGE IS ONE PATH OF FOUR, deliberately
+  // and explicitly: only the NULL fast-exit is reachable without a live ST
+  // audio graph, and that is precisely the only path this port transcribes.
+  // Calling the ST paths with a fabricated `STTrack*` would dereference host
+  // audio structures, and a segfaulting harness proves nothing. Results
+  // (2026-08-11):
+  //   * dlsym cross-check PASS — the symbol is exported (`nm` `T`) and both
+  //     resolution routes give the same address.
+  //   * byte self-check PASS —
+  //     `55 48 89 e5 41 56 53 48 83 ec 10 48 c7 45 e8 00 00 00 00 48 85 f6 74 28`;
+  //     `48 85 f6` is the `testq %rsi,%rsi` and `74 28` the `je +0x28` to
+  //     0x21b590, which pins the branch this port reads.
+  //   * 64 trials of `getTrackPan(this, NULL, &out)`: 0 divergences (false
+  //     every time) and the poisoned out-float was written in 0 of them.
+  //   * negative controls, all live: returns-true 64/64, returns-0xff 64/64,
+  //     zeroes-the-out-float-before-returning 64/64.
+  // ═════════════════════════════════════════════════════════════════════════
+  /**
+   * `OZAudioMixer::getTrackPan(STTrack* track, float* out)` — @Ozone 0x21b550
+   * (__ZN12OZAudioMixer11getTrackPanEP7STTrackPf).
+   *
+   * Line-for-line transcription of the disasm quoted above. Returns false when
+   * `track` is NULL — the @0x21b566 fast-exit, which makes no ST call and does
+   * not touch `out` (both confirmed against the live function). Every other
+   * path crosses into the ST audio API, which is TRUE out-of-scope for this
+   * port, so we raise a boundary throw at the first ST call, exactly matching
+   * the policy of every peer method in this file.
+   */
+  getTrackPan(track: STTrackHandle | null, out: Float32Array | null): boolean {
+    // ------------------------------------------------------------
+    // @0x21b55b  movq $0x0, -0x18(%rbp)   ; the paramOut stack slot is
+    //   zero-initialised before the NULL test. It is an ABI-level local, not
+    //   observable in TS, and on this path it is never read.
+    // @0x21b563  testq %rsi, %rsi   ; @0x21b566 je 0x21b590
+    //   ZF=1 iff the STTrack* argument is 0; `je` taken -> 0x21b590, which is
+    //   `xorl %r14d,%r14d` + the shared epilogue: return false, no ST call.
+    // ------------------------------------------------------------
+    if (track === null) {
+      // @0x21b590..@0x21b5b6  xorl %r14d,%r14d ; movl %r14d,%eax ; retq
+      return false;
+    }
+
+    // ------------------------------------------------------------
+    // @0x21b568..@0x21b572  stash out in %rbx, build &modOut in %rax, load the
+    // ST call's arguments. Materialise the read so the port observably
+    // references the out-param that survives to the boundary in %rbx.
+    // ------------------------------------------------------------
+    void out; // @0x21b568 movq %rdx, %rbx — `out` is live across the ST calls.
+
+    // @0x21b575 _STTrackGetPanModule — FIRST ST boundary, out-of-scope extern.
+    throw new Error(
+      "OZAudioMixer::getTrackPan(track, out) requires " +
+        "_STTrackGetPanModule(track, &modOut) @Ozone 0x21b575 (ST audio stub " +
+        "@0x6dcffc) — ST* is not modelled in TS (Apple Sound-Transport API, " +
+        "the same boundary policy as the CoreMedia/pthread externs; see " +
+        "postTrackPanRamp @0x21b04d, isScrubbing @0x21c65d, initMixer " +
+        "@0x2182e9). The disasm continues: (1) if that call returns non-zero, " +
+        "_STParameterGetCurrentValue(NULL, out) @0x21b583 (stub 0x6dcfc6) and " +
+        "return (err == 0) via sete %r14b @0x21b58a; (2) if it returns zero, " +
+        "_STModuleGetIndexedParameter(modOut, 0, &paramOut) @0x21b5a2 (stub " +
+        "0x6dcfba); (3) if THAT returns non-zero, return false (@0x21b5ab with " +
+        "r14 = 0 from @0x21b599); (4) if it returns zero, @0x21b5b7 loads " +
+        "paramOut into %rdi and jumps back into the SAME " +
+        "_STParameterGetCurrentValue call site @0x21b580, returning " +
+        "(err == 0). All three ST callees are out-of-scope Apple " +
+        "audio-transport externs, defined in none of the five in-scope " +
+        "frameworks. @0x21b550",
+    );
+
+    // Unreachable — kept as documentation of the disasm's post-throw
+    // structure so a future porter can wire the boundary if ST ever
+    // enters scope. See the FULL DISASM above.
+  }
 }
