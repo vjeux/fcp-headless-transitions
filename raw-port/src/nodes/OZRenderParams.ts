@@ -1784,8 +1784,16 @@ export class OZRenderParams {
     // @0x270b07 xorpd %xmm0,%xmm0 ; @0x270b0b ucomisd 0x278(%rsi),%xmm0
     //   compares 0.0 - this.renderGateSize.x (the width lane).
     // @0x270b13 jae 0x270b2c : CF=0 => 0.0 >= width => FALLBACK.
-    //   NOT taken (width > 0) => copy the explicit stored gate.
-    if (this.renderGateSizeAt278.x > 0) {
+    //   So the explicit-gate fall-through runs iff CF=1, and CF=1 covers BOTH
+    //   `0.0 < width` AND *unordered* (a NaN operand sets ZF=PF=CF=1).
+    //   Transcribed as the exact negation of the jae condition — `!(0 >= width)`
+    //   — which is true for NaN, matching the machine. The earlier `width > 0`
+    //   was false for NaN and took the fallback, diverging from the binary on
+    //   that one input (it was disclosed in a note here as unreachable "because
+    //   the slot is only ever written from caller-supplied doubles"; that is an
+    //   argument about today's callers, not about this function, and the exact
+    //   transcription costs nothing). Reported by reviewer-06, issue #224.
+    if (!(0 >= this.renderGateSizeAt278.x)) {
       // explicit-gate branch @0x270b15:
       // @0x270b15 movups 0x268 -> origin ; @0x270b1c movups 0x278 -> size
       // @0x270b23 store size@ret+0x10 ; @0x270b27 store origin@ret+0x00
