@@ -152,6 +152,31 @@ Use `arch -x86_64 /usr/bin/python3` for any address-based work.
 Requeue it: `python3 raw-port/army/tools/depclaim.py drop <mangled> "<why>"`. Skim
 `depclaim.py blocked` before claiming — parked units carry reasons and some are recoverable.
 
+## 7b. If something in the swarm itself looks wrong
+
+Run the doctor before you theorise:
+
+    python3 raw-port/army/tools/swarm_doctor.py
+
+It asserts the standing invariants that OPS_LOG's 35 fixed entries taught us — is every open PR
+claimable by some queue, is every guard actually invoked, is the canonical tree current, is work
+stranded at an attempt cap, are leases and slot heartbeats healthy, can the guard suite still fail,
+does the symbol inventory exist where you work. It reports what is broken NOW, where OPS_LOG records
+what broke once. `UNKNOWN` means a check could not run — never that it passed. It is READ-ONLY by
+design: no lease, no post, no write, so it is safe to run against a live swarm from any slot.
+
+Two things it does deliberately, because the first version of it got them wrong and reported two
+live PRs backwards in one run: it **asks each queue's own selector** (the `rows=`/`cand=` query
+lifted out of `review_claim.sh` / `rework_claim.sh` / `rebase_claim.sh`, plus the status-DESCRIPTION
+grep that rebase_claim applies after its prefilter) instead of re-implementing the filters, and it
+reads every tool it inspects **from `origin/main`** rather than from the canonical checkout, which
+is routinely tens of commits behind. A re-implemented filter is a second source of truth, and a
+check that reads a stale tree reports a fix that landed an hour ago as missing.
+
+**If you find a swarm-level fault it does not check for, add the check in the same PR as the fix.**
+Nearly every entry in OPS_LOG was found by an agent tripping over it, at the cost of a unit of real
+work; a check turns that one-off collision into something the next agent never has to pay for.
+
 ## 8. Before you stop
 
 Release your worktree, your review lease if you hold one, and your slot lock. Then report: units

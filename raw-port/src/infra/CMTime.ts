@@ -477,6 +477,125 @@ export function CMTimeMultiplyByFloat64(t: CMTime, multiplier: number): CMTime {
   return cmTimeInfinity((t.value >= 0n) === (multiplier >= 0));
 }
 
+/**
+ * CMTimeMultiply(time, multiplier) — CMTime scaled by an INTEGER.
+ * @CoreMedia public API — CMTime.h:
+ *   `CMTime CMTimeMultiply(CMTime time, int32_t multiplier)`.
+ * Called from ProCore via __stubs at 0xde3d2 (referenced by
+ * `operator*(CMTime const&, int)` __ZmlRK6CMTimei at 0x581e6).
+ *
+ * -----------------------------------------------------------------------------
+ * EVERY RULE BELOW WAS MEASURED AGAINST THE LIVE CoreMedia SYMBOL, NOT READ OFF
+ * THE HEADER DOC
+ * -----------------------------------------------------------------------------
+ * The first version of this model was written from Apple's prose ("exact integer
+ * scaling; preserves timescale, epoch and validity flags; invalid times propagate
+ * as-is") and reviewer-1 showed by differential that all three clauses are wrong
+ * in the cases that matter. `CMTimeMultiply` is an exported, directly dlsym-able
+ * symbol, so its contract is a measurable fact. Harness:
+ * raw-port/re/oracle/CMTimeMultiply_oracle.py.
+ *
+ *   1. INVALID (Valid bit clear) returns a FULLY ZEROED CMTime — value, timescale,
+ *      flags and epoch all 0. It does NOT propagate the input. Measured:
+ *      (v=100 ts=600 fl=0x0) x 3 -> (0, 0, 0x0, 0); same for fl=0x2.
+ *   2. INDEFINITE returns kCMTimeIndefinite (0, 0, Valid|Indefinite, 0) for every
+ *      multiplier including 0 and negatives, and it OUTRANKS an infinity bit:
+ *      fl=0x15 (Valid|PosInf|Indefinite) -> 0x11.
+ *   3. ±INFINITY returns (0, 0, Valid|<direction>, 0), and a NEGATIVE multiplier
+ *      FLIPS the direction: fl=0x5 x -3 -> 0x9, fl=0x9 x -3 -> 0x5. A ZERO
+ *      multiplier does NOT flip it (fl=0x5 x 0 -> 0x5), so this is a sign test on
+ *      the multiplier and not a multiplication.
+ *   4. FINITE, in range: exactly value*multiplier, with timescale, flags AND epoch
+ *      carried through unchanged. 6,277 random in-range triples: 6,277 matched.
+ *   5. OUT OF RANGE, and this is the sharp part: CoreMedia does NOT saturate the
+ *      value. It REDUCES THE TIMESCALE and rescales, iteratively, setting
+ *      kCMTimeFlags_HasBeenRounded when a step is inexact — e.g.
+ *      (2^62, ts=600) x 4 -> (2^62, ts=150) exactly, while
+ *      (INT64_MAX, ts=600) x 2 -> (2^62, ts=150, fl=0x3). The reduction accumulates
+ *      per-step rounding: (INT64_MAX, ts=600) x 600 -> (9223372036854775800, ts=1),
+ *      seven short of INT64_MAX, which a single exact rescale would not produce. If
+ *      the timescale cannot be reduced far enough it returns an INFINITY:
+ *      (2^62, ts=1) x 4 -> (0, 0, 0x5, 0).
+ *
+ * THE IN-RANGE BOUNDARY IS EXACT, and it is not the one you would assume. The
+ * product is returned verbatim iff |value*multiplier| <= INT64_MAX - 1; at
+ * |product| == INT64_MAX itself CoreMedia already reduces. Binary-searched on the
+ * live symbol for multipliers 1, 2, 3, 7 and 600: the largest verbatim product is
+ * 9223372036854775806 in every case, and INT64_MAX x 1 comes back as
+ * (2^62, ts=300, fl=0x3) rather than unchanged. INT64_MIN likewise reduces.
+ *
+ * WHY RULE 5 THROWS INSTEAD OF BEING MODELLED. Rules 1-4 are exactly reproducible
+ * and are reproduced. Rule 5 is an iterative reduction whose rounding is applied
+ * per step, so writing it out would mean reconstructing an Apple algorithm from its
+ * outputs and shipping whatever did not get disproven — which is the failure this
+ * model was rejected for the first time. Out of range it therefore THROWS, citing
+ * the stub, which is loud and cannot corrupt a downstream time computation. The
+ * throw is unreachable for any ordinary FCP timeline value: at the 600 timescale
+ * this repo's CMTime code uses throughout, it needs |value| above 1.5e16 — more than
+ * 480,000 years of media.
+ */
+export function CMTimeMultiply(time: CMTime, multiplier: number): CMTime {
+  const m = multiplier | 0; // the int32_t parameter
+  // (1) Invalid -> fully zeroed, NOT propagated. Measured, not assumed.
+  if ((time.flags & kCMTimeFlags_Valid) === 0) {
+    return { value: 0n, timescale: 0, flags: 0, epoch: 0n };
+  }
+  // (2) Indefinite outranks an infinity bit and ignores the multiplier entirely.
+  if ((time.flags & kCMTimeFlags_Indefinite) !== 0) {
+    return {
+      value: 0n,
+      timescale: 0,
+      flags: kCMTimeFlags_Valid | kCMTimeFlags_Indefinite,
+      epoch: 0n,
+    };
+  }
+  // (3) ±Infinity: a NEGATIVE multiplier flips the direction; 0 and positives do not.
+  const posInf = (time.flags & kCMTimeFlags_PositiveInfinity) !== 0;
+  const negInf = (time.flags & kCMTimeFlags_NegativeInfinity) !== 0;
+  if (posInf || negInf) {
+    const flip = m < 0;
+    const wantPos = posInf ? !flip : flip;
+    return {
+      value: 0n,
+      timescale: 0,
+      flags:
+        kCMTimeFlags_Valid |
+        (wantPos ? kCMTimeFlags_PositiveInfinity : kCMTimeFlags_NegativeInfinity),
+      epoch: 0n,
+    };
+  }
+  // (4) Finite and in range: the exact product, with timescale, flags and epoch
+  //     carried through unchanged.
+  const product = time.value * BigInt(m);
+  if (product >= -CMTIME_MULTIPLY_MAX_ABS && product <= CMTIME_MULTIPLY_MAX_ABS) {
+    return {
+      value: product,
+      timescale: time.timescale,
+      flags: time.flags,
+      epoch: time.epoch,
+    };
+  }
+  // (5) Out of range: CoreMedia reduces the timescale iteratively. Not modelled —
+  //     see the block comment above.
+  throw new Error(
+    "CMTimeMultiply: |value * multiplier| exceeds INT64_MAX - 1, where CoreMedia " +
+      "reduces the timescale iteratively (setting kCMTimeFlags_HasBeenRounded, and " +
+      "returning an infinity once the timescale cannot be reduced further) rather " +
+      "than scaling the value. That reduction is not transcribed from any FCP " +
+      "instruction and is not reproduced here; the out-of-scope extern is reached " +
+      "at @ProCore 0xde3d2 (symbol stub for _CMTimeMultiply, called @ProCore " +
+      "0x581e6). value=" + time.value.toString() + " multiplier=" + m.toString(),
+  );
+}
+
+/**
+ * The largest |value * multiplier| CoreMedia returns verbatim: INT64_MAX - 1.
+ * Binary-searched against the live symbol (see the CMTimeMultiply block comment);
+ * INT64_MAX itself already triggers the timescale reduction.
+ * @0xADDR ProCore 0xde3d2  (the _CMTimeMultiply stub whose behaviour this pins)
+ */
+const CMTIME_MULTIPLY_MAX_ABS = 9223372036854775806n; // 2^63 - 2
+
 // ── kCMTimeRoundingMethod (CoreMedia CMTime.h enum) ────────────────────────────
 // @const CoreMedia CMTime.h  (public API — CMTimeRoundingMethod enum values).
 // Used as the 3rd arg to CMTimeConvertScale to pick the rounding used when the
@@ -811,6 +930,48 @@ export function CMTimeMul_double(t: CMTime, m: number): CMTime {
 export function CMTimeMul_doubleCMTime(m: number, t: CMTime): CMTime {
   // 0x58189-0x581a5: marshal `t` by value; 0x581a9: _CMTimeMultiplyByFloat64(t, m).
   return CMTimeMultiplyByFloat64(t, m);
+}
+
+/**
+ * operator*(CMTime const& t, int m) — CMTime scaled by an INTEGER.
+ * @ProCore 0x581b8  (__ZmlRK6CMTimei — "operator*(CMTime const&, int)")
+ *
+ * DECODE (raw-port/re/disasm/ProCore.__ZmlRK6CMTimei.s — 21-line body):
+ *   0x581b8  pushq  %rbp
+ *   0x581b9  movq   %rsp, %rbp
+ *   0x581bc  pushq  %rbx
+ *   0x581bd  subq   $0x38, %rsp                    ; 56B frame (locals + outgoing CMTime arg)
+ *   0x581c1  movq   %rdi, %rbx                     ; spill NRVO out-ptr (hidden 1st arg: CMTime* dst)
+ *   ; --- copy the CMTime `t` (arg via %rsi) onto the frame as the outgoing arg ---
+ *   0x581c4  movq   0x10(%rsi), %rax               ; rax = t.epoch  (i64 @+0x10)
+ *   0x581c8  movq   %rax, -0x10(%rbp)              ; spill epoch to -0x10
+ *   0x581cc  movups (%rsi), %xmm0                  ; xmm0 = t[0..15] = value|timescale|flags
+ *   0x581cf  movaps %xmm0, -0x20(%rbp)             ; spill the 16-byte head to -0x20
+ *   0x581d3  movq   -0x10(%rbp), %rax              ; reload epoch
+ *   0x581d7  movq   %rax, 0x10(%rsp)               ; -> outgoing arg +0x10 (epoch)
+ *   0x581dc  movaps -0x20(%rbp), %xmm0             ; reload head
+ *   0x581e0  movups %xmm0, (%rsp)                  ; -> outgoing arg +0x00 (value|timescale|flags)
+ *   0x581e4  movl   %edx, %esi                     ; esi = m (the int multiplier)
+ *   0x581e6  callq  __stubs 0xde3d2                ; _CMTimeMultiply(time=t, multiplier=m)
+ *   0x581eb  movq   %rbx, %rax                     ; return the NRVO out-ptr
+ *   0x581ee  addq   $0x38, %rsp
+ *   0x581f2  popq   %rbx
+ *   0x581f3  popq   %rbp
+ *   0x581f4  retq
+ *
+ * A THIN WRAPPER — the integer sibling of `CMTimeMul_double`. The int multiplier
+ * `m` arrives in %edx, is moved to %esi (the 2nd arg of `_CMTimeMultiply`), and
+ * the CMTime `t` is copied to the stack as the by-value `time` argument. No sign
+ * flip, no argument mutation, no arithmetic beyond the CoreMedia call. The
+ * `_CMTimeMultiply` call is CoreMedia (modelled above as `CMTimeMultiply`).
+ *
+ * @param t the CMTime operand (was the %rsi reference).
+ * @param m the int multiplier (was in %edx).
+ */
+export function CMTimeMul_int(t: CMTime, m: number): CMTime {
+  // 0x581c4-0x581e4: marshal `t` by value + move m into the 2nd arg slot;
+  // 0x581e6: _CMTimeMultiply(t, m).
+  return CMTimeMultiply(t, m);
 }
 
 /**

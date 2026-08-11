@@ -1086,4 +1086,89 @@ export class OZAudioMixer {
     // structure so a future porter can wire the boundary if ST ever
     // enters scope. See the FULL DISASM above.
   }
+
+  /**
+   * `OZAudioMixer::getNumMixerTracks()` — @Ozone 0x219700
+   *   (__ZN12OZAudioMixer17getNumMixerTracksEv).
+   *
+   * FULL DISASM (raw-port/re/disasm/__ZN12OZAudioMixer17getNumMixerTracksEv.s, 15 lines):
+   *
+   *   0x219700  pushq  %rbp                     ; frame setup (no TS counterpart)
+   *   0x219701  movq   %rsp, %rbp
+   *   0x219704  pushq  %rbx                     ; callee-saved spill
+   *   0x219705  pushq  %rax                     ; 8 bytes of frame for the out-param
+   *   0x219706  movq   0x10(%rdi), %rdi         ; rdi = this->STMixer_at_0x10
+   *   0x21970a  xorl   %ebx, %ebx               ; result = 0  — the value returned by every
+   *                                             ;   path that does not reach the load below
+   *   0x21970c  testq  %rdi, %rdi               ; mixer == NULL ?
+   *   0x21970f  je     0x219721                 ;   yes -> return 0, calling nothing
+   *   0x219711  leaq   -0x10(%rbp), %rsi        ; rsi = &count (the stack slot pushed above)
+   *   0x219715  callq  0x6dcf30                 ## symbol stub for: _STMixerCountTracks
+   *                                             ;   eax = OSStatus, count written through rsi
+   *   0x21971a  testl  %eax, %eax               ; status == 0 ?
+   *   0x21971c  jne    0x219721                 ;   non-zero (an error) -> return 0
+   *   0x21971e  movl   -0x10(%rbp), %ebx        ; result = count
+   *   0x219721  movl   %ebx, %eax               ; shared return of `result`
+   *   0x219723  addq   $0x8, %rsp ; popq %rbx ; popq %rbp ; retq
+   *   0x21972a  nopw   (%rax,%rax)              ; alignment padding, not executed
+   *
+   * SEMANTICS: the track count, or 0. Note that BOTH failure paths — no mixer, and a non-zero
+   * OSStatus — return the same 0 as a mixer that genuinely has no tracks, because `%ebx` is zeroed
+   * once up front @0x21970a and is the only thing ever returned. The caller cannot distinguish
+   * "no mixer" from "error" from "zero tracks"; that is the function, not a simplification of it.
+   * Note also that the out-param slot at -0x10(%rbp) is NOT initialised before the call, so its
+   * value is only ever read on the path where the callee reported success.
+   *
+   * FRONTIER CALLEE, exactly one: `_STMixerCountTracks` @Ozone stub 0x6dcf30, called @0x219715. It
+   * is an Apple Sound-Transport extern, defined in none of the five in-scope frameworks, and it is
+   * VALUE-PRODUCING — it reports a status and writes a count that this port cannot synthesize —
+   * so under the RESOLVED extern-boundary ruling it throws with its @0xADDR rather than being
+   * modelled as a no-op. The pre-boundary work is real and IS transcribed below: the +0x10 load,
+   * the zeroed result and the NULL-mixer early return all execute before anything crosses the
+   * boundary, and a mixer-less OZAudioMixer answers 0 through this port exactly as it does in the
+   * binary.
+   *
+   * WHY A THROW AND NOT A BRIDGE, since the reviewer of #538 asked for the bridge shape in an
+   * analogous case: this file already models the ST boundary five times over — `initMixer`
+   * @0x2182e9, `isScrubbing` @0x21c65d, `isPlaying`, `postTrackPanRamp` @0x21b04d and `getTrackPan`
+   * @0x21b575 all throw at their first ST call, citing the stub and documenting the post-throw
+   * disasm. Introducing a bridge for this one method would put two models of one boundary in one
+   * class file, which is the drift PORTING_SPEC Rule 5 exists to prevent, and re-modelling the
+   * other five is not this unit and would not be ADD-only. If ST is ever bridged, it should be
+   * bridged for the whole file in one deliberate change; this method will fit that shape without
+   * re-derivation, because the disasm after the boundary is written out above.
+   *
+   * ZERO in-scope callees (`depgraph.py deps __ZN12OZAudioMixer17getNumMixerTracksEv` lists
+   * nothing), no indirect and no virtual dispatch.
+   *
+   * @returns the 32-bit count in %eax.
+   */
+  getNumMixerTracks(): number {
+    // @0x219706  movq 0x10(%rdi), %rdi — the mixer handle.
+    const mixer = this.STMixer_at_0x10;
+    // @0x21970a  xorl %ebx, %ebx — the result register, zero for every early exit.
+    // @0x21970c/@0x21970f  testq %rdi,%rdi ; je 0x219721 — no mixer, nothing to count.
+    if (mixer === null) {
+      // @0x219721  movl %ebx, %eax — returns the 0 set at @0x21970a, having called nothing.
+      return 0;
+    }
+    // @0x219711/@0x219715  leaq -0x10(%rbp), %rsi ; callq _STMixerCountTracks — FIRST and only
+    //   ST boundary.
+    throw new Error(
+      "OZAudioMixer::getNumMixerTracks() requires " +
+        "_STMixerCountTracks(this->STMixer_at_0x10, &count) @Ozone 0x219715 (ST audio stub " +
+        "@0x6dcf30) — ST* is not modelled in TS (Apple Sound-Transport API), the same boundary " +
+        "policy this file already applies at initMixer @0x2182e9, isScrubbing @0x21c65d, " +
+        "postTrackPanRamp @0x21b04d and getTrackPan @0x21b575. The disasm continues: " +
+        "testl %eax,%eax @0x21971a — a NON-ZERO OSStatus returns 0 (@0x21971c jumps to the " +
+        "shared exit with %ebx still 0 from @0x21970a); a zero status loads the out-param " +
+        "at -0x10(%rbp) into %ebx @0x21971e and returns that count. Both failure paths and a " +
+        "genuinely empty mixer are indistinguishable to the caller — all three return 0. " +
+        "@0x219700",
+    );
+
+    // Unreachable — the post-boundary structure is documented in the message above and in the
+    // FULL DISASM, so a future porter can wire this if ST ever enters scope, exactly as
+    // getTrackPan @0x21b550 records its own.
+  }
 }
