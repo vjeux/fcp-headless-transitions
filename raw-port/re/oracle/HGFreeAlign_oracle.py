@@ -37,6 +37,7 @@ import ctypes, json, os, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ozone_loader import load_framework, local_fn, require_x86_64  # noqa: E402
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 require_x86_64()
 
@@ -136,7 +137,7 @@ def ts_side(rows):
     driver = os.path.join(HERE, "HGFreeAlign_driver.mts")
     req = {"sizes": [r["size"] for r in rows]}
     p = subprocess.run(["node", "--experimental-strip-types", driver],
-                       input=json.dumps(req), capture_output=True, text=True)
+                       input=json.dumps(req), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         print("TS DRIVER FAILED:\n" + p.stderr, file=sys.stderr)
         sys.exit(2)

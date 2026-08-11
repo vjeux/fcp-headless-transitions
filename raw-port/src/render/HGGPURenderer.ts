@@ -73,6 +73,8 @@
 // __ZNK13HGGPURenderer10GetGLStateEv likewise lists nothing: 0 in-scope deps,
 // 0 indirect, 0 out-of-scope externs; READY.
 
+import { HGMetalSharedEvent } from "./HGMetalSharedEvent.js";
+
 /**
  * `HGMetalContext` — opaque Metal-backed render-context handle. Not
  * modelled here (the concrete type lives in the Metal-context ledger
@@ -406,5 +408,96 @@ export class HGGPURenderer {
   GetMetalHandler(): HGMetalHandler | null {
     // @0x11d34  movq 0x520(%rdi),%rax — returned raw, exactly as loaded.
     return this.metalHandler_at_0x520;
+  }
+
+  /**
+   * @Helium offset +0x530 — the `HGMetalSharedEvent*` this renderer signals at the end of a
+   * render pass (the "render event").
+   *
+   * THE TYPE IS NAMED BY THE BINARY, twice, so it is not inferred from the getter alone:
+   *   * `HGGPURenderer::InitMetal()` @Helium 0x9b30 builds one and stores it here —
+   *     `callq __ZN18HGMetalSharedEventC1E15HGMTLDeviceType` @0x9ce2 (i.e.
+   *     `HGMetalSharedEvent::HGMetalSharedEvent(HGMTLDeviceType)`) followed by
+   *     `movq %r14, 0x530(%rbx)` @0x9ce7 — the matched 8-byte store that fixes offset, width and
+   *     type at once.
+   *   * `HGGPURenderer::EncodeRenderEventSignal()` @Helium 0x11dc0 loads it into the receiver
+   *     register — `movq 0x530(%rdi), %rdi` @0x11dd4 — and calls
+   *     `__ZN18HGMetalSharedEvent6signalE21HGMTLCommandQueueType` @0x11df2 on it.
+   *
+   * NULLABLE, and the binary says so rather than this port assuming it: the constructor
+   * `HGGPURenderer::HGGPURenderer(unsigned long long, bool)` @Helium 0x88a0 zeroes it as part of
+   * the 16-byte `movups %xmm0, 0x528(%rbx)` @0x8977 (which covers +0x528 and +0x530), only
+   * `InitMetal` ever fills it, and `EncodeRenderEventSignal` @0x11ddb explicitly tests it with
+   * `testq %rdi, %rdi ; setne %cl` before using it. A renderer that never ran `InitMetal` therefore
+   * holds null here — which is exactly what {@link HGGPURenderer.GetRenderEvent} hands back,
+   * unfiltered.
+   *
+   * Typed with the real in-tree class rather than a branded opaque handle (the convention the
+   * un-ported `HGMetalHandler`/`HGMetalContext` pointees above use) because this pointee IS ported:
+   * `src/render/HGMetalSharedEvent.ts`. Nothing here models its internals — but note the sibling
+   * `HGGPURenderer::GetLastRenderEventSignalValue() const` @Helium 0x11ec0, which is
+   * `movq 0x530(%rdi),%rax ; movq 0x10(%rax),%rax`: it reads the +0x10 slot that
+   * HGMetalSharedEvent.ts records as "zeroed by the ctor's 16-byte movups and never written again
+   * by any decoded instruction here; role unknown". That sibling is its own ledger unit, and this
+   * note is evidence for whoever claims it, not a change to that file.
+   */
+  renderEvent_at_0x530: HGMetalSharedEvent | null = null;
+
+  /**
+   * `HGGPURenderer::GetRenderEvent()` — @Helium 0x11eb0
+   *   (__ZN13HGGPURenderer14GetRenderEventEv)
+   *
+   * One load: hand back the `HGMetalSharedEvent*` at +0x530, unchanged.
+   *
+   * FULL DISASM (raw-port/re/disasm/Helium.__ZN13HGGPURenderer14GetRenderEventEv.s — 6 lines:
+   * the label plus five instructions), every instruction accounted for:
+   *
+   *   0x11eb0  55              pushq %rbp              ; frame setup (no TS counterpart)
+   *   0x11eb1  48 89 e5        movq  %rsp, %rbp
+   *   0x11eb4  48 8b 87 30 05 00 00
+   *                            movq  0x530(%rdi), %rax ; rax = this->renderEvent_at_0x530
+   *   0x11ebb  5d              popq  %rbp              ; epilogue (no TS counterpart)
+   *   0x11ebc  c3              retq                    ; the loaded qword IS the return value
+   *   0x11ebd  0f 1f 00        nopl  (%rax)            ; alignment pad — not executed
+   *
+   * THE BODY IS COMPLETE: the thirteen instruction bytes run 0x11eb0..0x11ebc, the three-byte
+   * `nopl` pads to 0x11ec0, and the next symbol starts at exactly 0x11ec0
+   * (`__ZNK13HGGPURenderer29GetLastRenderEventSignalValueEv`) — no room for anything else. The
+   * disp32 form of the load (`48 8b 87 30 05 00 00`) is what a displacement above 0x7f requires,
+   * and it is the only place the offset appears.
+   *
+   * NO NULL CHECK, NO RETAIN, NO SIDE EFFECT — there is no branch and no call in the body. A
+   * renderer that never ran `InitMetal` gets null back (see the field note above); adding a guard
+   * or a fallback here would be an instruction the machine does not execute.
+   *
+   * NOT `const`: the mangled name is `__ZN…` and not `__ZNK…`, unlike the sibling getters
+   * `GetMetalHandler` @0x11d30 and `GetLastRenderEventSignalValue` @0x11ec0. The body reads and
+   * writes nothing regardless; the qualifier is a signature fact, recorded because it is the one
+   * way this symbol's name differs from its neighbours.
+   *
+   * DEPENDENCIES: none (`depgraph.py deps __ZN13HGGPURenderer14GetRenderEventEv` lists nothing).
+   *
+   * MEASURED AGAINST THE LIVE BINARY.
+   * `raw-port/re/oracle/HGGPURenderer_GetRenderEvent_oracle.py` (under
+   * `arch -x86_64 /usr/bin/python3`) dlsym's this exported `T` symbol, checks the address is
+   * slide+0x11eb0 and that the 13 mapped opcode bytes are the ones listed above, then runs two
+   * families over a 0xEE-poisoned 0x600-byte arena standing in for the renderer:
+   *   * VALUE ROUND-TRIP (live only — a JS reference has no bit pattern to compare): 14 sentinels
+   *     planted at +0x530, each returned bit-for-bit, including 0 (no substitution for null),
+   *     0xFFFFFFFFFFFFFFFF (no sign or width mangling) and the poison word itself;
+   *   * SLOT IDENTITY, as a TS-vs-binary DIFFERENTIAL: with a DISTINCT value in each of +0x458,
+   *     +0x520, +0x528, +0x530 and +0x538, the live function must return the +0x530 one — and the
+   *     REAL TypeScript below, driven by `HGGPURenderer_GetRenderEvent_driver.mts` with a distinct
+   *     object in each modelled field, must return the object from the same slot. The arena is
+   *     byte-identical after every call.
+   * Five negative controls (read +0x520, read +0x458, null the result, fabricate a fresh event,
+   * return the last-signal slot) must each diverge from the live answers, and do.
+   * Result at Helium slide 0x10f00a000: **PASS, 0 checks failed** (26 checks).
+   *
+   * @returns the `HGMetalSharedEvent*` at `this + 0x530`, verbatim — null included.
+   */
+  GetRenderEvent(): HGMetalSharedEvent | null {
+    // @0x11eb4  movq 0x530(%rdi), %rax — the whole body: one load, returned unchanged.
+    return this.renderEvent_at_0x530;
   }
 }

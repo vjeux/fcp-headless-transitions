@@ -27,6 +27,7 @@ import ctypes, json, os, random, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ozone_loader as OZ
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 DRIVER = os.path.join(HERE, "HGMetalDeviceInfo_location_driver.mts")
 SYMS = {"isBuiltin": "__ZNK17HGMetalDeviceInfo9isBuiltinEv",
@@ -79,7 +80,7 @@ def main():
 
     proc = subprocess.run(["node", "--experimental-strip-types", DRIVER],
                           input=json.dumps({"values": vals}), capture_output=True,
-                          text=True, cwd=HERE)
+                          text=True, cwd=HERE, timeout=DRIVER_TIMEOUT)
     if proc.returncode != 0:
         raise SystemExit("TS driver failed:\n" + proc.stderr[-2000:])
     ts = json.loads(proc.stdout)

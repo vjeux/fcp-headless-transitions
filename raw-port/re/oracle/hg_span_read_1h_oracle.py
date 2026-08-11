@@ -20,6 +20,10 @@ import os
 import platform
 import struct
 import subprocess
+
+# A driver that does not terminate is a mutant that was KILLED, not a pending result: two of them
+# held a core for 2h31m before anyone noticed. See re/oracle/oracle_driver.py for the full account.
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 import sys
 
 FW = ("/Applications/Final Cut Pro.app/Contents/Frameworks/"
@@ -185,7 +189,7 @@ def main():
         here = os.path.dirname(os.path.abspath(__file__))
         rawport = os.path.abspath(os.path.join(here, "..", ".."))
         p = subprocess.run(["npx", "tsx", os.path.join(here, "hg_span_read_1h_driver.ts")],
-                           cwd=rawport, input=json.dumps(wire), capture_output=True, text=True)
+                           cwd=rawport, input=json.dumps(wire), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
         if p.returncode != 0:
             print("TS driver failed:\n" + p.stdout[-2000:] + p.stderr[-2000:])
             return 2
