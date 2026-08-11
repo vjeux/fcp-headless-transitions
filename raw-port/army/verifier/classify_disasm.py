@@ -89,6 +89,17 @@ def classify(path):
     if not path or not os.path.exists(path):
         return {"class": "UNKNOWN", "reason": "no disasm file"}
     text = open(path, errors="replace").read()
+    # A ZERO-BYTE .s IS NOT EVIDENCE OF AN EMPTY FUNCTION. It means the disassembly could not be
+    # produced — usually the wrong framework was passed to disasm.sh (the symbol lives elsewhere),
+    # or an ICF blowup was truncated. Falling through would count 0 stores / 0 calls / 0 instrs and
+    # classify EMPTY, which is INDISTINGUISHABLE from a genuinely empty body — so a no-op TS port of
+    # a REAL function would be accepted as faithful. reviewer-03 hit this on #276. Audited when this
+    # guard was added: 197 zero-byte .s files existed in the cache and 24 of them named symbols with
+    # a real body in a DIFFERENT framework, i.e. 24 live opportunities for that false verdict.
+    if not text.strip():
+        return {"class": "UNKNOWN",
+                "reason": "empty disasm file — could not disassemble (wrong framework? ICF?); "
+                          "NOT evidence of an empty body"}
     if UD2.search(text):
         return {"class":"TRAP","stores":0,"compute":0,"direct_calls":0,"indirect_calls":0,
                 "loads":0,"cmp_data":0,"instrs":0,"reason":"ud2 present"}
