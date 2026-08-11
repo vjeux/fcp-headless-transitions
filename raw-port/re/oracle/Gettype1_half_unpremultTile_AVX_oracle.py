@@ -48,6 +48,10 @@ import os
 import random
 import struct
 import subprocess
+
+# A driver that does not terminate is a mutant that was KILLED, not a pending result: two of them
+# held a core for 2h31m before anyone noticed. See re/oracle/oracle_driver.py for the full account.
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -193,7 +197,7 @@ def run_ts(cases, state_shift=0):
              "stateShift": state_shift}
             for c in cases]
     p = subprocess.run([tsx, TS_DRIVER], input=json.dumps(wire), capture_output=True, text=True,
-                       cwd=os.path.join(REPO, "raw-port"))
+                       cwd=os.path.join(REPO, "raw-port"), timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         raise SystemExit("TS driver failed:\n" + p.stdout[-4000:] + p.stderr[-4000:])
     return json.loads(p.stdout.strip().splitlines()[-1])

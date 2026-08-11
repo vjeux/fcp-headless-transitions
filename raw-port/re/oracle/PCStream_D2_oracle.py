@@ -25,6 +25,10 @@ import os
 import platform
 import random
 import subprocess
+
+# A driver that does not terminate is a mutant that was KILLED, not a pending result: two of them
+# held a core for 2h31m before anyone noticed. See re/oracle/oracle_driver.py for the full account.
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 import sys
 
 SYM = "_ZN8PCStreamD2Ev"     # dlsym: no leading underscore
@@ -91,7 +95,7 @@ def main():
     tsx = os.path.join(REPO, "raw-port", "node_modules", ".bin", "tsx")
     driver = os.path.join(REPO, "raw-port", "re", "oracle", "PCStream_D2_driver.ts")
     p = subprocess.run([tsx, driver], capture_output=True, text=True,
-                       cwd=os.path.join(REPO, "raw-port"))
+                       cwd=os.path.join(REPO, "raw-port"), timeout=DRIVER_TIMEOUT)
     ts_ok = p.returncode == 0 and p.stdout.strip().splitlines()[-1] == "TS_NO_EFFECT"
     print("TS port: no-effect confirmed" if ts_ok else "TS port: FAILED\n" + p.stdout + p.stderr)
 

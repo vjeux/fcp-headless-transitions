@@ -117,18 +117,38 @@ def check_pr_base():
     offers is stranded, which this log already records three times — the right place to stop is the
     two tools that would act wrongly (both now refuse), and the right thing here is to make the
     condition visible. `pr_submit.sh` passes `--base main`, so only a hand-rolled `gh pr create`
-    produces one, which is how every ops/tooling PR is opened."""
+    produces one, which is how every ops/tooling PR is opened.
+    SECOND HALF (#656, worker 9): the same condition also breaks the REBASE queue, and there the
+    remedy is a guard rather than a refusal. `rebase_pr.sh` merged `origin/main` unconditionally, so
+    for a stacked PR the remedy could not clear the conflict it was charged an attempt for — #656
+    took two such merges from two agents minutes apart and stayed DIRTY, each pass printing
+    `REBASE_CLEAN … pushed`. `git merge-tree --write-tree origin/main <head>` agrees with the tool
+    the whole time, because it is answering about a different base commit, so nothing anywhere reads
+    as an error. This check therefore also asserts that `rebase_pr.sh` ON ORIGIN/MAIN resolves
+    `baseRefName` before merging (read from main, not from the canonical tree, which runs tens of
+    commits behind and would certify a fix that has not landed).
+    """
+    guard_src = from_main("raw-port/army/tools/rebase_pr.sh")
+    guarded = None if not guard_src else (
+        "baseRefName" in guard_src and 'merge --no-edit "origin/$BASE"' in guard_src)
     prs, err = gh_json(f"pr list --repo {SLUG} --state open --limit 200 --json number,baseRefName,headRefName")
     if prs is None:
         return record("pr-base", UNKNOWN, f"could not list open PRs to check their base: {err}", "#46")
     off = [f"#{p['number']} -> {p.get('baseRefName')}" for p in prs
            if p.get("baseRefName") != "main"]
-    if off:
+    if guarded is None:
+        guardnote = "; could not read rebase_pr.sh from origin/main to check its base handling"
+    elif guarded:
+        guardnote = "; rebase_pr.sh resolves the PR's base before merging"
+    else:
+        guardnote = ("; AND rebase_pr.sh merges origin/main without asking for baseRefName, so the "
+                     "rebase queue burns this PR's attempts on a merge that cannot clear it (#656)")
+    if off or guarded is False:
         return record("pr-base", FAIL,
                       f"{len(off)} open PR(s) do not target main, so pr_gate's verdict and pr_land's "
-                      f"merge target disagree: {', '.join(off[:8])} — retarget with "
-                      f"`gh pr edit <n> --base main`", "#46")
-    record("pr-base", OK, f"all {len(prs)} open PR(s) target main")
+                      f"merge target disagree: {', '.join(off[:8]) or '(none right now)'} — retarget "
+                      f"with `gh pr edit <n> --base main`" + guardnote, "#46")
+    record("pr-base", OK, f"all {len(prs)} open PR(s) target main" + guardnote)
 
 
 def check_queue_coverage():
@@ -383,6 +403,70 @@ def check_guards_wired():
            f"all {len(guards)} guards are invoked by a caller [origin/main {MAIN_SHA}]", "#44")
 
 
+def check_orphan_drivers():
+    """#47: a mutant that never terminates burns a core until someone notices by hand.
+
+    Two `tsx` driver processes were found at ~98% CPU, one 2h31m old (66 CPU-minutes), both mutants
+    of the same unit. The mutation disabled a pointer advance, so the walk compared the same node
+    forever — correct behaviour for a mutant, and nothing scored it. 69 of 69 driver-spawning calls
+    in the repo passed no timeout, so the parent blocked forever, the agent finished its shift, and
+    the orphan outlived everything.
+
+    THIS CHECK IS THE HALF THAT COVERS AD-HOC HARNESSES, and that is the point: both processes came
+    from `/tmp/w5_mut_*/driver.ts`, written by an agent during a shift and never in the repo. No
+    amount of fixing checked-in oracles could have caught them. A process is evidence about itself.
+
+    Threshold: a driver older than DRIVER_MAX_MIN (default 10). The slowest healthy driver measured
+    here is ~1s; the AVX corpora run in seconds. Ten minutes is three orders of magnitude of margin,
+    and still catches a hang ~2h20m earlier than a human noticing the fans.
+    """
+    max_min = int(os.environ.get("FCT_DRIVER_MAX_MIN", "10"))
+    # `etime`, not `etimes`. BSD ps has no `etimes` (that is a Linux/procps extension) and rejects
+    # the whole command — so the first version of this check returned UNKNOWN on every run, on the
+    # only platform the swarm runs on. It read as "could not measure" rather than as "wrong flag",
+    # which is the polite kind of broken: no crash, no accusation, and no coverage.
+    r = sh("ps -Ao pid,etime,pcpu,args")
+    if r.returncode != 0 or not r.stdout.strip():
+        return record("orphan-drivers", UNKNOWN,
+                      f"could not read the process table: {(r.stderr or '').strip()[:80]}", "#47")
+
+    def _secs(et):
+        """[[DD-]HH:]MM:SS -> seconds. BSD ps drops leading zero fields, so all three shapes occur."""
+        days = 0
+        if "-" in et:
+            d, et = et.split("-", 1)
+            days = int(d)
+        bits = [int(x) for x in et.split(":")]
+        while len(bits) < 3:
+            bits.insert(0, 0)
+        return days * 86400 + bits[0] * 3600 + bits[1] * 60 + bits[2]
+
+    old = []
+    for line in r.stdout.splitlines()[1:]:
+        parts = line.split(None, 3)
+        if len(parts) < 4:
+            continue
+        pid, etime, pcpu, args = parts
+        try:
+            etimes = _secs(etime)
+        except ValueError:
+            continue
+        # A DRIVER, not any node: the harnesses run `node ... driver.ts` / `.mts`, and tsx drivers
+        # carry the preflight shim. Matching bare `node` would accuse the editor and the dev server.
+        if not re.search(r'driver\.m?ts|tsx/dist/preflight|reach_worker', args):
+            continue
+        if etimes > max_min * 60:
+            old.append(f"pid {pid} ({etimes//60}m, {pcpu}% cpu)")
+    if old:
+        return record("orphan-drivers", FAIL,
+                      f"{len(old)} oracle driver(s) running longer than {max_min}m — a mutant that "
+                      f"does not terminate is a kill, not a pending result, and it holds a core "
+                      f"until someone kills it by hand: {', '.join(old[:4])}. Kill them "
+                      f"(`kill -9 <pid>`) and give the harness a timeout (oracle_driver.run_driver)",
+                      "#47")
+    record("orphan-drivers", OK, f"no oracle driver has been running longer than {max_min}m")
+
+
 # ── 3. The canonical checkout must be current ───────────────────────────────────────────────────
 def check_tree_current():
     """Measured 107 commits behind for most of one session. Every agent reads OPS_LOG, AGENT_ENTRY
@@ -617,15 +701,35 @@ def check_dead_counters():
                      if f.isdigit() and not f.endswith(".sha")]
     if not counters:
         return record("dead-counters", OK, "no attempt counters outlive their PR")
-    # ONE list call, not one per counter. The PR body reported 64 counters sitting in the state dir
-    # at one point; that would have been 64 serial API calls in a tool AGENT_ENTRY tells every agent
-    # to run, on a box where the network round-trip is the slowest thing here.
-    allprs, err = gh_json(f"pr list --repo {SLUG} --state all --limit 400 --json number,state")
-    if allprs is None:
-        return record("dead-counters", UNKNOWN, f"could not list PRs to age the counters: {err}", "#28")
-    state_of = {p["number"]: p.get("state") for p in allprs}
-    dead = [f"{kind}/{f}" for kind, f in counters
-            if state_of.get(int(f)) in ("MERGED", "CLOSED")]
+    # ONE call, not one per counter — 64 counters sat in the state dir at one point, and that would
+    # have been 64 serial round trips in a tool AGENT_ENTRY tells every agent to run.
+    #
+    # It used to be `pr list --state all --limit 400`, which has a WINDOW: with ~650 PRs, anything
+    # older than the 400 most recent came back absent, `state_of.get()` returned None, and the
+    # counter was silently treated as fine. The oldest counters are the likeliest to be dead, so the
+    # window hid exactly the population this check exists to find — measured: counter rebase/114
+    # (MERGED) was invisible here while rebase/554 (MERGED) was reported, purely because of where
+    # they fell in the list. Ask about the counters that actually exist instead: an aliased query
+    # over those numbers has no window at all and costs one round trip.
+    q = " ".join(f"p{f}: pullRequest(number: {f}) {{ state }}" for _k, f in counters)
+    owner, name = SLUG.split("/", 1)
+    r = sh(f'gh api graphql -f query=\'query {{ repository(owner: "{owner}", name: "{name}") '
+           f'{{ {q} }} }}\' --jq \'.data.repository | to_entries[] | "\\(.key) \\(.value.state)"\'')
+    if r.returncode != 0 or not r.stdout.strip():
+        return record("dead-counters", UNKNOWN,
+                      f"could not read the counters' PR states: {(r.stderr or 'empty answer').strip()[:120]}",
+                      "#28")
+    state_of = {}
+    for line in r.stdout.split("\n"):
+        parts = line.split()
+        if len(parts) == 2 and parts[0].startswith("p"):
+            state_of[parts[0][1:]] = parts[1]
+    dead = [f"{kind}/{f}" for kind, f in counters if state_of.get(f) in ("MERGED", "CLOSED")]
+    # A counter the query did not answer for is not a counter that is fine.
+    unanswered = [f"{kind}/{f}" for kind, f in counters if f not in state_of]
+    if unanswered and not dead:
+        return record("dead-counters", UNKNOWN,
+                      f"{len(unanswered)} counter(s) got no state back: {', '.join(unanswered[:6])}", "#28")
     if dead:
         return record("dead-counters", FAIL,
                       f"{len(dead)} attempt counter(s) for PRs that are already merged/closed — "
@@ -925,7 +1029,8 @@ CHECKS = [check_pr_base, check_queue_coverage, check_guards_wired, check_tree_cu
           check_leases, check_no_double_lease, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
           check_brief_flags_exist, check_rebase_actionable, check_rebase_branch_naming,
-          check_ops_contention, check_layer_letters]
+          check_ops_contention, check_layer_letters,
+          check_orphan_drivers]
 
 
 def main():

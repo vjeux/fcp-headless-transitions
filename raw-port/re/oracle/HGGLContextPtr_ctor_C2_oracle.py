@@ -24,6 +24,7 @@ import ctypes, json, os, random, struct, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ozone_loader as L  # noqa: E402
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 DRIVER = os.path.join(HERE, "HGGLContextPtr_ctor_C2_driver.mts")
 VA_C2 = 0x1B3920
@@ -86,7 +87,7 @@ def main():
         cases.append({"ptr": f"{ptr & M64:016x}", "live": f"{stored:016x}"})
 
     proc = subprocess.run(["node", "--experimental-strip-types", DRIVER],
-                          input=json.dumps(cases), capture_output=True, text=True)
+                          input=json.dumps(cases), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if proc.returncode != 0:
         print("TS driver failed:\n" + proc.stdout + proc.stderr)
         return 3
