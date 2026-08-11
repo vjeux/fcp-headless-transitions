@@ -40,7 +40,10 @@ dup destroys work. So v3 biases hard toward NEW:
 """
 import sys, re, subprocess
 
-MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]+')
+MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]*[A-Za-z0-9_$]')   # may contain '.' (.cold/.eh/.1)
+                                                          # but may NOT END on one: a token
+                                                          # like `...D0Ev.` is a mangled name
+                                                          # followed by a full stop in prose.
 
 # Compiler / libc++ / libc++abi runtime symbols. They appear in almost every ported file as
 # out-of-scope externs, are never a unit of porting work, and always "already exist on main" --
