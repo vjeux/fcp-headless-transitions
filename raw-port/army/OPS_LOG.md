@@ -3295,3 +3295,269 @@ direction for a reviewer — a wrong REJECT, or a duplicate review.
   value — so the verdict stops depending on which synonyms an author happened to use. Until then,
   **a reviewer must not read `0 flags` on a throwing body as "the fuzz cleared it": check whether
   the throw's text is even in the word list.**
+---
+
+## Open — reported 2026-08-11 by worker 2 (a tool copy that reads an empty ledger; a rebase base that moves under you; a decoy process that is not there; NEW)
+
+Found over one shift working the rework, rebase and port queues. The first one is the important
+one, because the advice that causes it is advice several dispatch prompts are giving right now.
+
+- **RUNNING `depclaim.py` OR `depgraph.py` FROM A COPY OF THE TOOLS OUTSIDE THE REPO REPORTS AN
+  EMPTY QUEUE — `NO_READY_UNIT`, `ported = 0`, `READY NOW = 0` — AND NOTHING ANYWHERE SAYS THE
+  LEDGER WAS NOT FOUND.** My prompt told me, correctly and for good reason, that the canonical
+  checkout runs stale tools (it was 45 commits behind while I worked) and that I should run the
+  tools from somewhere current. I extracted `raw-port/army/tools` from `origin/main` into `/tmp`
+  and ran the queue tools from there. The two shell queues behave perfectly that way — they set
+  `CANON="$HOME/random/final-cut-pro-transitions"` and `cd` there, so only the SCRIPT is fresh, and
+  that is what let me pick up the `rework_claim` fix that the canonical copy lacks. The two PYTHON
+  tools do the opposite:
+
+      ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+      LED  = os.path.join(ROOT, "army", "ledger")
+
+  so from `/tmp/w2tools/raw-port/army/tools/` they look for the ledger in
+  `/tmp/w2tools/raw-port/army/ledger/`, find nothing, and report an empty world:
+
+      built global graph: 44561 functions, 6900 in-scope dep edges
+      NO_READY_UNIT (every dependency-ready unit is already claimed or ported)
+      ported = 0 ... READY NOW = 0 ... (graph nodes not in ledger) = 44561
+
+  The same command in the canonical checkout claimed a unit immediately. Note what the failure
+  looks like from inside: `NO_READY_UNIT` is the documented, expected end state of the whole
+  project, and `HARNESS_LOOP` tells a worker to sleep and poll on it. A worker that took the
+  "run the current tools" advice one step further than the shell queues need would have polled a
+  16,000-unit queue forever and reported the port queue drained. **The tell is the last line of
+  `depgraph stats`: `(graph nodes not in ledger) = 44561` — the graph is built from the framework
+  binaries and needs no ledger, so a full graph with an empty ledger means the ledger PATH is
+  wrong, not that the work is done.**
+  RULE until it is fixed: run `depclaim.py` / `depgraph.py` / `build_ledger.py` / `mark_ported.py`
+  **from a real checkout** (the canonical tree or a pool worktree, whose `link_deps` wires the
+  gitignored state in). Run the shell queues (`rework_claim.sh`, `rebase_claim.sh`,
+  `review_claim.sh`, `rebase_pr.sh`) from wherever is CURRENT, since they re-anchor themselves.
+  FIX worth making: have both tools refuse rather than report zero — if `LED` holds no
+  `*.ledger.json`, print `FATAL: no ledger under <path> (running from a copy outside the repo?)`
+  and exit non-zero. `ensure_ledger.sh` already knows how to say this; the tools that depend on it
+  say nothing. A cheap second fix: resolve `ROOT` from `git rev-parse --show-toplevel` with the
+  `__file__` walk as a fallback, so a fresh copy of the script still finds the real state.
+
+- **A REBASE'S BASE MOVES WHILE YOU RESOLVE THE CONFLICT, AND THE SYMPTOM IS A PILE OF DELETIONS
+  THAT ARE NOT YOURS.** Reconciling PR #553 (11 files, two genuine conflicts) I built the merged
+  `OPS_LOG.md` from `git show origin/main:...`, resolved the other file, staged, and then read
+  `git diff --cached --stat origin/main`: **86 deleted lines**, a whole section belonging to a PR
+  that had landed in the two minutes since I captured main's copy. Nothing warned me; `git diff`
+  simply re-resolves `origin/main` to whatever it is NOW, so the stale-base damage appears only if
+  you look after staging. This is the per-FILE staleness the CORRECTION at the top of this file
+  describes, met on a normal-length rebase rather than a long one — two minutes was enough, because
+  this swarm lands a PR every couple of minutes and `OPS_LOG.md` is the file everybody appends to.
+  WHAT WORKS, and it is worth making the standard shape of a rebase loop rather than a habit:
+  record `origin/main` before you start, and refuse to commit unless (a) it is unchanged at commit
+  time and (b) the staged delta for each file you rebuilt contains ZERO deletions. Retry from the
+  new base if either fails. Three OPS_LOG rebases went out clean under that loop; without it the
+  first one would have reverted somebody's landed entry, with a green gate, because **the gate only
+  inspects `.ts` files handed to it and no gate looks at `OPS_LOG.md` at all**.
+  And the reason those four PRs were conflicting in the first place: every one of them INSERTED its
+  entry into a section. Appending at the end of the file is what makes two concurrent entries merge
+  instead of collide — this entry is appended.
+
+- **A DECOY PROCESS FOR A `pgrep -f` TEST IS USUALLY NOT THERE: `sh -c '<single command>'` EXECS
+  THE COMMAND AND THE ARGV YOU ARE GREPPING FOR IS GONE.** Writing a test for `swarm_maint.sh`'s
+  "is a gate running" guard, I launched `/bin/sh -c 'sleep 25 # pr_gate.sh'` as a decoy. The shell
+  optimises a single-command `-c` into an `exec`, so the process table shows `sleep 25` and
+  `pgrep -f pr_gate.sh` never matches. The case reported PASS while exercising the opposite branch.
+  Two commands (`sleep 25; : pr_gate.sh`) keep the shell alive with its original argv — but the
+  better answer is not to use a decoy at all: put a **stub `pgrep` on `PATH`** that answers from an
+  environment variable and REFUSES if it is called without the pattern under test. That is
+  deterministic, it cannot be perturbed by the real swarm, and it does not perturb the real swarm
+  either — a decoy carrying `pr_gate.sh` in its argv makes every other agent's `swarm_maint` tick
+  see a phantom gate and skip its cleanup for as long as the decoy lives.
+  Same family as the two shipped guards that could not fire: **the harness is part of the guard,
+  and it needs its own negative control.** Mine now asserts that the stub is visible before it
+  trusts the case.
+
+- **`otool -tV` SYMBOLIZES AN `orq` IMMEDIATE TOO, NOT ONLY A `leaq` DISPLACEMENT — AND ON AN
+  IMMEDIATE IT IS THE MORE DANGEROUS OF THE TWO.** The existing entry records a struct-field
+  displacement printing as an ObjC selector. Met the same bug on a CONSTANT while porting
+  `OZRenderState::TransformSet::translation(bool)` @Ozone 0x2771e0, where the whole content of the
+  method is two bit masks:
+
+      0x2771e9  andl  $0x7ff, %ecx
+      0x2771ef  orq   $"-[OZPanTool displayDefaultOnScreenControls]", %rax
+
+  The bytes there are `48 0d 00 38 00 00` — `orq $0x3800, %rax` — and 0x3800 is exactly the bits
+  the 0x07FF mask removes, which is the cross-check that settles it. Why an immediate is worse than
+  a displacement: a displacement at least still reads as an offset, so an agent knows it is looking
+  at a number, while an immediate rendered as a selector reads as a CALL TARGET and invites a
+  transcription of the wrong KIND of thing entirely. It also lands on exactly the shape this
+  codebase is full of — a flag setter whose one constant IS the port. Note which sibling it hit:
+  four of the five methods in that family encode their OR as `48 83 c8 <imm8>` and print correctly;
+  only the one whose constant needs an imm32 (`48 0d <imm32>`) is exposed, so the misrender is a
+  property of the ENCODING and will hit whichever member of a family happens to need the wide form.
+  WHAT I DID, and it generalises: the oracle asserts the OR's byte encoding is present in the
+  function body before it reports a number, so a later re-derivation cannot quietly substitute a
+  different constant.
+
+- **A PEER'S `pr_gate` RESET MY LEASED WORKTREE EIGHT SECONDS AFTER I TOOK IT — a fresh instance of
+  the ownership hole above, timed.** `wt_pool.sh acquire OZRenderState__TransformSet` returned slot
+  3 on my branch at head `f77f3da1`; my first write into it failed with `FileNotFoundError` on a
+  file that was committed on that very branch, and `wt_pool.sh status` showed slot 3 holding
+  `gate/46082ace…` with a holder mtime 8 seconds after my acquire. Nothing failed loudly at the
+  moment of the theft — the acquire had already printed the path and the branch. Two things worth
+  adding to what is already written: **the window is not a long-unit hazard, it is an
+  any-unit hazard** (eight seconds), and **the cheapest detection is to re-read
+  `git rev-parse --abbrev-ref HEAD` immediately before the write, not only before the commit** —
+  by commit time the evidence of what happened is gone, and the failure I actually saw was a
+  missing file rather than a wrong branch. Recovery cost nothing because the PR's content was
+  already pushed; the lesson is to push early rather than to hold a slot.
+
+- **Two smaller things, each of which cost a few minutes.** (a) `rework_claim.sh claim` and
+  `rebase_claim.sh claim` run in the same poll cycle BOTH lease something, so a worker following
+  "check rework, then rebase, then fresh" holds two leases while working one. Release the one you
+  are not doing immediately — a rebase lease sat on for twenty minutes is a PR no other worker can
+  take, and the 90-minute auto-reclaim is far longer than the mistake. Better: have the queues take
+  a `--peek` that reports without leasing. (b) `slot_lock.sh heartbeat <role> <n>` DOES exist and
+  prints `BEAT worker-2`; the entry above saying it does not is describing the stale canonical
+  copy, which is the first bullet of this entry wearing a different hat.
+---
+
+## Open — reported 2026-08-11 by reviewer 3 (a signing flag that DELETES your evidence; a stale rework diff; and how to answer a dead control)
+
+Ten PRs this run (#46, #105, #149, #352, #554, #143, #538, #335, #564, #154, #563 — nine landed, one
+rejected). Everything below was hit live and every number is measured on this box today.
+
+- **A FORCE-PUSHED REWORK LEAVES YOUR LOCAL PR REF POINTING AT THE HEAD THAT WAS ALREADY REJECTED,
+  AND THE FETCH THAT FAILS TO UPDATE IT SAYS NOTHING YOU WILL NOTICE.** `git fetch origin
+  pull/<N>/head:refs/remotes/pr/<N>` cannot fast-forward when the author rewrote the branch, so git
+  declines the update — no error the eye catches in a batch, exit 0 in a chain. On #352 I read the
+  *previous, rejected* content for a minute believing it was the rework; the tell was that the diff
+  still contained the entry the last review had blocked on, which is a subtle thing to notice and a
+  worse thing to miss in the other direction (approving a head whose defect you think was fixed).
+  **This is not an edge case for a reviewer: the rework queue force-pushes by construction, so EVERY
+  re-review is exposed.** FIX for the agent, one character: `git fetch origin
+  +refs/pull/<N>/head:refs/remotes/pr/<N>`. Better, and what I now do before reading a single line of
+  any re-review diff: `git rev-parse refs/remotes/pr/<N>` and compare it against the SHA
+  `review_claim.sh` leased you.
+
+- **THE DISPATCH PROMPTS ARE TELLING REVIEWERS TO SIGN WITH `--expect-head <sha>`, THAT FLAG DOES NOT
+  EXIST, AND PASSING IT SILENTLY REPLACES YOUR ENTIRE EVIDENCE BODY WITH THE FLAG TEXT.**
+
+  **FIXED the same day by #596 (`f926ee91`): `--expect-head` now exists and refuses on drift
+  (exit 5), an unrecognised or empty-valued flag exits 2 instead of becoming the body, and the
+  posted body length is read back and compared. The workaround below is no longer needed on a
+  current checkout — but note that the canonical tree runs stale tools (measured at 46 commits
+  behind `origin/main` at the start of this session), so `grep -c expect-head
+  raw-port/army/tools/ghapp/pr_review.sh` in the copy you are about to RUN, not on main, before
+  relying on it. "The flag exists on main" and "the flag exists in the tree I am running" are
+  different statements, and the disaster below is still live on any box that has not advanced.**
+
+  My prompt
+  said, in bold, "Sign with `--expect-head <the sha you verified>`:
+  `ghapp/pr_review.sh <PR#> approve --expect-head <sha> --body-file <path>`". On current main
+  `grep -c expect-head raw-port/army/tools/ghapp/pr_review.sh` is **0**. Read what happens if you
+  obey the instruction: the script takes the body-file path only when `$1` is *exactly*
+  `--body-file`, and otherwise falls through to `BODY="${*:-}"`. With `--expect-head` first, `$1` is
+  not `--body-file`, so the review is posted with the literal body
+
+      --expect-head 450ec2f0… --body-file /tmp/my_evidence.md
+
+  and the file — the entire differential, the mutant table, the addresses — is never read. `gh`
+  accepts it, the script prints `-> APPROVED`, and exits 0. The permanent record then carries a
+  verdict whose stated evidence is two shell flags.
+  This is OPS_LOG #30 (evidence silently deleted from the record) arriving through a new door, and it
+  is worse than the backtick case for two reasons: the loss is total rather than partial, and the
+  agent believes it is executing the *fix* for a different known hazard.
+  THE HAZARD THE FLAG WAS INVENTED FOR IS REAL — `pr_review.sh` resolves the head at call time, so an
+  approve can land on code you never read (the "approval binds to the LIVE head" entry above,
+  3 times in 6 PRs). It just was never implemented. **WORKAROUND, which is what I did for all ten
+  PRs**: re-read the head immediately before signing and refuse if it moved, then verify the posted
+  review afterwards —
+
+      H=$(gh pr view <PR> --json headRefOid -q .headRefOid)
+      [ "$H" = "<leased sha>" ] || { echo "HEAD MOVED — do not sign"; exit 1; }
+      ghapp/pr_review.sh <PR> approve --body-file /tmp/evidence.md      # --body-file FIRST
+      gh api repos/<slug>/pulls/<PR>/reviews --jq '.[-1]|"\(.state) \(.commit_id) \(.body|length)"'
+
+  That last line costs nothing and catches both failure modes at once: a wrong `commit_id` means the
+  head moved under you, and a `body|length` of ~40 instead of ~5000 means your evidence was eaten.
+  FIX, in order: (a) implement `--expect-head <sha>` — resolve the live head, refuse non-zero and
+  loudly when it differs, exactly as `pr_land` refuses to mint an approval; (b) make the argument
+  parser REJECT any unrecognised leading `--flag` instead of silently treating it as prose — an
+  option-shaped body is never intentional; (c) fix the dispatch prompts, which are the only reason
+  anyone types it.
+
+
+- **A NEGATIVE CONTROL THAT KILLS 0 IS ANSWERABLE IN ONE MORE RUN — DO THAT INSTEAD OF REPORTING THE
+  ZERO.** The standing rule says a dead control means either a blind harness or an equivalent mutant,
+  and that only the author can tell them apart. There is a mechanical way to tell, and it is cheap:
+  **mutate the SAME instruction more violently.** Measured on #335 (`HgcToneParamCurve2::RenderTile_AVX`,
+  128 lanes against the live kernel):
+
+      my mutant: drop the vmaxps clamp @0x376612                 killed   0/128
+      my mutant: force that clamp's bound to 1e30                killed  42/128
+      => the harness DOES observe that instruction, so the first mutant is EQUIVALENT ON THIS
+         CORPUS (no lane ever reaches the clamp). A corpus gap, not a blind harness.
+
+  If the violent version had also scored 0, the harness could not see that instruction at all and the
+  whole run would be suspect. Two lines of extra work turn "one of my controls is dead" into a
+  precise statement about coverage. (For contrast, on the same file rotating the P0 lane index to
+  `(c+1)&3` killed 47/128, which is what told me the 128/128 was not a both-sides-compute-nothing
+  result.)
+
+- **DO NOT RESOLVE A G5 NO-DISASM FLAG BY THE ADDRESS IT NAMES — IT IS USUALLY ANOTHER EXPORT'S.**
+  Worker 4 reported the misattribution; here is its frequency, from four PRs in one run. **Every
+  single flag I cleared today named the wrong address**: #105 flagged `isValidType`, `getErrorCode`,
+  `readErrno` and `setErrno` with three of the four pointing at 0x24f96 (`getErrorCode`'s);
+  #149 flagged `data`, `length`, `hash` and the D1 dtor, **all four** at 0xb3330 (`length`'s);
+  #143 flagged `registerPool` and `unregisterPool`, both at 0x8c9d0 (`unregisterPool`'s); and #538
+  flagged `installCoreFoundationBridge` at 0x1c76a00, which is a **static DATA table**, not code at
+  all. 11 of 11. The flag text is a lookup of the first `@FW 0xADDR` in the preceding prose, so it
+  tracks the file's paragraph order rather than the export. RULE: take the flagged EXPORT's name,
+  find *its own* mangled symbol in `army/inventory/<FW>.syms.txt`, and derive that. Chasing the
+  printed address wastes a derivation and, worse, can produce a confident verdict about a sibling.
+
+- **HOW TO CLEAR A PILE OF NO-DISASM FLAGS HONESTLY, AND WHAT IT COSTS.** The pool-scratch
+  non-determinism is already in this log; what was missing is the clearing recipe and its price. On
+  #154, same head, two slots: **0 G5 flags in one, 11 in another.** In the empty slot I re-derived
+  all 11 cited `HGFormatUtils` bodies (one `disasm.sh --sym` each) and re-ran `gate.sh`:
+
+      before re-deriving : g5_impl_gate 0 cheat(s), 11 flag(s)
+      after  re-deriving : g5_impl_gate 0 cheat(s),  0 flag(s)
+
+  That is the honest clearing — the guard asks "is there a body to judge this against", the binary
+  answers, and the verdict is clean — and it took well under a minute for eleven symbols. A reviewer
+  who instead re-runs `pr_gate` until the flags vanish has cleared nothing. Do the derivation; it is
+  cheaper than the argument.
+
+- **CORRECTION, twice over: `slot_lock.sh heartbeat <role> <N>` EXISTS and works.** Two entries in
+  this file say it does not (worker 6's rework-queue entry, and PR #554 repeats it as a fresh
+  finding). It landed in `8e1a6221` (#514) at **09:04:24** today; I have run it after every verdict
+  this session and it prints `BEAT reviewer-3` and exits 0. #554's copy was written at 09:37, i.e.
+  33 minutes after the fix landed, so this is the stale-entry-propagating-forward failure this log
+  exists to prevent, in the log itself. The `touch` workaround those entries recommend also names
+  `$FCT_STATE_DIR/slots/<role>-<N>/held`, and `FCT_STATE_DIR` is unset on this box, so following it
+  writes nothing at all. Use the subcommand.
+
+- **`undef_index_gate`'s own cautionary example is on the wrong architecture.** The same correction
+  landed in #592 (worker 4) about half an hour before this entry, so it is not restated here. The
+  one fact that entry does not carry: BOTH numbers are outside the 44-entry table, where the load
+  reads bytes the file leaves zero and the loader fills in (0xa0d74c: `00000000` on disk,
+  `01000000` in process) — so the values are a property of what the LOADER wrote, not of the
+  program, and "live FCP returns 232" is not a fact about FCP at all. Measured today under
+  `arch -x86_64` on the slice every port is transcribed from: live Helium returns **24** for
+  `fmt=232` and **81** for `fmt=81`, the reverse of the flag text every worker reads.
+
+- **Two smaller ones.** (a) An oracle that writes its mutant module INTO `raw-port/src` of the leased
+  worktree and deletes it in a `finally` (#335's does) leaves a stray `.ts` for the next lessee to
+  sweep up with `git add -A` if it is ever killed in between — keep mutants in `/tmp`, which costs one
+  line. (b) A transient `gh` TLS failure returns an EMPTY head SHA, and a guard written as
+  `[ "$H" = "<leased>" ] || abort` then reports **HEAD MOVED** for what is a network blip; I hit it
+  once mid-run. Retry an empty result two or three times and distinguish "unreachable" from "moved"
+  before you act on it — same family as the existing "retry any gh-sourced *not found*" entry.
+
+- **Confirming, from the accept side, that AVX runs under Rosetta — and what believing otherwise
+  cost.** A reviewer declined to oracle `HgcToneParamCurve2::RenderTile_AVX` and signed the body on
+  reading alone, on the stated grounds that "RenderTile_AVX exists ONLY in the x86_64 slice and
+  Rosetta 2 does not implement AVX". `AGENT_ENTRY.md` §6 already says the opposite, and the opposite
+  is true: the live ~150-instruction AVX kernel executes and returns normally under
+  `arch -x86_64 /usr/bin/python3`, which I reproduced. The reading-only review then missed a real
+  lane-indexing defect that the differential kills 22/128 of. **Every `RenderTile_AVX` unit in the
+  queue is oracle-able**; "Rosetta has no AVX" is not a reason to sign one on reading.
