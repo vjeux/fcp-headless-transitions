@@ -586,4 +586,39 @@ export class OZCurve {
   isCurveBoolean(): boolean {
     return false;  // xorl %eax,%eax @0x84da4
   }
+
+  /**
+   * `OZCurve::getRootNode() const` — @ProChannel 0x1ea5c (`__ZNK7OZCurve11getRootNodeEv`).
+   *
+   * FULL transcription. The body is 5 executed instructions; the bytes are quoted because otool
+   * renders a displacement as a symbol name where it can, and the displacement IS this function:
+   *
+   *   @0x1ea5c  55              pushq %rbp             ; prologue (no TS counterpart)
+   *   @0x1ea5d  48 89 e5        movq  %rsp, %rbp
+   *   @0x1ea60  48 8b 47 08     movq  0x8(%rdi), %rax  ; rax = *(OZCurveNode**)(this + 0x08)
+   *   @0x1ea64  5d              popq  %rbp             ; epilogue
+   *   @0x1ea65  c3              retq                   ; return rax
+   *
+   * The slot it reads is the one this file's struct layout already calls `currentNode`
+   * (+0x08, an `OZCurveNode*`): the bounds ctor publishes `&this->constantNode` into it @0x1e511,
+   * and the copy ctor selects constantNode / splineNode / recordingNode by the source's state and
+   * publishes the winner into the same slot @0x1e6b7-0x1e6c4. So "root node" is the accessor's
+   * name for the ACTIVE node pointer, not a fourth node — the method reads the slot those two
+   * ctors write, and nothing else.
+   *
+   * No null check, no branch, no call, no arithmetic: whatever qword is in +0x08 is returned
+   * verbatim, NULL included, so this port must not substitute a fallback for an absent node.
+   *
+   * ORACLE (executed, not read — raw-port/re/oracle/OZCurve_getRootNode_probe.py): local (`t`)
+   * symbol, called BY ADDRESS at `_dyld_get_image_vmaddr_slide(ProChannel) + 0x1ea5c` under
+   * `arch -x86_64` after checking the 10 opcode bytes above against BOTH the mapped image and the
+   * on-disk /tmp/ProChannel.x86_64 slice. Against a 0x100-byte arena poisoned with 0xCD and
+   * carrying 0xAAAAAAAAAAAAAAAA at +0x00 and 0xBBBBBBBBBBBBBBBB at +0x10, live ProChannel returned
+   * the +0x08 qword verbatim for NULL, 1, 0x1122334455667788 and 0xffffffffffffffff, never a
+   * neighbour, with the arena byte-identical afterwards (the method is `const`).
+   */
+  getRootNode(): unknown {
+    // @0x1ea60 movq 0x8(%rdi), %rax : the raw +0x08 slot, returned as-is (NULL included).
+    return this.currentNode;
+  }
 }

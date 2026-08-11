@@ -1,0 +1,19 @@
+# OPS_LOG.md is an APPEND-ONLY log written concurrently by every agent in the swarm, so every pair of
+# reports conflicts — five OPS_LOG PRs were mutually conflicting at once today, and three
+# reviewer-APPROVED ones sat unmergeable for over an hour waiting for someone to hand-resolve them.
+#
+# The hand resolution is the dangerous part, not the conflict. The obvious mechanical fix —
+# concatenate main's hunk, then the branch's — TEARS A PARAGRAPH when the branch side happens to be
+# the continuation of a passage main also has: I did exactly that while clearing two orphans, and it
+# silently dropped the last two lines of someone else's finding. My own deletion check caught it; a
+# second ordering attempt produced seven deletions instead of two.
+#
+# `merge=union` makes git keep BOTH sides of a conflicting hunk, line for line, which is precisely
+# what an append-only log wants and what every agent has been trying to do by hand. Verified: two
+# branches each appending a section merge to both sections, in order, with no markers and nothing
+# lost.
+#
+# The tradeoff, stated plainly: union merge can DUPLICATE text when two sides add near-identical
+# lines. For a log that is read by humans and agents, a visible duplicate is a far better failure
+# than a silently truncated paragraph — and it is fixable afterwards, which the truncation is not.
+raw-port/army/OPS_LOG.md merge=union

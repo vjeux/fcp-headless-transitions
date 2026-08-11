@@ -19,6 +19,7 @@ Exit 0 iff ALL layers pass. This is the gate that MUST pass before any swarm res
 import os, sys, subprocess, json
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TOOLS = os.path.join(os.path.dirname(HERE), "tools")
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 
 def run(cmd):
@@ -77,7 +78,38 @@ def layer2():
     print("LAYER 2e (rebase path — no phantom symbols, no branch guessing, no dropped files):",
           "PASS" if ok5 else "FAIL")
     if not ok5: print(r5.stdout[-1200:], r5.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5
+    # 2f — the guards that stop a TOOL from overriding a PERSON. A mechanical success must not paper
+    # over a reviewer's rejection; a signature must not slide onto a head that moved; a slot must not
+    # be handed on mid-rebase or carrying disasm residue that switches off the blind-spot flag.
+    # Every case is mutation-checked (revert the fix, watch it go red) — one of them originally
+    # passed with its own fix deleted, because it matched the explanatory comment rather than code.
+    r6 = run([sys.executable, os.path.join(HERE, "test_guards.py")])
+    ok6 = "test_guards: PASS" in r6.stdout
+    print("LAYER 2f (guards — no status override, no head drift, no dirty slot handover):",
+          "PASS" if ok6 else "FAIL")
+    if not ok6: print(r6.stdout[-1200:], r6.stderr[-400:])
+    # 2g — pr_land's approval CARRY. It decides whether a reviewer's APPROVE survives the head move
+    # that pr_land's own `update-branch` causes, i.e. it is a guard about a MERGE, and its first
+    # version failed OPEN (two unreadable commits hashed to the same empty digest and compared
+    # equal). It shipped with a suite that NOTHING RAN — OPS_LOG row 44's exact shape, and worse
+    # than no test, because pr_land's comment told the next reader the function was pinned. This is
+    # that caller. 1.4s, and every case is mutation-checked inside the suite.
+    r7 = run(["bash", os.path.join(TOOLS, "test_pr_land_carry.sh")])
+    ok7 = "TEST_PR_LAND_CARRY: PASS" in r7.stdout
+    print("LAYER 2g (pr_land approval carry — tree identity, never fail-open):",
+          "PASS" if ok7 else "FAIL")
+    if not ok7: print(r7.stdout[-1200:], r7.stderr[-400:])
+    # 2h — the walk that recovers WHICH HEAD a reviewer signed. GitHub re-points a review's
+    # commit_id forward onto every `Merge branch 'main' into …` that update-branch makes (+3s to
+    # +39s after submission; two hops on #585), so 2g's comparison is only as good as the walk that
+    # finds the reviewed commit. One hop too far compares against an older head; one too few
+    # compares a commit with itself and always agrees. 0.3s.
+    r8 = run(["bash", os.path.join(TOOLS, "test_pr_land_signed_head.sh")])
+    ok8 = "TEST_PR_LAND_SIGNED_HEAD: PASS" in r8.stdout
+    print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
+          "PASS" if ok8 else "FAIL")
+    if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8
 
 def _reach(spec, expect):
     import tempfile
