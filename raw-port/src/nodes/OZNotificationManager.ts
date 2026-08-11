@@ -90,7 +90,19 @@
 //         OZNotificationManager::unignoreObserverOnce(void*, unsigned int) @0x4bf20
 //   * __ZN21OZNotificationManager15hasObjCObserverEPv
 //         OZNotificationManager::hasObjCObserver(void*)                    @0x4be90
+//   * __ZN21OZNotificationManager15addObjCObserverEPvl
+//         OZNotificationManager::addObjCObserver(void*, long)              @0x4ba90
+//   * __ZN21OZNotificationManager14addCPPObserverEP13OZCPPObserverl
+//         OZNotificationManager::addCPPObserver(OZCPPObserver*, long)      @0x4bc30
 //
+
+// The `OZCPPObserver*` the C++-observer overload stores at record+0x10.  It is
+// an opaque handle: `addCPPObserver` @0x4bc30 only ever MOVES the pointer
+// (`movq %r15, 0x10(%rax)` @0x4bc6b) and never dereferences it, so the port
+// imports the brand the OZReflexiveBehavior decode already declares for this
+// exact class rather than inventing a second, incompatible one.
+import type { OZCPPObserver } from "../channels/OZReflexiveBehavior.js";
+
 
 /**
  * A per-observer bookkeeping record hanging off the OZNotificationManager's
@@ -572,6 +584,156 @@ export class OZNotificationManager {
       OZNotificationManager.objc_retain(objcObject);
     }
     // @0x4bb53 retq
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // OZNotificationManager::addCPPObserver(OZCPPObserver* observer, long tag)
+  //
+  // Disassembly source:
+  //   raw-port/re/disasm/__ZN21OZNotificationManager14addCPPObserverEP13OZCPPObserverl.s
+  //
+  // FULL DISASM (@Ozone 0x4bc30..0x4bcd5):
+  //   0x4bc30  pushq %rbp ; movq %rsp,%rbp ; pushq r15/r14/r12/rbx (frame)
+  //   0x4bc3b  movq %rdx, %r14              ; r14 = tag  (arg2, long)
+  //   0x4bc3e  movq %rsi, %r15              ; r15 = observer (arg1, OZCPPObserver*)
+  //   0x4bc41  movq %rdi, %rbx              ; rbx = this
+  //   0x4bc44  movq %rdi, %r12              ; r12 = this (walk cursor)
+  //   0x4bc47  nopw (%rax,%rax)             ; alignment nop
+  //   -- walk to find insertion point (ordered by DESCENDING tag) --
+  //   0x4bc50  movq 0x8(%r12), %r12         ; r12 = r12->next
+  //   0x4bc55  cmpq %rbx, %r12              ; sub: r12 - this
+  //   0x4bc58  je   0x4bc97                 ;   je => cursor cycled back to the
+  //                                         ;   sentinel => APPEND-AT-TAIL path
+  //   0x4bc5a  cmpq 0x18(%r12), %r14        ; sub: r14 - [r12+0x18] = tag - node.tag
+  //   0x4bc5f  jle  0x4bc50                 ;   jle (signed <=0) => tag <= node.tag
+  //                                         ;   => keep walking
+  //   -- INSERT-BEFORE r12 (found node with node.tag < tag) --
+  //   0x4bc61  movl $0x30,%edi
+  //   0x4bc66  callq __Znwm                 ; rax = new node (0x30 = 48 bytes)
+  //   0x4bc6b  movq %r15, 0x10(%rax)        ; new.observer = observer
+  //   0x4bc6f  movq %r14, 0x18(%rax)        ; new.tag = tag
+  //   0x4bc73  movq $0x0, 0x20(%rax)        ; new.field20 = 0   <-- NOTE: 0, not 1
+  //   0x4bc7b  movl $0x0, 0x28(%rax)        ; new.flags = 0
+  //   0x4bc82  movq (%r12), %rcx            ; rcx = r12->prev
+  //   0x4bc86  movq %rax, 0x8(%rcx)         ; r12.prev->next = new
+  //   0x4bc8a  movq %rcx, (%rax)            ; new.prev = r12.prev
+  //   0x4bc8d  movq %rax, (%r12)            ; r12.prev = new
+  //   0x4bc91  movq %r12, 0x8(%rax)         ; new.next = r12
+  //   0x4bc95  jmp  0x4bcc9                 ; -> common tail
+  //   -- APPEND-AT-TAIL (insert before the sentinel = at list end) --
+  //   0x4bc97  movl $0x30,%edi
+  //   0x4bc9c  callq __Znwm                 ; rax = new node
+  //   0x4bca1  movq %r15, 0x10(%rax)        ; new.observer = observer
+  //   0x4bca5  movq %r14, 0x18(%rax)        ; new.tag = tag
+  //   0x4bca9  movq $0x0, 0x20(%rax)        ; new.field20 = 0
+  //   0x4bcb1  movl $0x0, 0x28(%rax)        ; new.flags = 0
+  //   0x4bcb8  movq %rbx, 0x8(%rax)         ; new.next = this (sentinel)
+  //   0x4bcbc  movq (%rbx), %rcx            ; rcx = this->prev  (= tail)
+  //   0x4bcbf  movq %rcx, (%rax)            ; new.prev = tail
+  //   0x4bcc2  movq %rax, 0x8(%rcx)         ; tail->next = new
+  //   0x4bcc6  movq %rax, (%rbx)            ; this->prev = new
+  //   -- common tail --
+  //   0x4bcc9  incq 0x10(%rbx)              ; this->count += 1  (64-bit)
+  //   0x4bccd  popq %rbx/%r12/%r14/%r15 ; popq %rbp             (epilogue)
+  //   0x4bcd5  retq
+  //   0x4bcd6  nopw %cs:(%rax,%rax)         ; alignment padding, not executed
+  //
+  // AT&T decode notes (a compare computes dst - src):
+  //   `cmpq %rbx, %r12`      => r12 - this ; je iff r12 == this (the sentinel),
+  //     i.e. the cursor walked the whole circular list without finding a
+  //     smaller-tag node.
+  //   `cmpq 0x18(%r12),%r14` => tag - node.tag ; `jle` is the SIGNED <=0 test
+  //     (the key is a `long`), so the walk ADVANCES while `tag <= node.tag` and
+  //     stops at the first node whose tag is strictly LESS than `tag`.  The list
+  //     is therefore kept sorted by DESCENDING tag, and among equal tags the new
+  //     record lands AFTER the existing ones (the walk keeps going on `==`).
+  //   Both branches perform the SAME circular doubly-linked-list splice
+  //   (`prev->next = new ; new.prev = prev ; new.next = cur ; cur.prev = new`),
+  //   differing only in whether `cur` is the found record or the sentinel
+  //   `this`, and in the order the four stores are emitted — an order that is
+  //   unobservable here because no other thread or callee runs between them
+  //   (the whole body is straight-line stores with no call after `__Znwm`).
+  //
+  // DIFFERENCE FROM THE SIBLING `addObjCObserver` @0x4ba90 (landed above) —
+  // this is the C++-observer overload and it differs in exactly two ways:
+  //   1. `+0x20` is initialised to ZERO (`movq $0x0, 0x20(%rax)` @0x4bc73 /
+  //      @0x4bca9) where the ObjC overload writes ONE (@0x4bad3 / 0x4bb09);
+  //   2. there is NO ObjC retain tail: the body ends at the `incq` — it never
+  //      loads `this->owner` (+0x70) and never reaches `_objc_retain`.
+  // Everything else (the 0x30-byte record, the descending-tag walk, the splice,
+  // the count bump) is instruction-for-instruction the same shape.
+  //
+  // OUT-OF-SCOPE EXTERNS (modelled at the boundary, per PORTING_SPEC Rule 3):
+  //   * __Znwm (operator new, libc++)  @0x4bc66 / 0x4bc9c — a direct in-frame
+  //     allocation, not a call_once boundary; the record is materialised as a
+  //     plain object exactly as the landed `addObjCObserver` does.
+  //
+  // FRONTIER CALLEES: none in-scope (`depgraph.py deps` lists nothing).
+  // ═════════════════════════════════════════════════════════════════════════
+  /**
+   * `OZNotificationManager::addCPPObserver(OZCPPObserver*, long)` —
+   * @Ozone 0x4bc30 (__ZN21OZNotificationManager14addCPPObserverEP13OZCPPObserverl).
+   *
+   * Insert a new observer record for a C++ observer into the circular
+   * doubly-linked list, keeping it ordered by DESCENDING `tag`: the new node is
+   * spliced immediately before the first existing record whose tag is strictly
+   * smaller than `tag`, or at the tail (before the sentinel) when no such
+   * record exists.  The record's flags (+0x28) and its `+0x20` word both start
+   * at ZERO — the `+0x20` value is the one field that differs from the ObjC
+   * overload, which starts it at 1.  Bumps the manager's observer count.  No
+   * ObjC retain happens on this path.
+   *
+   * @param observer the `OZCPPObserver*` from %rsi (stored unretained at +0x10).
+   * @param tag      the `long` sort key from %rdx (stored at +0x18).
+   */
+  addCPPObserver(observer: OZCPPObserver | null, tag: bigint): void {
+    // @0x4bc41/0x4bc44 rbx = r12 = this.
+    // @0x4bc50.. walk: r12 = r12->next until either r12 == this (sentinel)
+    // or tag > node.tag (found a strictly-smaller node ⇒ insert before it).
+    let cur: OZObserverRecord | OZNotificationManager = this;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      // @0x4bc50 movq 0x8(%r12), %r12 : advance.
+      cur = (cur as { next_at_0x8: OZObserverRecord | OZNotificationManager }).next_at_0x8;
+      // @0x4bc55 cmpq %rbx,%r12 ; @0x4bc58 je APPEND : cycled back to sentinel.
+      if (cur === this) break; // -> append-at-tail branch (cur === this)
+      // @0x4bc5a cmpq 0x18(%r12),%r14 (tag - node.tag) ; @0x4bc5f jle => tag <= node.tag => keep walking.
+      const node = cur as OZObserverRecord;
+      if (tag <= node.tag_at_0x18) continue;
+      // tag > node.tag : stop. Insert BEFORE `cur` (branch @0x4bc61).
+      break;
+    }
+
+    // @0x4bc66 / 0x4bc9c callq __Znwm : allocate a 0x30-byte record.
+    // Field init is IDENTICAL on both branches (@0x4bc6b.. / 0x4bca1..).
+    const rec: OZObserverRecord = {
+      observer_at_0x10: observer, // @0x4bc6b/0x4bca1 movq %r15, 0x10(%rax)
+      tag_at_0x18: tag, // @0x4bc6f/0x4bca5 movq %r14, 0x18(%rax)
+      field_at_0x20: 0n, // @0x4bc73/0x4bca9 movq $0x0, 0x20(%rax) — ZERO here
+      flags_at_0x28: 0, // @0x4bc7b/0x4bcb1 movl $0x0, 0x28(%rax)
+      // links filled by the splice below.
+      prev_at_0x0: this,
+      next_at_0x8: this,
+    };
+
+    // Splice `rec` immediately before `cur`:
+    //   insert-before branch (@0x4bc82..0x4bc91) with cur = the found node, and
+    //   append-at-tail branch (@0x4bcb8..0x4bcc6) with cur = this sentinel,
+    //   are the SAME operation against `cur`.
+    // @0x4bc82/0x4bcbc  prev = cur->prev.
+    const prev = cur.prev_at_0x0;
+    // @0x4bc86/0x4bcc2  prev->next = rec.
+    prev.next_at_0x8 = rec;
+    // @0x4bc8a/0x4bcbf  rec.prev = prev.
+    rec.prev_at_0x0 = prev;
+    // @0x4bc91/0x4bcb8  rec.next = cur.
+    rec.next_at_0x8 = cur;
+    // @0x4bc8d/0x4bcc6  cur.prev = rec.
+    cur.prev_at_0x0 = rec;
+
+    // @0x4bcc9 incq 0x10(%rbx) : this->count += 1 (64-bit increment).
+    this.count_at_0x10 += 1n;
+    // @0x4bcd5 retq — no ObjC retain on the C++ path.
   }
 
   /**

@@ -36,7 +36,17 @@ def layer2():
     ok = "test_classify: PASS" in r.stdout
     print("LAYER 2 (structural classifier):", "PASS" if ok else "FAIL")
     if not ok: print(r.stdout[-800:], r.stderr[-400:])
-    return ok
+    # 2b — RESOLUTION, not just classification. "Given the right .s, is the verdict right?" is only
+    # half the contract; the other half is "is it the right .s at all?". A class name that is a
+    # substring of another class's name resolved to the WRONG class's body (PR #253: HGRenderNode ->
+    # OZHGRenderNodeBase::finished, DISPATCH_ONLY) — a false REJECT there, and a false ACCEPT
+    # wherever the wrong body happens to be EMPTY. Locked by fixtures in test_find_disasm.py.
+    r2 = run([sys.executable, os.path.join(HERE, "test_find_disasm.py")])
+    ok2 = "test_find_disasm: PASS" in r2.stdout
+    print("LAYER 2b (disasm resolution — right function, not just right verdict):",
+          "PASS" if ok2 else "FAIL")
+    if not ok2: print(r2.stdout[-1200:], r2.stderr[-400:])
+    return ok and ok2
 
 def _reach(spec, expect):
     import tempfile
