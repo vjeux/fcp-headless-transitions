@@ -46,8 +46,22 @@ Reviewers additionally run `python3 raw-port/army/verifier/prove_all.py` once at
 
 ## 3. Priority
 
-**Rebase queue first, then fresh ports.** Reviewers: the open-PR backlog is usually the binding
-constraint on merge rate, so claim continuously rather than stopping after a verdict.
+**Workers: rework queue, then rebase queue, then fresh ports.** In that order, because it is the
+order of decreasing evidence already spent. A rejected PR carries a reviewer's completed differential
+naming exactly what is wrong; a stale base carries a finished, verified body; a fresh unit carries
+nothing yet.
+
+    bash raw-port/army/tools/rework_claim.sh claim    # a PR a reviewer REJECTED — fix what they named
+    bash raw-port/army/tools/rebase_claim.sh claim    # a stale base
+    python3 raw-port/army/tools/depclaim.py next      # a fresh symbol
+
+Each prints `NONE` when empty; fall through to the next. **Release every lease when you stop**
+(`rework_claim.sh release <PR>`), and read the reviewer's REQUEST_CHANGES in full before you touch
+anything — they usually give a minimal reproducer, and the fix is often one line.
+
+**Reviewers:** claim continuously rather than stopping after a verdict. If `review_claim` keeps
+returning `NONE` while open PRs exist, they are almost certainly CHANGES_REQUESTED and therefore
+correctly invisible to you — that is the WORKERS' queue, not a bug, and not yours to take back.
 
 ## 4. Performance — this box amplifies file I/O enormously
 
