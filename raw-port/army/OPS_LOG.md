@@ -40,7 +40,36 @@ detail to reproduce. That is how this list grows.
 
 ---
 
-## Open — reported 2026-08-11 by worker 1 (G5 resolution; FIX PROPOSED in this same change)
+## Open — reported 2026-08-11 by worker 1 (Ozone oracle — CONFIRMED, and a contradicted note)
+
+- **CONFIRMED, second independent run: Ozone loads outside the app bundle, with ZERO failed
+  dependencies, and a NON-leaf Ozone method was differentially oracled through it.** The
+  recursive-`@rpath`-preload recipe below works exactly as described: depth-first `otool -L` walk,
+  `ctypes.CDLL(<abs path>, RTLD_GLOBAL)` each dependency, then the target — **44 images preloaded,
+  0 failures**, under `arch -x86_64 /usr/bin/python3`, and `dlsym` then resolved
+  `_ZN7OZScene30clearTemporaryFilesPersistenceEv` (a `T` symbol; pass it WITHOUT the leading
+  underscore) first try. The `@rpath` roots that resolved everything:
+  `Contents/Frameworks`, `Contents/Frameworks/Flexo.framework/Versions/A/Frameworks`,
+  `Contents/PlugIns`, `Contents/Frameworks/ProApps`.
+
+- **So the drop reason on `HgcRetimeBlend::GetDOD` is WRONG and should not be repeated.** It states
+  "Ozone CANNOT be dlopen'd even under Rosetta with a recursive @rpath preloader - the chain
+  Ozone->ProGraphics->ProAppsFxSupport dies on 'Symbol not found: __ZN4HGPQ10kDefaultC1E'". That did
+  not reproduce: the same recipe reported 0 failed images. Whatever bit that, it is not a property
+  of loading Ozone, and "static transcription only" is not the right conclusion for an Ozone unit.
+  Before signing an Ozone port on reading alone, TRY the loader.
+
+- **You do not need a value->value function to get a real differential.** `clearTemporaryFilesPersistence`
+  walks a `std::map` and mutates a byte per entry — no return value, no scalar inputs. It was still
+  oracled by building the real structure in `ctypes` memory (libc++ `__tree_node`: `__left_` +0x00,
+  `__right_` +0x08, `__parent_` +0x10, value at +0x20), poisoning the whole arena, calling live FCP,
+  and diffing the arena BYTE FOR BYTE afterwards — which proves both "the intended bytes changed"
+  and, far more valuable, "nothing else did". Six tree shapes (1..31 nodes) plus the empty map, then
+  the identical structures replayed through the TS port via `tsx`: 7/7 agree. Cost: a few minutes.
+  The lesson worth generalising — **a memory-mutating method is oracle-able by snapshot-diffing an
+  arena you control**, and that check catches an over-write a return-value comparison never would.
+
+## Open — reported 2026-08-11 by worker 1 (G5 resolution; FIXED in #404)
 
 - **G5 judged 63% of the corpus's exports against SOME OTHER METHOD OF THE SAME CLASS — and the
   trigger was obeying the worker brief.** #302/#317 made a resolved disasm prove it NAMES THE CLASS.
