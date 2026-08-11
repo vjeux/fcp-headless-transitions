@@ -30,15 +30,52 @@ cmd_claim () {
   # mergeable. That is exactly how #243 reached one merge from landing while its own TS diverged from
   # the live symbol on 8 of 106 cases (issue #285). A green mechanical gate is not a verdict; only a
   # reviewer's APPROVE is. PRs already APPROVED or CHANGES_REQUESTED on their head are left alone.
+  # SELF-REVIEW GUARD — keyed on the AGENT, via a marker file, because neither identity works.
+  #
+  # Two wrong versions of this, both tried:
+  #   * skip PRs authored by `vjeux` — STARVES the queue. That operator login is shared by every
+  #     agent and by the swarm parent; a reviewer hit this live, skipping PRs that were not theirs.
+  #   * skip PRs authored by the reviewer app — a NO-OP. Everything is opened through pr_submit.sh,
+  #     which pushes as the WORKER app, so no PR is ever authored by the reviewer identity. Reviewer 1
+  #     checked: of the 20 most recent PRs, 16 are app/vjeux-worker and 4 are vjeux, none reviewer.
+  # GitHub simply does not record WHICH AGENT opened a PR. So the authoring agent records it itself:
+  # pr_submit.sh writes $STATE/authored/<PR>, and a reviewer skips the PRs its own slot authored.
+  # FCT_AGENT_ID names the slot — `<role>-<N>`, the value `slot_lock.sh acquire` prints an export
+  # line for. THERE IS NO DERIVED DEFAULT, and this comment used to claim one ("the slot lock this
+  # process holds, else hostname+pid"), which is worse than the gap itself: a reader who trusts it
+  # concludes the guard is live when it is inert. Nothing in the OS links two short-lived `bash -c`
+  # invocations of one agent, so the id has to travel in the environment. With it unset the skip
+  # cannot fire, and the loop below SAYS SO once per run instead of failing silently. An absent
+  # marker still means "not mine" and fails OPEN — a queue that stalls is worse than an occasional
+  # self-review, which GitHub refuses harmlessly anyway.
+  local mine_dir="${FCT_STATE_DIR:-$HOME/.fct-pool}/authored"
   local rows
+  # NOTE: `gh ... --jq` accepts a PROGRAM ONLY — no jq flags. `gh --jq --arg me X '<prog>'` prints
+  # "unknown arguments", exits 0, and writes nothing to stdout, so rows comes back EMPTY and every
+  # reviewer polls NONE forever against a non-empty queue. Caught in review before it shipped; the
+  # 2>/dev/null here would have hidden the message. Pipe to real jq when you need arguments.
   rows=$(gh pr list --repo "$SLUG" --state open --limit 100 \
       --json number,headRefOid,statusCheckRollup,reviewDecision \
       --jq '.[] | {n:.number, sha:.headRefOid, d:(.reviewDecision // ""), s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select(.s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or (.s=="SUCCESS" and .d!="APPROVED" and .d!="CHANGES_REQUESTED")) | "\(.n)\t\(.sha)"' 2>/dev/null)
   [ -z "$rows" ] && { echo "NONE"; return 1; }
   # randomize so parallel reviewers don't collide on the same first row
   rows=$(printf '%s\n' "$rows" | sort -R 2>/dev/null || printf '%s\n' "$rows")
+  # The skip is OFF unless this process was told who it is. Say so, once, when there is something
+  # it could have skipped — a dormant guard that is silent is how #38 reached review believing it
+  # worked (reviewer 2 measured it: unset id -> CLAIMED a PR the slot had authored; id exported ->
+  # the same run skipped it and printed why).
+  if [ -z "${FCT_AGENT_ID:-}" ] && [ -n "$(ls -A "$mine_dir" 2>/dev/null)" ]; then
+    echo "review_claim: FCT_AGENT_ID is unset — the self-review skip is INACTIVE for this run" >&2
+    echo "              (run: export FCT_AGENT_ID=reviewer-<N>; slot_lock.sh acquire prints it)" >&2
+  fi
   while IFS=$'\t' read -r num sha; do
     [ -z "$num" ] && continue
+    # Did THIS agent open this PR? (marker written by pr_submit.sh; absent => not mine => proceed)
+    if [ -n "${FCT_AGENT_ID:-}" ] && [ -f "$mine_dir/$num" ] \
+       && [ "$(cat "$mine_dir/$num" 2>/dev/null)" = "$FCT_AGENT_ID" ]; then
+      echo "review_claim: skipping PR #$num — this slot ($FCT_AGENT_ID) authored it" >&2
+      continue
+    fi
     # LEASE KEY IS THE PR NUMBER, NOT PR+SHA. Keying on the head SHA opened a race that merged an
     # already-rejected port: reviewer-06 held PR #221 @d8ce40e5 and was about to post
     # CHANGES_REQUESTED when main advanced, the PR acquired head @a7610679, a second reviewer slot
@@ -46,6 +83,30 @@ cmd_claim () {
     # eb6f6086 (issue #224); the same race also merged #223/#225/#231 out from under that reviewer.
     # A PR under review is under review no matter how its head moves — one reviewer at a time. The
     # lease is released after each verdict, so a genuinely new head still gets re-reviewed next pass.
+    # WHOSE TURN IS IT? Use the SAME discriminator rework_claim uses, so the two queues cannot
+    # disagree — the head SHA the rejection was recorded against.
+    #
+    # My first attempt at this (#602) filtered out every CHANGES_REQUESTED PR regardless of head, on
+    # the reasoning that a rejected PR belongs to its author. Reviewer 3 measured it against the live
+    # queue: all NINE PRs it removed had already been answered, rework_claim SKIPS exactly those, and
+    # they would have fallen into NO queue at all — manufacturing the orphan condition swarm_doctor
+    # exists to detect. `reviewDecision` stays CHANGES_REQUESTED until a reviewer re-reviews, so it
+    # says nothing about whether the author has responded; only the head SHA does.
+    #
+    #   head moved past the rejection -> the author answered  -> REVIEWER's turn -> claim it
+    #   head still AT the rejection   -> the author is mid-fix -> WORKER's turn  -> skip it
+    #
+    # An empty answer is a transport failure, never a verdict: offer the PR rather than starve.
+    if [ "$(gh pr view "$num" --repo "$SLUG" --json reviewDecision --jq .reviewDecision 2>/dev/null)" = "CHANGES_REQUESTED" ]; then
+      local rejsha
+      rejsha=$(gh api "repos/$SLUG/pulls/$num/reviews" \
+                 --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
+      if [ -n "$rejsha" ] && [ "$rejsha" != "null" ] && [ "$rejsha" = "$sha" ]; then
+        echo "review_claim: PR #$num was rejected on this very head (${sha:0:8}) and the author has not" >&2
+        echo "  answered yet — it belongs to the rework queue, skipping" >&2
+        continue
+      fi
+    fi
     local lk="$LEAS/pr-${num}"
     if mkdir "$lk" 2>/dev/null; then
       echo "$(date +%s) $sha" > "$lk/held"; echo "CLAIMED $num $sha"; return 0; fi

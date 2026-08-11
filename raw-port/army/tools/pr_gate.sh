@@ -32,6 +32,124 @@ echo "PR #$PR  head=$HEAD_REF @ ${HEAD_SHA:0:12}  reviewed=$REVIEWED"
 GHAPP_G="$(cd "$(dirname "$0")" && pwd)/ghapp"
 post_status () { bash "$GHAPP_G/gh_as.sh" reviewer api -X POST "repos/$REPO_SLUG/statuses/$HEAD_SHA" -f state="$1" -f context="faithfulness-gate" -f description="$2" >/dev/null 2>&1 && echo "  status: $1 — $2" || echo "  WARN status post failed"; }
 
+# A MECHANICAL `success` MUST NOT PAPER OVER A REVIEWER'S REJECTION.
+# The pending guard below stopped a concurrent run from erasing a verdict with `pending`, but left
+# the worse door open: a `success`. Observed live on PR #550 — a reviewer posted a regression
+# `failure`, and six seconds later another agent's gate run posted `success` over it. GitHub keeps
+# only the LATEST status per context, so the required check went green and the rejection vanished
+# from everything branch protection can see.
+#
+# The distinction that matters is not failure-vs-success, it is MECHANICAL vs JUDGED. A same-head
+# failure→success flip is legitimate when it is mechanical: `regression_check` compares against
+# main, and main moves, so a genuine regression really can clear with no push. But when a REVIEWER
+# holds an un-dismissed CHANGES_REQUESTED on this head, a green mechanical gate is not new
+# information about the port — the defect they named is semantic and still there. Refuse, and say so.
+# A GUARD THAT CANNOT SEE MUST WITHHOLD, NOT WAVE THROUGH. Both functions below answer a question
+# about GitHub state, and both used to answer "nobody rejected this head" when the API did not
+# answer at all — so a `gh` hiccup at the moment of the post produced exactly what this section
+# exists to prevent: success over a live rejection, with the required check going green and the
+# verdict gone from everything branch protection can see. Measured by reviewer 1 with a stub exiting
+# 7: both said POST. The direction is not symmetric — withholding a green status costs a re-run,
+# erasing a verdict is permanent — so they now return **2 for "could not determine"** and the caller
+# treats 2 as a refusal that says why.
+# THE RULE USED IS rc != 0 (or an empty document where one is mandatory), NOT test_guards'
+# `stderr is non-empty`. In the harness a stub prints to stderr deliberately; in production a
+# warning on stderr with rc=0 and parseable JSON is an ANSWER, and treating that as a failure would
+# withhold every green status in the swarm — a worse outage than the one being fixed.
+reviewer_rejected_this_head () {
+  local raw rc
+  raw=$(bash "$GHAPP_G/gh_as.sh" reviewer api "repos/$REPO_SLUG/pulls/$PR/reviews" --paginate 2>/dev/null); rc=$?
+  [ "$rc" = 0 ] || return 2
+  [ -n "$raw" ] || return 2          # the reviews endpoint always returns a document, even if `[]`
+  printf '%s' "$raw" | python3 -c "
+import json,sys
+try: rs=json.load(sys.stdin)
+except Exception: raise SystemExit(2)
+# A REJECTION STANDS UNTIL IT IS DISMISSED — the rule pr_land.sh already enforces, now the same rule
+# here. The previous version kept latest[(login, commit_id)], so a later APPROVED from the SAME
+# login overwrote a standing CHANGES_REQUESTED; every slot posts as vjeux-reviewer[bot], so that was
+# one reviewer's approval silently clearing another reviewer's rejection. GitHub rewrites a
+# dismissed review's state to DISMISSED in this same list, so 'is it still CHANGES_REQUESTED on this
+# head' is the whole test.
+who=sorted(x for x in {(r.get('user') or {}).get('login') for r in rs
+                       if r.get('state')=='CHANGES_REQUESTED' and r.get('commit_id')=='$HEAD_SHA'} if x)
+print(','.join(who))
+raise SystemExit(0 if who else 1)
+"
+}
+# A REVIEWER'S PARKED FAILURE IS ALSO A JUDGEMENT, and for one whole class of PR it is the ONLY
+# form of rejection available. The incident this guard was written for — #550, where a reviewer's
+# regression `failure` was overwritten by another agent's `success` six seconds later, twice —
+# could NOT be caught by the CHANGES_REQUESTED check above, because #550 never had a
+# CHANGES_REQUESTED: it was a DIRTY non-src PR whose content the reviewer had already APPROVED, so
+# there was nothing to reject semantically and the documented move for that class is to hand-post a
+# rebase-flavoured failure status. Measured on that PR: 1 review, APPROVED, and two erasures.
+# The second-order harm is worse than a lost verdict — `rebase_claim` finds work by grepping the
+# status DESCRIPTION for regression|rebase, so posting success over the park also strands the PR.
+# So: before overwriting, read the CURRENT status on this head and refuse if it is a failure whose
+# description carries a park marker. Mechanical failures (this script's own G0-G5 reasons) are not
+# in that set, so a genuine re-gate of a fixed tree still goes green.
+# THE MARKER SET MUST NOT CONTAIN ANYTHING THIS SCRIPT CAN WRITE, and it did. `regression` and
+# `rebase needed` match pr_gate's OWN mechanical REASONs — `regression (rebase needed)` and
+# `regression_check errored rc=$rc` — so the gate parked its own message and no later run could
+# clear that head, including the re-run that is the documented response to a transient
+# regression_check error. Reviewer 1 measured every REASON this script can post: two of eight
+# REFUSED. A park is a JUDGEMENT, so it must carry a mark a mechanical failure cannot produce.
+# REVIEWERS: park a head with a `JUDGED:` prefix. Keep the rebase-flavoured wording after it —
+#   JUDGED: regression (rebase needed): DIRTY on OPS_LOG.md; content APPROVED by reviewer 2
+# — which still matches `rebase_claim`'s `grep -qiE 'regression|rebase|…'`, so routing is unchanged
+# and only the judgement is now unforgeable by a tool. `content APPROVED` stays in the set because
+# the parks already standing on live heads carry it and nothing here writes it.
+# test_guards.py case G extracts every description literal FROM THIS FILE and asserts that none of
+# them matches these markers, so the next collision is caught when it is written rather than when it
+# strands a PR.
+PARK_MARKERS='JUDGED:|BLOCKED ON A TOOL BUG|content APPROVED'
+parked_failure_on_this_head () {
+  local cur rc desc
+  cur=$(bash "$GHAPP_G/gh_as.sh" reviewer api "repos/$REPO_SLUG/commits/$HEAD_SHA/status" \
+          --jq '[.statuses[]?|select(.context=="faithfulness-gate")]|last|"\(.state)\t\(.description)"' 2>/dev/null); rc=$?
+  [ "$rc" = 0 ] || return 2
+  # `last` of an EMPTY array is null, and jq renders "\(.state)" on null as the literal string
+  # "null" — that is a head with no status yet: not a park, and not a failure to read.
+  case "$cur" in ""|"null"|"null	null") return 1 ;; esac
+  [ "${cur%%	*}" = "failure" ] || return 1
+  desc="${cur#*	}"
+  printf '%s' "$desc" | grep -qiE "$PARK_MARKERS" || return 1
+  printf '%s' "$desc"
+}
+
+# Returns 0 when a success status was actually posted, 1 when it was WITHHELD. The distinction
+# matters to the caller: printing `PR_GATE: PASS ✅` after withholding tells a reader that a green
+# status exists when none does.
+post_success_unless_rejected () {
+  local rejectors parked rc
+  rejectors="$(reviewer_rejected_this_head)"; rc=$?
+  if [ "$rc" = 0 ]; then
+    echo "  status: REFUSING to post success on ${HEAD_SHA:0:8} — un-dismissed CHANGES_REQUESTED stands (${rejectors})"
+    echo "  a green mechanical gate is not an answer to a semantic rejection; the author must fix it,"
+    echo "  or the reviewer must dismiss their own review deliberately."
+    return 1
+  elif [ "$rc" = 2 ]; then
+    echo "  status: WITHHOLDING success on ${HEAD_SHA:0:8} — could not read this PR's reviews."
+    echo "  A guard that cannot see must not wave a head through. Re-run the gate: withholding costs"
+    echo "  a re-run, posting success over a rejection nobody could read is permanent."
+    return 1
+  fi
+  parked="$(parked_failure_on_this_head)"; rc=$?
+  if [ "$rc" = 0 ]; then
+    echo "  status: REFUSING to post success on ${HEAD_SHA:0:8} — a reviewer PARKED this head:"
+    echo "    \"$parked\""
+    echo "  that park is the only rejection a green-but-conflicted non-src PR can carry, and"
+    echo "  overwriting it also hides the PR from rebase_claim, which greps the description."
+    return 1
+  elif [ "$rc" = 2 ]; then
+    echo "  status: WITHHOLDING success on ${HEAD_SHA:0:8} — could not read the current status."
+    echo "  Same rule as above: an unreadable head is not a clear one."
+    return 1
+  fi
+  post_status success "$1"
+}
+
 # A PENDING must never overwrite a settled verdict. GitHub keeps only the LATEST status per context,
 # so a second agent starting a gate run on a PR that already has a red REJECT posts `pending` over
 # it and the rejection vanishes from the required check — reviewer-03 watched another agent's
@@ -120,7 +238,14 @@ if [ -f raw-port/army/tools/stale_file_check.py ]; then
     exit 1
   fi
 fi
-if [ -z "$CHANGED" ]; then post_status success "no raw-port/src ports to gate (infra/tooling PR)"; echo "PR_GATE: PASS (no src changes) (#$PR)"; exit 0; fi
+if [ -z "$CHANGED" ]; then
+  if post_success_unless_rejected "no raw-port/src ports to gate (infra/tooling PR)"; then
+    echo "PR_GATE: PASS (no src changes) (#$PR)"
+  else
+    echo "PR_GATE: PASS-WITHHELD (no src changes) (#$PR) — the mechanical gate is clean but NO green status was posted (see above)"
+  fi
+  exit 0
+fi
 echo "changed: $CHANGED"
 
 # ABSOLUTIZE before handing paths to gate.sh. `git diff --name-only` emits repo-RELATIVE paths, and
@@ -174,5 +299,14 @@ if [ "$FLAGS" -gt 0 ] && [ "$REVIEWED" != 1 ]; then
   echo "PR_GATE: NEEDS-REVIEW ⚠️ (#$PR) — $FLAGS G5 flag(s); mechanical gate clean but blind-spots need semantic review"
   exit 2
 fi
-if [ "$FLAGS" -gt 0 ]; then post_status success "reviewer-signed (had $FLAGS flag(s), re-derived OK)"; else post_status success "gate PASS (G0-G5 clean, 0 flags)"; fi
-echo "PR_GATE: PASS ✅ (#$PR)"
+WITHHELD=0
+if [ "$FLAGS" -gt 0 ]; then
+  post_success_unless_rejected "reviewer-signed (had $FLAGS flag(s), re-derived OK)" || WITHHELD=1
+else
+  post_success_unless_rejected "gate PASS (G0-G5 clean, 0 flags)" || WITHHELD=1
+fi
+if [ "$WITHHELD" = "1" ]; then
+  echo "PR_GATE: PASS-WITHHELD ⚠️ (#$PR) — the mechanical gate is clean but NO green status was posted (see above)"
+else
+  echo "PR_GATE: PASS ✅ (#$PR)"
+fi
