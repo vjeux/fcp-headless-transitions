@@ -121,20 +121,32 @@ def layer2():
     print("LAYER 2i (queue coverage — the doctor follows the queues instead of disagreeing):",
           "PASS" if ok9 else "FAIL")
     if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
-    # 2j — WHICH QUEUE OWNS A G5-FLAGGED PR. The gate cannot clear a NO-DISASM blind spot itself; it
+    # 2j — THE PR'S BASE. Nothing in the swarm read `baseRefName`: pr_gate diffs `origin/main...HEAD`
+    # while pr_land merges into the PR's OWN base, so a PR stacked on another PR's branch got a green
+    # status covering three PRs' commits and would have been merged where no branch protection
+    # applies. Both tools now refuse; this pins both refusals AND the two decisions inside them (the
+    # gate posts no status, so the PR stays claimable; pr_land fails OPEN on an unanswered query, so
+    # a TLS blip cannot wedge every merge). Offline, guards extracted from the shipped files. ~1s.
+    r10 = run(["bash", os.path.join(TOOLS, "test_pr_base_is_main.sh")])
+    ok10 = "test_pr_base_is_main: PASS" in r10.stdout
+    print("LAYER 2j (a PR's base must be main — the gate and the merge target must agree):",
+          "PASS" if ok10 else "FAIL")
+    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
+    # 2k — WHICH QUEUE OWNS A G5-FLAGGED PR. The gate cannot clear a NO-DISASM blind spot itself; it
     # fails with "reviewer must re-derive disasm" and hands the PR back to a reviewer. No queue
     # offered it: review_claim excluded every FAILURE, rebase_claim takes regression/rebase only,
     # rework_claim takes CHANGES_REQUESTED only. #645 sat claimable-by-nobody until queue-coverage
     # noticed. Offline, jq-backed fixtures with the real status descriptions. ~1s.
-    # (2j, not 2i: this layer was written when 2i was unclaimed, and main took 2i first with the
-    #  queue-coverage suite above. Renumbered on the rebase, as its own note asked — two layers
-    #  claiming one letter is the kind of silent collision this suite exists to refuse.)
-    r10 = run(["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")])
-    ok10 = "test_review_claim_g5: PASS" in r10.stdout
-    print("LAYER 2j (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
-          "PASS" if ok10 else "FAIL")
-    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
+    # (2k, not 2i or 2j: written when 2i was free, then main took 2i (queue coverage) and 2j
+    #  (PR base) while this PR was open. Renumbered again on this rebase, as its own note asked —
+    #  two layers claiming one letter is the kind of silent collision this suite exists to refuse.
+    #  Third collision on this line today; the letters are allocated by whoever merges first.)
+    r11 = run(["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")])
+    ok11 = "test_review_claim_g5: PASS" in r11.stdout
+    print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
+          "PASS" if ok11 else "FAIL")
+    if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11
 
 def _reach(spec, expect):
     import tempfile
