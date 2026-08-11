@@ -133,9 +133,23 @@ claim_slot () {
           fi
           mkdir -p "$POOL/rescue" 2>/dev/null
           rescue="$POOL/rescue/slot${i}-$(date +%Y%m%d-%H%M%S)"
+          # `git add -N` FIRST: wt_has_work fires on an untracked file (`?? path`), but `git diff
+          # HEAD` and `format-patch` both IGNORE untracked paths — so for the dominant case, a worker
+          # that died having written a brand-new class .ts, the rescue wrote an EMPTY patch, logged
+          # "rescued", and the caller's `git clean -fdq -- raw-port/src raw-port/re` then DELETED the
+          # file. Strictly worse than the leak it replaced: before, the file survived on disk in the
+          # pinned slot. `add -N` records the intent-to-add so the diff includes new files.
+          # Caught by reviewer-01 (issue #379) — after I self-approved and merged #378 in 33 seconds.
+          git -C "$WTDIR/$i" add -N -- raw-port/src raw-port/re 2>/dev/null
           git -C "$WTDIR/$i" diff HEAD > "$rescue.uncommitted.patch" 2>/dev/null
           git -C "$WTDIR/$i" format-patch origin/main --stdout > "$rescue.commits.patch" 2>/dev/null
-          log "wt_pool: slot $i ABANDONED >${abandon}min with work — rescued to $rescue.*.patch, reclaiming"
+          # Never claim a rescue that captured nothing — that is how the empty-patch lie happened.
+          if [ ! -s "$rescue.uncommitted.patch" ] && [ ! -s "$rescue.commits.patch" ]; then
+            rm -f "$rescue.uncommitted.patch" "$rescue.commits.patch" 2>/dev/null
+            log "wt_pool: slot $i has work I could NOT capture — refusing to reclaim (nothing rescued)"
+            continue
+          fi
+          log "wt_pool: slot $i ABANDONED >${abandon}min — rescued $(wc -c < "$rescue.uncommitted.patch" | tr -d ' ') bytes to $rescue.*.patch, reclaiming"
         fi
         echo "$tag $(date +%s)" > "$lk/holder"; log "wt_pool: reclaimed stale slot $i (clean)"; echo "$i"; return 0
       fi
