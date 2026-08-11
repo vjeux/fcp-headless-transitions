@@ -81,6 +81,56 @@ else
 fi
 rm -rf "$D"
 
+# 5. main and the approved commit CONFLICT. `git merge-tree --write-tree` exits non-zero on a
+#    conflict AND STILL PRINTS A TREE OID — one containing conflict markers. The predicate used to
+#    swallow that status with `|| true`, so a head whose tree happened to be that conflicted tree
+#    would have carried the approval onto text nobody wrote. `update-branch` cannot produce such a
+#    head, so this was not exploitable; it is pinned because the predicate must not depend on that.
+#    The probe builds exactly the dangerous head with `commit-tree`, which is the only way to reach
+#    the case at all.
+D=$(newrepo)
+git -C "$D" checkout -qb work
+sed -i '' 's/^line2$/line2 FROM THE PR/' "$D/raw-port/army/OPS_LOG.md" 2>/dev/null \
+  || sed -i 's/^line2$/line2 FROM THE PR/' "$D/raw-port/army/OPS_LOG.md"
+git -C "$D" commit -qam "the approved content"
+APPROVED=$(git -C "$D" rev-parse HEAD)
+git -C "$D" checkout -q main
+sed -i '' 's/^line2$/line2 FROM MAIN/' "$D/raw-port/army/OPS_LOG.md" 2>/dev/null \
+  || sed -i 's/^line2$/line2 FROM MAIN/' "$D/raw-port/army/OPS_LOG.md"
+git -C "$D" commit -qam "main edits the same line"
+git -C "$D" branch -f origin/main main
+# NOTE THE `head -1`: on a CONFLICT `merge-tree --write-tree` prints the tree oid AND a block of
+# conflict information after it, so the raw capture is multi-line. That is incidentally why the
+# unfixed predicate does not misfire in practice — a multi-line $t1 can never equal a bare tree oid
+# — but it is an accident of the OUTPUT FORMAT, not a decision, and the refusal below is the
+# decision. Building the probe head needs the oid alone.
+CONFTREE=$(git -C "$D" merge-tree --write-tree origin/main "$APPROVED" 2>/dev/null | head -1)
+if [ -z "$CONFTREE" ]; then
+  bad "5 could not build the conflicted tree — this git does not print one, so the case is not evidence"
+else
+  FAKEHEAD=$(git -C "$D" commit-tree "$CONFTREE" -p "$APPROVED" -m "a head whose tree IS the conflicted merge result" 2>/dev/null)
+  if [ -z "$FAKEHEAD" ]; then
+    bad "5 could not build the probe head with commit-tree"
+  elif carry "$D" "$APPROVED" "$FAKEHEAD"; then
+    bad "5 a CONFLICTED merge-tree -> should REFUSE (its tree carries conflict markers)"
+  else
+    ok "5 a CONFLICTED merge-tree -> REFUSE"
+    # 5b. AND IT MUST REFUSE BY DECISION, NOT BY ACCIDENT. Case 5 alone cannot tell the two apart:
+    # a conflicted `--write-tree` prints the oid AND a conflict block, so $t1 is multi-line and can
+    # never equal a bare tree oid — the refusal happens with or without the exit-status check, and a
+    # mutant that removes the check SURVIVES case 5. That is a property of git's OUTPUT FORMAT, not
+    # of this predicate, and the day it changes the unfixed form carries an approval onto a tree
+    # full of conflict markers. So assert the decision itself: the refusal must be spoken.
+    out5=$( ( cd "$D" && eval "$FN"$'\n''carry_tree_identity "'"$APPROVED"'" "'"$FAKEHEAD"'" 2>&1' ) )
+    if printf '%s' "$out5" | grep -q "CONFLICT"; then
+      ok "5b …and says so, so the refusal is the check and not the output format"
+    else
+      bad "5b the conflict was not NAMED — the refusal is an accident of merge-tree's multi-line output"
+    fi
+  fi
+fi
+rm -rf "$D"
+
 echo "BASELINE (M0): $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || { echo "TEST_PR_LAND_CARRY: FAIL"; exit 1; }
 
@@ -119,6 +169,9 @@ mutate diff_hash \
 mutate no_precond 's|  git cat-file -e "${approved}^{commit}" 2>/dev/null .. {|  false \&\& {|' \
   "the cat-file precondition (case 3/4)" \
   "the tree-identity form already refuses on an unreadable object — merge-tree prints nothing, so cases 3 and 4 still pass; the precondition only improves the message"
+# restore the swallowed exit status: a conflict then compares equal and case 5 carries
+mutate conflict_ok 's|  \[ "$mt_rc" = 0 \] .. {|  false \&\& {|' \
+  "the conflict refusal — case 5's head IS the conflicted tree, so it would carry"
 rm -rf "$MUT"
 [ "$MFAIL" -eq 0 ] || { echo "TEST_PR_LAND_CARRY: FAIL (a mutant survived)"; exit 1; }
-echo "TEST_PR_LAND_CARRY: PASS ($PASS cases, 1 mutant killed, 1 proven equivalent)"
+echo "TEST_PR_LAND_CARRY: PASS ($PASS cases, 2 mutants killed, 1 proven equivalent)"

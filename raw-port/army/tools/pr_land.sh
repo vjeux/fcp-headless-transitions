@@ -34,7 +34,16 @@ carry_tree_identity () {
   # And a `git diff` that FAILS prints nothing, whose shasum is the stable da39a3ee… of empty input,
   # so two failures compare EQUAL and the carry fires on content nobody read. merge-tree prints
   # nothing and exits non-zero instead. (Both measured by reviewer 2 on #603.)
-  t1=$(git merge-tree --write-tree origin/main "$approved" 2>/dev/null || true)
+  local mt_rc
+  t1=$(git merge-tree --write-tree origin/main "$approved" 2>/dev/null); mt_rc=$?
+  # A CONFLICT EXITS NON-ZERO AND STILL PRINTS A TREE OID — and that tree holds conflict markers, so
+  # carrying an approval onto it would be carrying it onto text nobody wrote, let alone reviewed.
+  # `|| true` swallowed that status, which made the header comment above ("a failed merge-tree …
+  # exits non-zero — this must never fail open") a promise the code did not keep. `update-branch`
+  # cannot produce such a head, which is why it was not exploitable; the point of a predicate like
+  # this one is that it must not depend on that staying true somewhere else. (reviewer 1 on #603.)
+  [ "$mt_rc" = 0 ] || {
+    echo "  carry: main and the approved commit ${approved:0:8} CONFLICT — NOT carrying"; return 1; }
   t2=$(git rev-parse "${head}^{tree}" 2>/dev/null || true)
   echo "    merge-tree(origin/main, ${approved:0:8}) = ${t1:0:12}"
   echo "    tree(${head:0:8})                        = ${t2:0:12}"
@@ -142,11 +151,20 @@ print('yes' if any(r.get('state')=='APPROVED' and r.get('commit_id')=='$HEAD_SHA
     if [ -z "$APPROVED" ]; then
     # CARRY THE APPROVAL ACROSS OUR OWN UPDATE — but only when the author's content is unchanged.
     # If update-branch moved the head, the difference between the approved SHA and the new head is
-    # main being merged in, NOT anything the author wrote. So compare the PR's own CONTRIBUTION —
-    # `git diff origin/main...<sha>` — at both SHAs. Byte-identical means the reviewer's evidence
-    # still describes exactly this content, and their verdict stands. Any difference at all means a
-    # real re-review, and we refuse as before. This is deliberately narrow: it carries an approval
-    # over a merge WE performed, and never over a push the author made.
+    # main being merged in, NOT anything the author wrote.
+    # WHAT IS ACTUALLY TESTED IS CONTENT, NOT PROVENANCE, and the distinction matters enough to
+    # write down because the previous wording ("it carries over a merge WE performed, and never over
+    # a push the author made") describes a check this code does not make, and someone would later
+    # "fix" the code to match the sentence. `carry_tree_identity` asserts that the head's TREE is
+    # exactly `merge-tree(origin/main, approved-sha)`. An author push that happened to produce that
+    # identical tree would also carry — which is harmless, because the content is then provably the
+    # content the reviewer read, byte for byte. The property is "nothing unreviewed is in this tree",
+    # which is stronger than "we made this commit" and is the one the verdict actually depends on.
+    # (The earlier form compared `git diff origin/main...<sha>` hashes at both SHAs. It failed twice
+    # over: a diff computes each side against its OWN merge base, so main advancing inside the same
+    # file made identical contributions hash differently; and a FAILED diff hashes to the stable
+    # da39a3ee… of empty input, so two unreadable commits compared EQUAL and it carried on content
+    # nobody read.)
     if [ -n "${APPROVED_BEFORE:-}" ] && [ "$APPROVED_BEFORE" != "$HEAD_SHA" ]; then
       # The fetches are REPORTED, not swallowed: if the objects are not here the carry must not run.
       git fetch -q origin main "+refs/pull/$PR/head:refs/prland/$PR" >/dev/null 2>&1 \
