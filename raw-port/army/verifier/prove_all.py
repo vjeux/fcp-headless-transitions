@@ -109,20 +109,32 @@ def layer2():
     print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
           "PASS" if ok8 else "FAIL")
     if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
-    # 2i — WHICH QUEUE OWNS A G5-FLAGGED PR. The gate cannot clear a NO-DISASM blind spot itself; it
+    # 2i — swarm_doctor's COVERAGE check, the one assertion that re-states a queue's behaviour
+    # (it lifts each selector, then re-applies rebase_claim's status-description grep). A
+    # re-statement that drifts does not fail loudly: it accuses PRs the queue is handing out, or
+    # certifies stranded ones, in the report AGENT_ENTRY tells every agent to trust — and the first
+    # version of that check did report two live PRs backwards in one run. Pinned here because
+    # rebase_claim can now select a CONFLICTED PR without reading any description. Offline (gh, sh
+    # and from_main are stubbed), ~0.2s, every case mutation-checked inside the suite.
+    r9 = run([sys.executable, os.path.join(HERE, "test_queue_coverage.py")])
+    ok9 = "test_queue_coverage: PASS" in r9.stdout
+    print("LAYER 2i (queue coverage — the doctor follows the queues instead of disagreeing):",
+          "PASS" if ok9 else "FAIL")
+    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
+    # 2j — WHICH QUEUE OWNS A G5-FLAGGED PR. The gate cannot clear a NO-DISASM blind spot itself; it
     # fails with "reviewer must re-derive disasm" and hands the PR back to a reviewer. No queue
     # offered it: review_claim excluded every FAILURE, rebase_claim takes regression/rebase only,
     # rework_claim takes CHANGES_REQUESTED only. #645 sat claimable-by-nobody until queue-coverage
     # noticed. Offline, jq-backed fixtures with the real status descriptions. ~1s.
-    # (Numbered 2i, not 2j: this layer was written on top of #649's unlanded 2i. Whichever of the
-    # two lands second renumbers — the letter is a label, and two layers claiming one letter is
-    # the kind of silent collision this suite exists to refuse.)
-    r9 = run(["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")])
-    ok9 = "test_review_claim_g5: PASS" in r9.stdout
-    print("LAYER 2i (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
-          "PASS" if ok9 else "FAIL")
-    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
+    # (2j, not 2i: this layer was written when 2i was unclaimed, and main took 2i first with the
+    #  queue-coverage suite above. Renumbered on the rebase, as its own note asked — two layers
+    #  claiming one letter is the kind of silent collision this suite exists to refuse.)
+    r10 = run(["bash", os.path.join(TOOLS, "test_review_claim_g5.sh")])
+    ok10 = "test_review_claim_g5: PASS" in r10.stdout
+    print("LAYER 2j (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
+          "PASS" if ok10 else "FAIL")
+    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
 
 def _reach(spec, expect):
     import tempfile
