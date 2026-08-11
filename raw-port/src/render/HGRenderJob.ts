@@ -18,6 +18,7 @@
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob23SpecifiesComputeDevicesEv.s
 //                                                                       (SpecifiesComputeDevices)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob12GetTypeLabelEv.s      (GetTypeLabel)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob19UsesOnlyCPUResourceEv.s (UsesOnlyCPUResource)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob17GetGPUGraphicsAPIEv.s   (GetGPUGraphicsAPI —
 //                                                                       read only to pin the
 //                                                                       +0x64 offset/width; the
@@ -97,6 +98,7 @@
 //   GetTypeLabel            — none. Reads this+0x0c and two static __TEXT literals
 //                             (the offset table @0x3cb988 and the unknown-label
 //                             cstring @0x8d9ee5); no calls at all.
+//   UsesOnlyCPUResource     — none.
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -121,6 +123,8 @@
 //       — HGRenderJob::GetType() @Helium 0x54730
 //   * __ZN11HGRenderJob12GetTypeLabelEv
 //       — HGRenderJob::GetTypeLabel() @Helium 0x53f30
+//   * __ZN11HGRenderJob19UsesOnlyCPUResourceEv
+//       — HGRenderJob::UsesOnlyCPUResource() @Helium 0x54b90
 //   * __ZN11HGRenderJob24IsRequestedVirtualScreenEi
 //       — HGRenderJob::IsRequestedVirtualScreen(int) @Helium 0x54ad0
 //   * __ZN11HGRenderJob11GetUserNameEv
@@ -866,6 +870,102 @@ export class HGRenderJob {
     if (this.taggedRefs.length !== 0) return true; // @0x54c14 jne -> @0x54c03 (al = 1)
     // @0x54c16..0x54c19 — xorl %eax,%eax ; epilogue ; retq.
     return false;
+  }
+
+  /**
+   * `HGRenderJob::UsesOnlyCPUResource()` @Helium 0x54b90
+   *   (__ZN11HGRenderJob19UsesOnlyCPUResourceEv)
+   *
+   * Full transcription of the 34-line body (raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob19UsesOnlyCPUResourceEv.s). Returns `bool` in %al. The
+   * mirror twin of `UsesOnlyGPUResource` @0x54b20 above — same three data sources
+   * (`_resource` @+0x10, `taggedRef18` @+0x18, the 16-byte-stride vector @+0x28/+0x30),
+   * INVERTED tag polarity (CPU wants `tag08 == 0`, GPU wanted `!= 0`), a single-value
+   * fast path instead of a range, and NO `slot50` test at all.
+   *
+   *   0x54b90  movl  0x10(%rdi), %ecx        ; ecx = this->_resource (u32 @+0x10)
+   *   0x54b93  movb  $0x1, %al               ; default answer = true
+   *   0x54b95  cmpl  $0x1, %ecx              ; flags on (resource - 1)
+   *   0x54b98  je    0x54bea                 ; resource == 1 -> 0x54bea retq, al still 1 -> TRUE
+   *   0x54b9a  cmpl  $0x6, %ecx
+   *   0x54b9d  jne   0x54be8                 ; resource != 6 -> 0x54be8 xorl %eax,%eax ; retq -> FALSE
+   *   0x54b9f  pushq %rbp                    ; (frame built only on the resource == 6 path)
+   *   0x54ba0  movq  %rsp, %rbp
+   *   0x54ba3  movq  0x18(%rdi), %rcx        ; rcx = this->taggedRef18
+   *   0x54ba7  testq %rcx, %rcx
+   *   0x54baa  je    0x54bb2                 ; null -> skip the tag test, go walk the vector
+   *   0x54bac  cmpl  $0x0, 0x8(%rcx)         ; flags on (taggedRef18->tag08 - 0)
+   *   0x54bb0  je    0x54be6                 ; tag08 == 0 -> 0x54be6 popq/retq with al = 1 -> TRUE
+   *   0x54bb2  movq  0x28(%rdi), %rdx        ; rdx = vector begin
+   *   0x54bb6  movq  0x30(%rdi), %rcx        ; rcx = vector end
+   *   0x54bba  cmpq  %rcx, %rdx              ; flags on (begin - end)
+   *   0x54bbd  je    0x54beb                 ; EMPTY vector -> 0x54beb xorl %eax,%eax -> FALSE
+   *   0x54bbf  addq  $0x10, %rdx             ; pre-advance the cursor; entries are 16 bytes
+   *   0x54bc3  nopw  %cs:(%rax,%rax)         ; alignment padding — not executed
+   *   0x54bd0  movq  -0x10(%rdx), %rax       ; rax = entry[i].ptr (first qword of the entry)
+   *   0x54bd4  cmpl  $0x0, 0x8(%rax)         ; flags on (ptr->tag08 - 0)
+   *   0x54bd8  sete  %al                     ; al = (ptr->tag08 == 0)   [sete does NOT touch flags]
+   *   0x54bdb  jne   0x54be6                 ; a NON-zero tag returns immediately with al = 0 -> FALSE
+   *   0x54bdd  cmpq  %rcx, %rdx              ; cursor (one entry past the one just read) vs end
+   *   0x54be0  leaq  0x10(%rdx), %rdx        ; advance 16 bytes  [lea does NOT touch flags]
+   *   0x54be4  jne   0x54bd0                 ; loop while that pre-increment cursor != end
+   *   0x54be6  popq  %rbp
+   *   0x54be7  retq                          ; returns al
+   *   0x54be8  xorl  %eax, %eax              ; the resource != 6 exit (no frame was built)
+   *   0x54bea  retq
+   *   0x54beb  xorl  %eax, %eax              ; the empty-vector exit
+   *   0x54bed  popq  %rbp
+   *   0x54bee  retq
+   *   0x54bef  nop                           ; padding
+   *
+   * So: resource == 1 is unconditionally CPU-only; anything other than 1 or 6 is not;
+   * and resource == 6 is CPU-only when `taggedRef18` is non-null with `tag08 == 0`,
+   * else when the +0x28 vector is NON-EMPTY and EVERY entry's `tag08` is zero. An empty
+   * vector on that fallback path answers FALSE, exactly as in the GPU twin.
+   *
+   * Branches that are easy to invert, per the AT&T `dst - src` rule (PORTING_SPEC):
+   * `cmpl $0x1, %ecx ; je` is `ecx - 1`, so it fires on resource == 1 and jumps PAST the
+   * `xorl %eax,%eax` at 0x54be8 to the bare `retq` at 0x54bea — the `movb $0x1, %al` at
+   * 0x54b93 is still live, so that exit is TRUE, not FALSE. And the loop's `jne 0x54be6`
+   * at 0x54bdb reads the flags of the `cmpl` at 0x54bd4 (the intervening `sete` leaves
+   * flags alone), so it exits on a NON-zero tag carrying the al = 0 that `sete` just wrote.
+   *
+   * DIFFERENTIAL against the live binary (exported `T`, so dlsym reaches it; run under
+   * `arch -x86_64` because every address above is an x86_64 offset):
+   * raw-port/re/oracle/HGRenderJob_UsesOnlyCPUResource_oracle.py builds synthetic jobs
+   * over resource 0..8 x {taggedRef18 null, tag 0, 1, 2} x {+0x50 zero, non-zero} x
+   * vectors of length 0..3 with every tag combination in {0,1,2}: 2,880 cases,
+   * 418 TRUE / 2,462 FALSE, **0 divergences**.
+   *
+   * That corpus is measured to be DISCRIMINATING, not vacuous — five plausible mis-reads of
+   * this same body are each rejected by it: the GPU twin's `tag != 0` polarity (234 wrong),
+   * reading `je 0x54bea` as the FALSE exit (320 wrong), reading the empty-vector exit as
+   * TRUE (6 wrong), copying the GPU twin's `(resource-2) < 4` range fast path (1,600 wrong),
+   * and dropping the +0x18 short-circuit (74 wrong).
+   *
+   * The corpus also carries the +0x50 dimension that the GPU twin does branch on, and pairs
+   * of cases differing ONLY in that byte give the same live answer in 1,440 of 1,440 pairs —
+   * measured confirmation that this method really has no `slot50` test.
+   *
+   * @returns true when the job needs only CPU resources.
+   */
+  UsesOnlyCPUResource(): boolean {
+    // @0x54b90/0x54b93/0x54b95/0x54b98 — resource == 1 returns the default al = 1.
+    const resource = this._resource >>> 0;
+    if (resource === 1) return true; // @0x54b98 je -> @0x54bea retq (al = 1)
+    // @0x54b9a/0x54b9d — anything but 6 falls out through the xorl at @0x54be8.
+    if (resource !== 6) return false; // @0x54be8 xorl %eax,%eax ; @0x54bea retq
+    // @0x54ba3..0x54bb0 — taggedRef18 != null && taggedRef18->tag08 == 0 -> true.
+    const ref = this.taggedRef18;
+    if (ref !== null && (ref.tag08 >>> 0) === 0) return true; // @0x54bb0 je -> @0x54be6 (al = 1)
+    // @0x54bb2..0x54bbd — an empty vector answers false.
+    const refs = this.taggedRefs;
+    if (refs.length === 0) return false; // @0x54bbd je -> @0x54beb xorl %eax,%eax
+    // @0x54bd0..0x54be4 — every entry's tag08 must be ZERO; the first non-zero returns false.
+    for (let i = 0; i < refs.length; i++) {
+      if ((refs[i].tag08 >>> 0) !== 0) return false; // @0x54bd8 sete al=0 ; @0x54bdb jne
+    }
+    return true; // @0x54be4 falls through to @0x54be6 with al = 1 from the last sete
   }
 
   /**
