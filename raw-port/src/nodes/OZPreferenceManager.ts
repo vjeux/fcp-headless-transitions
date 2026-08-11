@@ -300,3 +300,62 @@ export function OZPreferenceManager_getGuidesColor(
   // verbatim. `_self` (rdi) is never dereferenced by the disasm.
   return guidesColor;
 }
+
+/**
+ * smartGuidesColor — the ONLY external side of `__ZL16smartGuidesColor`.
+ *
+ * `nm -m -arch x86_64 Ozone` reports
+ * `000000000093d3f0 (__DATA,__bss) non-external __ZL16smartGuidesColor` — the
+ * slot EIGHT BYTES above `__ZL11guidesColor` @0x93d3e8, a separate file-static
+ * (`_ZL` = internal linkage) `NSColor*` in BSS, hence NULL-initialised. Sole
+ * writer: `OZPreferenceManager::setSmartGuidesColor(NSColor*)` @0x154de0 (a
+ * separate ledger unit); readers: `getSmartGuidesColor()` @0x154db0 (ported
+ * below) and the sret template variant @0x154dc0 (its own unit).
+ */
+let smartGuidesColor: NSColorHandle | null = null;
+
+/**
+ * Test/boundary hook: install the current smartGuidesColor slot value.
+ *
+ * Mirrors what `OZPreferenceManager::setSmartGuidesColor(NSColor*)` @0x154de0
+ * does to the same rip slot (that unit is not ported here). NOT a port of a
+ * real FCP symbol — the module-visibility hatch onto the static storage, the
+ * exact counterpart of `__setGuidesColorSlot` / `__setPreviewBGColorSlot`.
+ */
+export function __setSmartGuidesColorSlot(v: NSColorHandle | null): void {
+  smartGuidesColor = v;
+}
+
+/**
+ * `OZPreferenceManager::getSmartGuidesColor()`
+ * @0x0000000000154db0  Ozone  mangled: __ZN19OZPreferenceManager19getSmartGuidesColorEv
+ *
+ * Pure static-pointer accessor — the twin of `getGuidesColor()` @0x154cf0
+ * above, reading `__ZL16smartGuidesColor` (@0x93d3f0) instead of
+ * `__ZL11guidesColor` (@0x93d3e8). Identical five-instruction shape.
+ *
+ * Disasm (verbatim; raw-port/re/disasm/__ZN19OZPreferenceManager19getSmartGuidesColorEv.s,
+ * 6 lines):
+ *   pushq  %rbp                                # @0x154db0
+ *   movq   %rsp, %rbp                          # @0x154db1
+ *   movq   __ZL16smartGuidesColor(%rip), %rax  # @0x154db4  rax = *(&smartGuidesColor)
+ *   popq   %rbp                                # @0x154dbb
+ *   retq                                       # @0x154dbc
+ *   nopl   (%rax)                              # @0x154dbd  padding, not executed
+ *
+ * Net effect: return the current value of the static `NSColor*` slot. `this`
+ * (%rdi) is never touched, no branch, no retain/autorelease, zero callees
+ * (`depgraph.py deps` lists nothing). The pointer is returned RAW, NULL
+ * included.
+ *
+ * Only the `Ev` form is ported; the sret variant @0x154dc0 (which hands the
+ * same slot to `PCManagedColorTemplate::operator=(NSColor*)`) is a separate
+ * unit.
+ */
+export function OZPreferenceManager_getSmartGuidesColor(
+  _self: OZPreferenceManager_Fields,
+): NSColorHandle | null {
+  // @0x154db4 : movq __ZL16smartGuidesColor(%rip), %rax — reads the static
+  // slot verbatim. `_self` (rdi) is never dereferenced by the disasm.
+  return smartGuidesColor;
+}
