@@ -23,6 +23,60 @@ import { kCMTimeFlags_Valid } from "./CMTime.js";
 // cannot load it. `import type` is erased unconditionally and is identical for tsc.
 import type { CMTime } from "./CMTime.js";
 
+
+/**
+ * The receiver side of the virtual dispatch at the end of
+ * `PCSerializerReadStream::processElement` @ProCore 0x2683b — i.e. the C++
+ * `PCSerializer*` that `PCStreamElement`'s constructor stores at +0x18
+ * (`PCStreamElement::PCStreamElement(unsigned, PCScope*, PCSerializer*)`
+ * @ProCore 0x286e0, `movq %rcx, 0x18(%rdi)` @0x286fa).
+ *
+ * WHICH VIRTUAL SLOT, MEASURED RATHER THAN INFERRED. `processElement` loads
+ * the receiver's vptr and calls `vptr+0x38` — slot 7. That slot was resolved
+ * by reading the real vtables out of the LIVE x86_64 images under
+ * `arch -x86_64` and naming each entry with `dladdr` (the vtable object's
+ * installed pointer is `__ZTV… + 0x10`, so slot 7 is `__ZTV… + 0x48`):
+ *
+ *   Ozone `__ZTV7OZScene`    slot 5 `OZScene::parseBegin(PCSerializerReadStream&)`
+ *                            slot 6 `OZScene::parseEnd(PCSerializerReadStream&)`
+ *                            slot 7 `OZScene::parseElement(PCSerializerReadStream&,
+ *                                                          PCStreamElement&)`   <== vptr+0x38
+ *                            slot 8 `PCSerializer::readSignificantWhiteSpace()`
+ *   Ozone `__ZTV10OZDocument` slot 7 `OZDocument::parseElement(PCSerializerReadStream&,
+ *                                                             PCStreamElement&)`
+ *
+ * Slot 8 being the un-overridden `PCSerializer::readSignificantWhiteSpace` is
+ * what identifies slots 2..8 as PCSerializer's OWN virtual table rather than
+ * the leaf class's: `writeHeader`, `writeBody`,
+ * `markFactoriesForSerialization`, `parseBegin`, `parseEnd`, `parseElement`,
+ * `readSignificantWhiteSpace`. (The file comment in `PCSerializer.ts` records
+ * that those slots "come from ProChannel.framework and are not accessible from
+ * Ozone's binary" — reading an instantiated subclass's vtable out of the
+ * running process is how they became accessible.)
+ *
+ * THE RETURN TYPE IS `bool`, also measured rather than assumed: the smallest
+ * implementation in the corpus, `PCIgnoreElement::parseElement` @ProCore
+ * 0x26a0c, is `pushq %rbp ; movq %rsp,%rbp ; movb $0x1, %al ; popq %rbp ; retq`
+ * — it sets only %al, the one-byte boolean register. `processElement`'s own
+ * NULL path agrees: it returns with `xorl %eax, %eax` @0x2683d.
+ *
+ * MODELLED AS AN INTERFACE, NOT A NEW CLASS. This is not an invented helper:
+ * it is the shape of the existing abstract base `PCSerializer`
+ * (`src/infra/PCSerializer.ts`), narrowed to the one slot this call site
+ * needs. 117 classes across the five frameworks define
+ * `parseElement(PCSerializerReadStream&, PCStreamElement&)` — `OZScene`,
+ * `OZDocument`, `OZSceneNode`, `FactoryParser`, `PCIgnoreElement`,
+ * `FFOZMediaRefChannel` and so on — so the call really is polymorphic, and a
+ * TypeScript method call on a typed receiver is the faithful model of a
+ * vtable dispatch (the same convention `PC_Sp_counted_base.destroy()` uses
+ * for its `jmpq *0x8(%rax)` tail-call).
+ */
+export interface PCSerializerParseTarget {
+  /** Virtual slot `vptr+0x38` (slot 7) — see the interface doc for how that
+   *  was resolved. Returns the C++ `bool` left in %al. */
+  parseElement(stream: PCSerializerReadStream, element: PCStreamElement): boolean;
+}
+
 export class PCSerializerReadStream {
   /** Document format version (from <ozml version=...> / OZDocument). */
   versionMajor = 0;
@@ -230,5 +284,122 @@ export class PCSerializerReadStream {
     const blockPtrs = map[block];
     // @0x264a5  movq (%rcx,%rax,8), %rax  /  @0x264a9..0x264aa  epilogue + retq
     return blockPtrs[slot];
+  }
+
+  /**
+   * `PCSerializerReadStream::processElement(PCStreamElement&)`
+   *   — @ProCore 0x2681c
+   *   — __ZN22PCSerializerReadStream14processElementER15PCStreamElement
+   *
+   * Hand the element to the object that owns it: if the element carries a
+   * `PCSerializer*` at +0x18, mark the element as processed (+0xc = 1) and
+   * TAIL-CALL that object's `parseElement` virtual, forwarding this stream and
+   * the element; otherwise answer `false` and touch nothing.
+   *
+   * FULL DISASM (raw-port/re/disasm/
+   * ProCore.__ZN22PCSerializerReadStream14processElementER15PCStreamElement.s
+   * — 17 lines), every instruction accounted for:
+   *
+   *   0x2681c  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x2681d  movq  %rsp, %rbp
+   *   0x26820  movq  %rsi, %rdx           ; ARG SHUFFLE: element -> 3rd-arg register
+   *   0x26823  movq  %rdi, %rsi           ; ARG SHUFFLE: this (the stream) -> 2nd-arg register
+   *   0x26826  movq  0x18(%rdx), %rdi     ; NEW RECEIVER: rdi = element->serializer (+0x18)
+   *   0x2682a  testq %rdi, %rdi           ; ZF = (serializer == NULL)
+   *   0x2682d  je    0x2683d              ;   NULL -> the bail path
+   *   0x2682f  movb  $0x1, 0xc(%rdx)      ; element->processedFlag (+0xc) = 1
+   *   0x26833  movq  (%rdi), %rax         ; rax = serializer->vptr
+   *   0x26836  movq  0x38(%rax), %rax     ; rax = vptr[+0x38] = slot 7 = parseElement
+   *   0x2683a  popq  %rbp                 ; epilogue BEFORE the tail jump
+   *   0x2683b  jmpq  *%rax                ; TAIL-CALL serializer->parseElement(stream, element)
+   *   0x2683d  xorl  %eax, %eax           ; bail: return value = 0
+   *   0x2683f  popq  %rbp
+   *   0x26840  retq                       ; return false
+   *   0x26841  nop                        ; alignment pad — not executed
+   *
+   * THE BODY IS COMPLETE: 0x2681c..0x26840 inclusive plus the 0x26841 pad, and
+   * the next symbol starts at exactly 0x26842
+   * (`__ZN22PCSerializerReadStream11getAsStringER15PCStreamElementP8PCString`).
+   *
+   * THE ARGUMENT SHUFFLE IS THE POINT OF THE FUNCTION. On entry the System V
+   * registers hold `%rdi` = this (the stream), `%rsi` = the element. The two
+   * `movq`s at 0x26820/0x26823 slide them one place right, and the load at
+   * 0x26826 puts the element's serializer in `%rdi` — so the tail-jump enters
+   * `parseElement` with exactly `(receiver = element->serializer,
+   * arg1 = this stream, arg2 = the element)`. Because it is a `jmp` and not a
+   * `callq`, this frame's return value IS the callee's: nothing is
+   * post-processed, and the `bool` in %al travels straight out to our caller.
+   *
+   * WHAT +0x18 AND +0xc ARE, from the element's own constructor
+   * `PCStreamElement::PCStreamElement(unsigned, PCScope*, PCSerializer*)`
+   * @ProCore 0x286e0 — which is where those two slots are established:
+   *
+   *   0x286e4  leaq  <vtable>(%rip), %rax ; +0x00  vptr
+   *   0x286eb  movq  %rax, (%rdi)
+   *   0x286ee  movl  %esi, 0x8(%rdi)      ; +0x08  the element TYPE tag (u32, arg1)
+   *   0x286f1  xorl  %eax, %eax
+   *   0x286f3  movb  %al, 0xc(%rdi)       ; +0x0c  ZEROED — the flag this method sets
+   *   0x286f6  movq  %rdx, 0x10(%rdi)     ; +0x10  PCScope*   (arg2)
+   *   0x286fa  movq  %rcx, 0x18(%rdi)     ; +0x18  PCSerializer* (arg3) — our receiver
+   *   0x286fe  movq  $0x0, 0x20(%rdi)     ; +0x20  zeroed
+   *   0x28706  movb  %al, 0x28(%rdi)      ; +0x28  zeroed
+   *
+   * So the receiver is the `PCSerializer*` the element was CONSTRUCTED with,
+   * and the +0xc byte starts at 0 and is set to 1 here — "this element has
+   * been handed to its serializer". Both slots are modelled on
+   * `PCStreamElement` (`serializerAt0x18`, `processedFlagAt0xc`), which is the
+   * class that owns them.
+   *
+   * VIRTUAL DISPATCH, RESOLVED. `vptr+0x38` is slot 7, and slot 7 is
+   * `parseElement(PCSerializerReadStream&, PCStreamElement&)` — read out of the
+   * live images with `dladdr`, see {@link PCSerializerParseTarget} above for
+   * the measured slot table. This is a genuine polymorphic call (117 classes
+   * define that method), so it is transcribed as a method call on the typed
+   * receiver rather than deferred: there is no single static target to name,
+   * and a TypeScript virtual call is what a vtable dispatch IS.
+   *
+   * MEASURED AGAINST THE LIVE BINARY — including the dispatch itself.
+   * `raw-port/re/oracle/PCSerializerReadStream_processElement_oracle.py` (under
+   * `arch -x86_64 /usr/bin/python3`) dlsym's this exported `T` symbol, checks
+   * the address is slide+0x2681c and that the 37 mapped opcode bytes are the
+   * ones listed above, then calls it over 0xCD-poisoned arenas with a
+   * SYNTHETIC vtable whose twelve slots hold twelve distinct callbacks — so
+   * the run observes which slot was entered, in which register each argument
+   * arrived, what the +0xc byte became and what the function returned. The
+   * REAL TypeScript below is driven over the same scenarios by
+   * `PCSerializerReadStream_processElement_driver.mts` and must produce the
+   * same observations. Result, at ProCore slide 0x10c2a8000 (30 checks, exit 0):
+   * **PASS, 0 checks failed** — dlsym at slide+0x2681c, opcode bytes equal,
+   * SLOT 7 entered (never 6, 8 or any other), arguments arriving as
+   * (%rdi = the element's serializer, %rsi = this stream, %rdx = the element),
+   * the +0xc byte 1 after every dispatching call and untouched on the NULL
+   * path, the callee's `bool` returned unchanged (both 0 and 1), the rest of
+   * both arenas byte-identical, and all seven negative controls diverging
+   * (returns-true-on-NULL, flag-not-set, flag-set-on-NULL, swapped stream and
+   * element arguments, receiver passed as the stream, return value ignored,
+   * and dispatch to slot 6 instead of 7).
+   *
+   * @param element — %rsi on entry, the element to hand on.
+   * @returns the callee's `bool`, or `false` when the element has no serializer.
+   */
+  processElement(element: PCStreamElement): boolean {
+    // @0x26820..0x26823 — the argument shuffle. In TS the two values are just
+    //   named; the registers they occupy are what the disasm is describing.
+    // @0x26826  movq 0x18(%rdx), %rdi — the new receiver.
+    const serializer = element.serializerAt0x18;
+    // @0x2682a..0x2682d  testq %rdi,%rdi ; je 0x2683d
+    if (serializer === null) {
+      // @0x2683d..0x26840  xorl %eax,%eax ; popq %rbp ; retq — and note that
+      //   the +0xc byte is NOT written on this path.
+      return false;
+    }
+    // @0x2682f  movb $0x1, 0xc(%rdx) — mark the element processed. This
+    //   happens BEFORE the dispatch, so a parseElement that inspects the flag
+    //   (or re-enters this method) sees it already set.
+    element.processedFlagAt0xc = 1;
+    // @0x26833..0x2683b  movq (%rdi),%rax ; movq 0x38(%rax),%rax ; jmpq *%rax
+    //   Virtual slot 7 = parseElement, tail-called with (stream, element), so
+    //   its return value is ours.
+    return serializer.parseElement(this, element);
   }
 }
