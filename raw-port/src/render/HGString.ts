@@ -615,9 +615,17 @@ export function HGString_hash(self: HGStringInstance): HGStringHash {
 function free(_p: HGStringBuf | HGStringAlloc | null): void {
   // @0xb79c4 callq 0x3c513e  ## symbol stub for: _free   (alloc->base)
   // @0xb79cd callq 0x3c513e  ## symbol stub for: _free   (this->alloc)
-  throw new Error(
-    "_free @Helium @0xb79c4/@0xb79cd not yet transcribed (libc extern)"
-  );
+  //
+  // A DEALLOCATION PRIMITIVE, MODELLED AS A NO-OP. `free` returns void and the
+  // machine reaches both call sites as NORMAL control flow — @0xb79a2
+  // `decq 0x8(%rax)` / @0xb79a6 `je 0xb79c0` is the ordinary refcount-hits-zero
+  // path, i.e. the last owner destructing, which is the common case rather than
+  // an error. Making it throw would raise instead of destructing on exactly
+  // that path. A JS runtime owns the surrogate buffers through GC, so releasing
+  // the storage is a no-op here and dropping the reference is what makes it
+  // unreachable; this is the landed convention (PCIgnoreElement::destroyAndDelete
+  // models the `jmp __ZdlPv` the same way, PCAtomMetadataHandler models
+  // `delete[]` the same way). Value-PRODUCING externs still throw.
 }
 
 /**
@@ -627,9 +635,12 @@ function free(_p: HGStringBuf | HGStringAlloc | null): void {
  */
 function operator_delete(_p: HGStringExtraBlock | null): void {
   // @0xb79bb jmp 0x3c4fa0  ## symbol stub for: __ZdlPv
-  throw new Error(
-    "__ZdlPv (::operator delete) @Helium @0xb79bb not yet transcribed (C++ runtime extern)"
-  );
+  //
+  // Same deallocation-primitive model as `free` above: void return, reached on
+  // the reachable non-null path (@0xb79a8/@0xb79d2 `testq %rdi,%rdi` then the
+  // fall-through), so it is a JS no-op. The real work of that leg — the
+  // `__end_ = __begin_` store at @0xb79b1 — is transcribed in the caller and
+  // must RUN, which it cannot if this raises.
 }
 
 /**
@@ -650,6 +661,23 @@ function operator_delete(_p: HGStringExtraBlock | null): void {
  * apparently-pointless store at @0xb79b1 is the `__end_ = __begin_` half of an
  * inlined `std::__1::vector::~vector`, which is what pins +0x18/+0x20 as the
  * first two slots of a vector triple.
+ *
+ * DIFFERENTIAL EVIDENCE (against the live Helium binary, not a restatement):
+ * raw-port/re/oracle/HGString_destroy_{oracle.py,driver.mts} builds a real
+ * receiver in ctypes memory — a poisoned 0x40-byte arena, a malloc'd Alloc
+ * record whose +0x10 base is malloc'd too, and an operator-new'd extra block,
+ * separated by live spacer blocks so the tiny allocator cannot coalesce two
+ * freed neighbours — calls this symbol at slide + 0xb7990 under
+ * `arch -x86_64 /usr/bin/python3` (prologue bytes 55 48 89 e5 53 50 48 89 fb
+ * checked at the address first), and compares six cases covering both
+ * predecessors of L_b79b1. All six agree with the port, with 0 stray bytes in
+ * the arena — which is also the measurement behind the NOT-DONE-BY-THE-MACHINE
+ * note above: +0x10 and +0x18 still hold the freed pointers afterwards.
+ * malloc_size shows the live function really does release base + record only
+ * when the count reaches zero, and the extra block on every non-null path,
+ * which is the fact the no-op deallocation boundaries stand in for. Controls:
+ * throwing deallocators kill 4/6, dropping the 0xb79b1 store 3/6, missing the
+ * 0xb79d9 back-edge 1/6, dropping the 0xb79a2 decrement 4/6.
  *
  * @param self the HGString (%rdi).
  */
