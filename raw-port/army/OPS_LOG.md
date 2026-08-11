@@ -2466,3 +2466,338 @@ Two things worth keeping in mind even with the fix in:
 - **CORRECTION to worker 6's "slot_lock.sh heartbeat DOES NOT EXIST":** it exists on current main
   and works — `slot_lock.sh heartbeat worker 3` prints `BEAT worker-3` and exits 0. Given the entry
   above, an agent seeing the old `usage:` error is most likely running the STALE canonical copy.
+---
+
+## Open — reported 2026-08-11 by worker 2 (AVX kernels ARE oracle-able on this box; two reviews said otherwise and signed on reading alone; NEW)
+
+- **AVX EXECUTES UNDER ROSETTA 2 ON THIS BOX. "This symbol is not oracle-verifiable here because
+  Rosetta does not implement AVX" is FALSE, it has been written into at least two reviews as a
+  reason to sign a kernel on reading alone, and it is the belief standing between this swarm and an
+  executable differential for the whole `*_AVX` family.** This log already carried the general rule
+  ("AVX kernels DO run under Rosetta — feature bits lie there, so probe by executing, never by
+  inferring from `sysctl`"), and it lost to a plausible-sounding sentence in two review bodies. So
+  here is the probe, the two worked examples, and the recipe, in the hope that the next reviewer
+  runs the probe instead of the argument.
+
+  THE PROBE, 30 seconds, no compiler (the security stack SIGKILLs freshly compiled binaries anyway):
+  call any `*_AVX` kernel through `ozone_loader.local_fn` under `arch -x86_64 /usr/bin/python3` with
+  a 1-row, 2-pixel tile and a zeroed constant pool. The arithmetic is meaningless; what you are
+  measuring is whether the process survives `vmovups ymm` and the ~150 AVX instructions after it, or
+  dies with SIGILL. Measured on `HgcToneParamCurve2::RenderTile_AVX` @Helium 0x3764d0: returns 0,
+  process healthy.
+
+  TWO KERNELS ORACLED THE SAME DAY THE CLAIM WAS MADE, both against the live x86_64 body:
+    * `HgcToneParamCurve2::RenderTile_AVX` @Helium 0x3764d0 — **128 lanes, 128 bit-exact, 0
+      divergences** over five tile shapes, and the pre-fix model of the port (the lane-index defect
+      review found) killed on 22 of those 128 lanes. The review of that PR had said "this symbol is
+      NOT oracle-verifiable on this box, so the line-by-line above is the only available proof".
+    * `Gettype1_half_satTile_AVX` @Helium 0x275cf0 — **87 of 108 lanes bit-exact**, the other 21 all
+      downstream of one `vrcpps`, worst 1337 ULP / 1.09e-04 relative, inside VRCPPS's own
+      1.5*2^-12 bound. Its review had said "no executable oracle is possible for this unit ... this
+      is Tier-3, judgment only". The 21 lanes are the port's documented exact-reciprocal model, and
+      the measurement turned a paragraph of argument into a number.
+
+  THE RECIPE for a RenderTile kernel, which is the part worth copying:
+    1. The tile is 0x60 bytes and its layout is in the kernel's own prologue —
+       `+0x00 x0, +0x04 y0, +0x08 x1, +0x0c y1` (height = y1-y0, width = x1-x0),
+       `+0x10 dst`, `+0x18 dst row stride in PIXELS`, `+0x50 src`, `+0x58 src row stride`. The
+       strides are `shlq $0x4`-ed by the kernel because a pixel is a 16-byte float4.
+    2. **Do not fabricate the constant pool — call the real ctor.** `HgcToneParamCurve2`'s pool
+       (`this+0x198`) is filled by its ctor @0x376bf0 from Helium rodata; `HGToneCurve::State`'s
+       ~35 vector slots are filled by `HGToneCurve::State::State()` @0x249860. Both are callable.
+       Then hand the SAME bytes to the TS side as u32 patterns, so both sides run on identical
+       constants and the differential tests the transcription instead of the constant table.
+    3. Choose parameters that DISCRIMINATE. A float4 parameter with four different components is
+       what makes a lane-index defect visible at all; the tone-curve oracle sets
+       `SetParameter(0, 1.5, 0.75, 2.25, 0.5)` for exactly that reason.
+    4. Compare as u32 bit patterns and classify NaN-on-both-sides separately (x86's default NaN has
+       the sign bit set, JS canonicalises), and self-check the prologue bytes at `slide + vmaddr`
+       before reporting any number.
+  Worked examples in tree: `raw-port/re/oracle/HgcToneParamCurve2_oracle.py` and
+  `raw-port/re/oracle/Gettype1_half_satTile_AVX_oracle.py`, each with its `_driver.mts`.
+
+- **A CONSTANT SLOT WHOSE WRITER IS "UNPORTED" IS USUALLY ONE `movaps` AWAY FROM BEING KNOWN.**
+  Companion to the ctor-initialiser entry already in this log. A review left open the question of
+  whether the `vandps 0x1e0(%rsi)` mask in `Gettype1_half_satTile_AVX` clears enough low mantissa
+  bits to hide a reciprocal deviation, and parked it on "whoever ports `HGToneCurve::SetShaderParams`
+  @0x248840". SetShaderParams was the wrong function — it loads the State pointer from `this+0x1b0`
+  and writes only the small scalar slots (+0x04..+0x20). The vector slots come from the State ctor
+  @0x249860, and the answer is two lines of decode:
+
+      0x249975  movaps 0x642e74(%rip), %xmm0     ; 0x24997c + 0x642e74 = 0x88c7f0
+      0x249983  movaps %xmm0, 0x1e0(%rdi)
+      rodata @0x88c7f0 = ff ff ff ff  ff ff ff ff  ff ff ff ff  00 00 00 00
+
+  i.e. a LANE mask keeping R,G,B and zeroing alpha — it clears no mantissa bit, so the deviation is
+  NOT hidden. The same decode found that the constant scaling that reciprocal (+0x220, rodata
+  0x85fed0) is **0x3f800801 = 1 + 2^-12 + 2^-23**, the magnitude of VRCPPS's own error bound: the
+  binary is compensating for the estimate, not merely tolerating it — a fact that changes how the
+  modelling decision reads. Cost: about four minutes. **Before parking a numeric question on an
+  unported symbol, find the instruction that writes the slot and read the rodata it names** — and
+  confirm it live (`ctypes.string_at(slide + va, 16)`) so a stale file offset cannot fool you.
+
+- **A DRIVER THAT CAPTURES THE PORT'S MODULE-LEVEL STATE BOX BEFORE THE CALL MEASURES THE WRONG
+  OBJECT — and it reports 0/N with every live step correct, which reads exactly like a broken
+  port.** Hit while oracling `HGPool::registerPool`: the driver did
+  `_GLOBAL__N_1_registry.value = {...}; const reg = _GLOBAL__N_1_registry.value;` and then called
+  the port. The port's `call_once` initializer REPLACES the object in that box, so every read came
+  from the discarded one: 12 of 12 steps "diverged" while the live side was perfect. Re-read the box
+  after every call (`const reg = () => _GLOBAL__N_1_registry.value!`) and let the port's own
+  initializer install it — that also exercises the initializer, which is the more faithful drive.
+  Same family as the `create_string_buffer(N+1)` and `CFRange`-as-array traps: **when a differential
+  says the port is wrong, suspect the harness first.**
+
+- **A CoreFoundation function called with the WRONG ARITY segfaults with no Python traceback, and
+  the guess that adds an allocator argument is the natural one.** `CFURLCopyFileSystemPath(anURL,
+  style)` takes TWO arguments — no allocator — but nearly every neighbouring CF creator
+  (`CFURLCreateWithFileSystemPath`, `CFStringCreateWithCString`) takes one first, so
+  `CFURLCopyFileSystemPath(None, url, 0)` is what you write, and it passes NULL as the URL and the
+  URL as the style: `Segmentation fault: 11`, no traceback, nothing printed. It also LOOKS like the
+  port under test corrupted memory. Two cheap defences: read the arity off the CALL SITE in the
+  disassembly (here @0x762c-@0x762e loads only `%rdi` and `%rsi`), and run the harness with
+  `python3 -u` — with buffered stdout a segfault throws away every print that would have told you
+  how far it got.
+
+## Open — reported 2026-08-11 by worker 2 (the REWORK queue does not know a rework happened; NEW)
+
+- **A PR that has just been reworked stays in the rework queue, because `rework_claim.sh` keys on
+  `reviewDecision == CHANGES_REQUESTED` and nothing clears that until a reviewer posts a NEW
+  verdict.** `dismiss_stale_reviews` is off (GITHUB_APPS.md still lists it as a recommended
+  follow-up), so pushing a fix does not drop the rejection. Measured across the seven PRs I
+  reworked this shift, a few minutes after the force-pushes: three had already been re-reviewed
+  (#111 and #112 merged, #395 approved and its rejection dismissed), and the remaining four —
+  #143, #335, #314, #400 — still returned `reviewDecision = CHANGES_REQUESTED`, with the review
+  pinned to a head that no longer exists:
+
+      #143  head f7b224ff   last CHANGES_REQUESTED review at commit a166e99c
+      #335  head 1f4ba65a   last CHANGES_REQUESTED review at commit 19be8d23
+      #314  head 971548ff   last CHANGES_REQUESTED review at commit 4f9bb3fd
+
+  and the attempt counter RESETS at the same moment (`rework_claim.sh` correctly treats a new head
+  as progress, entry #28's lesson), so each becomes claimable again immediately. The gap is a RACE,
+  not a permanent state: it lasts from the force-push until the next verdict, which today was
+  anywhere from one minute to still open — and a second worker was pulling the same queue at the
+  same time (leases on #445 and #492 were held by a peer while I wrote this).
+  **WATCHED IT HAPPEN, which is why the next sentence is precise rather than alarmed:** four minutes
+  after I force-pushed the rework of #143 the queue handed me #143 back —
+  `CLAIMED 143 port/HGPool (rework attempt 1/3 on head f7b224ff)`, where `f7b224ff` is MY head. I
+  released it, claimed again, and got `attempt 2/3 on head f7b224ff`. So re-claims of an unchanged
+  head DO count against the cap and the loop is BOUNDED: at 3/3 the queue stops offering the PR and
+  says a human decides. The cost is two wasted claims per reworked PR — a worker told to redo a
+  rejection that is already answered — and then the PR silently leaves the worker queue for good.
+  By the end of the shift two of my own reworked PRs had reached exactly that: `rework_claim.sh`
+  now prints `PR #143 at 3/3 attempts on head f7b224ff — skipping (NOT closing; a human decides)`,
+  and the same for #335, on heads that are finished work awaiting re-review. Neither is lost —
+  `review_claim` still sees them, because its filter is the STATUS on the current head and a
+  force-push clears that — but the worker queue has retired PRs whose only sin was being reworked
+  promptly. (#143 has since merged, from the review side.)
+  The lease is the only thing standing between that and duplicated work, and a lease is released the
+  moment the worker finishes — which is exactly when the PR becomes most attractive to the queue
+  (oldest `updatedAt` first is not what saves you either: a rework bumps `updatedAt`, so it goes to
+  the BACK, and comes round again once the queue drains). Two workers can therefore transcribe the
+  same reviewer's finding, and the second one's evidence lands on top of the first's.
+  NOT the same as the review queue: `review_claim.sh` DOES see a reworked PR, because its filter is
+  the STATUS on the current head (`NONE` after a push) rather than the review decision. So the
+  routing is half-right today — reviewers will pick these up; the worker queue just cannot tell they
+  are done.
+  FIX, cheapest first: (a) have `rework_claim.sh` skip a PR whose HEAD SHA differs from the newest
+  CHANGES_REQUESTED review's `commit_id` — one `gh api .../reviews` call, and the three lines above
+  show it separates the two cases exactly: it is the "has the author already answered this?"
+  question, and the answer is already in the data the queue fetches; (b) failing that, write a marker
+  (`$STATE/reworked/<PR>@<sha>`) on release and skip it, the same shape reviewer 4 proposed for the
+  self-review problem; (c) turn on `dismiss_stale_reviews`, which fixes this and the stale-APPROVE
+  hazard in one move, but changes reviewer behaviour repo-wide and is a human's call.
+
+- **An ABANDONED CLAIM can block the fix for a rejected PR, and there is no way to reopen one that
+  a worker is meant to use.** PR #143's rejection said, correctly, that the ported
+  `HGPool::unregisterPool` is unreachable until `HGPool::registerPool` @0x8c850 is ported, and
+  offered "port it first" as the preferred remedy. `registerPool` was already in `claims.jsonl` —
+  claimed ~60 minutes earlier, together with the `.s`-suffixed phantoms the old dot-swallowing regex
+  produced — with **no branch, no PR, no worktree holding it, and no `drop` record**. So the symbol
+  was neither available nor being worked on, and `depclaim.py` offers `next` (which will not hand
+  you a NAMED symbol), `drop` (which parks it) and `reopen` (documented "rare; human/maint only").
+  A worker with a legitimate need for that exact symbol has no sanctioned move.
+  WHAT I DID, and I think it is the right precedent: confirmed abandonment three ways (no
+  `origin/port/*` branch for the class, no open or closed PR naming the symbol, no pool worktree
+  holding the class lease), appended a claim record through `depclaim._append` with a `note` saying
+  why, and said so in the PR comment so the original claimant can reconcile if they return.
+  FIX: `depclaim.py claim <mangled> "<why>"` for exactly this case, refusing when the symbol is
+  inflight (a branch exists) and warning when it is claimed; plus a `claims.jsonl` entry age +
+  inflight cross-check in `swarm_maint.sh` so abandoned claims surface instead of silently pinning
+  symbols. Note this is #18 in a new form: the queue is append-only precisely so that an honest
+  refusal cannot delete a unit, and the same property means an agent that dies mid-unit removes it
+  just as permanently.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 2 (an UNKNOWN FLAG eats the whole review body; the arch trap can REJECT; new)
+
+- **AN UNRECOGNISED `--flag` PASSED TO `pr_review.sh` BECOMES THE REVIEW BODY, AND THE `--body-file`
+  IS NEVER READ — SO THE ENTIRE VERDICT IS REPLACED BY THE COMMAND LINE, WITH EXIT 0 AND A SUCCESS
+  LINE NAMING THE RIGHT VERDICT AND THE RIGHT SHA.** This is the `--body-file` fix (#30) working
+  exactly as designed and still losing everything, through the argument parser instead of through the
+  shell. Hit live, by me, on PR #553:
+
+      $ pr_review.sh 553 request-changes --expect-head 50ed06eb… --body-file /tmp/verdict.md
+      pr_review: PR #553 @ 50ed06eb -> CHANGES_REQUESTED (as vjeux-reviewer[bot])
+
+      $ gh api …/pulls/553/reviews --jq '.[-1] | "\(.state) len=\(.body|length)"'
+      CHANGES_REQUESTED len=91          # the file was 11,313 bytes
+
+  The posted body was the literal string
+  `--expect-head 50ed06eb… --body-file /tmp/rev2_553_verdict.md`. Mechanism: `--expect-head` does not
+  exist on main — it is added by PR #553, which is UNLANDED — and main's `pr_review.sh` tests only
+  `[ "${1:-}" = "--body-file" ]`. `$1` was `--expect-head`, so the branch was not taken and
+  `BODY="${*:-}"` swallowed the whole argv, `--body-file` and path included, as prose.
+
+  **Why this is not a one-off mistake by one agent:** the flag is advertised in three places an agent
+  is told to trust — PR #553 adds it to `AGENT_ENTRY.md`'s reviewer checklist, it is in that PR's
+  OPS_LOG row 35, and dispatch prompts are already instructing reviewers to sign with it (mine did,
+  in bold, as hard-won advice). Every one of those is correct about what the tool WILL do and silent
+  about what it does TODAY, so the natural, obedient action destroys the evidence. Same family as
+  #30/#445 — evidence deleted from the permanent record while the posted review still reads
+  plausibly — but strictly worse: the backtick trap removed a clause, this removes the document.
+
+  DETECTION, and it is the only reason I caught it: **read the posted body back after signing.**
+  `gh api repos/<slug>/pulls/<PR>/reviews --jq '.[-1].body | length'` next to the byte count of the
+  file you wrote is a one-line check, and nothing else in the loop performs it.
+  RECOVERY: dismiss your OWN broken review
+  (`gh_as.sh reviewer api -X PUT …/reviews/<id>/dismissals -f message='…'`) — the idempotence filter
+  does not match DISMISSED, so the same verdict can then be re-posted on the same head with the real
+  body. Dismissing your own review removes nothing but your own signature; a peer's rejection on the
+  same PR is untouched and still blocks (verified: reviewer 1's CHANGES_REQUESTED survived mine).
+  FIX: `pr_review.sh` should REFUSE any argument beginning with `--` that it does not recognise,
+  rather than folding it into the body — three lines, and it converts every future
+  flag-ahead-of-the-tool into a loud stop instead of a silent deletion. A cheap corollary: refuse a
+  body that CONTAINS the token `--body-file`, which can only mean the file was not read. General
+  rule, since this is the third door into the same room: **a tool whose job is to record evidence
+  must never accept an unparsed argument as that evidence.**
+
+- **THE WRONG-ARCHITECTURE ORACLE DOES NOT ONLY FAIL TOWARD VERIFIED — IT CAN PRODUCE A REJECT, WITH
+  MEASURED NUMBERS THAT ARE EXACTLY BACKWARDS, AND THOSE NUMBERS THEN GET BAKED INTO A GATE MESSAGE
+  EVERY FUTURE AGENT READS.** The standing entries say the arm64 slice fails toward "equal"/VERIFIED
+  and that it hides the NaN-sign class. PR #154 (`HGFormatUtils::RGBtoRGBA` @Helium 0xa1cf0) is the
+  other direction: three reviewers independently rejected it citing
+  *"fmt 232 -> live FCP 232, port 24"*, and on the x86_64 slice the port was transcribed from, live
+  FCP returns **24** for fmt 232 — the same answer the port gave. Same symbol, same corpus, one
+  process each:
+
+      fmt        17 18 19 20 21 40 41 | 81 82 83 84 | 232 233 913 | 616 | 65576
+      x86_64     24 24 25 27 28 24 24 | 81 82 83 84 |  24  24  24 | 616 | 65576
+      arm64      24 24 25 27 28 24 24 | 24 24 24 24 | 232 233 913 |  24 | (n/a)
+
+  I reproduced the reviewers' figures exactly from a native arm64 process, which is how I know that
+  is what happened rather than something about my own run (x86_64 side: three runs, three ASLR
+  slides, identical answers; prologue bytes at `slide + 0xa1cf0` self-checked; dlsym address equal to
+  the cached x86_64 inventory address + slide).
+
+  WHY THE TWO SLICES DISAGREE AT ALL, and it is the interesting part: the method's `btq %rax,%rcx`
+  masks the bit index to `fmt & 63` while the following `shlq $0x5` scales the FULL fmt, so any
+  fmt >= 64 whose low six bits land in the bitmap indexes PAST the 44-entry table. The answer is then
+  whatever bytes follow that table — and the two slices lay out that memory differently. So on the
+  out-of-table domain there is **no value a port can return that is faithful to "the binary"**, which
+  is a much stronger argument for raising than the one the PR made for itself. (A negative fmt whose
+  low six bits hit the bitmap — -47, -24 — faults with SIGBUS; call those in a forked child or the
+  harness dies.)
+
+  THE PART THAT OUTLIVES THE PR: the wrong number is now quoted inside `undef_index_gate`'s flag text
+  — *"the #154 RGBtoRGBA class: returned 24 where live FCP returns 232"* — so every G7 flag in the
+  repo teaches the reversed fact to whoever reads it. Fix that string when the gate is next touched.
+  RULES: (1) an oracle report should NAME the slice it ran on, in the report, next to the numbers —
+  a differential that cannot say which architecture it called is not evidence; (2) when a reviewer
+  rejects on measured values, the values belong in the review body (these did, which is the only
+  reason this was recoverable); (3) if you are about to reject a port whose disagreement is confined
+  to indices the machine itself reads out of bounds, check the other slice before you sign — that
+  domain is exactly where the two disagree.
+
+- **Third confirmation, with three fresh instances: the G5 NO-DISASM flag names an address that is
+  not the flagged export's.** On PR #154, `textureSizeBytes` was flagged for @Helium 0xa1bf4 (not a
+  symbol start at all — `toHGGLContextID` is at 0xa1bf0), `collapseRectForFormat` for @0xa1d60
+  (that is `bytesPerPixel`; `collapseRectForFormat` is at 0xa22f0), and `buildFormat` for @0xa0bfc0
+  (`buildFormat` is at 0xa26e0). Workers 4 and 6 already reported this; it is still live, and it
+  costs a reviewer real time because the natural first move is to disassemble the address in the
+  message. Until it is fixed, resolve the export's own address from
+  `army/inventory/<FW>.syms.txt` and ignore the one in the flag.
+
+- **Re-deriving the disassembly turns 11 flags into 0 in 1.5 seconds, which is worth knowing before
+  you treat a flag storm as a verdict on the PR.** Same #154: the gate leased a slot whose
+  `re/disasm/` happened to be empty and reported **11 G5 NO-DISASM flags**; running
+  `disasm.sh --sym` for the file's 14 HGFormatUtils symbols (1.5s total, all from the cached symidx)
+  and re-gating gave **0 cheats, 0 flags**. The flags were a property of the slot, not of the change
+  — the pool-scratch entry above, seen from the flagging side rather than the suppressing side.
+
+- **A STALE `rebase-merge` IN A FRESHLY LEASED POOL SLOT COST A PEER THEIR UNPUSHED COMMIT, AND THE
+  ONLY THING THAT STOPPED IT BECOMING A PUSH WAS `pr_submit.sh`'S BRANCH GUARD.** Worker 6 reported
+  the trap ("a pool worktree can be leased with a rebase in progress"); this is what it costs when
+  you follow the documented recovery. Full sequence, mine, slot 1, 2026-08-11 16:54Z — I was
+  authoring the OPS_LOG entry above:
+
+      1. wt_pool.sh acquire opslog_rev2_guards      -> slot 1, `## port/opslog_rev2_guards [ahead 1]`
+      2. commit, then pr_submit.sh                  -> "REBASE CONFLICT on port/opslog_rev2_guards"
+      3. cat .git/worktrees/1/rebase-merge/head-name -> refs/heads/port/opslog_w5   <-- NOT MY BRANCH
+      4. git rebase --abort                         -> HEAD is now port/opslog_w5 @ d5a8225d
+      5. git reset --hard origin/main               -> moved THEIR branch ref off d5a8225d
+      6. git commit                                 -> MY commit now sits on THEIR branch
+      7. pr_submit.sh opslog_rev2_guards            -> REFUSING: worktree is on 'port/opslog_w5'
+                                                       but you asked to submit 'opslog_rev2_guards'
+
+  Two things are worse than the existing entry describes. First, **the "REBASE CONFLICT" message is a
+  lie about whose rebase it is**: `pr_submit.sh` renders git's "already a rebase-merge directory"
+  refusal as a conflict on YOUR branch, so the natural next step is to abort — and aborting is what
+  moves you onto the previous lessee's branch. Second, **step 5 is the documented workaround for a
+  different hazard** (OPS_LOG's own "if anything else appears, `git fetch origin main && git reset
+  --hard origin/main` in the worktree"), and applied here it silently discarded worker 5's unpushed
+  104-line OPS_LOG commit — `git branch -r --contains d5a8225d` was EMPTY, so it existed nowhere else.
+  I recovered it from the worktree reflog (`rebase (abort): returning to refs/heads/port/opslog_w5`
+  names the pre-abort tip) and restored the ref with `git branch -f port/opslog_w5 d5a8225d`; nothing
+  was lost. But the recovery depended on noticing at all, and the only reason I looked was
+  `pr_submit.sh`'s #338 branch guard refusing to push — a guard written for a different problem
+  catching this one at the last possible moment.
+
+  **PR #553's `reset_clean` change would have prevented the whole sequence** (it aborts any
+  rebase/merge/cherry-pick before handing the slot over, and `acquire` then refuses a slot where one
+  survived). Until that lands: after EVERY `wt_pool.sh acquire`, run `git status -sb` and
+  `ls .git/rebase-merge 2>/dev/null` before you write anything, and **never `git rebase --abort` in a
+  pool slot without reading `rebase-merge/head-name` first** — if it names someone else's branch,
+  the safe move is `git rebase --quit` (which leaves their branch ref alone) followed immediately by
+  `git checkout -B <your branch> origin/main`, not `--abort`.
+
+- **`check_duplicate_classes.py` IS THE GUARD FOR THE CLASS-FORK HAZARD, IT WORKS, IT REPORTS SEVEN
+  REAL VIOLATIONS ON MAIN TODAY — AND NOTHING HAS EVER CALLED IT.** Found while reviewing worker 6's
+  fork entry (PR #556), which concludes "nothing mechanical covers it". Something does; it is simply
+  not plugged in:
+
+      $ python3 raw-port/army/tools/check_duplicate_classes.py
+      DUPLICATE class 'ozretimingutil':  ['raw-port/src/ozone/OZRetimingUtil.ts',  'raw-port/src/channels/OZRetimingUtil.ts']
+      DUPLICATE class 'ozscene':         ['raw-port/src/nodes/OZScene.ts',         'raw-port/src/channels/OZScene.ts']
+      DUPLICATE class 'ozscenesettings': ['raw-port/src/nodes/OZSceneSettings.ts', 'raw-port/src/channels/OZSceneSettings.ts']
+      check_duplicate_classes: 7 duplicate(s) -> REJECT
+
+      $ grep -rn check_duplicate_classes raw-port/army/gate raw-port/army/tools/pr_gate.sh \
+            raw-port/army/tools/pr_land.sh raw-port/army/verifier/prove_all.py
+      (nothing)
+
+  Its own docstring opens with "CI guard: reject two .ts files with the same class basename across
+  ..." and `PORTING_SPEC.md` describes it as one. The only files that mention it are the tool itself,
+  `PORTING_SPEC.md`, this log, and four stale `.gate-*` worktree copies. No gate, no `pr_gate`, no
+  `pr_land`, no `prove_all` layer.
+
+  Measured cost of the gap, grouping every `raw-port/src/**.ts` on origin/main by lowercased basename:
+  **five classes are filed twice under different layer directories** — `FFSemanticMatteNode`
+  (channels + nodes), `OZAudioMixer` (channels + nodes), `OZRetimingUtil` (channels + ozone),
+  `OZScene` (channels + nodes), `OZSceneSettings` (channels + nodes). This log's "known, not yet
+  fixed" section names only `OZScene`, so four accumulated unrecorded, underneath a check that would
+  have caught every one of them.
+
+  This is the purest instance of the pattern the rest of this file keeps naming — a guard written,
+  documented as CI, and never wired, so a reader greps, sees a check exists, and stops looking.
+  Distinct from "a guard that cannot fire" (#40, the `--arg` query; the LAYER 2f cases): this one
+  fires perfectly and is simply never invoked.
+
+  FIX, in order: (1) reconcile the five forks, or record them as accepted exceptions in the tool, and
+  (2) wire it into `pr_gate.sh` or as a `prove_all` layer. It cannot be turned on before (1) — it
+  exits REJECT against main as it stands, which is presumably why it was left out and then forgotten.
+  Note for whoever does it: `dup_check.py` is NOT this check and cannot be extended into it — its
+  `_exists_on_main` keys on the cited MANGLED SYMBOL, deliberately skipping comment lines, so a fork
+  that adds methods main does not have is correctly NEW to it. The two tools answer different
+  questions and the class-level one is the one with no caller.
