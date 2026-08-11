@@ -114,6 +114,17 @@ For the changed .ts file and each exported function it claims to port:
      DIVERGED  -> wrong math. REJECT.
      FAILED    -> the port threw / crashed. REJECT (it implements nothing).
    Use autoreg.py to check if a descriptor already exists / can be auto-generated for the symbol.
+   ARCHITECTURE — READ THIS BEFORE YOU TRUST A VERIFIED. The ports are transcribed from the **x86_64**
+   slice, but this box is arm64, so `oracle.resolve` (dlsym) and `local_call` (`nm -n`) both reach the
+   **arm64** slice. Where the slices disagree the oracle compares your port against code it did not
+   transcribe, and it fails TOWARD "equal"/VERIFIED — on `OZChannelRef::operator!=` it called all 900
+   cases equal because arm64 libc++ puts the string's `is_long` bit at +0x17, not +0x00. A false
+   VERIFIED is worse than no oracle, because you sign on it. The tools now print a warning; when the
+   symbol touches a std::string / std::map, or any layout you have not confirmed identical in both
+   slices, re-run the harness under Rosetta so dlopen maps the x86_64 slice:
+       arch -x86_64 /usr/bin/python3 my_oracle.py      # dlsym works normally for `nm` type T symbols
+   Plain struct offsets (`this+0x38`) are fixed by the C++ declaration and are the same in both slices,
+   so most Tier-1/2 differentials are unaffected — but check, do not assume. See OPS_LOG "Open".
    NEVER hand-build a descriptor for an INSTANCE method (needs `this`) — it segfaults / fabricates
    values (proven: PCException::report -> exit 139). Instance methods are Tier-3 (step 3).
 
