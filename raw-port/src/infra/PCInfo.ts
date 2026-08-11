@@ -299,4 +299,152 @@ export class PCInfo {
     // @0x015424 — movss s_workingGamma(%rip),%xmm0 : load the f32 static and return it.
     return Math.fround(PCInfo.s_workingGamma);
   }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // `availableVRAM` @ProCore 0x530c6 — DECODE NOTES
+  //
+  // Same dispatch_once shape as getCPUFrequency above, and it reuses this
+  // file's existing `dispatch_once` surrogate unchanged.
+  //
+  //   0x530c6  cmpq  $-0x1, onceToken(%rip)      ; already initialised?
+  //   0x530ce  jne   0x530d8                     ; no -> slow path
+  //   0x530d0  movq  vramAvailable(%rip), %rax   ; yes -> return the cache
+  //   0x530d7  retq
+  //   0x530d8  pushq %rbp ; movq %rsp,%rbp
+  //   0x530dc  callq __ZN6PCInfo13availableVRAMEv.cold.1
+  //   0x530e1  popq  %rbp
+  //   0x530e2  jmp   0x530d0                     ; re-read the now-filled cache
+  //   ; --- .cold.1 @0xdd99d ---
+  //   0xdd9a1  leaq  onceToken(%rip), %rdi
+  //   0xdd9a8  leaq  ___block_literal_global(%rip), %rsi
+  //   0xdd9b0  jmp   _dispatch_once              ; stub 0xde810
+  //
+  // TWO STATICS, BOTH IN BSS — `nm` class `b`, so they occupy NO BYTES in the
+  // Mach-O and reading the file image tells you nothing about them (OPS_LOG:
+  // "a b-class table is all zeroes in the file image; transcribing one from
+  // disk gates green and is wrong forever"). Their addresses are recovered
+  // from the two rip-relative references, and their VALUES only exist in a
+  // running process — which is why the oracle below measures the transition
+  // rather than reading anything off disk:
+  //   0x15bd30  onceToken     (dispatch_once_t; -1 once the block has run)
+  //   0x15bd28  vramAvailable (uint64_t, MEGABYTES — see the shift below)
+  //
+  // THIS SYMBOL IS ONE OF THE 2,453 THAT `disasm.sh` COULD NOT REACH until the
+  // linear-sweep fix: otool's whole-section sweep desynchronises on the 1-byte
+  // pad at 0x530c5 and emits three fabricated instructions over this
+  // function's real prologue, so the body had to be re-derived per-symbol with
+  // `otool -arch x86_64 -tV -p`. The `.s` in re/disasm/ came from that route.
+  //
+  // THE INIT BLOCK (____ZN6PCInfo13availableVRAMEv_block_invoke @0x530e4) is
+  // Metal + the ObjC runtime end to end, and is NOT modelled here:
+  //   0x53106  callq _MTLCopyAllDevices                       (stub 0xde46e)
+  //   0x53142  callq *_objc_msgSend  countByEnumeratingWithState:objects:count:
+  //            with a 16-object buffer — the fast-enumeration loop over devices
+  //   0x53198  callq *%r12 (_objc_msgSend) with the selector at
+  //            __objc_selrefs 0x158010 (from `movq 0x104ea0(%rip), %r14`
+  //            @0x53169; the displacement is measured from the NEXT
+  //            instruction, 0x53170 + 0x104ea0). Resolved live with
+  //            `sel_getName`: **-[recommendedMaxWorkingSetSize]**. Not a
+  //            guess — see the oracle.
+  //   0x5319b..0x531aa  vramAvailable = max(vramAvailable, thatValue), the max
+  //            taken with `ja` (@0x531a5), an UNSIGNED compare
+  //   0x531ed  callq _objc_release on the device array
+  //   0x531f3  shrq $0x14, vramAvailable   ; >> 20: BYTES -> MEGABYTES
+  // So: the largest `recommendedMaxWorkingSetSize` across all Metal devices,
+  // in whole megabytes. `_MTLCopyAllDevices`, `_objc_msgSend`, `_objc_release`
+  // and `_dispatch_once` are all TRUE out-of-scope externs (Metal, the ObjC
+  // runtime, libdispatch), so the block raises a boundary throw citing them —
+  // exactly the treatment `computePhysicalRAM` and the sysctl blocks get.
+  //
+  // ORACLE — raw-port/re/oracle/PCInfo_availableVRAM_oracle.py, under
+  // `arch -x86_64 /usr/bin/python3`. Everything about this getter is BSS state,
+  // so the harness runs it rather than reading it. Results (2026-08-11):
+  //   * byte self-check PASS, and BOTH BSS references recomputed from their own
+  //     rip-relative encodings: 0x15bd30 and 0x15bd28.
+  //   * before any call, both slots read 0 — the demonstration that the file
+  //     image could not have supplied them.
+  //   * first call returns 25559; onceToken flips to -1 and vramAvailable
+  //     becomes 25559. Second call returns the same value with the token still
+  //     -1, i.e. it really did take the two-instruction fast path.
+  //   * the selector was resolved out of the live image to
+  //     `recommendedMaxWorkingSetSize`.
+  //   * the whole block was RECOMPUTED independently through the ObjC runtime —
+  //     max over MTLCopyAllDevices() of that property, then >> 20 —
+  //     26800603136 bytes >> 20 = 25559, matching the function exactly.
+  //   * controls: "no shift" (26800603136) and ">> 10" (26172464) both differ.
+  //     The MIN-instead-of-MAX and SUM-instead-of-MAX controls CANNOT be
+  //     distinguished on this host, which has a single Metal device — the
+  //     oracle says so instead of counting them as passes; what establishes
+  //     MAX is the `ja` at @0x531a5, and that it is unsigned.
+  //   * a harness bug worth recording: the first run SEGFAULTED because it used
+  //     the selector's rip-relative DISPLACEMENT as an address. A segfaulting
+  //     oracle is a harness defect, never a verdict (OPS_LOG).
+  // ═════════════════════════════════════════════════════════════════════════
+
+  /** @ProCore 0x15bd30 — `__ZZN6PCInfo13availableVRAMEvE9onceToken`, the
+   *  dispatch_once_t guard (BSS, `nm` class b). 0 = not yet initialised;
+   *  -1 = the block has run, which is the sentinel the fast path compares
+   *  against at @0x530c6. */
+  private static availableVRAM_onceToken: { value: bigint } = { value: 0n };
+
+  /** @ProCore 0x15bd28 — `__ZZN6PCInfo13availableVRAMEvE13vramAvailable`
+   *  (BSS, `nm` class b). The cached result, in MEGABYTES: the block computes
+   *  it in bytes and then shifts right by 20 @0x531f3. uint64_t. */
+  private static availableVRAM_vramAvailable = 0n;
+
+  /**
+   * The dispatch_once block `____ZN6PCInfo13availableVRAMEv_block_invoke`
+   * @ProCore 0x530e4 — Metal and the ObjC runtime end to end. See the decode
+   * notes above for the full instruction-level walk; in one line it is
+   * `vramAvailable = (max over MTLCopyAllDevices() of
+   * device.recommendedMaxWorkingSetSize) >> 20`.
+   */
+  private static availableVRAM_block(): void {
+    // @0x53106 _MTLCopyAllDevices — FIRST out-of-scope boundary.
+    throw new Error(
+      "PCInfo::availableVRAM()'s dispatch_once block @ProCore 0x530e4 requires " +
+        "_MTLCopyAllDevices() @0x53106 (Metal stub 0xde46e) — Metal and the " +
+        "ObjC runtime are TRUE out-of-scope externs for this port (same " +
+        "boundary policy as the sysctl/CoreMedia externs elsewhere in this " +
+        "file). The block then fast-enumerates the returned device array via " +
+        "_objc_msgSend countByEnumeratingWithState:objects:count: @0x53142 " +
+        "with a 16-object buffer, sends the selector at __objc_selrefs " +
+        "0x158010 to each device @0x53198 (resolved live with sel_getName: " +
+        "recommendedMaxWorkingSetSize), keeps the UNSIGNED maximum via `ja` " +
+        "@0x531a5, calls _objc_release on the array @0x531ed, and finally " +
+        "shifts the accumulated byte count right by 20 @0x531f3 to store " +
+        "MEGABYTES. Measured on this host: one device, 26800603136 bytes, " +
+        ">> 20 = 25559. @0x530c6",
+    );
+  }
+
+  /**
+   * `PCInfo::availableVRAM() -> uint64_t` @ProCore 0x530c6
+   * (__ZN6PCInfo13availableVRAMEv).
+   *
+   * The largest `recommendedMaxWorkingSetSize` across all Metal devices, in
+   * MEGABYTES, computed once and cached via dispatch_once. Faithful
+   * transcription of the fast/slow split:
+   *
+   *   0x530c6  cmpq $-0x1, onceToken(%rip)     ; initialised?
+   *   0x530ce  jne  0x530d8                     ; no -> .cold.1
+   *   0x530d0  movq vramAvailable(%rip), %rax   ; yes -> the cached value
+   *   0x530d7  retq
+   *   ; .cold.1 tail-jumps to dispatch_once(&onceToken, block), then the
+   *   ; `jmp 0x530d0` @0x530e2 falls back into the cached read.
+   *
+   * @returns available VRAM in megabytes. On a host where the Metal boundary
+   *   is not wired, the first call surfaces that boundary — exactly as
+   *   getCPUFrequency does for sysctlbyname.
+   */
+  static availableVRAM(): bigint {
+    // @0x530c6..@0x530ce — fast path: if onceToken == -1 the block has run.
+    if (PCInfo.availableVRAM_onceToken.value !== -1n) {
+      // @0x530d8..@0x530e1 -> .cold.1 @0xdd99d: dispatch_once(&onceToken, block)
+      dispatch_once(PCInfo.availableVRAM_onceToken, PCInfo.availableVRAM_block);
+      // @0x530e2 — jmp 0x530d0 : fall through to the cached read.
+    }
+    // @0x530d0..@0x530d7 — return the cached value.
+    return PCInfo.availableVRAM_vramAvailable;
+  }
 }
