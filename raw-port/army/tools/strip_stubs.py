@@ -132,8 +132,13 @@ def _scan_brace_context(text, positions):
 def _brace_opens_class(text, open_pos):
     """Was the `{` at open_pos opened by a class body (vs an object literal / Proxy handler)?
 
-    Extracted verbatim from `_enclosing_brace_is_class` so the batch scanner and
-    the original share ONE copy of the judgement rather than two that can drift.
+    A DELIBERATE SECOND COPY of the judgement in `_enclosing_brace_is_class`, which still
+    carries its own inline version. (An earlier note here claimed the two SHARE one copy; they
+    do not, and describing the tree wrongly is how the next person "tidies up" the thing that
+    makes the test work.) The duplication is the point: `verifier/test_brace_context.py`
+    compares the batch scanner against the per-def originals, so folding them onto one
+    implementation would make the is-class half of that comparison tautological. Keep them
+    separate, and let LAYER 2d catch any drift.
     """
     pre = text[max(0, open_pos-800):open_pos]
     pre = re.sub(r'/\*.*?\*/', ' ', pre, flags=re.S)

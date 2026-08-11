@@ -142,6 +142,12 @@ for fw in ["ProChannel","ProCore","Ozone","Flexo","Helium"]:
     with open(_tmp, "w") as _f:
         json.dump(led, _f)
     os.replace(_tmp, lp)
+# Print the EFFECTIVE source, never the requested one. `iter_src` falls back to the working tree
+# when a ref does not resolve (a typo in --ref/FCT_SRC_REF is the realistic trigger); printing
+# SRC_REF there would assert `origin/main` over numbers that came from the stale tree — the very
+# thing this tool was fixed to stop doing.
+_EFF = srcsource.effective_ref(SRC_REF)
 print(f"ported {port}/{tot}  skeleton {skel}  stub {stub}  todo {todo}  "
-      f"(status changed on {changed} units)  [src={SRC_REF}]")
+      f"(status changed on {changed} units)  [src={_EFF}"
+      f"{'' if _EFF == SRC_REF else f' — FELL BACK from {SRC_REF}'}]")
 

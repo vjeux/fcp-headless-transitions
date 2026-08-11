@@ -927,6 +927,96 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   abort and then immediately `git checkout <your branch>` — and do not commit anything until
   `git status -sb` shows your own branch again.
 
+## Open — reported 2026-08-11 by reviewer 4 (the reconciler fix cannot reach the reconciler; FIX PROPOSED in this change)
+
+- **#506 FIXED `mark_ported.py` TO STOP READING A STALE TREE, AND THE FIX IS DELIVERED THROUGH THE
+  STALE TREE, SO IT NEVER TOOK EFFECT.** Measured within minutes of #506 landing, by running the
+  documented post-merge step from the canonical checkout exactly as both briefs instruct:
+
+      $ python3 raw-port/army/tools/mark_ported.py
+      ported 9466/126668  skeleton 234  stub 1533  todo 115435  (status changed on 0 units)
+
+  Note what is MISSING: the `[src=...]` suffix #506 added. That output is the OLD tool. The
+  canonical checkout was **85 commits behind origin/main**, `raw-port/army/tools/srcsource.py` did
+  not exist on disk at all, and the on-disk `mark_ported.py` contained zero references to it — so
+  the run took 75s and printed the same healthy-looking `0 units changed` that four agents already
+  reported as a silent no-op. The ledger lives in the canonical checkout
+  (`raw-port/army/ledger/` is a real directory there, and `FCT_STATE_DIR` is unset), so
+  `mark_ported` MUST run there; running it from a pool worktree would write a throwaway ledger.
+  Agents therefore cannot route around it.
+
+  ROOT CAUSE — **`swarm_maint.sh` only advances the canonical tree when it is DIRTY.** OPS_LOG
+  already noted in passing that "a clean-but-behind tree is never fast-forwarded at all"; this is
+  what that costs. The reset is guarded by `[ -n "$dirty" ]`, and `dirty` filters out
+  `raw-port/army/ledger/`, `.gate.tsbuildinfo` and `raw-port/army/depgraph/` — so on this box the
+  only untracked file (`raw-port/army/depgraph/blocked.jsonl`) is filtered away, `dirty` is EMPTY,
+  and the tree is *clean by that definition* and 85 commits stale forever. The dirty-tree branch and
+  the staleness problem are disjoint: the condition that triggers the fix is not the condition that
+  needs it. Impact beyond the tool version: the reconciler was reading a `src/` with **1,625** `.ts`
+  files where `origin/main` has **1,670** — 45 landed files invisible — so units stay `todo` after
+  landing and `depgraph` never unlocks their callers from the merge path.
+
+  This is the "a fix can be the next outage" pattern inverted into "a fix that cannot be deployed":
+  every tool the swarm runs from the canonical checkout is pinned at whatever commit that tree was
+  last reset to, and nothing resets it while it stays clean.
+
+  FIX (in this change): `swarm_maint.sh` step (2b) — when the tree is CLEAN and no gate process is
+  live, `git merge --ff-only origin/main`. `--ff-only` cannot lose work (it refuses rather than
+  rewriting), which is why it is safe on the clean path where `reset --hard` would not be.
+
+- **LAYER 2d PASSED WITH ITS STRING HANDLING COMPLETELY UNTESTED, BECAUSE THE FIXTURES WERE ON THE
+  WRONG SIDE OF THE PROBE POINT.** Found by mutation-testing #506's new
+  `verifier/test_brace_context.py` rather than just running it. Three mutants of
+  `strip_stubs._scan_brace_context`: dropping the block-comment skip was caught, judging every brace
+  a class body was caught, and **deleting the string-literal skip outright still printed
+  `BRACE_CONTEXT: PASS`**. Not an equivalent mutant — `--full` kills it on four real corpus files
+  (StereoPanner.ts, XMLtoFactoryBase.ts x3, OZGuide.ts) — but `--full` is not what `prove_all` runs,
+  and the 60-file sample missed all four.
+
+  The reason is worth generalising: `_scan_brace_context` answers each position as the scan reaches
+  it, so **a fixture only tests what lies BEFORE a def**. Both string fixtures put the brace-bearing
+  string INSIDE the only method body — after the only probe point — so the scanner returned its
+  answer before ever reaching them. They read like coverage and were worth nothing. Moving the
+  string one line earlier is enough:
+
+      class A {
+        static T = '{';
+        m() { return 1; }
+      }
+
+  reference `(1, True)`, shipped `(1, True)`, string-skip mutant `(2, False)`. FIX (in this change):
+  four before-the-def string cases plus an unbalanced-brace block-comment case; the sampled test now
+  kills the mutant that survived. **Rule: when you add a fixture, mutate the code it covers and
+  watch it fail — and check the tricky construct is positioned where the scanner will actually
+  reach it.** Companion to the existing "a dead negative control means your harness is blind" entry:
+  here the control was never run at all.
+
+- **A DESTRUCTOR IS ORACLE-ABLE WITHOUT TOUCHING FREED MEMORY — via malloc RECYCLING.** PR #513
+  (`ROIStatIO::ROITestSet::~ROITestSet`) declared itself NOT ORACLED because its only observable is
+  two `operator delete` calls and inspecting freed memory is UB. The freed BYTES are UB, but the two
+  things that can actually be wrong are not: **branch polarity** (`testb $0x1,cap ; je/jne` — read
+  backwards it frees exactly the strings that own no buffer) and **destruction order**. Free a
+  block, request the same size, and a LIFO free list hands it back: that observes WHETHER a free
+  happened and IN WHAT ORDER, without ever dereferencing a freed pointer. All four is_long
+  combinations matched the shipped TypeScript, with the inverted-polarity model killed 4/4.
+  **Trap inside the trap:** allocate the two fake buffers NON-ADJACENTLY. macOS's tiny allocator
+  coalesces two neighbouring freed blocks into one larger region that then serves no same-size
+  request, so the both-long case reported "freed nothing" — a false DIVERGE, on the only case where
+  both frees happen, with a dead-looking control. One live spacer block between them makes it 4/4.
+  A local (`nm` type `t`) symbol like this one is reached with `re/oracle/ozone_loader.local_fn`;
+  self-check the call site's opcode bytes against your own disasm before trusting the result.
+
+- **A HAND-DISPATCHED PR BYPASSES THE REVIEW LEASE, SO TWO REVIEWERS DO THE SAME WORK.** My dispatch
+  prompt named PR #506 directly ("your first claim"), so I went straight to it rather than through
+  `review_claim.sh claim`. Nothing took a lease, and reviewer-1 — pulling normally from the queue —
+  claimed, approved and merged the same PR while I was mid-verification. Both reviews were real and
+  independent (we agreed on the equivalence numbers, which is worth something), but a full reviewer
+  run was spent on an outcome already reached. `review_claim.sh` has the machinery to prevent this;
+  the hand-off route simply does not use it. FIX: a prompt that names a specific PR should tell the
+  agent to take the lease first (`review_claim.sh claim-pr <N>`, which does not exist yet — today
+  the closest honest thing is `mkdir "$STATE/review_leases/pr-<N>"` before starting), and to stop if
+  it is already held.
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,

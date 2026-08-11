@@ -45,6 +45,17 @@ def ref_exists(ref):
     return _git("rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}").returncode == 0
 
 
+def effective_ref(ref=None):
+    """What `iter_src(ref)` will ACTUALLY read: the ref itself, or "WORKTREE" if it falls back.
+
+    Callers that print which source they used must print THIS, not the ref they asked for. See the
+    fallback warning in `iter_src`: reporting the requested ref makes the diagnostic line assert
+    `origin/main` in precisely the case where the numbers came from the working tree.
+    """
+    ref = ref or DEFAULT_REF
+    return "WORKTREE" if (ref == "WORKTREE" or not ref_exists(ref)) else ref
+
+
 def iter_src(ref=None):
     """Yield (relpath, blob_key, text) for every `raw-port/src/**/*.ts`.
 
