@@ -124,6 +124,9 @@
 // ---------------------------------------------------------------------------
 
 import type { OZChannel } from "./OZChannel";
+// A VALUE import, not a type import: the Info singleton's initializer really constructs one
+// (operator new(0x58) @ProChannel 0xf5a1 + OZChannelUint16Info::C2 @0xf5cc).
+import { OZChannelUint16Info } from "./OZChannelUint16Info";
 import type { OZCompoundChannel } from "./OZCompoundChannel";
 
 /** OZChannelInfo forward-type — layout not needed inside this file. */
@@ -443,6 +446,64 @@ export class OZChannelUint16 {
     // included. The machine performs no null check, so neither does this.
     return OZChannelUint16._OZChannelUint16Impl;
   }
+
+  /**
+   * @ProChannel BSS 0xeb7d0
+   * `__ZZN15OZChannelUint1625createOZChannelUint16InfoEvE25_OZChannelUint16Info_once` — the libc++
+   * `std::once_flag` word read @0xf4ec and address-taken @0xf50b (both displacements resolve to
+   * 0xeb7d0; note it is 8 bytes BELOW the Impl flag at 0xeb7d8, i.e. the two function-local statics
+   * are adjacent). 0n = not started, -1n (~0UL) = completed. Measured 0 before the first live call
+   * and 0xffffffffffffffff after it.
+   */
+  static _OZChannelUint16Info_once: bigint = 0n; // @ProChannel 0xf4ec read-site
+
+  /**
+   * @ProChannel BSS 0xec258 `__ZN15OZChannelUint1620_OZChannelUint16InfoE` — the singleton pointer,
+   * address-taken @0xf51e and dereferenced @0xf525 as the accessor's return value, and written by
+   * the initializer @0xf5b1. Zero-filled at load, i.e. nullptr.
+   */
+  static _OZChannelUint16Info: OZChannelInfoPtr = null; // @ProChannel 0xf51e
+
+  /**
+   * `OZChannelUint16::createOZChannelUint16Info()` — @ProChannel 0xf4e4
+   * (`__ZN15OZChannelUint1625createOZChannelUint16InfoEv`).
+   *
+   * The Info twin of `createOZChannelUint16Impl` above: byte-for-byte the same libc++
+   * `std::call_once` accessor shape, differing only in which three symbols it names (once flag
+   * 0xeb7d0, proxy @0xf578, singleton 0xec258). All three re-derived from the raw bytes of the
+   * thin x86_64 slice:
+   *
+   *   0xf4e4  55                    pushq %rbp
+   *   0xf4e5  48 89 e5              movq  %rsp, %rbp
+   *   0xf4e8  48 83 ec 20           subq  $0x20, %rsp          ; libc++ tuple<lambda&&> frame
+   *   0xf4ec  48 8b 05 dd c2 0d 00  movq  0xdc2dd(%rip), %rax  ; 0xf4f3+0xdc2dd = BSS 0xeb7d0
+   *   0xf4f3  48 83 f8 ff           cmpq  $-0x1, %rax
+   *   0xf4f7  74 25                 je    0xf51e               ; fast path
+   *   0xf4f9..0xf508                the tuple<T&&> marshalling (ABI artefact, no TS effect)
+   *   0xf50b  48 8d 3d be c2 0d 00  leaq  0xdc2be(%rip), %rdi  ; 0xf512+0xdc2be = BSS 0xeb7d0
+   *   0xf512  48 8d 15 5f 00 00 00  leaq  0x5f(%rip), %rdx     ; 0xf519+0x5f = 0xf578 (the proxy)
+   *   0xf519  e8 aa d8 09 00        callq 0xacdc8              ; std::__call_once stub
+   *   0xf51e  48 8d 05 33 cd 0d 00  leaq  0xdcd33(%rip), %rax  ; 0xf525+0xdcd33 = BSS 0xec258
+   *   0xf525  48 8b 00              movq  (%rax), %rax         ; return the singleton pointer
+   *   0xf528  48 83 c4 20 / 5d / c3
+   *
+   * MEASURED AGAINST THE LIVE BINARY
+   * (raw-port/re/oracle/OZChannelUint16_createInfo_probe.py, `arch -x86_64`, called by address at
+   * slide+0xf4e4 after an opcode self-check, 8/8 checks PASS):
+   *   before   once @0xeb7d0 = 0            singleton @0xec258 = NULL
+   *   call #1  returns 0x600000fd4180      once -> 0xffffffffffffffff, singleton == the return value
+   *   call #2  returns 0x600000fd4180      once unchanged (the fast path at 0xf4f7 is taken)
+   */
+  static createOZChannelUint16Info(): OZChannelInfoPtr {
+    // @0xf4ec-0xf4f7 — the libc++ fast path: once == ~0UL means init already completed.
+    if (OZChannelUint16._OZChannelUint16Info_once !== -1n) {
+      // @0xf4f9-0xf519 — marshal the tuple and call std::__1::__call_once(&once, arg, proxy)
+      //   through ProChannel stub 0xacdc8 (libc++, a TRUE out-of-scope extern).
+      std_call_once_OZChannelUint16Info();
+    }
+    // @0xf51e-0xf525 — leaq &global then movq (%rax),%rax: the pointer stored there, NULL included.
+    return OZChannelUint16._OZChannelUint16Info;
+  }
 }
 
 // Re-export the base type placeholder so consumers don't need to know it lives
@@ -530,4 +591,55 @@ function std_call_once_OZChannelUint16Impl(): void {
       "OZChannelUint16Impl singleton into __ZN15OZChannelUint1620_OZChannelUint16ImplE (BSS " +
       "0xec260), which this accessor then loads @0xf56f.",
   );
+}
+
+/**
+ * `std::__1::__call_once(flag&, void*, void(*)(void*))` for the INFO singleton — libc++, reached
+ * through ProChannel stub 0xacdc8 @0xf519. A TRUE out-of-scope extern, modelled the same way as the
+ * Impl one above: run the initializer once, and write ~0UL into the flag ONLY on success.
+ *
+ * THE INITIALIZER IS TRANSCRIBED HERE rather than deferred, and that is the one way this differs
+ * from its Impl sibling. For the Impl the lambda is its own out-of-line symbol @0xf6d2 — a separate
+ * ledger unit. For the Info the compiler INLINED the lambda into the libc++ template instantiation
+ *   __ZNSt3__18__invokeB9nqe210106IJZN15OZChannelUint1625createOZChannelUint16InfoEvEUlvE_EEE...
+ * @ProChannel 0xf588; there is no `...NKUlvE_clEv` symbol for the Info side at all (the inventory
+ * runs 0xf578 proxy, 0xf588 __invoke, then 0xf5cc is already the Info ctor). STL template
+ * instantiations are filtered out of the port queue, so deferring would defer to a unit nobody can
+ * claim, and its only in-scope callee — `OZChannelUint16Info::OZChannelUint16Info()` @ProChannel
+ * 0xf5cc — is ALREADY PORTED in raw-port/src/channels/OZChannelUint16Info.ts, so a throw here would
+ * be a throw-stub for a ported in-scope callee.
+ *
+ *   0xf578  proxy: pushq %rbp / movq %rsp,%rbp / movq (%rdi),%rax / movq (%rax),%rdi /
+ *                  popq %rbp / jmp 0xf588            ; unpacks tuple<lambda&&> -> __invoke
+ *   0xf588  55 48 89 e5           pushq %rbp / movq %rsp,%rbp
+ *   0xf58c  41 56 53              pushq %r14 / pushq %rbx
+ *   0xf58f  4c 8d 35 c2 cc 0d 00  leaq  0xdccc2(%rip),%r14   ; 0xf596+0xdccc2 = BSS 0xec258
+ *   0xf596  49 83 3e 00           cmpq  $0x0, (%r14)         ; already published?
+ *   0xf59a  75 18                 jne   0xf5b4               ; yes -> return, allocate nothing
+ *   0xf59c  bf 58 00 00 00        movl  $0x58, %edi          ; sizeof(OZChannelUint16Info)
+ *   0xf5a1  e8 a6 d8 09 00        callq 0xace4c              ; operator new (__Znwm)
+ *   0xf5a6  48 89 c3 / 48 89 c7   movq  %rax,%rbx / movq %rax,%rdi
+ *   0xf5ac  e8 1b 00 00 00        callq 0xf5cc               ; OZChannelUint16Info::C2
+ *   0xf5b1  49 89 1e              movq  %rbx, (%r14)         ; publish the singleton
+ *   0xf5b4  5b 41 5e 5d c3        popq %rbx / popq %r14 / popq %rbp / retq
+ *   unwind pad @0xf5b9: movq %rax,%r14 / movq %rbx,%rdi / callq 0xace04 (operator delete) /
+ *                       movq %r14,%rdi / callq 0xacaf2 (_Unwind_Resume) — if C2 throws, the
+ *                       0x58-byte allocation is freed and the exception propagates WITHOUT the
+ *                       store @0xf5b1, so the global stays NULL and the flag stays 0.
+ */
+function std_call_once_OZChannelUint16Info(): void {
+  if (OZChannelUint16._OZChannelUint16Info_once === -1n) return; // libc++ fast path
+  // @0xf58f-0xf59a — r14 = &global; if it is already non-null, allocate nothing and return.
+  if (OZChannelUint16._OZChannelUint16Info === null) {
+    // @0xf59c-0xf5ac — operator new(0x58) (stub 0xace4c) then OZChannelUint16Info::C2 @0xf5cc.
+    //   The ported ctor raises while its own base (OZChannelInfo) is a frontier class; that raise
+    //   is that class's gap, not this one's, and it correctly leaves the flag at 0 by skipping the
+    //   write below — exactly what the unwind pad @0xf5b9 does in the machine.
+    const created = new OZChannelUint16Info();
+    // @0xf5b1 — publish: *(&global) = the new object.
+    OZChannelUint16._OZChannelUint16Info = created;
+  }
+  // libc++ writes ~0UL into the flag only after the initializer returns normally (@0xf4f3's
+  // sentinel). A throw above skips this line, exactly like the real runtime.
+  OZChannelUint16._OZChannelUint16Info_once = -1n;
 }
