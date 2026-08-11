@@ -59,6 +59,11 @@
  *   0x00050dfa  transform<double>(PCVector2 const&, PCVector4&) — Vec2→Vec4
  *   0x0005b080  transform<double>(PCVector3&) — IN-PLACE single-arg (@Ozone)
  *                                                                (no divide)
+ *   @Ozone
+ *   0x00545380  operator==(PCMatrix44Tmpl<double> const&) const — Ozone's own
+ *               instantiation; an ELEMENTWISE 1e-7 TOLERANCE test, not a
+ *               bitwise compare. Constants from Ozone rodata: abs mask
+ *               0x706e10, epsilon 0x706ed0.
  *   0x0004ef7e  isIdentity()
  *   0x0004f378  leftTranslate(tx, ty, tz)
  *   0x0004f444  rightTranslate(tx, ty, tz)
@@ -1186,6 +1191,99 @@ export class PCMatrix44Tmpl_double {
     xmm0 = [xmm0[0] - xmm5[0], xmm0[1]];
     // 0x86043 retq : return xmm0 lane 0
     return xmm0[0];
+  }
+
+  // ==========================================================================
+  //  operator==  @Ozone 0x00545380
+  // ==========================================================================
+  /**
+   * `bool PCMatrix44Tmpl<double>::operator==(PCMatrix44Tmpl<double> const&) const`
+   * @Ozone 0x00545380 (__ZNK14PCMatrix44TmplIdEeqERKS0_).
+   *
+   * Ozone links its OWN instantiation of the template (same class, same
+   * 128-byte row-major layout — exactly like the in-place
+   * `transform<PCVector3>` @Ozone 0x5b080 and the ProChannel
+   * `setRotationFromQuaternion` @ProChannel 0x844d8 already in this file).
+   * Disasm re-derived in this worktree with
+   *   `raw-port/tools/disasm.sh --sym __ZNK14PCMatrix44TmplIdEeqERKS0_ Ozone`
+   *   -> raw-port/re/disasm/__ZNK14PCMatrix44TmplIdEeqERKS0_.s (92 lines)
+   *
+   * NOT bitwise equality — an ELEMENTWISE TOLERANCE test. The body is 16
+   * copies of one three-instruction idiom, walking the matrix in ascending
+   * offset order 0x00,0x08,...,0x78 (= m[0..15], the class-header layout):
+   *
+   *   0x545384  movsd   (%rdi), %xmm1          ; xmm1 = this->m[i]
+   *   0x545388  subsd   (%rsi), %xmm1          ; AT&T: xmm1 = xmm1 - other.m[i]
+   *   0x54538c  andpd   0x1c1a7c(%rip), %xmm1  ; xmm1 = |diff|  (mask below)
+   *   0x54539c  ucomisd %xmm1, %xmm0           ; AT&T: flags on xmm0 - xmm1,
+   *                                            ;       i.e. EPS vs |diff|
+   *   0x5453a0  jbe     0x545534               ; CF|ZF: EPS <= |diff| -> false
+   *
+   * so each element is accepted iff `EPS > |this.m[i] - other.m[i]|`, and
+   * the first failure jumps to the shared exit
+   *   0x545534  xorl %eax, %eax ; popq %rbp ; retq      -> return false
+   * The sixteenth element inverts the shape but not the condition:
+   *   0x54552c  movb    $0x1, %al              ; pre-load the true result
+   *   0x54552e  ucomisd %xmm1, %xmm0
+   *   0x545532  ja      0x545536               ; CF=0 & ZF=0: EPS > |diff|
+   *                                            ;   -> skip the xor, return 1
+   *
+   * DECODED CONSTANTS (Ozone.x86_64 __TEXT,__const at addr 0x705380, whose
+   * file offset equals its vmaddr, so these are also file offsets). All 16
+   * `andpd` displacements resolve to the SAME address, and the epsilon is
+   * loaded ONCE at @0x545394 into xmm0 and never reloaded:
+   *   0x706e10 = ff ff ff ff ff ff ff 7f  x2
+   *            = 0x7fffffffffffffff twice — the two-lane IEEE-754
+   *              abs-value mask (clear the sign bit) => Math.abs
+   *   0x706ed0 = 48 af bc 9a f2 d7 7a 3e
+   *            = 0x3e7ad7f29abcaf48 = 1e-7 — the tolerance
+   * (The same 1e-7 / sign-mask pair ProCore's `isIdentity` uses from its own
+   * rodata at 0x122880 / 0x122670 — see the file header.)
+   *
+   * NaN BEHAVIOUR IS PART OF THE TRANSCRIPTION: `ucomisd` on an unordered
+   * pair sets CF=ZF=PF=1, so `jbe` is TAKEN and `ja` is NOT — a NaN anywhere
+   * in either matrix makes the result false. The port therefore writes the
+   * accept test positively (`|diff| < EPS` continues, anything else returns
+   * false) rather than as a negated `>= EPS`, because `NaN >= EPS` is false
+   * in JS and would wrongly let the element pass.
+   *
+   * NUMERICS: `movsd`/`subsd`/`ucomisd` are all f64 — no cvtsd2ss anywhere,
+   * so plain JS number arithmetic is bit-identical and Math.fround must NOT
+   * be applied (see the class header's precision note).
+   *
+   * DEPENDENCIES: none — no call, no extern, no dispatch in the body
+   * (`depgraph.py deps` lists nothing for this symbol).
+   */
+  eq(other: PCMatrix44Tmpl_double): boolean {
+    const a = this.m;
+    const b = other.m;
+    const EPS = 1e-7; // @Ozone rodata 0x706ed0
+    // |x| via Math.abs — the `andpd` of the sign mask 0x7fffffffffffffff
+    // at @Ozone rodata 0x706e10.
+    const abs = Math.abs;
+
+    // The 16 tests in the binary's own order: byte offsets 0x00..0x78,
+    // ascending, one `movsd/subsd/andpd/ucomisd/jbe` group each.
+    for (let i = 0; i < 16; i++) {
+      // this->m[i] - other.m[i]. Group i starts at the movsd whose
+      // displacement is 0x08*i: i=0 @0x545384 (no displacement), i=1
+      // @0x5453a6, i=2 @0x5453c2, ... i=15 @0x54551a. The group spacing is
+      // not uniform (0x22 then 0x1c then 0x18 bytes, as the jbe target
+      // moves in and out of rel8 range) but the three-instruction shape and
+      // the ascending 0x08 stride through the matrix are identical
+      // throughout — verified group by group against the 92-line .s.
+      const diff = a[i] - b[i];
+      // @0x54539c  ucomisd %xmm1, %xmm0 -> EPS - |diff|
+      // @0x5453a0  jbe 0x545534 (EPS <= |diff|, or unordered) -> return false
+      if (abs(diff) < EPS) {
+        continue;
+      }
+      // @0x545534  xorl %eax, %eax ; retq
+      return false;
+    }
+    // @0x54552c/@0x545532  movb $0x1, %al ; ja 0x545536 — every element was
+    // within tolerance.
+    return true;
   }
 
   invert(_from: PCMatrix44Tmpl_double, _det: number): void {
