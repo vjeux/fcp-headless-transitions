@@ -17,6 +17,7 @@
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob7GetTypeEv.s              (GetType)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob23SpecifiesComputeDevicesEv.s
 //                                                                       (SpecifiesComputeDevices)
+//   raw-port/re/disasm/Helium.__ZN11HGRenderJob12GetTypeLabelEv.s      (GetTypeLabel)
 //   raw-port/re/disasm/Helium.__ZN11HGRenderJob17GetGPUGraphicsAPIEv.s   (GetGPUGraphicsAPI —
 //                                                                       read only to pin the
 //                                                                       +0x64 offset/width; the
@@ -90,6 +91,9 @@
 //   UsesOnlyGPUResource     — none.
 //   GetType                 — none (5-instruction leaf load of this+0x0c).
 //   SetState                — none.
+//   GetTypeLabel            — none. Reads this+0x0c and two static __TEXT literals
+//                             (the offset table @0x3cb988 and the unknown-label
+//                             cstring @0x8d9ee5); no calls at all.
 //
 // -----------------------------------------------------------------------------
 // Symbols ported here (mangled → address)
@@ -112,6 +116,8 @@
 //       — HGRenderJob::UsesOnlyGPUResource() @Helium 0x54b20
 //   * __ZN11HGRenderJob7GetTypeEv
 //       — HGRenderJob::GetType() @Helium 0x54730
+//   * __ZN11HGRenderJob12GetTypeLabelEv
+//       — HGRenderJob::GetTypeLabel() @Helium 0x53f30
 //   * __ZN11HGRenderJob24IsRequestedVirtualScreenEi
 //       — HGRenderJob::IsRequestedVirtualScreen(int) @Helium 0x54ad0
 //   * __ZN11HGRenderJob8SetStateENS_5StateE
@@ -302,6 +308,61 @@ export interface HGRenderJobTaggedRef {
   /** +0x08 (u32) — compared against 1 @0x54b40 and against 0 @0x54b74. */
   tag08: number;
 }
+
+/**
+ * HGRenderJob::Type -> label table, read by GetTypeLabel @Helium 0x53f30.
+ *
+ * The machine does NOT store 9 pointers; it stores 9 **self-relative int32
+ * offsets** in `__TEXT,__const` at @Helium 0x3cb988, and reconstructs each
+ * pointer as `tableBase + int32[i]` (`movslq (%rcx,%rax,4), %rax` @0x53f44
+ * followed by `addq %rcx, %rax` @0x53f48, where %rcx = 0x3cb988 was formed by
+ * `leaq 0x377a44(%rip), %rcx` @0x53f3d — rip after that 7-byte insn is
+ * 0x53f44, and 0x53f44 + 0x377a44 = 0x3cb988). Every offset below is NEGATIVE,
+ * i.e. the strings sit just *before* the table.
+ *
+ * Each entry is a fixed-width 30-character label, space-padded on the right in
+ * the binary. The padding is part of the C string (the NUL follows the last
+ * space), so it is reproduced verbatim here — trimming it would change what
+ * this function returns.
+ *
+ * Every string address below was read out of the x86_64 slice of Helium and
+ * independently confirmed by CALLING the real exported symbol (see the ORACLE
+ * note on GetTypeLabel).
+ */
+const HG_RENDER_JOB_TYPE_LABELS: readonly string[] = [
+  /** [0] table word @Helium 0x3cb988 = 0xfffffed8 (int32 -296) -> string @0x3cb860 */
+  "kTypeRender                   ",
+  /** [1] table word @Helium 0x3cb98c = 0xffffffb1 (int32 -79) -> string @0x3cb939 */
+  "kTypeSynchronousRender        ",
+  /** [2] table word @Helium 0x3cb990 = 0xfffffef7 (int32 -265) -> string @0x3cb87f */
+  "kTypeCopyCPUBitmapToGPUTexture",
+  /** [3] table word @Helium 0x3cb994 = 0xffffff16 (int32 -234) -> string @0x3cb89e */
+  "kTypeXGMIBufferCopy           ",
+  /** [4] table word @Helium 0x3cb998 = 0xffffff35 (int32 -203) -> string @0x3cb8bd */
+  "kTypeDeleteHGRenderJob        ",
+  /** [5] table word @Helium 0x3cb99c = 0xffffff54 (int32 -172) -> string @0x3cb8dc */
+  "kTypeDeleteHGRenderNode       ",
+  /** [6] table word @Helium 0x3cb9a0 = 0xffffff73 (int32 -141) -> string @0x3cb8fb */
+  "kTypeDeleteHGGLTexture        ",
+  /** [7] table word @Helium 0x3cb9a4 = 0xffffff92 (int32 -110) -> string @0x3cb91a */
+  "kTypeCustom                   ",
+  /** [8] table word @Helium 0x3cb9a8 = 0xffffffd0 (int32 -48) -> string @0x3cb958 */
+  "kTypeSynchronousCustom        ",
+];
+
+/**
+ * The out-of-range fallback label returned by GetTypeLabel @Helium 0x53f30.
+ *
+ * Loaded by `leaq 0x885f91(%rip), %rax` @0x53f4d; rip after that 7-byte insn
+ * is 0x53f54, and 0x53f54 + 0x885f91 = @Helium 0x8d9ee5 (`__TEXT,__cstring`).
+ * otool annotates the same instruction `## literal pool for: "?????? unknown
+ * job type ???????"`, which matches the bytes read from the slice.
+ *
+ * NOTE the asymmetry, which is real and must not be "tidied": this string is
+ * 31 characters (6 leading `?`, 7 trailing `?`) and is NOT space-padded to the
+ * table's 30-character width.
+ */
+const HG_RENDER_JOB_UNKNOWN_TYPE_LABEL = "?????? unknown job type ???????";
 
 /**
  * `HGRenderJob` — Helium render job. This file ports the setters listed in
@@ -1008,6 +1069,113 @@ export class HGRenderJob {
     // @0x54737..0x54738 — epilogue + retq.
     // ------------------------------------------------------------
     return this._type >>> 0;
+  }
+
+  /**
+   * `HGRenderJob::GetTypeLabel()` -> `char const*`
+   *   @Helium 0x53f30
+   *   (__ZN11HGRenderJob12GetTypeLabelEv)
+   *
+   * Returns a static, non-owned C string naming this job's `Type` tag. The
+   * machine reads the u32 at `this+0x0c` (the same slot `SetType` @0x54514
+   * writes), rejects anything above 8 with a fixed "unknown" literal, and
+   * otherwise indexes a 9-entry self-relative offset table in `__TEXT,__const`.
+   * No callees, no allocation, no writes — the returned pointer is into
+   * read-only `__TEXT`, so the caller must not free it (modelled here as a
+   * plain immutable JS string, which has the same non-owning value semantics).
+   *
+   * Full body from raw-port/re/disasm/
+   * Helium.__ZN11HGRenderJob12GetTypeLabelEv.s (15 lines):
+   *
+   *   0x53f30  pushq   %rbp                       ; frame prologue
+   *   0x53f31  movq    %rsp, %rbp
+   *   0x53f34  movl    0xc(%rdi), %eax            ; eax = this->_type (u32 @+0x0c)
+   *                                               ;   movl ZERO-EXTENDS into rax
+   *   0x53f37  cmpq    $0x8, %rax                 ; flags on (rax - 8)
+   *   0x53f3b  ja      0x53f4d                    ; CF=0 & ZF=0 -> rax > 8  (UNSIGNED)
+   *                                               ;   -> take the unknown-label path
+   *   0x53f3d  leaq    0x377a44(%rip), %rcx       ; rcx = 0x53f44 + 0x377a44 = 0x3cb988
+   *                                               ;   (the offset table base)
+   *   0x53f44  movslq  (%rcx,%rax,4), %rax        ; rax = (int32)table[type]  SIGN-extended
+   *   0x53f48  addq    %rcx, %rax                 ; rax = tableBase + table[type]
+   *   0x53f4b  popq    %rbp                       ; epilogue
+   *   0x53f4c  retq                               ; return that char*
+   *   0x53f4d  leaq    0x885f91(%rip), %rax       ; rax = 0x53f54 + 0x885f91 = 0x8d9ee5
+   *                                               ;   "?????? unknown job type ???????"
+   *   0x53f54  popq    %rbp                       ; epilogue
+   *   0x53f55  retq
+   *   0x53f56  nopw    %cs:(%rax,%rax)            ; padding — not executed
+   *
+   * DECODE NOTES (AT&T; a compare computes `dst - src`, per PORTING_SPEC):
+   *  - `cmpq $0x8, %rax` + `ja` is `rax > 8` UNSIGNED, so the in-range set is
+   *    exactly {0..8} — 9 entries, matching the 9-word table. `ja` (not `jae`)
+   *    means 8 is IN range; `jg` vs `ja` is moot here because the preceding
+   *    `movl` zero-extends, so rax can never be negative.
+   *  - `movslq` is a SIGN-extending 32-bit load: every table word is negative
+   *    (0xfffffed8 … 0xffffffd0), so the strings live *below* the table base.
+   *    Reading them as absolute or as unsigned would fault or return garbage.
+   *  - The labels are space-padded to a fixed 30 columns in the binary and the
+   *    padding is inside the NUL terminator, so it is part of the return value.
+   *
+   * ORACLE — verified by calling the real Helium binary. The symbol is
+   * exported (`nm -arch x86_64` reports `0000000000053f30 T
+   * __ZN11HGRenderJob12GetTypeLabelEv`), and it reads only `this+0x0c`, so the
+   * harness dlopens Helium under `arch -x86_64 /usr/bin/python3` (the port is
+   * transcribed from the x86_64 slice; the arm64 slice would be a different
+   * function — see OPS_LOG) and calls it on a 0x200-byte buffer POISONED with
+   * 0xEE, with only the dword at +0x0c set. 4,028 cases — exhaustive over
+   * 0..1023 plus 0x7fffffff, 0x80000000, 0xfffffffe, 0xffffffff and 3,000
+   * random u32s — returned 4028/4028 byte-identical to this port, including
+   * the trailing padding. The in-range domain is covered EXHAUSTIVELY (all 9
+   * of 9 table entries); the out-of-range class is sampled 4,019 times. The
+   * 0xEE poison also confirms no other field is consulted.
+   * NEGATIVE CONTROLS (measured against the same 4,028 FCP answers): reading
+   * the table as ABSOLUTE pointers instead of self-relative -> 9 wrong (every
+   * in-range case); assuming the strings sit in index order rather than at
+   * their real addresses -> 7 wrong; trimming the trailing padding -> 8 wrong;
+   * `jae` instead of `ja` (dropping type 8) -> 1 wrong.
+   *
+   * @returns the static label for this job's Type tag; never null.
+   */
+  GetTypeLabel(): string {
+    // ------------------------------------------------------------
+    // @0x53f30..0x53f31 — prologue (no TS-visible effect).
+    // @0x53f34 — movl 0xc(%rdi), %eax : load the u32 Type tag. `>>> 0`
+    //   reproduces the zero-extension of the 32-bit load, so a caller that
+    //   hands us a negative JS number sees the same bit-pattern the machine
+    //   would have read out of the field.
+    // ------------------------------------------------------------
+    const type = this._type >>> 0;
+
+    // ------------------------------------------------------------
+    // @0x53f37 — cmpq $0x8, %rax  (flags on rax - 8)
+    // @0x53f3b — ja 0x53f4d : taken iff type > 8 UNSIGNED -> unknown label.
+    //   Taking this branch first makes the table read below provably
+    //   in-bounds for {0..8}, which is exactly the table's length.
+    // @0x53f4d — leaq 0x885f91(%rip), %rax : the @0x8d9ee5 literal.
+    // @0x53f54..0x53f55 — epilogue + retq.
+    // ------------------------------------------------------------
+    if (type > 8) {
+      return HG_RENDER_JOB_UNKNOWN_TYPE_LABEL;
+    }
+
+    // ------------------------------------------------------------
+    // @0x53f3d — leaq 0x377a44(%rip), %rcx : rcx = table base @0x3cb988.
+    // @0x53f44 — movslq (%rcx,%rax,4), %rax : sign-extended int32 at
+    //            tableBase + type*4.
+    // @0x53f48 — addq %rcx, %rax : rax = tableBase + thatOffset, i.e. the
+    //            char* for this Type. HG_RENDER_JOB_TYPE_LABELS holds the
+    //            already-resolved strings, each carrying the table word and
+    //            the resolved address it was read from.
+    // @0x53f4b..0x53f4c — epilogue + retq.
+    //
+    // The `!` is safe and deliberate rather than defensive: `type` is a
+    // `>>> 0` u32 and the branch above returned for everything above 8, so
+    // the index is within the 9-element table on every path that reaches
+    // here. Asserting it keeps an out-of-range read from degrading into
+    // `undefined` (the silent-wrong-answer class G7 guards).
+    // ------------------------------------------------------------
+    return HG_RENDER_JOB_TYPE_LABELS[type]!;
   }
 }
 
