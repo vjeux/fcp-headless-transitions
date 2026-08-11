@@ -161,17 +161,22 @@ def layer2():
     # silently dropped, 92 reviewer-verified lines replaced by an empty branch, and a PR CLOSED by
     # forcing onto a commit already on main). Every path now merges main in and fast-forwards.
     # Offline: local bare repo, stubbed gh. ~1s.
-    # (This suite was 2l until main took that letter for the cross-queue lease above. Renumbered on
-    # the merge rather than resolved "take mine", which would have REVERTED main's layer while the
-    # file still parsed and the suite still passed — the exact silent revert the layer-letters
-    # check in swarm_doctor.py was added to catch.)
-    r13 = run(["bash", os.path.join(TOOLS, "test_no_force_push.sh")])
-    ok13 = "test_no_force_push: PASS" in r13.stdout
-    print("LAYER 2m (no force-push at a PR head — a PR head may only GAIN commits):",
-          "PASS" if ok13 else "FAIL")
-    if not ok13: print(r13.stdout[-1200:], r13.stderr[-400:])
+    # LETTER AND VARIABLES: this suite was 2l/r12 until main took that letter and those names for
+    # the cross-queue lease above, and is now 2p/r16. Renumbered on the merge rather than resolved
+    # "take mine", which would have REVERTED main's layer while the file still parsed and the suite
+    # still passed — the exact silent revert the layer-letters check in swarm_doctor.py was added
+    # to catch. The VARIABLES are allocated too, and that half is easier to miss: two blocks both
+    # assigning `r13`/`ok13` still PRINT correctly (each print follows its own assignment) while the
+    # single `return` line names `ok13` once, so the later block's result silently decides the
+    # verdict for both and a red suite returns PASS. Disjoint across the four merges one worker is
+    # holding on this tail: #656 2m/2n/2o r13-r15, this one 2p r16, #714 2q r17, #655 2r r18/r19.
+    r16 = run(["bash", os.path.join(TOOLS, "test_no_force_push.sh")])
+    ok16 = "test_no_force_push: PASS" in r16.stdout
+    print("LAYER 2p (no force-push at a PR head — a PR head may only GAIN commits):",
+          "PASS" if ok16 else "FAIL")
+    if not ok16: print(r16.stdout[-1200:], r16.stderr[-400:])
     return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11
-            and ok12 and ok13)
+            and ok12 and ok16)
 
 def _reach(spec, expect):
     import tempfile
