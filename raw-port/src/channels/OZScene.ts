@@ -457,6 +457,36 @@ export class OZScene {
    */
   playRangeSecondary: PCTimeRangeHandle | null = null;
 
+  /**
+   * +0x582 (u8) — the "lock dependencies" gate byte.
+   *
+   * Read by `dirtyLockDependencies()` @Ozone 0x578c4 with a single-byte compare
+   * against the exact value 1 (`cmpb $0x1, 0x582(%rdi)`), which is what fixes
+   * both the offset and the width: one byte, nothing adjacent touched, and the
+   * comparison is against 1 rather than against zero.
+   *
+   * The writer of this slot is FRONTIER — no decoded instruction in this file
+   * stores to it — so per Rule 3 nothing here guesses its initial value beyond
+   * the 0 every other undecoded slot in this class carries. Modelled as a
+   * `number` in [0, 255] (the repo's u8 convention).
+   */
+  lockDependenciesGateAt582 = 0;
+
+  /**
+   * +0x680 (u8, ATOMIC) — the "lock dependencies are dirty" flag.
+   *
+   * Written by `dirtyLockDependencies()` @Ozone 0x578cf via `xchgb %al,
+   * 0x680(%rdi)` with %al = 1. `xchg` against memory is implicitly LOCKed on
+   * x86, so this slot is an atomic byte (`std::atomic<bool>` / atomic_flag) and
+   * the instruction is a sequentially-consistent store of 1 whose returned old
+   * value is discarded. One byte wide, per the `b` suffix.
+   *
+   * The reader/clearer of this slot is FRONTIER (not decoded here). Modelled as
+   * a `number` in [0, 255]; this port is single-threaded, so the atomicity has
+   * no observable counterpart beyond the plain assignment.
+   */
+  lockDependenciesDirtyAt680 = 0;
+
   // ==========================================================================
   //  CORE — the small getter/setter surface used by the OZ*Undo family
   // ==========================================================================
@@ -1524,5 +1554,55 @@ export class OZScene {
     //                     u32 flag word at +0x590.
     this.flagsAt590 = (this.flagsAt590 | mask) >>> 0;
     // @0x4d37a..0x4d37b — epilogue + retq (no return value).
+  }
+
+  /**
+   * OZScene::dirtyLockDependencies()  @Ozone 0x578c0
+   *   __ZN7OZScene21dirtyLockDependenciesEv
+   *
+   * FULL DISASM (raw-port/re/disasm/__ZN7OZScene21dirtyLockDependenciesEv.s — 10 lines):
+   *
+   *   0x578c0  pushq %rbp                 ; frame prologue (no TS counterpart)
+   *   0x578c1  movq  %rsp, %rbp
+   *   0x578c4  cmpb  $0x1, 0x582(%rdi)    ; compare the BYTE at this+0x582 with 1
+   *                                       ; (AT&T: dst - src = *(u8*)(this+0x582) - 1)
+   *   0x578cb  jne   0x578d5              ; not exactly 1 -> skip the store, return
+   *   0x578cd  movb  $0x1, %al            ; al = 1 — the value to publish
+   *   0x578cf  xchgb %al, 0x680(%rdi)     ; ATOMIC exchange into the byte at this+0x680;
+   *                                       ; the old value lands in %al and is DISCARDED
+   *                                       ; (never read before the epilogue clobbers
+   *                                       ; nothing and %eax is not a return value here)
+   *   0x578d5  popq  %rbp                 ; frame epilogue
+   *   0x578d6  retq                       ; returns void
+   *   0x578d7  nopw  (%rax,%rax)          ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * `xchg` with a MEMORY operand is implicitly LOCKed on x86 — no `lock`
+   *     prefix is needed or emitted. That is the tell that +0x680 is an
+   *     atomic byte (a `std::atomic<bool>` / atomic_flag), and that this line
+   *     is a sequentially-consistent STORE of 1: the exchange's old value is
+   *     read into %al and then simply dropped, so the observable effect is
+   *     "publish 1", not "test and set". A single-threaded port reproduces
+   *     that with a plain assignment; there is no other thread in this model
+   *     and no ordering for it to observe.
+   *   * The guard reads ONE byte and compares it against the exact value 1, so
+   *     a +0x582 byte of 0 — or of 2, or 0xff — skips the store. The port
+   *     keeps the `=== 1` form rather than a truthiness test, which would
+   *     wrongly fire for every non-zero byte.
+   *   * NOTHING else is touched: no other slot, no call, no return value.
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps __ZN7OZScene21dirtyLockDependenciesEv`
+   *     lists nothing).
+   */
+  dirtyLockDependencies(): void {
+    // @0x578c4..0x578cb — cmpb $0x1, 0x582(%rdi) ; jne: the store happens only
+    //                     when the gate byte is EXACTLY 1.
+    if (this.lockDependenciesGateAt582 === 1) {
+      // @0x578cd..0x578cf — movb $0x1,%al ; xchgb %al,0x680(%rdi): atomically
+      //                     publish 1 into the dirty byte, discarding the old
+      //                     value the exchange returns.
+      this.lockDependenciesDirtyAt680 = 1;
+    }
+    // @0x578d5..0x578d6 — epilogue + retq (no return value).
   }
 }
