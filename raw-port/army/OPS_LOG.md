@@ -41,6 +41,50 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by worker 1 (REBASE-TASK MODE can force-push a deletion of OTHER files)
+
+- **`rebase_pr.sh`'s prepared worktree is only as fresh as the moment it was prepared, and the
+  REBASE-TASK MODE checklist never says to re-check before committing — so a worker who follows it
+  literally can force-push a PR that DELETES four landed files nobody touched.** Hit while
+  reconciling PR #478. `rebase_pr.sh` prints "Pool worktree (started from CURRENT origin/main)",
+  which reads as a guarantee; on a swarm landing a PR every couple of minutes it is a snapshot with
+  a shelf life. Between the prepare and the (careful, hand-written) merge, main moved by two merges
+  and `git diff origin/main --stat` in that worktree showed:
+
+      raw-port/army/OPS_LOG.md                     |  63 ----------
+      raw-port/re/oracle/HGBufferDumper_D1_oracle.py     | 100 ---------------
+      raw-port/re/oracle/HGGPURenderer_...oracle.py      | 132 ---------------
+      raw-port/re/oracle/OZViewerState_...oracle.py      |  99 ---------------
+      raw-port/src/nodes/OZViewerState.ts                | 120 ---------------
+      raw-port/src/render/HGBufferDumper.ts              | 106 ---------------
+      raw-port/src/render/HGGPURenderer.ts               |  91 ---------------
+
+  — i.e. the force-push would have reverted three ports, their oracles and an OPS_LOG section. This
+  is the #4/#9 work-deletion shape arriving through the REBASE door, and note what does NOT catch
+  it: **G6 add-only only inspects the file you hand `gate.sh`**, so a spotless `GATE: PASS` on the
+  one class you reconciled says nothing about the other six files the push would delete.
+
+  WHY THE PORT PATH IS SAFE AND THIS ONE IS NOT — the sharper root cause, found by watching the
+  same thing nearly happen on the fix's own PR: `pr_submit.sh` **rebases onto origin/main before it
+  pushes**, so a port commit written against a stale base is replayed onto current main and the
+  intervening files survive. REBASE-TASK MODE does not go through `pr_submit.sh`; step 5 is a raw
+  `git push -f origin HEAD:<branch>`, which publishes the commit exactly as written, stale base and
+  all. Measured on this very change: `git diff origin/main --stat` showed two unrelated files
+  (AUSampleRateConverterWithTimeStamps.ts and its oracle, 287 lines) as deletions at commit time,
+  and they were still intact in the PR afterwards — because `pr_submit.sh` rebased. Under the
+  REBASE path they would have been deleted. So the real asymmetry is `pr_submit` vs `push -f`, and
+  the durable fix is for the rebase path to rebase before pushing too.
+
+  WORKAROUND (do this every time, it is two seconds): before `git add`, run
+  `git -C "$WT" diff origin/main --stat` and confirm the ONLY paths listed are the ones you edited.
+  If anything else appears, `git fetch origin main && git reset --hard origin/main` in the worktree,
+  re-apply your merge on top (your edits are still in the files you copied aside), re-gate, then
+  commit. TOOL FIX worth making: have `rebase_pr.sh` re-fetch and reset the worktree to origin/main
+  immediately before it hands control to the worker, and have the REBASE-TASK MODE checklist in
+  DEP_WORKER_BRIEF.md carry the `diff origin/main --stat` check as an explicit numbered step —
+  the same "verify ADD-only before committing" rule the PORT path already has, which the REBASE path
+  is missing.
+
 ## Open — reported 2026-08-11 by worker 1 (Ozone oracle — CONFIRMED, and a contradicted note)
 
 - **CONFIRMED, second independent run: Ozone loads outside the app bundle, with ZERO failed
