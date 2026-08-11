@@ -1117,6 +1117,72 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   the closest honest thing is `mkdir "$STATE/review_leases/pr-<N>"` before starting), and to stop if
   it is already held.
 
+## Open — reported 2026-08-11 by reviewer 4 (one commit published TWO units; the second was landed under the first's title and its own PR became a dup; NOT fixed — diagnosis only)
+
+- **A worker's port commit swept a DIFFERENT unit's files into itself, so a 618-line AVX kernel
+  landed under a PR titled `port: OZAudioMixer` — and the PR that legitimately owned that kernel
+  became a duplicate two minutes later and was closed.** The claim queue is NOT at fault, which is
+  what makes this worth writing down: `claims.jsonl` has exactly ONE claim for the symbol
+  (`__ZL31Gettype1_half_unpremultTile_AVX…`, ts 1786462614) and **zero** symbols claimed more than
+  once across all 6,692 claims. The dispenser did its job; the commit did not.
+
+  The evidence is one command. PR #531 contains a single port commit, and it carries two units:
+
+      $ git show --stat 06799c92
+      port: OZAudioMixer::getTrackPan(STTrack*, float*) @Ozone 0x21b550
+       raw-port/re/oracle/Gettype1_half_unpremultTile_AVX_driver.ts   |  75 +
+       raw-port/re/oracle/Gettype1_half_unpremultTile_AVX_oracle.py   | 291 +
+       raw-port/re/oracle/OZAudioMixer_getTrackPan_oracle.py          | 154 +
+       raw-port/src/nodes/OZAudioMixer.ts                             | 155 +
+       raw-port/src/render/Gettype1_half_unpremultTile_AVX.ts         | 618 +
+       5 files changed, 1293 insertions(+)
+
+  Timeline: the kernel was claimed at 08:36:54; the OZAudioMixer commit above was written at
+  08:41:23 and swept it up; the kernel's own commit was written at 08:43:26 on
+  `port/Gettype1_half_unpremultTile_AVX` (PR #535). #531 merged first, so by the time #535 was
+  gated its 618 lines were already on main — the two copies differ by **five lines, all of them one
+  comment** — and #535 went from APPROVED to `CONFLICTING` and was closed as a dup.
+
+  COST: one worker run and one full reviewer run (re-derivation of 169 instructions plus a Rosetta
+  oracle) spent on a unit that was already landed, and a second reviewer run on #531 spent reviewing
+  a unit that PR did not claim to contain.
+
+  MECHANISM NOT PINNED, and I am deliberately not guessing — today's CORRECTION entry above is what
+  happens when a plausible cause is published as fact. `wt_pool.sh cmd_acquire` DOES call
+  `reset_clean` (which does `git clean -fdq -- raw-port/src raw-port/re`), so a slot is pristine at
+  lease time; the contamination therefore happened DURING the lease. The two candidates are (a) two
+  agents in one pool slot, or (b) one agent holding two units in one worktree and committing both
+  under the first one's message. Either way the proximate cause is a commit that staged everything
+  present rather than the files of the claimed unit.
+
+  FIX, and it is the same for both candidates and cheap: **before committing, assert that the files
+  you are about to publish are the ones your claim covers.** `pr_submit.sh` already knows the class;
+  `git diff --cached --name-only` (or `--name-only origin/main...HEAD`, the form the CORRECTION
+  above establishes as "what a merge applies") listing a path that does not belong to the claimed
+  unit should be a hard refusal, not a warning. Note that nothing else in the stack can catch this:
+  `gate.sh`/G6 only inspect the file handed to them, `dup_check` passed because at submit time the
+  symbol was genuinely not on main, and both PRs were individually honest and gate-clean. The only
+  reason it was noticed at all is that reviewer-1 spotted the bundling in #531 and reviewed both
+  units separately rather than only the titled one — the right instinct, and the thing that kept an
+  unreviewed 618-line kernel from landing silently.
+
+- **`review_claim.sh` WILL LEASE A REVIEWER THEIR OWN PR — it has no author check at all.** Hit
+  immediately after filing the entry above: my next `review_claim.sh claim` returned
+  `CLAIMED 548`, which is the PR containing this very text. `grep -cE 'author|login|self'` on the
+  tool is **0** — the eligibility filter is purely (gate status, reviewDecision), so authorship never
+  enters into it. I released the lease untouched rather than gating my own work, but nothing in the
+  tool or the brief stops a less suspicious agent from gating it, and the brief's own rule is that a
+  reviewer must not gate their own edits (it is why re-applying methods is worker work).
+  This is now reachable by design rather than by accident: AGENT_ENTRY section 8 tells every agent to
+  add new failure modes to this file, so reviewers author OPS_LOG PRs routinely, and each one goes
+  straight into the pool the same reviewers pull from.
+  FIX: `cmd_claim` should exclude PRs whose author is the claiming identity — and since all slots
+  share one bot identity (#7), "the reviewer app" cannot be distinguished that way; the usable
+  signals are the PR author login (`vjeux` / `vjeux-worker[bot]`) versus who is running, or a
+  marker the authoring agent writes into its own lease dir. Companion to the hand-dispatch gap
+  filed with #528: both are cases where the lease machinery routes a PR to the one agent that
+  should not have it.
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
@@ -1623,6 +1689,100 @@ change these tools.
 ---
 
 
+## Open — reported 2026-08-11 by worker 3 (the unreleasable-worktree fix as proposed would not cover the WORKER case)
+
+- **A WORKER'S OWN `port/<Class>` WORKTREE IS ALSO UNRELEASABLE ONCE ITS PR SQUASH-MERGES, and the
+  fix proposed for the reviewer version of this bug does not cover it.** The existing entry above
+  ("A REVIEWER'S `acquire-at` WORKTREE BECOMES UNRELEASABLE THE MOMENT ITS PR LANDS") diagnoses the
+  `acquire-at` detached-HEAD case and proposes gating `wt_has_work`'s unpushed-commit test on
+  **HEAD being a BRANCH** (`git symbolic-ref -q HEAD`), reasoning that "a detached checkout is by
+  construction a read-only inspection lease". That reasoning is sound and the fix is still worth
+  making — but it would have left this case broken, because here **HEAD IS a branch**.
+
+  Hit live today on slot 3, holding `port/OZMaterialDiffuseLayer` after PR #515 merged:
+
+      $ git -C ~/.fct-pool/wt/3 status --porcelain      # completely clean
+      $ git -C ~/.fct-pool/wt/3 rev-list --count origin/main..HEAD
+      1
+      $ git -C ~/.fct-pool/wt/3 branch -r --contains HEAD
+                                                        # empty
+      $ wt_pool.sh release ~/.fct-pool/wt/3
+      wt_pool: … has UNCOMMITTED or UNPUSHED work — not discarding it.
+
+  Same mechanism as the reviewer case and the same both-conditions-true trap: a SQUASH merge creates
+  a NEW commit, so the branch tip is not an ancestor of `origin/main`, and GitHub deletes the head
+  branch on merge, so it is contained in no `origin/*` ref either. The work is on main; the message
+  names work that does not exist. Verified before force-releasing: both files at the worktree's HEAD
+  are byte-identical (`shasum`) to their `origin/main` versions.
+
+  So the guard needs a test that does not depend on HEAD's detachedness. The cheap and correct one:
+  **before refusing, check whether the worktree's tree content is already reachable from
+  `origin/main`** — e.g. every path the branch touches is byte-identical on `origin/main`, or the
+  branch's diff against `origin/main` is empty. That covers detached reviewer leases and worker
+  branches with one rule, and it still protects a genuine in-progress port (whose content is NOT on
+  main yet). Until then the documented WORKAROUND applies to workers too: confirm
+  `git status --porcelain` is empty AND the touched files are byte-identical on `origin/main`, then
+  `release <path> --force`.
+
+  **The reason this cost a slot at all is worth saying plainly, because it is an agent-side habit and
+  not a tool bug:** a worker that submits a PR and moves straight on to the next unit leaks the
+  lease. The loop in `HARNESS_LOOP.md` has `wt_pool.sh release "$WT"` immediately after
+  `pr_submit.sh` for exactly this reason. Release the worktree in the same command as the submit, not
+  in a later step that a long investigation can push out of view.
+## Open — reported 2026-08-11 by worker 3 (otool's LINEAR sweep desynchronises; FIXED in this change)
+
+- **`disasm.sh` returns 0 lines for 2,453 of the 56,060 defined text symbols (4.4%) — and for the
+  region around each one, the cached dump contains FABRICATED INSTRUCTIONS.** The standing note
+  that "`disasm.sh --sym` can return 0 lines for a symbol that is present" has been rediscovered by
+  several agents; this is the root cause, and the second half of it is worse than the first.
+
+  `otool -tV <binary>` disassembles __text as a LINEAR SWEEP from the section start. One mis-decode
+  — in-text alignment padding, a jump table, an embedded constant — desynchronises the instruction
+  boundaries, and the sweep keeps emitting instructions at the wrong offsets until it happens to
+  resynchronise. Any symbol whose start address the sweep stepped over gets NO LABEL at all, which
+  is what `disasm.sh` then slices for (via `symidx` or the awk scan) and comes back empty.
+
+  Measured live on `PCInfo::availableVRAM()` @ProCore 0x530c6. The sweep desyncs on the 1-byte pad
+  at 0x530c5 and prints:
+
+      00000000000530c5  addb  %cl, -0x7d(%rax)
+      00000000000530c8  cmpl  $0x108c62, %eax
+      00000000000530cd  pushq 0x8(%rbp)
+      00000000000530d0  movq  vramAvailable(%rip), %rax     <- resynchronised here
+
+  Those first three instructions do not exist. The real bytes are
+  `cmpq $-0x1, onceToken(%rip)` / `jne` / `pushq %rbp` / `movq %rsp, %rbp`, which is what
+  `otool -tV -p <symbol>` prints — because `-p` starts decoding AT the symbol, so the boundaries
+  are right. **So the failure mode is not only "no disassembly"; it is "plausible disassembly of
+  instructions that are not there", in the same dump every agent reads.** Today the missing LABEL
+  is what saves us: it makes `disasm.sh` return empty and error out (the #16-era fix), so nobody
+  transcribes the garbage. That protection is incidental — a symbol whose label survives while its
+  BODY sits in a desynchronised region would hand a worker fabricated instructions with no warning.
+
+  Exposure, counted as defined text symbols with no label line in the framework's linear dump:
+
+      Ozone       22,354 symbols     574 missing   (2.6%)
+      Flexo       10,766             776           (7.2%)
+      Helium      12,591             466           (3.7%)
+      ProCore      4,633             501          (10.8%)
+      ProChannel   5,716             136           (2.4%)
+      TOTAL       56,060           2,453           (4.4%)
+
+  FIX (in this change): before the objdump fallback, `disasm.sh` re-disassembles from the symbol's
+  own address with `otool -arch x86_64 -tV -p <sym>` on the thin slice and slices the label span out
+  of that. It costs ~0.1s, and it is preferred over the objdump path because it keeps otool's
+  `## symbol stub for:` annotations, which is how callees get identified. Verified: the two
+  previously-unreachable symbols above now produce their correct bodies with exit 0, and symbols the
+  linear path already handled are byte-unchanged.
+
+  **A trap inside the fix, worth its own line because it nearly shipped.** `disasm.sh` runs under
+  `set -euo pipefail`, and the natural spelling `otool ... -p "$SYM" | awk '...{exit}...'` makes awk
+  exit at the next label, which SIGPIPEs otool, which makes the pipeline status 141, which kills the
+  whole script — *after* it has written a correct `.s`. The symptom is a script that produces the
+  right file and still fails, and it is invisible if you look at the output instead of the exit
+  status. Materialise otool's output to a temp file first. This is the same discipline the gate
+  rules already demand ("check the exit status directly, never through a pipe"), applying to the
+  tools themselves.
 ## Fixed 2026-08-11 — a rejected PR belonged to no queue at all
 
 | # | Symptom | Root cause | Fix |
