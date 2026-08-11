@@ -1,3 +1,4 @@
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 #!/usr/bin/env python3
 """HGPool::registerPool @Helium 0x8c850 / unregisterPool @0x8c9d0 — live differential.
 
@@ -119,7 +120,7 @@ def main():
     # ------------------------------------------------------------------ TS side
     driver = os.path.join(HERE, "HGPool_registry_driver.mts")
     proc = subprocess.run(["node", "--experimental-strip-types", driver],
-                          capture_output=True, text=True, cwd=HERE)
+                          capture_output=True, text=True, cwd=HERE, timeout=DRIVER_TIMEOUT)
     if proc.returncode != 0:
         raise SystemExit("TS driver failed:\n" + proc.stderr[-2000:])
     ts = json.loads(proc.stdout)

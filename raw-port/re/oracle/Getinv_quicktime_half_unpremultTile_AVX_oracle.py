@@ -35,6 +35,7 @@ corpora do use a REALISTIC State — abs-mask 0x7fffffff, ±1 sign factors, a 0 
 so the kernel is also measured in the shape it is actually dispatched with.
 """
 import ctypes, json, os, random, struct, subprocess, sys
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -190,7 +191,7 @@ def main():
 
     driver = os.path.join(HERE, "Getinv_quicktime_half_unpremultTile_AVX_driver.mts")
     p = subprocess.run(["node", "--experimental-strip-types", driver],
-                       input=json.dumps(to_wire(cases)), capture_output=True, text=True)
+                       input=json.dumps(to_wire(cases)), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         raise SystemExit("TS driver failed:\n" + p.stdout + p.stderr)
     reply = json.loads(p.stdout)

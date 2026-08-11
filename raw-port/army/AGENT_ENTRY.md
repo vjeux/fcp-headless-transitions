@@ -28,7 +28,12 @@ Then [`HARNESS_LOOP.md`](HARNESS_LOOP.md) (the loop spec), and:
 | **reviewer** | [`REVIEWER_BRIEF.md`](REVIEWER_BRIEF.md), [`PR_FLOW.md`](PR_FLOW.md), [`CHEATING_REVIEW.md`](CHEATING_REVIEW.md), [`ANTI_SHORTCUT.md`](ANTI_SHORTCUT.md), [`GITHUB_APPS.md`](GITHUB_APPS.md) |
 
 Reviewers additionally run `python3 raw-port/army/verifier/prove_all.py` once at start; it must print
-`PROVE_ALL: PASS`.
+`PROVE_ALL: PASS`. **`pgrep -f prove_all.py` first, and WAIT for a live one instead of starting a
+second.** It is a whole-repo verifier, every reviewer is told to run it at startup, and restarts
+cluster — eight concurrent runs were measured pegging this box at load 168 with every one of them at
+0% CPU and none finishing, which also stalled an unrelated `gate.sh` for 51 minutes
+(`ops/2026-08-11-twenty-concurrent-prove-all-runs-peg-the-box-at-load-168-and.md`;
+`swarm_doctor.py`'s `verifier-contention` check reports it).
 
 ## 2. Hard invariants (violating one of these is worse than doing nothing)
 
@@ -96,8 +101,13 @@ carry almost all of the benefit:
   ONCE into a variable rather than piping `nm` twice in one command, and consider whether one agent
   should regenerate the cache for everyone instead (`dump_syms.sh`).
 - **Before a global maintenance tool, check for a peer already running it.** `mark_ported.py`,
-  `build_ledger.py` and `depgraph.py` reconcile the WHOLE repo and are idempotent: one run covers
-  every agent's commit. `pgrep -f mark_ported` and skip if one is live (OPS_LOG #23).
+  `build_ledger.py`, `depgraph.py` and `prove_all.py` reconcile or verify the WHOLE repo and are
+  idempotent: one run covers every agent's commit. `pgrep -f mark_ported` and skip if one is live
+  (OPS_LOG #23). For `prove_all.py`, WAIT rather than skip — a reviewer that skips it starts
+  unverified — and never start a second: eight concurrent runs were measured at load 168, all at 0%
+  CPU, none finishing, and they stall everyone else's gates and oracles too
+  (`ops/2026-08-11-twenty-concurrent-prove-all-runs-peg-the-box-at-load-168-and.md`). Check it in a
+  command of its OWN: a `pgrep` in the same command as the run cannot gate it.
 - **Write few files.** The warm pool exists so a unit costs ~1 file write instead of ~2,579; keep it
   that way. Prefer one combined command over a chain of small ones that each re-stat the tree.
 

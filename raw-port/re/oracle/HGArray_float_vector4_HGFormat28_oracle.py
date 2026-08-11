@@ -1,3 +1,4 @@
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 #!/usr/bin/env python3
 """HGArray<float vector[4],(HGFormat)28>::~HGArray @Helium 0xdc0f0 — live differential.
 
@@ -134,7 +135,7 @@ def main():
     # ---------------------------------------------------------------- TS side
     driver = os.path.join(HERE, "HGArray_float_vector4_HGFormat28_driver.mts")
     proc = subprocess.run(["node", "--experimental-strip-types", driver],
-                          capture_output=True, text=True, cwd=HERE)
+                          capture_output=True, text=True, cwd=HERE, timeout=DRIVER_TIMEOUT)
     if proc.returncode != 0:
         raise SystemExit("TS driver failed:\n" + proc.stderr[-2000:])
     ts = {(r["model"], r["case"]): r for r in json.loads(proc.stdout)}
