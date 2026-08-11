@@ -156,7 +156,15 @@ def layer2():
     print("LAYER 2l (cross-queue lease — one PR is never handed to two workers):",
           "PASS" if ok12 else "FAIL")
     if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11 and ok12
+    # 2m — a driver that does not terminate. Two mutants held a core for 2h31m because 69 of 69
+    # driver spawns had no timeout: "a mutant must fail" had been read as "returns a wrong answer",
+    # never as "never returns". Offline, real node on a two-line fixture. ~6s.
+    r13 = run(["bash", os.path.join(TOOLS, "test_driver_timeout.sh")])
+    ok13 = "test_driver_timeout: PASS" in r13.stdout
+    print("LAYER 2m (driver timeout — a hang is a kill, not a pending result):",
+          "PASS" if ok13 else "FAIL")
+    if not ok13: print(r13.stdout[-1200:], r13.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10 and ok11 and ok12 and ok13
 
 def _reach(spec, expect):
     import tempfile

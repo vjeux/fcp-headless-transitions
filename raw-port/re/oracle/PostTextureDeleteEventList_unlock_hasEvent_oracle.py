@@ -32,6 +32,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 sys.path.insert(0, HERE)
 from ozone_loader import load_framework, require_x86_64  # noqa: E402
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 require_x86_64()
 
@@ -160,7 +161,7 @@ def ts_side(unlock_codes, hasEvent_cases):
     }
     driver = os.path.join(HERE, "PostTextureDeleteEventList_unlock_hasEvent_driver.mts")
     p = subprocess.run(["node", "--experimental-strip-types", driver],
-                       input=json.dumps(req), capture_output=True, text=True)
+                       input=json.dumps(req), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         print("TS DRIVER FAILED:\n" + p.stderr, file=sys.stderr)
         sys.exit(2)
