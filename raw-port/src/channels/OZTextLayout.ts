@@ -15,6 +15,9 @@
 //   * OZTextLayout::setText(CMTime, PCString const&)                @0x63f8b0
 //   * OZTextLayout::~OZTextLayout()                            [D1] @0x6dc5d0
 //   * OZTextLayout::~OZTextLayout()                            [D0] @0x6dc630
+//   * non-virtual thunk to OZTextLayout::~OZTextLayout() [D1, adj 6720]  @0x6dc610
+//   * non-virtual thunk to OZTextLayout::~OZTextLayout() [D1, adj 18968] @0x6dc620
+//     (both `ud2` traps, like every member of the D1/D0 thunk family — see below)
 //
 // -----------------------------------------------------------------------------
 // SIX-VTABLE MULTIPLE-INHERITANCE LAYOUT (recovered from the ctor bodies)
@@ -591,6 +594,51 @@ export class OZTextLayout {
       "non-virtual thunk to OZTextLayout::~OZTextLayout D1 @Ozone 0x6dc610 is a " +
         "`ud2` trap in the shipping binary (bytes: `55 48 89 e5 0f 0b` = " +
         "`pushq %rbp; movq %rsp,%rbp; ud2`). It never performs its 6720-byte " +
+        "this-adjustment — the entry point is deliberately unreachable, and " +
+        "calling it aborts the process with SIGILL (verified by calling it). " +
+        "The complete-object dtor for this class is D2 @0x63f850 — call " +
+        "destroy() instead.",
+    );
+  }
+
+  /**
+   * non-virtual thunk to `OZTextLayout::~OZTextLayout()` [D1], this-adjustment 18968
+   *   `__ZThn18968_N12OZTextLayoutD1Ev` — @Ozone 0x6dc620
+   *
+   * FULL transcription — the entire function is four instructions and one of them traps:
+   *
+   *   0x6dc620  pushq %rbp                    ; frame prologue
+   *   0x6dc621  movq  %rsp,%rbp
+   *   0x6dc624  ud2                           ; #UD — undefined opcode, raises SIGILL
+   *   0x6dc626  nopw  %cs:(%rax,%rax)         ; alignment padding, never reached
+   *
+   * The six bytes are `55 48 89 e5 0f 0b`, byte-for-byte identical to D1 @0x6dc5d0 and to every
+   * other thunk in the family. It NEVER performs its 18968-byte this-adjustment and never reaches
+   * a destructor: the entry point is deliberately unreachable (Clang/LLVM's spelling for a virtual
+   * slot that must never be dispatched). The real teardown for this class is D2 @0x63f850 —
+   * `destroy()` above — which is why a throw here is the FAITHFUL port and not a deferral: the
+   * machine's behaviour at this address IS "abort".
+   *
+   * ORACLE (raw-port/re/oracle/OZTextLayout_Thn18968_D1_oracle.py, re-run for THIS address rather
+   * than inherited from the Thn6720 sibling), proven the same two ways, because "the port throws"
+   * is only honest if the machine really traps. STATICALLY: the bytes at
+   * `dyld slide + 0x6dc620` read back through the mapped image as `55 48 89 e5 0f 0b`, and so do
+   * all ELEVEN siblings — the complete D1 family (D1, Thn200, Thn216, Thn240, Thn6720, Thn18968)
+   * AND the complete D0 family (D0 @0x6dc630, Thn200 @0x6dc640, Thn216 @0x6dc650, Thn240
+   * @0x6dc660, Thn6720 @0x6dc670, Thn18968 @0x6dc680): 12/12 `ud2`, 0 exceptions. That the WHOLE
+   * family traps is what settles the reading as "deliberately unreachable" rather than "undecoded".
+   * BEHAVIOURALLY: this thunk was actually CALLED, in a forked CHILD process (a `ud2` would
+   * otherwise take the harness down with it) — the child died with signal 4, SIGILL, and did not
+   * return.
+   *
+   * @addr 0x6dc620 (Ozone, D1 non-virtual thunk, this-adjustment 18968 — `ud2` trap)
+   */
+  destroy_D1_thunk18968_trap(): never {
+    // @0x6dc624 — ud2 : the machine raises #UD here (measured: the child died with SIGILL).
+    throw new Error(
+      "non-virtual thunk to OZTextLayout::~OZTextLayout D1 @Ozone 0x6dc620 is a " +
+        "`ud2` trap in the shipping binary (bytes: `55 48 89 e5 0f 0b` = " +
+        "`pushq %rbp; movq %rsp,%rbp; ud2`). It never performs its 18968-byte " +
         "this-adjustment — the entry point is deliberately unreachable, and " +
         "calling it aborts the process with SIGILL (verified by calling it). " +
         "The complete-object dtor for this class is D2 @0x63f850 — call " +
