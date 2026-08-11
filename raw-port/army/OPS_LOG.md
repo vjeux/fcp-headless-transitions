@@ -40,6 +40,7 @@ detail to reproduce. That is how this list grows.
 | 24 | **G4 — the only un-fakeable gate — could not run AT ALL, and its way of failing is a REJECT, so every file mapped to an oracle node was unmergeable no matter what it contained** (OZInterpolator, OZBezierInterpolator, PCMath, OZSpline, OZLinearInterpolator, OZSCurveInterpolator, CMTime). Diagnosed as open by worker 1 earlier the same day; hit again by worker 6 on an oracle-VERIFIED port, where the gate REJECTED the file *unmodified on main* too | The engine parity worker was replaced by the module-addressed `generic_worker.ts` and FOUR callers were never migrated, each failing one layer deeper. (a) `selftest.py` S2 sent the deleted name-keyed request `{"fn": ...}`, so the worker got `modulePath: undefined` → Node's *The "path" argument must be of type string* → S2 FAIL → `HARNESS_BROKEN` → REJECT before any port was called. (b) `bridge.eval`'s positional marshalling kept only `kind == "in"` args and silently DROPPED every `in_array`, so `OZBezierEval(ctrl[4], u)` was invoked as `OZBezierEval(u)`, returned undefined, and the driver died on `float - NoneType`. (c) Nothing mapped `{ok, ret, outArgs}` into the ORACLE's output names → `KeyError: 'outVal'`. (d) A port that returns an object because the C function used out-pointers (`easeInOut -> {out, speed}`) has no derivable mapping to `outVal`/`outDeriv`. Note the shape: RED for a harness reason on exactly the files it can actually measure — the mirror image of #6 | #438 — S2 speaks the module-addressed protocol; `bridge.eval` includes `in_array` inputs and sends `argKinds`; new `bridge._normalize_outputs` maps the reply into oracle names via an explicit `ts_outputs` contract in registry.json (worker 1's recommendation; added to `curve.interp.ease`). PROVEN BOTH WAYS: three previously-dark nodes now sweep GREEN against the live binary — `curve.interp.bezier.eval` 166 cases 0.0e+00, `curve.interp.bezier.findparam` 135 cases 5.0e-16, `curve.interp.ease` 201 cases 0.0e+00 (state.json shows they last swept 2026-07-29/30, i.e. the migration is when they went dark) — AND the gate still REJECTS a deliberately sabotaged `OZBezierEval` (DIVERGED, max_abs_err 4.5e+01), a sabotaged `easeInOut` (S2 FAIL, 0.123), and a bogus `ts_module` (S2 FAIL). **Reviewers: `sweeping <node> ... -> VERIFIED` in G4 output is NEW — before this, G4 printing nothing but a stack trace was the normal state.** |
 | 34 | A correct `if (buf[i] !== other[i])` was reported as ``non-null-asserted table read `buf[i]!` `` on a line containing no assertion, and a flag holds `faithfulness-gate` at FAILURE — so a false flag mechanically blocked correct PRs until a reviewer hand-cleared them. Comparing two indexed reads is one of the most frequent things a byte-wise transcription does, and the worker-side workaround was hoisting the reads into locals, i.e. contorting the code to please a regex (hit on a `_memcmp` boundary port) | G7's `IDX_BANG` allowed whitespace before the `!` (`\]\s*!`), so it matched the `!` of `!==` | #347 — the `!` must be immediately adjacent AND is excluded from `!=`: `\]!(?!=)`. Verified on current main (`undef_index_gate.py:48`) |
 | 35 | `pr_submit.sh <Class>` opened the PR on the worktree's CURRENT branch, so a `MinMax__MMNode_Mode1_Axis0` port was filed as `port/OZDynamicSpline` (#338). Invisible while the lease and the class agree; it bites after a `depclaim.py drop` when the worker keeps the lease and ports the NEXT unit in it. Not cosmetic, because of #4: `wt_pool.sh acquire` stacks on any branch with an OPEN PR, so the next `acquire OZDynamicSpline` would have based that worker's work on a branch carrying an unrelated class's file — the stale-base work-deletion shape re-entering through the branch NAME | `pr_submit.sh` never compared HEAD against the class it was told to submit | #347 — refuse a genuine class/branch mismatch (exit 5) while still allowing the deliberate `__slot<N>` / `__w1` / `_rebased` variants. Verified on current main (`pr_submit.sh:23`). Worker-side rule that still applies: after a drop, release the worktree before claiming the next unit |
+| 36 | **G4, the only un-fakeable gate, silently checked NOTHING while printing PASS** — every gate run touching an oracle-mapped file reported `G4 HARNESS_BROKEN — FAIL S2_TS_WORKER_LIVE: … No such file or directory: '<wt>/engine'` (seen on `OZSpline.m0.ts` -> `curve.interp.bezier.eval`), and the gate still said PASS | `fct/parity/bridge.py`'s `ENGINE_DIR` was `<repo>/engine`, a tree #63 had deleted, so every TS-worker spawn ran with a cwd that did not exist. Reported as open in #352 and TRUE when it was written | #353 (b6254ed1) — `ENGINE_DIR = os.path.join(_REPO, "raw-port")` (`fct/parity/bridge.py:20`), and `gate.sh` now greps for `HARNESS_BROKEN` so a gate that cannot run is a REJECT rather than a pass. Verified on current main before filing this row |
 
 ---
 
@@ -1234,6 +1235,58 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
 
 ## Open — known, not yet fixed
 
+- **Case-only class-name collisions are unportable, and the checkout can't even represent them.**
+  Helium ships **29 class pairs that differ only in case** — `HGCColorGamma_2vuy_yxzx_expand` vs
+  `HgcColorGamma_2vuy_yxzx_expand`, `HGCRetimeFullRez` vs `HgcRetimeFullRez`, … (HGC = the
+  outward-facing render-graph node, Hgc = the internal implementation base; the landed
+  `HGCRetimeFullRez.ts` header documents the pairing). PORTING_SPEC says "file name = the exact
+  class name", but the repo lives on a **case-insensitive APFS volume**, so
+  `src/render/HgcRetimeFullRez.ts` *resolves to* the landed `HGCRetimeFullRez.ts` — a worker writing
+  it OVERWRITES a landed file instead of creating a new one. `raw-port/army/tools/check_duplicate_classes.py` also
+  lowercases basenames (line 22, `return b.lower()`), so the pair is rejected as a duplicate even on a case-sensitive volume.
+  Every `Hgc*` twin of a landed `HGC*` class is therefore blocked on a **convention decision**
+  (e.g. an explicit suffix for the lowercase-Hgc twin) plus teaching the dup checker about it.
+  Two units dropped this way so far (`depclaim.py blocked`); both bodies were fully decoded.
+- **`gate.sh` piped into `tail` reports the exit status of `tail`.** `gate.sh … | tail -8 && git
+  commit && pr_submit` runs the commit and opens the PR even on `GATE: REJECT` — a pipeline's status
+  is its LAST command. That is how a G6 REJECT ("this change REMOVES work already merged on main")
+  still reached GitHub as a PR; the branch had to be reset to origin/main, the method re-applied
+  ADD-only and the branch force-pushed. Never pipe the gate when its exit code guards anything —
+  redirect to a file (`gate.sh … > /tmp/g.txt 2>&1; echo $?`) or use `set -o pipefail`.
+- **A class file can land on main *while you are writing the same class*.** The class-file race is
+  not limited to two workers editing one file: `depclaim` hands two units of the SAME class to two
+  workers at once, `wt_pool acquire <Class>` silently falls back to `port/<Class>__slotN` when the
+  branch is taken, and the second worker's `write` of a "new" file clobbers the first one's landed
+  copy. Mitigation that works today: re-`git fetch` and re-check `git show origin/main:<path>`
+  IMMEDIATELY BEFORE committing, not only at acquire time (both of this session's collisions —
+  `Json__Value__CZString` and `OZChannelLevels_Factory` — appeared in the ~10 minutes between
+  leasing the worktree and committing).
+- **Ozone/Flexo need a RECURSIVE `@rpath` PRELOAD, and there is already a landed helper that
+  does it — `DYLD_FRAMEWORK_PATH` is NOT the lever.** Three claims, each checked against the
+  tree and the box rather than remembered:
+  * `fct/parity/oracle.py` FRAMEWORKS (line 60) DOES list Ozone; **Flexo is the one missing**.
+    So the failure is not an absent map entry — it is that `load_framework` does a plain
+    `dlopen`, which cannot resolve Ozone's `@rpath` chain
+    (`@rpath/ProAppSupport.framework/...`, which is PRESENT on disk).
+  * **The recursive preload WORKS**, and does not need to be written again:
+    `raw-port/re/oracle/ozone_loader.py::load_framework` is landed and does a DEPTH-FIRST
+    `otool -L` walk, `ctypes.CDLL(<abs path>, RTLD_GLOBAL)` on each dependency, then the
+    target. Depth-first needs no retry rounds at all; a breadth-first "preload everything and
+    retry" converges too, in about six rounds, which is why a fallback that gives up earlier
+    reports failure on a case that succeeds. Used through `ozone_loader` this session against
+    Ozone (`PCQuat<double>::setRotation` @0x7bd30, `HGFreeAlign` @0x688ea0,
+    `OZAudioFrameFromSample` @0x23c950), Flexo (`copyCropValues` @0xe18390) and Helium — all
+    loaded, none needed an env var.
+  * **`DYLD_FRAMEWORK_PATH` does not work, and the SIP caveat is not the reason.** It fails
+    identically on a non-SIP interpreter, because `DYLD_FRAMEWORK_PATH` cannot supply an
+    `@rpath` to a binary that carries no `LC_RPATH` — the two are different mechanisms. (The
+    SIP point is still true and still worth knowing: `/usr/bin/python3` is hardened, so dyld
+    strips every `DYLD_*` variable from it. It is just not what decides this.)
+  Still worth doing: fold **Flexo** into `oracle.FRAMEWORKS`, and have `load_framework` call
+  the `ozone_loader` walk instead of a bare `dlopen`. And the standalone-C-driver note below
+  stands: `-Wl,-rpath,...` is not a workaround, because the corp security stack SIGKILLs a
+  freshly compiled local binary (`Killed: 9`) even after an ad-hoc codesign.
+
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
   2026-08-10, found on PR #330.) Every port in this repo is transcribed from the **x86_64** slice —
   `disasm.sh` thins to `/tmp/<FW>.x86_64` and every `@0xADDR` citation is an x86_64 offset. But the
@@ -2202,3 +2255,67 @@ from the PR that suffers it.
   line still looked healthy. Draw the constrained operand LAST (pick the multiplier, then
   bound the value by `MAX/|m|`), and print the per-class counts so a collapsed class is
   visible.
+
+---
+
+## Open — reported 2026-08-11 by worker 6 (two MORE from the rework queue: a landed class hiding in another layer dir, and a self-inflicted near-miss; NEW)
+
+- **A rejected PR often forked a class that is ALREADY LANDED UNDER A DIFFERENT LAYER
+  DIRECTORY, and nothing in the pipeline notices — not `dup_check`, not the gate, and in
+  one of the two cases I hit, not the reviewer either.** Two of eight reworks this session
+  were this:
+  * #178 filed `render/HGTextureManager_PostTextureDeleteEventList.ts` while main held
+    `render/HGTextureManager__PostTextureDeleteEventList.ts` (single vs DOUBLE underscore).
+    The reviewer caught this one.
+  * #44 filed `src/ozone/OZNotificationManager.ts` while main held
+    `src/nodes/OZNotificationManager.ts` — 750 lines, three ported methods, a full
+    `OZObserverRecord` layout. **Different directory, identical class name.** The review
+    was thorough (it re-derived all 34 instructions) and rejected the PR for an unrelated
+    defect without mentioning the fork. Landing it would have put one C++ class in two
+    files with two incompatible models of the same circular list.
+  Nothing mechanical covers it. `dup_check` keys on the lowercased BASENAME and compares
+  paths, so `nodes/X.ts` and `ozone/X.ts` are simply two different files. G6 add-only only
+  inspects the file handed to `gate.sh`, and a brand-new file has no base version to lose
+  anything against.
+  **DO THIS BEFORE EVERY PORT AND EVERY REWORK — it costs 0.2s and is in no brief:**
+
+      git ls-tree origin/main -r --name-only | grep -i <ClassName>
+
+  Note the `-i`: the volume is case-insensitive, so a case-only difference is a silent
+  OVERWRITE rather than a second file (the separate hazard already logged here). If the
+  class exists anywhere, ADD to that file, in ITS model, wherever it lives — do not file a
+  second copy because the layer directory looks wrong to you. (Layer disagreements are
+  real — `HGFreeAlign` did belong in `infra/` beside its allocator half rather than
+  `render/` — but that is MOVING a file that exists in exactly one place, not adding a
+  second one.)
+
+- **`git reset --hard origin/main` DOES NOT REMOVE UNTRACKED FILES, so the standard rework
+  move — "rebuild the branch on current main" — can silently re-publish the very file you
+  are removing.** I nearly did exactly this on #44. Sequence: copy the branch's file into
+  the worktree to gate it (creating `src/ozone/OZNotificationManager.ts`, untracked);
+  discover it duplicates a landed class; `git reset --hard origin/main` intending a clean
+  slate; write the method into the landed file instead; `git add -A`; commit; push. The
+  reset left the untracked copy exactly where it was, `add -A` staged it, and the pushed
+  commit added BOTH files — the duplicate I was in the middle of removing, under a commit
+  message explaining why duplicates are bad.
+  WHAT CAUGHT IT, and it is the only thing that would have: reading
+  `git diff --name-status origin/main...HEAD` before treating the push as done. This is the
+  third distinct incident in this log where THE FILE LIST rather than the content was the
+  thing that mattered, and the first where the unintended path was ADDED rather than
+  deleted — so the `--diff-filter=D` guard would have passed it silently.
+  RULE: after any rework push, read the three-dot file list and confirm every path is one
+  you meant. And when you want a genuinely clean slate in a pool worktree, `reset --hard`
+  is only half of it; `git clean -fd` is the other half. That is exactly why `reset_clean`
+  in `wt_pool.sh` runs both — and why OPS_LOG #3's forensic tell works, since gitignored
+  `.s` files survive a reset but not the clean.
+  SECOND-ORDER, before you reach for it: `rm -rf raw-port/src/<layer>` to undo that also
+  deletes the SEVEN TRACKED files sharing the directory. `git checkout -- <dir>` restores
+  them, and `git status --porcelain` must be EMPTY before you release the slot — a pool
+  worktree released with tracked files missing is a trap for the next lessee.
+
+- **Corroborating the "a transient TLS failure reads as a verdict" entry with a fresh
+  instance, because the fix is a retry loop and costs nothing to adopt:**
+  `pr_comment_once.sh` printed `post failed` on PR #44 and the identical call succeeded on
+  the very next attempt with no change of any kind. Wrap the gh-backed helpers in a
+  3-attempt loop with a short sleep, breaking on `posted|already`, and never treat the
+  first failure as information.
