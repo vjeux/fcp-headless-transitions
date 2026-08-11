@@ -14,6 +14,9 @@ Runs three layers and asserts every fixture verdict:
      class-C (REAL + throw)    -> REJECT_CHEAT
      real-work port            -> LIKELY_REAL
 
+  LAYER 2i — the argv contracts of pr_review.sh / pr_comment_once.sh: an unknown
+     flag must be a usage error, never the review or comment BODY.
+
 Exit 0 iff ALL layers pass. This is the gate that MUST pass before any swarm restart.
 """
 import os, sys, subprocess, json
@@ -109,7 +112,26 @@ def layer2():
     print("LAYER 2h (pr_land signed-head recovery — the rebound commit_id is not the reviewed head):",
           "PASS" if ok8 else "FAIL")
     if not ok8: print(r8.stdout[-1200:], r8.stderr[-400:])
-    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8
+    # 2i — THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed
+    # the thing they exist to preserve, in the same way, at exit 0, behind a plausible success line:
+    # an unrecognised flag falls through to `BODY="$*"` and is posted AS the record. `pr_review.sh`
+    # lost 11KB of a differential that way (row 43) and was fixed in #596; `pr_comment_once.sh` was
+    # left with the identical hole and replaced 1,204 bytes of evidence on PR #600 with the 33
+    # characters "--body-file /tmp/...", which is what this layer's second suite was written for.
+    # `test_pr_review_argv.sh` already existed and NOTHING RAN IT — row 44's shape sitting on top of
+    # this very hazard — so both are wired here, in the change that closes the second hole.
+    # Fully offline: each drives the real script against a fake `gh`/`gh_as.sh` in a scratch sandbox,
+    # so nothing is posted to a live PR and a GitHub 5xx cannot flake the startup gate. ~18s total.
+    r9 = run(["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")])
+    ok9 = r9.returncode == 0 and "test_pr_review_argv:" in r9.stdout and "0 failed" in r9.stdout
+    r10 = run(["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")])
+    ok10 = (r10.returncode == 0 and "test_pr_comment_once_argv:" in r10.stdout
+            and "0 failed" in r10.stdout)
+    print("LAYER 2i (evidence-recording tools — an unknown flag must never become the record):",
+          "PASS" if (ok9 and ok10) else "FAIL")
+    if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
+    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9 and ok10
 
 def _reach(spec, expect):
     import tempfile

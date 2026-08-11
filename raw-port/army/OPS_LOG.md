@@ -5200,3 +5200,60 @@ made and would make again with the same one-liner.
   "wrote zeros" are indistinguishable; pass the explicit length with the fill
   (`create_string_buffer(b"\xCD"*N, N)`) or the buffer is N+1 bytes and the comparison can never
   succeed, which is the mirror trap already in this log.
+
+---
+
+## Open — reported 2026-08-11 by worker 7 (`pr_comment_once.sh` eats the body the same way `pr_review.sh` did; FIXED in this change, and the orphaned argv suite is WIRED)
+
+- **`pr_comment_once.sh <PR> --body-file <path>` POSTS THE LITERAL STRING `--body-file <path>` AS THE
+  COMMENT, at exit 0, behind the line `pr_comment_once: posted to PR #<n>`.** This is #43 / the
+  `--expect-head` disaster exactly, in the sibling tool: #596 closed the door in `pr_review.sh` and
+  left it open here, even though the OPS_LOG entry that asked for `--body-file` named **both** tools
+  ("FIX: add `pr_review.sh <PR#> <verdict> --body-file <path>` (and the same for
+  `pr_comment_once.sh`)"). Only the first half shipped. `pr_comment_once.sh` on main is
+  `BODY="${*:?...}"` with no flag parsing at all.
+
+  MEASURED, by me, on PR #600 at 20:13Z today, writing the evidence to a file precisely because the
+  briefs say to:
+
+      $ pr_comment_once.sh 600 --body-file /tmp/w7_600_comment.txt
+      pr_comment_once: posted to PR #600
+      $ gh api repos/<slug>/issues/600/comments --jq '.[-1] | "len=\(.body|length)"'
+      len=73                      # the file was 1,204 bytes
+
+  **A SECOND-ORDER HARM THAT `pr_review.sh` DOES NOT HAVE, and it defeats the tool's whole purpose:
+  the dedup KEY is computed FROM the body** (`KEY = first 60 alnum chars`). So a mangled body also
+  poisons the idempotence marker — re-posting the correct text afterwards produces a DIFFERENT
+  marker, does not collide, and the PR ends up carrying both the garbage and the repair. The tool
+  whose only job is "post at most once" cannot deduplicate its own accident.
+
+  RECOVERY, and it is better than delete-and-repost because it keeps the comment's position and
+  timestamps: `gh api -X PATCH repos/<slug>/issues/comments/<id> -F body=@<file>` — the `@` form
+  reads the file, so the repair does not go back through a shell and re-acquire the problem. I
+  restored #600's comment that way (73 -> 1,274 chars, read back and confirmed) and appended the
+  marker computed from the REAL body so the dedup key is the one the tool would have written.
+
+- **FIX (in this change).** `pr_comment_once.sh` gains the same argv discipline `pr_review.sh` has:
+  `--body-file <path>` (refusing an absent or EMPTY value), an unrecognised `--*` is a usage error
+  instead of the body, passing both a literal body and `--body-file` is refused rather than
+  arbitrated by argv order, the body is handed to `gh` through a FILE rather than argv, and the
+  posted body length is READ BACK and reported next to what was sent. Watched to fail before it was
+  believed: the new suite is 13/13 on the fix and **3 passed / 10 failed** on main's copy, with the
+  first failure printing the incident verbatim — `body [--body-file /var/folders/...]`.
+
+- **AND THE GUARD THAT ALREADY EXISTED FOR THE OTHER HALF HAS NO CALLER — so I wired both.**
+  `ghapp/test_pr_review_argv.sh` is a thorough 24-case suite locking exactly this contract for
+  `pr_review.sh`, and `grep -rn test_pr_review_argv raw-port/army` outside the file itself returns
+  **nothing**: no gate, no `pr_gate`, no `prove_all` layer. That is OPS_LOG row 44's shape ("a guard
+  that exists, works, and is never called is indistinguishable from no guard — and reads as
+  reassurance") sitting on top of the very hazard this entry is about. Both suites now run as
+  `prove_all` **LAYER 2i**, so a reviewer's startup gate covers the two tools that RECORD EVIDENCE.
+  Cost measured: 16.1s for the review suite, ~2s for the comment one; both are fully offline (fake
+  `gh` / `gh_as.sh` in a scratch sandbox), so neither can be flaked by a GitHub 5xx the way
+  `test_guards` case E was, and neither posts anything to a live PR the way case H did.
+
+  The rule this is the third instance of, stated once more because the instances keep differing in
+  their details and agreeing in their shape: **when a tool is fixed, fix its siblings in the same
+  family in the same change, and when a check is written, write its caller in the same change.**
+  A half-deployed fix is what makes the remaining half dangerous — the agent following current
+  advice ("write the evidence to a file, pass `--body-file`") is the one who destroys the record.
