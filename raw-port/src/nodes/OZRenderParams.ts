@@ -18,6 +18,25 @@
 //   +0x018  PCVector2<double>  resolutionAt18   ; @0x27170b write (16 bytes)
 //   +0x188  PCVector2<double>  zeroedAt188      ; @0x271719 write (16 bytes zero)
 //   +0x198  PCVector2<double>  zeroedAt198      ; @0x271712 write (16 bytes zero)
+//   ...
+//   +0x1e1  uint8              doHighQualityResamplingDynamic
+//                                              ; @0x271854 write by setDoHighQualityResamplingDynamic
+//                                              ; a one-byte flag; the paired
+//                                              ; sibling `doHighQualityResampling`
+//                                              ; lives at +0x1e0 (its setter
+//                                              ; @0x271820 writes BOTH +0x1e0
+//                                              ; and +0x1e1, i.e. the non-dynamic
+//                                              ; setter also stamps the dynamic
+//                                              ; override); this method touches
+//                                              ; only +0x1e1.
+//                                              ;
+//                                              ; Both setDoHighQualityResampling
+//                                              ; variants also zero the same two
+//                                              ; +0x188 / +0x198 slots that
+//                                              ; setResolution zeroes — invalidating
+//                                              ; a resolution-derived cache
+//                                              ; whenever the HQ-resampling flag
+//                                              ; is flipped.
 //   +0x1b0  PCVector2<double>  resolutionAt1b0  ; @0x2716f7 write (16 bytes)
 //   +0x1c0  PCVector2<double>  resolutionAt1c0  ; @0x271701 write (16 bytes)
 //
@@ -70,6 +89,10 @@
 //       — OZRenderParams::getDestinationDevice() const @Ozone 0x2719d0
 //         (raw-port/re/disasm/
 //           __ZNK14OZRenderParams20getDestinationDeviceEv.s — 7 lines)
+//   * __ZN14OZRenderParams33setDoHighQualityResamplingDynamicEb
+//       — OZRenderParams::setDoHighQualityResamplingDynamic(bool) @Ozone 0x271850
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams33setDoHighQualityResamplingDynamicEb.s — 10 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -631,6 +654,23 @@ export class OZRenderParams {
    * offset. Modelled as `number` (0..255) for the same reason as +0x1e4.
    */
   do3DIntersectionAntialiasingMirrorAt1e5: number = 0;
+
+  /**
+   * @Ozone offset +0x1e1 — the `doHighQualityResamplingDynamic` u8 flag.
+   * Written by `setDoHighQualityResamplingDynamic` @0x271854 via
+   * `movb %sil, 0x1e1(%rdi)`. Also written by the non-dynamic sibling
+   * `setDoHighQualityResampling` @0x27182b (which stamps BOTH +0x1e0
+   * and +0x1e1). Modelled as `number` (0..255) to preserve the single-
+   * byte width the `movb` operates on — a `boolean` would silently
+   * truncate any caller that passes a non-{0,1} value through the C++
+   * ABI's `bool = zext u8` calling convention.
+   *
+   * The matching non-dynamic field at +0x1e0 (`doHighQualityResampling`)
+   * is NOT modelled by this file — that's a separate ledger entry and
+   * will be added by the setDoHighQualityResampling port. We don't
+   * invent unread fields.
+   */
+  doHighQualityResamplingDynamic: number = 0;
 
   /**
    * `OZRenderParams::setResolution(PCVector2<double> const&)`
@@ -2292,5 +2332,61 @@ export class OZRenderParams {
       this.outputColorDescriptionAt2e8,
       colorSpace,
     );
+  }
+
+  /**
+   * `OZRenderParams::setDoHighQualityResamplingDynamic(bool)`
+   *   — @Ozone 0x271850
+   *   — __ZN14OZRenderParams33setDoHighQualityResamplingDynamicEb
+   *
+   * Faithful line-for-line transcription. Sets the "dynamic override"
+   * byte at +0x1e1 and invalidates the same two 16-byte cache slots
+   * that `setResolution` zeroes (+0x188, +0x198). No callees; no read
+   * of the old flag value; no update to the non-dynamic +0x1e0 sibling
+   * (that's what the paired non-Dynamic setter @0x271820 does — it
+   * writes to BOTH +0x1e0 AND +0x1e1).
+   *
+   * FULL DISASM (from raw-port/re/disasm/
+   *              __ZN14OZRenderParams33setDoHighQualityResamplingDynamicEb.s):
+   *
+   *   0x271850  pushq  %rbp                     ; frame prologue
+   *   0x271851  movq   %rsp, %rbp
+   *   0x271854  movb   %sil, 0x1e1(%rdi)        ; this[+0x1e1] = arg (u8)
+   *   0x27185b  xorps  %xmm0, %xmm0             ; xmm0 = 0 (16 zero bytes)
+   *   0x27185e  movups %xmm0, 0x188(%rdi)       ; this[+0x188] = (0, 0)
+   *   0x271865  movups %xmm0, 0x198(%rdi)       ; this[+0x198] = (0, 0)
+   *   0x27186c  popq   %rbp                     ; epilogue
+   *   0x27186d  retq
+   *   0x27186e  nop                             ; padding
+   *
+   * Write order note: the disasm writes +0x188 BEFORE +0x198 — this
+   * matches the ORDER used by setResolutionDynamic's fan-out branch,
+   * but is the REVERSE of setResolution's order. The observable state
+   * is identical (both slots end up as zero), but we mirror the disasm
+   * order for byte-exact faithfulness.
+   *
+   * @param on  the new value for +0x1e1 (SysV %sil, u8; the C ABI
+   *            zero-extends `bool` to u8 at the call site).
+   */
+  setDoHighQualityResamplingDynamic(on: number): void {
+    // @0x271850..0x271851 — prologue (no TS-visible effect).
+
+    // @0x271854 — movb %sil, 0x1e1(%rdi)
+    //   Store the low byte of the argument at +0x1e1. `movb` writes
+    //   exactly 8 bits; model that with `& 0xff` so a caller passing
+    //   a JS boolean (true -> 1, false -> 0) or an arbitrary number
+    //   stores the same bit pattern the machine would.
+    this.doHighQualityResamplingDynamic = on & 0xff;
+
+    // @0x27185b — xorps %xmm0, %xmm0
+    //   Materialize a 16-byte zero constant. (No TS-visible effect
+    //   on its own; the two `movups` below use it.)
+    // @0x27185e — movups %xmm0, 0x188(%rdi) ; this[+0x188] = (0, 0)
+    this.zeroedAt188 = { x: 0, y: 0 };
+
+    // @0x271865 — movups %xmm0, 0x198(%rdi) ; this[+0x198] = (0, 0)
+    this.zeroedAt198 = { x: 0, y: 0 };
+
+    // @0x27186c..0x27186d — epilogue + retq.
   }
 }
