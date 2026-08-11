@@ -37,6 +37,10 @@ import os
 import random
 import struct
 import subprocess
+
+# A driver that does not terminate is a mutant that was KILLED, not a pending result: two of them
+# held a core for 2h31m before anyone noticed. See re/oracle/oracle_driver.py for the full account.
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -173,7 +177,7 @@ def main():
                      for a, b, c in cases]}
     proc = subprocess.run(
         ["node", "--experimental-strip-types", DRIVER],
-        input=json.dumps(req), capture_output=True, text=True)
+        input=json.dumps(req), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if proc.returncode != 0:
         print("NODE DRIVER FAILED — this is a HARNESS failure, not a verdict:")
         print(proc.stderr[-2000:])

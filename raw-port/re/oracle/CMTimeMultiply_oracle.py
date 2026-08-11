@@ -27,6 +27,7 @@ The controls are MUTATIONS of the real ported file (one token each, imported as 
 own modules), so a control cannot drift from the port.
 """
 import ctypes, json, os, random, subprocess, sys, tempfile
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT_TS = os.path.abspath(os.path.join(HERE, "..", "..", "src", "infra", "CMTime.ts"))
@@ -151,7 +152,7 @@ def ts_side():
     }
     p = subprocess.run(
         ["node", "--experimental-strip-types", os.path.join(HERE, "CMTime_driver.mts")],
-        input=json.dumps(req), capture_output=True, text=True)
+        input=json.dumps(req), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         print("TS DRIVER FAILED:\n" + p.stderr, file=sys.stderr)
         sys.exit(2)

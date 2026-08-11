@@ -33,6 +33,7 @@ same address and fail silently toward VERIFIED. `ozone_loader.require_x86_64()` 
 otherwise, and the prologue-byte check below catches it independently.
 """
 import ctypes, json, os, struct, subprocess, sys, tempfile
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))          # raw-port/
@@ -99,7 +100,7 @@ def ts_side(td):
            "cases": [{"key": k, "f": [F32[n] for n in names]} for k, (_, names) in CASES]}
     r = subprocess.run(["node", "--experimental-strip-types",
                         os.path.join(HERE, "HgcYUV420BiPlanar_chroma_SetParameter_driver.mts")],
-                       input=json.dumps(req), capture_output=True, text=True)
+                       input=json.dumps(req), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if r.returncode != 0:
         sys.exit("node driver failed:\n" + r.stdout[-2000:] + r.stderr[-2000:])
     return json.loads(r.stdout)
