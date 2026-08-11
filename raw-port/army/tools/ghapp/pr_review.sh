@@ -199,10 +199,22 @@ for r in rs:
   fi
 fi
 
+# BIND THE VERDICT TO THE SHA YOU VERIFIED, NOT TO WHATEVER THE HEAD IS AT POST TIME.
+# --expect-head compared EXPECT_HEAD against HEAD_SHA and then posted with HEAD_SHA — so the check
+# and the POST are two separate reads of a moving value, and anything landing between them slides
+# the verdict onto unread code. That is the very race the flag exists to close, and it stayed open:
+# a reviewer watched --expect-head MATCH and its review still record against 46ddcf82, because a
+# peer's pr_land ran update-branch between the resolve and the POST. A review lease does not stop
+# that; pr_land is not a reviewer.
+# GitHub accepts commit_id, so send the SHA the evidence describes. If the head has moved on, the
+# API refuses the review outright rather than attaching it to code nobody read — a refusal is a fine
+# outcome here, and a silent misattribution is not.
+POST_SHA="${EXPECT_HEAD:-$HEAD_SHA}"
+
 # --- submit -----------------------------------------------------------------------------------
 resp=$(python3 -c "
 import json,sys
-print(json.dumps({'commit_id':'$HEAD_SHA','event':'$EVENT','body':sys.argv[1]}))
+print(json.dumps({'commit_id':'$POST_SHA','event':'$EVENT','body':sys.argv[1]}))
 " "$BODY" | "$ROOT/gh_as.sh" reviewer api -X POST "repos/$SLUG/pulls/$PR/reviews" --input - 2>&1)
 
 if printf '%s' "$resp" | grep -q '"state"'; then
