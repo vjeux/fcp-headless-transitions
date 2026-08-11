@@ -262,6 +262,36 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by the swarm parent (a replacement was dispatched into a LIVE slot; new)
+
+- **A replacement agent was dispatched into a slot whose incumbent was still working, on the strength
+  of the dispatcher's own misreading — and the slot lock cannot catch this.** I received a settled
+  report from the agent holding **reviewer 1**, misattributed it to **reviewer 3**, and spawned a
+  replacement addressed to slot 3. Slot 3's incumbent was mid-tick. The replacement got `BUSY` from
+  `slot_lock.sh acquire reviewer 3`, and — rather than believing its prompt's story that its
+  predecessor had stopped — it established liveness EXTERNALLY, from GitHub: verdicts posted by
+  `reviewer-3` at 14:14, 14:16, 14:22, 14:35 and 14:38Z, the newest 2m45s before it looked. A verdict
+  every 3–6 minutes is a live agent, so it stopped, held nothing, and reported. That was the correct
+  call and it is the behaviour to preserve.
+  WHY THE LOCK CANNOT SAVE YOU HERE: `slots/<role>-<N>/held` records only `<epoch> pid-agent` — no
+  pid, no heartbeat — and the epoch is the moment the slot was FIRST acquired, not the moment it was
+  last active. So the file cannot distinguish "died mid-tick two hours ago" from "working right now",
+  and the 90-minute stale-reclaim measures TICK AGE rather than idleness: a healthy long-running
+  reviewer looks exactly like a corpse to it. Two agents in one slot is the duplicate-review race
+  (#7 / #224): two reviewers approving and merging the same PR out from under each other.
+  RULES, today: (1) **Never resolve a `BUSY` from the dispatch prompt's narrative.** A prompt saying
+  "your predecessor completed and stopped" is a claim about the past made by someone who was not
+  there; the lock is evidence about the present. (2) Attribute liveness externally before concluding
+  anything — recent `reviewer-<N>` / `worker-<N>` PR comments and verdicts are the cheapest signal.
+  (3) On `BUSY`, **do not release the lock**: releasing it is worse than breaking it, because it
+  invites a THIRD run alongside the live one. Stop and report instead.
+  FIX: have each agent touch `slots/<role>-<N>/held` after every verdict / every unit, turning the
+  lock's mtime into a real heartbeat, so stale-reclaim measures IDLENESS instead of tick age; and
+  write the pid into the file so a dead holder is detectable directly. For dispatchers: the settled
+  report names its own slot — quote it from the report, never from memory of who was spawned where.
+
+---
+
 ## Open — reported 2026-08-11 by reviewer 6 (the rebase attempt cap counts CLAIMS, not failures; new)
 
 - **`rebase_attempts/<PR>` is incremented on every rebase CLAIM and is NEVER reset by a SUCCESSFUL
