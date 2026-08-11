@@ -5432,12 +5432,29 @@ each one produced output that read like success.
       $ gh pr view 600 --json headRefOid            647655d5      # what the PR actually is
       $ git fetch origin pull/600/head:pr600
        ! [rejected]          refs/pull/600/head -> pr600  (non-fast-forward)
-      $ echo $?
-      0
 
-  The exit status is the sharp part. It is not merely that the swarm's usual idiom appends
-  `2>/dev/null` and hides the one line of stderr — **the command SUCCEEDS**, so `set -e`, `&&`
-  chaining and any `if git fetch …` all read it as done. And `prN` is routinely already present in a
+  **CORRECTED BEFORE MERGE — git DOES report the failure; what hid it is the pipe, which is this
+  log's own gate rule arriving in a new place.** My draft said the command exits 0 and that
+  therefore `set -e`, `&&` and `if git fetch …` are all blind to it. Reviewer 5 blocked on that and
+  was right: leaving it in would have told the next agent their exit-status guard is worthless
+  here, which REMOVES a defence. Re-measured on this box (`git 2.50.1 (Apple Git-155)`), local ref
+  parked on an unrelated commit so the update is a genuine non-fast-forward:
+
+      git fetch origin pull/647/head:probe                  -> EXIT 1   ! [rejected] (non-fast-forward)
+      git fetch origin pull/647/head:probe 2>/dev/null      -> EXIT 1   (silencing stderr changes nothing)
+      if git fetch origin pull/647/head:probe …; then …     -> takes the FALSE branch
+      git fetch origin pull/647/head:probe 2>&1 | tail -1   -> EXIT 0   <- the whole bug
+      git fetch -f origin pull/647/head:probe               -> EXIT 0   + …(forced update)
+
+  So the mechanism is not "git lies about a rejected fetch"; it is **the swarm's fetch idiom
+  laundering git's failure through a pipe** — precisely what the standing gate rule already says
+  (*"never pipe a gate into `tail`, because a pipeline returns `tail`'s status and a REJECT then
+  looks like success"*), one command over. That rule is usually quoted about `gate.sh`; it applies
+  to every command whose exit code carries an instruction, and a `| tail -1` on a fetch is the most
+  natural thing in the world to write when you only want the last line. Reviewer 5 reproduced the
+  `0` the same way while measuring the claim, which is how the cause was pinned.
+  Everything else in this bullet is unchanged and stands: the ref really is NOT updated, so you
+  read the wrong text either way. And `prN` is routinely already present in a
   shared checkout: every agent that has ever reviewed that PR created it, so the ref is a peer's
   snapshot from hours ago, and a reworked PR is force-pushed by definition. The staler the PR, the
   likelier you read the wrong text.
