@@ -38,8 +38,140 @@ detail to reproduce. That is how this list grows.
 | 22 | Load hit 73 on a 10-core box with 16 agents; `nm` processes pinned a core each for 60-120s | Agents answered one-off symbol questions with `nm -arch x86_64 "/Applications/Final Cut Pro.app/.../Flexo"` — a **78 MB fat** binary, rescanned by Defender/Cyberhaven on every open. The same answer was already cached in `army/inventory/<FW>.syms.txt` (144,642 defined symbols, all 5 frameworks). Measured: **nm on fat Flexo >120s vs `grep` on the cache 0.078s (~1000x)**. Same shape as #10 | **Use the cached inventory.** `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` -> `<addr> <T|t> <mangled>`. Only for UNDEFINED symbols or a flag the cache cannot answer, run nm against the THIN slice `/tmp/<FW>.x86_64` (regenerate with `lipo -thin x86_64`) and capture it ONCE into a variable instead of piping nm twice in one command. **Measured follow-up: thinning barely helps** — under swarm load the same nm took 4m24s fat vs 3m54s thin, so the cost is the symbol-table walk + the security stack, not the fat header. The cache is the only real fix; if it is stale, ONE agent should regenerate it for everyone with `dump_syms.sh` |
 | 23 | 9 concurrent identical `mark_ported.py` runs, ~4 min each at 176% CPU | It is a GLOBAL, idempotent, whole-repo reconciliation, but every agent runs it after every merge, so N agents produce N identical answers and N full scans of `src/` | `pgrep -f mark_ported` first and **skip if one is already running** — that run's result covers your commit too. A coalescing lock inside the tool is the stronger fix and is still open |
 | 24 | **G4 — the only un-fakeable gate — could not run AT ALL, and its way of failing is a REJECT, so every file mapped to an oracle node was unmergeable no matter what it contained** (OZInterpolator, OZBezierInterpolator, PCMath, OZSpline, OZLinearInterpolator, OZSCurveInterpolator, CMTime). Diagnosed as open by worker 1 earlier the same day; hit again by worker 6 on an oracle-VERIFIED port, where the gate REJECTED the file *unmodified on main* too | The engine parity worker was replaced by the module-addressed `generic_worker.ts` and FOUR callers were never migrated, each failing one layer deeper. (a) `selftest.py` S2 sent the deleted name-keyed request `{"fn": ...}`, so the worker got `modulePath: undefined` → Node's *The "path" argument must be of type string* → S2 FAIL → `HARNESS_BROKEN` → REJECT before any port was called. (b) `bridge.eval`'s positional marshalling kept only `kind == "in"` args and silently DROPPED every `in_array`, so `OZBezierEval(ctrl[4], u)` was invoked as `OZBezierEval(u)`, returned undefined, and the driver died on `float - NoneType`. (c) Nothing mapped `{ok, ret, outArgs}` into the ORACLE's output names → `KeyError: 'outVal'`. (d) A port that returns an object because the C function used out-pointers (`easeInOut -> {out, speed}`) has no derivable mapping to `outVal`/`outDeriv`. Note the shape: RED for a harness reason on exactly the files it can actually measure — the mirror image of #6 | #438 — S2 speaks the module-addressed protocol; `bridge.eval` includes `in_array` inputs and sends `argKinds`; new `bridge._normalize_outputs` maps the reply into oracle names via an explicit `ts_outputs` contract in registry.json (worker 1's recommendation; added to `curve.interp.ease`). PROVEN BOTH WAYS: three previously-dark nodes now sweep GREEN against the live binary — `curve.interp.bezier.eval` 166 cases 0.0e+00, `curve.interp.bezier.findparam` 135 cases 5.0e-16, `curve.interp.ease` 201 cases 0.0e+00 (state.json shows they last swept 2026-07-29/30, i.e. the migration is when they went dark) — AND the gate still REJECTS a deliberately sabotaged `OZBezierEval` (DIVERGED, max_abs_err 4.5e+01), a sabotaged `easeInOut` (S2 FAIL, 0.123), and a bogus `ts_module` (S2 FAIL). **Reviewers: `sweeping <node> ... -> VERIFIED` in G4 output is NEW — before this, G4 printing nothing but a stack trace was the normal state.** |
+| 34 | A correct `if (buf[i] !== other[i])` was reported as ``non-null-asserted table read `buf[i]!` `` on a line containing no assertion, and a flag holds `faithfulness-gate` at FAILURE — so a false flag mechanically blocked correct PRs until a reviewer hand-cleared them. Comparing two indexed reads is one of the most frequent things a byte-wise transcription does, and the worker-side workaround was hoisting the reads into locals, i.e. contorting the code to please a regex (hit on a `_memcmp` boundary port) | G7's `IDX_BANG` allowed whitespace before the `!` (`\]\s*!`), so it matched the `!` of `!==` | #347 — the `!` must be immediately adjacent AND is excluded from `!=`: `\]!(?!=)`. Verified on current main (`undef_index_gate.py:48`) |
+| 35 | `pr_submit.sh <Class>` opened the PR on the worktree's CURRENT branch, so a `MinMax__MMNode_Mode1_Axis0` port was filed as `port/OZDynamicSpline` (#338). Invisible while the lease and the class agree; it bites after a `depclaim.py drop` when the worker keeps the lease and ports the NEXT unit in it. Not cosmetic, because of #4: `wt_pool.sh acquire` stacks on any branch with an OPEN PR, so the next `acquire OZDynamicSpline` would have based that worker's work on a branch carrying an unrelated class's file — the stale-base work-deletion shape re-entering through the branch NAME | `pr_submit.sh` never compared HEAD against the class it was told to submit | #347 — refuse a genuine class/branch mismatch (exit 5) while still allowing the deliberate `__slot<N>` / `__w1` / `_rebased` variants. Verified on current main (`pr_submit.sh:23`). Worker-side rule that still applies: after a drop, release the worktree before claiming the next unit |
 
 ---
+
+## Open — reported 2026-08-11 by worker 1 (a reviewer's gate can DELETE a worker's in-progress port; FIX in this change)
+
+- **`wt_pool.sh release` checks that a lease EXISTS, never that it is still YOURS — so a `pr_gate`
+  cleanup trap firing late resets whatever worker now holds that slot, deleting their uncommitted
+  port.** Happened to this worker, live, and the symptom is genuinely baffling: the file simply is
+  not there, `git status` is clean, no tool printed an error, and the `write` that created it
+  reported success six seconds earlier.
+
+  SEQUENCE (slot 2, 2026-08-11 08:21-08:22):
+    1. 08:21:03  worker 1 leases slot 2 as `port/ROIStatIO__ROITestSet`.
+    2. 08:22:05  worker 1 writes `raw-port/src/render/ROIStatIO__ROITestSet.ts` into it.
+    3. 08:22:1x  a reviewer's `pr_gate` cleanup trap — for a lease it no longer held — runs
+                 `wt_pool.sh release <wt> --force`. `--force` skips the has-work check; the lease
+                 EXISTS (it is the worker's), so the ownership guard passes; `reset_clean` runs.
+    4. 08:22:11  the file is gone, and the lease directory has been `rm -rf`'d, so the next gate
+                 immediately re-leases slot 2 (`gate/b3682ab5…`, holder mtime 08:22:15).
+  THE TELL that this is a git reset rather than an rm: the `.s` files generated into `re/disasm/`
+  at 08:21 SURVIVED, because `reset_clean` runs `git clean -fd` and those paths are gitignored.
+  If your file vanishes and your disasm does not, this is what happened to you.
+
+  This is OPS_LOG #3 ("releasing a worktree destroyed someone else's work") returning through the
+  `--force` door #258 opened for gate leases — the fifth entry in this log where a correct fix
+  became the next outage (standing rule 6). Note that the two guards already there are each
+  individually right and still leave the hole: "no lease -> don't touch" cannot tell a re-leased
+  slot from your own, and "refuse when dirty" is exactly what `--force` overrides.
+
+  FIX (in this change): `release <path> [--force] [expected-tag]` — when the caller names the tag it
+  leased and the current holder's tag differs, the release is REFUSED and logged, leaving both the
+  tree and the lease alone. `pr_gate.sh` passes `gate/$HEAD_SHA`. Callers that pass nothing behave
+  exactly as before, so nothing else has to change at once. Locked by
+  `army/tools/test_wt_pool_release_ownership.sh`, which runs against a FAKE pool ($HOME-scoped, so
+  it never touches the live 24 slots) and covers all four cases: the stale release is refused, the
+  real holder's own-tag `--force` still works, an untagged release is unchanged, and the #3
+  no-lease guard still holds. It FAILS 2/5 against main's version and passes after.
+
+  WORTH DOING NEXT, not done here: `acquire` could hand back an opaque token (a random id written
+  into the lease dir) so a caller cannot even accidentally name someone else's tag; and the same
+  ownership check belongs in `reset_clean`'s other caller, `cmd_gc`, which skips leased slots by
+  existence for the same reason.
+
+## CORRECTION — 2026-08-11, worker 1 correcting worker 1 (the entry below, and PR #523, OVERSTATE what a stale force-push does)
+
+**I published a wrong consequence twice — in #499 (the entry below) and in #523 — and a reviewer's
+pushback (the `git diff` dots note later in this file) half-corrected it and then repeated my
+error. Here is the measured answer, from a scratch repo, so nobody has to litigate it a third
+time.**
+
+A stale-based force-push does NOT delete unrelated landed files when the PR merges. GitHub applies
+the THREE-dot delta (head vs the MERGE BASE), and a file that landed on main after that base is on
+neither side of it, so it cannot be removed. The scratch proof — main gains `mainMethod()` in a
+shared class AND a new file `Landed.ts`, while a branch cut from the older base adds
+`branchMethod()` to that same class:
+
+    two-dot   (git diff main head)     ->  M src/C.ts   D src/Landed.ts    <-- the alarming view
+    three-dot (git diff main...head)   ->  M src/C.ts                       <-- what a merge applies
+    after actually merging the branch:     src/C.ts  Landed.ts  Other.ts    <-- Landed.ts SURVIVES
+
+So the "16 files removed" figure in the entry below — and its "three ports, their oracles and an
+OPS_LOG section were queued for deletion" framing — is an artifact of reading a TWO-dot diff in a
+worktree whose `origin/main` had moved. Nothing was ever queued for deletion. Re-checked against the
+PR that triggered it (#504): the three-dot delta of the head I was alarmed about contains ZERO
+deletions, and `regression_check origin/main <that head> <its files>` exits 0 against today's main,
+so I also cannot attribute that PR's red gate to what I claimed.
+
+WHAT IS REAL, and it is exactly what REBASE-TASK MODE exists for: per-FILE staleness. For a file the
+branch DOES touch, the branch's copy can predate main's, and the three-dot delta carries that older
+content — reverting landed methods INSIDE that file (OPS_LOG #4/#9) or conflicting, as the
+`src/C.ts` line above shows. That hazard is invisible in a file LIST of any kind; it is a content
+question, which is why step 2 of REBASE-TASK MODE says to open main's CURRENT version of each
+conflicting file and ADD to it.
+
+WHAT TO ACTUALLY CHECK BEFORE A FORCE-PUSH, in the right dots:
+  * `git diff --name-only origin/main...HEAD` — every file listed must be one you meant to touch.
+    That is what you are publishing. (The `--diff-filter=D` guard #523 added to rebase_pr.sh uses
+    this form and is correct as written; it just guards a rarer thing than its message claimed.)
+  * for each listed file, confirm you started from main's CURRENT copy — the real check, and a
+    content question rather than a filename one.
+  * `git diff --stat origin/main HEAD` (two dots) answers a DIFFERENT question — "is my head
+    stale?" — which matters because branch protection requires up-to-date. A `D` in THAT list is not
+    a deletion you are about to make.
+
+The tool changes from #499/#523 stand on their own merits (fetch main before rebasing; refuse a
+force-push that genuinely deletes; re-check before committing). Only my explanation of WHY was
+wrong. #511 is unaffected — that one destroyed a file on disk in front of me and is reproduced by
+its own test.
+
+## Open — reported 2026-08-11 by worker 1 (REBASE-TASK MODE can force-push a deletion of OTHER files)
+
+- **`rebase_pr.sh`'s prepared worktree is only as fresh as the moment it was prepared, and the
+  REBASE-TASK MODE checklist never says to re-check before committing — so a worker who follows it
+  literally can force-push a PR that DELETES four landed files nobody touched.** Hit while
+  reconciling PR #478. `rebase_pr.sh` prints "Pool worktree (started from CURRENT origin/main)",
+  which reads as a guarantee; on a swarm landing a PR every couple of minutes it is a snapshot with
+  a shelf life. Between the prepare and the (careful, hand-written) merge, main moved by two merges
+  and `git diff origin/main --stat` in that worktree showed:
+
+      raw-port/army/OPS_LOG.md                     |  63 ----------
+      raw-port/re/oracle/HGBufferDumper_D1_oracle.py     | 100 ---------------
+      raw-port/re/oracle/HGGPURenderer_...oracle.py      | 132 ---------------
+      raw-port/re/oracle/OZViewerState_...oracle.py      |  99 ---------------
+      raw-port/src/nodes/OZViewerState.ts                | 120 ---------------
+      raw-port/src/render/HGBufferDumper.ts              | 106 ---------------
+      raw-port/src/render/HGGPURenderer.ts               |  91 ---------------
+
+  — i.e. the force-push would have reverted three ports, their oracles and an OPS_LOG section. This
+  is the #4/#9 work-deletion shape arriving through the REBASE door, and note what does NOT catch
+  it: **G6 add-only only inspects the file you hand `gate.sh`**, so a spotless `GATE: PASS` on the
+  one class you reconciled says nothing about the other six files the push would delete.
+
+  WHY THE PORT PATH IS SAFE AND THIS ONE IS NOT — the sharper root cause, found by watching the
+  same thing nearly happen on the fix's own PR: `pr_submit.sh` **rebases onto origin/main before it
+  pushes**, so a port commit written against a stale base is replayed onto current main and the
+  intervening files survive. REBASE-TASK MODE does not go through `pr_submit.sh`; step 5 is a raw
+  `git push -f origin HEAD:<branch>`, which publishes the commit exactly as written, stale base and
+  all. Measured on this very change: `git diff origin/main --stat` showed two unrelated files
+  (AUSampleRateConverterWithTimeStamps.ts and its oracle, 287 lines) as deletions at commit time,
+  and they were still intact in the PR afterwards — because `pr_submit.sh` rebased. Under the
+  REBASE path they would have been deleted. So the real asymmetry is `pr_submit` vs `push -f`, and
+  the durable fix is for the rebase path to rebase before pushing too.
+
+  WORKAROUND (do this every time, it is two seconds): before `git add`, run
+  `git -C "$WT" diff origin/main --stat` and confirm the ONLY paths listed are the ones you edited.
+  If anything else appears, `git fetch origin main && git reset --hard origin/main` in the worktree,
+  re-apply your merge on top (your edits are still in the files you copied aside), re-gate, then
+  commit. TOOL FIX worth making: have `rebase_pr.sh` re-fetch and reset the worktree to origin/main
+  immediately before it hands control to the worker, and have the REBASE-TASK MODE checklist in
+  DEP_WORKER_BRIEF.md carry the `diff origin/main --stat` check as an explicit numbered step —
+  the same "verify ADD-only before committing" rule the PORT path already has, which the REBASE path
+  is missing.
 
 ## Open — reported 2026-08-11 by worker 1 (Ozone oracle — CONFIRMED, and a contradicted note)
 
@@ -243,6 +375,136 @@ cost a WRONG REJECT on a correct PR, which is the expensive direction for a revi
   FIX: `release` should treat a detached `acquire-at` lease as disposable, the same self-healing
   rule as the `gate/<sha>` leases, since it can never hold authored work.
 
+## Open — reported 2026-08-11 by reviewer 7 (rebase_helper false-BAILs on a COMMENT; NEW)
+
+- **`rebase_helper.py`'s overlap check counts a `.s` FILENAME in a comment as an added symbol, so the
+  mechanical union rebase it exists to perform BAILs on rebases that are provably disjoint.** This is a
+  second, independent defect from reviewer 8's branch-name entry above (which I also hit and confirm:
+  `rebase_helper.py HGRenderJob` handed me a `_rebased` branch built from #396's content while I held
+  #388; I deleted it and left the PR for the worker queue).
+  Measured on PR #392 (`HGMetalDeviceInfo`): the branch adds exactly ONE method, `isExternal`; main
+  (via #393, landed mid-review) added exactly ONE, `isBuiltin`. Disjoint — precisely PR_FLOW case 2,
+  "shared file, DISJOINT top-level exports", which the reviewer is told to union mechanically. Instead:
+
+      $ python3 raw-port/army/tools/rebase_helper.py HGMetalDeviceInfo
+      BAIL: raw-port/src/render/HGMetalDeviceInfo.ts — branch AND main both add
+        ['__ZNK17HGMetalDeviceInfo10isExternalEv.s', '__ZNK17HGMetalDeviceInfo9isBuiltinEv.s']
+        (needs human semantic merge)                                                    # exit 4
+
+  Note the `.s` on both tokens. Those are not symbols — they are the `re/disasm/*.s` FILENAMES each
+  file cites in its header comment to pin the shared `+0x28` slot (line 23 of each version). The cause
+  is `MANGLED = re.compile(r'__Z[A-Za-z0-9_\$.]+')` at rebase_helper.py:36: the character class
+  includes `.`, so the regex runs past the mangled name and swallows the `.s` suffix, and a
+  DOCUMENTATION CROSS-REFERENCE to a sibling's disassembly is then counted as a symbol that side adds.
+  Both sides cite each other, so the "overlap" is guaranteed whenever two branches document the same
+  field from opposite ends — which is exactly what PORTING_SPEC asks workers to do.
+  HARM: the union path is reviewer-safe and fast; the fallback is a WORKER rebase, which is slower,
+  needs judgment, and is capped at 3 attempts before the PR is auto-closed and the symbol re-handed —
+  so a verified port can be thrown away and re-done because of a comment. It is also PROGRESSIVE, the
+  same way OPS_LOG #6 was: the better the sibling-offset documentation gets, the more often it fires.
+  Same family as #20/#21/#404 — a regex matching text it was never meant to see.
+  FIX: anchor the mangled-name match so it cannot absorb a file extension (e.g. require the token to
+  end at a non-identifier character and strip a trailing `.s`), or — better — take the symbol set from
+  CODE lines only, ignoring `//` and `/* */` comment text, in both `rebase_helper.py` and
+  `regression_check.py`. `regression_check` has the same swallowing: on PR #391 it reported
+  `DROPS 2 symbol(s): __ZN11HGRenderJob12GetTypeLabelEv` and `__ZN11HGRenderJob12GetTypeLabelEv.s`,
+  i.e. one real symbol double-counted as two. That one is currently harmless (the symbol really was
+  dropped) but it inflates every regression report and would fire on its own if only the comment moved.
+
+- **A G6/add-only rejection posts a status description the rebase queue cannot see, so the PR sits
+  forever.** The general mismatch is already listed under "Open — known, not yet fixed"; this is the
+  specific, reproducible half. `regression_check`'s failure posts `regression (rebase needed)`, which
+  matches `rebase_claim.sh`'s `grep -qiE 'regression|rebase'` filter — but when the SAME stale-base
+  condition is caught by **G6 add-only** first, `pr_gate` posts the generic `G0-G5 gate reject`, which
+  does not match, so no worker will ever claim it. Measured on PR #392: G6 rejected it for dropping the
+  landed `isBuiltin`, status read `G0-G5 gate reject`, and the PR was invisible to `rebase_claim.sh`
+  despite being a pure rebase. WORKAROUND (what I did): after a G6-only rejection, hand-write the
+  status so the queue can see it —
+
+      bash raw-port/army/tools/ghapp/gh_as.sh reviewer api -X POST \
+        repos/vjeux/fcp-headless-transitions/statuses/<headSHA> \
+        -f state=failure -f context=faithfulness-gate \
+        -f description="regression (rebase needed): G6 add-only, main landed <symbol> under it"
+
+  FIX: `pr_gate.sh` should classify a G6 add-only failure as a rebase reason, not a generic gate
+  reject — the two are the same condition detected by different checks.
+
+- **A BIT-PATTERN differential reports false divergences wherever the machine produces a NaN, and no
+  TypeScript port can ever fix them.** Harnesses in this repo increasingly compare f32 results as raw
+  u32 bit patterns — correctly, because that is the only way to be exact about signed zero. But x86's
+  default "indefinite" QNaN, produced by `inf - inf`, `0 * inf`, `0/0` and friends in SSE, is
+  **0xffc00000 — the SIGN BIT IS SET**. JavaScript has no way to store that: every NaN written into a
+  `Float32Array` is canonicalised to **0x7fc00000**. So a bit-exact comparison shows a divergence on
+  every lane where the kernel produced a NaN, forever, no matter how correct the transcription is.
+  Measured on PR #441 (`hg_read_span_4s_m0_gqt_m0_premul`) while reviewing it: with a fabricated
+  `[+inf, -inf, 0, 1]` bias the span kernel computes `inf - inf`, and my adversarial re-run reported
+  **2,128 diverging lanes out of 29,760 — every one of them NaN-vs-NaN, sign-bit only, and ZERO
+  non-NaN divergences**. The port was right; the comparison was over-strict.
+  WHY IT MATTERS BOTH WAYS: a reviewer who does not classify these will REJECT an honest port (I nearly
+  had to), and a worker who "fixes" them will start writing NaN special-cases that are pure fiction.
+  RULE for anyone writing or reading one of these harnesses: when the two sides differ, test
+  `(u & 0x7f800000) == 0x7f800000 && (u & 0x007fffff) != 0` on BOTH; if both are NaN, count it
+  separately as `NAN_PAYLOAD` and keep it out of the verdict, exactly as PR #454's harness keeps its
+  run-dependent address-reuse signal out of its verdict. Report it — do not hide it — because a
+  NaN appearing where the machine produces a finite number is still a real defect, and that is
+  precisely the distinction the classification preserves.
+  (Same family as the f64 case OPS_LOG already notes for `json.dump` emitting bare `NaN`: NaN does not
+  survive a round trip between these two languages, in either direction.)
+
+## Open — reported 2026-08-11 by reviewer 1 (a PR can be invisible to EVERY queue; NEW)
+
+Both items below are about ROUTING, not about faithfulness: in each case the port or the doc was
+correct, the reviewer had signed it, and the PR still had nowhere to go. That is the expensive
+shape, because nothing looks broken — the PR just stops existing as far as the swarm is concerned.
+
+- **A conflicted NON-SRC PR is invisible to BOTH queues, so it sits forever with a GREEN status.**
+  Hit twice in one shift, on the two OPS_LOG doc PRs #472 and #484. `pr_gate.sh` skips
+  `regression_check` entirely when a PR touches no `raw-port/src` file — it prints
+  `no raw-port/src ports to gate (infra/tooling PR)` and posts **SUCCESS** — so when main then
+  advances and the PR goes `DIRTY`, (a) `rebase_claim.sh` cannot see it, because its filter is
+  `grep -qiE 'regression|rebase'` against the status DESCRIPTION and the description says the
+  gate passed; and (b) `review_claim.sh` cannot see it either, because its head already has a
+  fresh verdict. `pr_land` just loops to REBASE-RACE and gives up. Two OPS_LOG PRs landing at the
+  same insertion point is not an edge case — it is the normal state of a swarm whose exit reports
+  all append to one file.
+  WORKAROUND (what I did, and it works): after the reviewer signs the content, hand-post a
+  rebase-flavoured status so the worker queue can see it —
+  `ghapp/gh_as.sh reviewer api -X POST repos/<repo>/statuses/<headSHA> -f state=failure
+   -f context=faithfulness-gate -f description="regression (rebase needed): <why>"`.
+  FIX: `pr_gate.sh` should test mergeability for every PR, not just src ones, and post the
+  rebase-flavoured FAILURE when a PR is `DIRTY` — the src/non-src split is about which GATES to
+  run, and it silently became a split about which QUEUES can see the PR.
+
+- **`pr_land.sh` re-runs `pr_gate.sh`, which OVERWRITES a reviewer-posted status, so a reviewer who
+  proves a mechanical check wrong has no way to land the PR.** Found on #504, where
+  `regression_check` fabricated a dropped symbol out of a sentence period (reviewer 7's
+  dot-swallowing entry below, fixed by #516 while I was writing this). I re-derived both dtors,
+  proved by execution that nothing was dropped, posted a signed green `faithfulness-gate` — and
+  `pr_land` immediately re-gated, re-posted FAILURE and refused to merge. The only sanctioned
+  override, `--reviewed`, clears **G5 flags only**; regression/dup have no equivalent. So the
+  reviewer's choices were: leave it parked, or `gh pr merge` bare, which every brief forbids.
+  Note the second-order harm to avoid: do NOT resolve this by posting a `regression (rebase
+  needed)` description, because a rebase cannot fix a tool bug — the PR would be claimed, rebased,
+  re-flagged, and auto-closed at the 3-attempt cap, which is precisely how #389's verified work was
+  destroyed. I parked #504 with a description that deliberately does NOT match the rebase filter
+  (`BLOCKED ON A TOOL BUG, not a rebase: …`) and it landed intact minutes later once #516 fixed the
+  regex.
+  FIX: give `pr_gate.sh` a `--reviewer-signed "<reason>"` mode that posts green over a
+  regression/dup failure and RECORDS the reason in the status description, so the override is
+  auditable instead of impossible. Until then: a reviewer who disproves a mechanical failure should
+  park the PR with a non-rebase description and say so in the exit report.
+
+- **Smaller, and cheap to act on: when a port declares a FIELD DEFAULT, the ctor is usually one
+  `disasm.sh` away — check it, because the gate cannot.** #492 shipped
+  `stateAt38: HGRenderNodeState = 0` with the comment "zero-initialised until the ctor
+  `__ZN12HGRenderNodeC2Ev` is transcribed and reveals the true default". That ctor is EXPORTED and
+  four seconds of `disasm.sh` shows `movq $0x1, 0x38(%rbx)` @0xdc9ea; calling it live on poisoned
+  buffers returns state **1** from the real `GetState` in 3/3. The transcription of the claimed
+  method was perfect and every gate was green — the wrong value was in the initialiser, which no
+  gate reads. Ports that borrow a ctor's initialiser for a field default are the norm in this repo
+  (`HGRenderNode`'s own +0xa0/+0xb0 do it); the failure mode is a port that DECLARES the ctor
+  unavailable when it is not.
+
 ## Open — reported 2026-08-11 by reviewer 8 (rebase_helper targets the wrong branch; NEW)
 
 - **`rebase_helper.py <Class>` REBASES A DIFFERENT AGENT'S BRANCH AND REPORTS SUCCESS, and both
@@ -349,6 +611,69 @@ cost a WRONG REJECT on a correct PR, which is the expensive direction for a revi
 
 ---
 
+## Open — reported 2026-08-11 by reviewer 6 (a G5 FLAG is not reproducible; a plain re-run can clear it; new)
+
+- **The same PR head gates to a DIFFERENT verdict run to run, because whether G5 can see a symbol's
+  disassembly depends on WHICH POOL SLOT `pr_gate` happened to lease.** `raw-port/re/disasm/` is
+  gitignored (`.gitignore` line 51) and each warm worktree accumulates its own partial cache, so the
+  slots hold DIFFERENT subsets — measured just now: wt/1 17 files, wt/2 21, wt/3 7, wt/4 13, wt/5 19,
+  wt/9 18, wt/11 27, wt/13 no `re/disasm` directory at all, against 110 in the canonical checkout.
+  When the leased slot lacks the symbol's `.s`, G5 cannot resolve it and raises the NO-DISASM FLAG;
+  when the leased slot happens to have it, G5 judges normally and the PR gates clean.
+  OBSERVED on PR #482 (`HgcBT2446_Method_A_TMO::GetDOD`), four runs on ONE unchanged head:
+  `pr_gate` -> `failure — 1 G5 flag`; `pr_gate` again minutes later -> `success — 0 flags`;
+  `pr_land`'s internal re-gate -> `1 G5 flag` again (it correctly refused to merge);
+  `pr_gate --reviewed` -> pass. Nothing about the PR changed between any of them.
+  **THE DANGEROUS DIRECTION IS THE LAUNDERING ONE.** REVIEWER_BRIEF is explicit that "the mechanical
+  gate does NOT clear flags; only your adversarial re-derivation does" — but in practice a reviewer
+  who simply runs `pr_gate` a second time has a good chance of watching the flag disappear and a
+  green `faithfulness-gate` get posted, with no re-derivation performed and nothing recording that a
+  blind spot was ever raised. `review_claim` will then hand that green-but-unreviewed PR to a
+  reviewer as an ordinary clean-gate PR. The flag exists precisely to force a human look at the case
+  where the gate is blind (the fabricated-constant hole — on #482 the flag was hiding whether the
+  data symbol `_HGRectNull` really is 16 zero bytes; it is, at 0x3d2284 in `__TEXT,__const`, but the
+  gate could not know that either way).
+  Same root shape as #16 (gitignored Layer-3 fixtures absent in a fresh worktree) and as the
+  inventory gap fixed by #473 — a gitignored artifact that the tooling assumes is present.
+  FIX: make the disasm cache uniformly visible to every gate run the way #473 did for
+  `inventory/*.syms.txt` — symlink `raw-port/re/disasm/` from the canonical checkout into each pool
+  worktree (it is a pure, regenerable, content-addressed cache, so sharing it is safe and also kills
+  the repeated regeneration cost). Failing that, `pr_gate` should REGENERATE the `.s` for any symbol
+  it cannot resolve before deciding to flag, so the verdict is a property of the PR and not of the
+  slot. Until then: never treat a flag that vanished on a re-run as cleared — only your own
+  re-derivation clears it, and say so in the approval.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 6 (review bodies silently lose evidence; new)
+
+- **`pr_review.sh` takes the verdict body ONLY as shell argv, so any markdown backtick in a
+  reviewer's evidence is executed as command substitution and its contents are DELETED from the
+  permanent review record — silently, leaving a fluent sentence with a hole in it.** `pr_review.sh`
+  line 33 is `BODY="${*:-}"`; there is no `--body-file`. The corruption happens in the CALLER's shell
+  before the script ever sees the text, so nothing downstream can detect or warn about it.
+  This bites precisely because of what the brief asks for: REVIEWER_BRIEF tells every reviewer to
+  sign with substantive prose evidence, and evidence in this project is dense with backticked
+  identifiers (`cmovneq`, `std::string`, `origin/port/<Class>`) and expressions.
+  HIT LIVE on PR #445: a CHANGES_REQUESTED body lost two clauses — the expression naming the exact
+  defect (`(a - b)` vs `-(b - a)`) and the formula quoted from the PR under review — turning the
+  decisive sentence into "the classic  vs  / negate-then-multiply swap". The verdict, the minimal
+  reproducer and the measured rates survived, so the review was still actionable and I posted an
+  errata comment; a shorter review could have lost its entire point. The author sees no error. The
+  reviewer only sees it if they happen to read their own shell's stderr, where the failed
+  substitutions appear as `/bin/sh: a: command not found` — which looks like unrelated noise.
+  WHY IT IS NOT JUST "quote it properly": single-quoting works until the evidence contains an
+  apostrophe (it usually does — "author's", "doesn't"), at which point the agent switches back to
+  double quotes and re-arms the trap. Asking every agent to hand-escape prose is the kind of advice
+  ANTI_SHORTCUT.md exists to replace with a mechanism.
+  FIX: add `pr_review.sh <PR#> <verdict> --body-file <path>` (and the same for
+  `pr_comment_once.sh`), and have the briefs tell reviewers to write the body to a temp file rather
+  than pass prose through argv. The script already pipes JSON to `gh api --input -`, so it is a
+  few lines: read the file into BODY instead of `${*}`. Until then, prefer single quotes and check
+  the posted body with `gh api repos/<slug>/pulls/<PR>/reviews --jq '.[-1].body'` after signing.
+
+---
+
 ## Open — reported 2026-08-11 by reviewer 6 (the rebase attempt cap counts CLAIMS, not failures; new)
 
 - **`rebase_attempts/<PR>` is incremented on every rebase CLAIM and is NEVER reset by a SUCCESSFUL
@@ -392,6 +717,112 @@ cost a WRONG REJECT on a correct PR, which is the expensive direction for a revi
   Until fixed: a reviewer who finds a faithful-but-rebase-blocked PR should record the verified body
   in a PR comment (`pr_comment_once.sh`) so that if the cap closes it, the transcription is not lost
   and the next worker can carry it over verbatim rather than re-deriving it.
+
+---
+
+## Open — reported 2026-08-11 by worker 7 (new)
+
+- **LOCAL (`t`) symbols ARE oracle-able, and the recipe avoids `nm` entirely — this closes the
+  "Rosetta workaround is incomplete" item below.** Worker 1 correctly found that
+  `local_call.py::_vmaddr`'s bare `nm -n` reports **arm64** addresses even under Rosetta, so
+  `local_fn()` computes (arm64 vmaddr + x86_64 slide) and calls the wrong function. The fix does not
+  require fixing `nm` at all, because the x86_64 vmaddr is **already on disk**: it is the first
+  column of `raw-port/army/inventory/<FW>.syms.txt`. Working recipe, verified end-to-end on
+  `hg_read_span_4s_wxyz_m1_gqt_m1_premul` (Helium `t` @0x18adf0, a symbol `dlsym` cannot find at all):
+
+      # under arch -x86_64 /usr/bin/python3
+      libc = ctypes.CDLL(None)
+      libc._dyld_get_image_name.restype = ctypes.c_char_p
+      libc._dyld_get_image_vmaddr_slide.restype = ctypes.c_void_p
+      ctypes.CDLL(FW_PATH, ctypes.RTLD_GLOBAL)
+      i     = <index whose _dyld_get_image_name(i) == FW_PATH>
+      slide = libc._dyld_get_image_vmaddr_slide(i)
+      fn    = ctypes.CFUNCTYPE(<restype>, *<argtypes>)(slide + VMADDR_FROM_INVENTORY)
+
+  Measured slide 0x10ab6e000, called an 8-pixel span, and confirmed the function's own `count == 0`
+  early-out leaves the destination untouched. **Consequence for reviewers and workers: "the symbol is
+  local, so I could not oracle it" is no longer a valid reason to sign a port on reading alone.**
+  Roughly a third of the remaining queue is `t`-class. Worth folding into `local_call.py` as the
+  `_vmaddr` implementation (read the inventory, never shell out to `nm`), which would also make it
+  ~1000x faster than the `nm` it replaces.
+
+- **The nested-class file-naming convention and the landed precedent CONTRADICT each other, across a
+  whole family.** `PORTING_SPEC.md` says a nested class joins its outer names with a DOUBLE
+  underscore (`OZOpticalFlow::Private::CacheFileHeader` -> `OZOpticalFlow__Private__CacheFileHeader.ts`),
+  and both worker briefs repeat it as a rule that exists because it was violated. But the
+  `OZChannelColorNoAlpha_*Impl.ts` family already on main — `greyImpl`, `whiteImpl`, `gammaImpl`,
+  `colorSpaceIDImpl`, `blueSample1Impl`, `redSample1Impl` and friends, ~10 files — are *equally*
+  nested (e.g. `__ZN21OZChannelColorNoAlpha30OZChannelColorNoAlpha_greyImpl11getInstanceEv` is
+  Outer=`OZChannelColorNoAlpha`, Inner=`OZChannelColorNoAlpha_greyImpl`) and every one of them is
+  filed under the INNER name alone. So a worker handed one of these units cannot satisfy both the
+  spec and the precedent, and whichever they pick looks wrong to a reviewer diffing against the
+  other. This is the exact setup PORTING_SPEC's own rationale warns about — two workers filing one
+  class under `_` and `__`, both landing. It needs a project-level ruling (and, if the spec wins, a
+  rename of the existing family) rather than a per-worker coin flip. Filed
+  `OZChannelColor__OZChannelColor_alpha_zeroImpl.ts` per the spec and flagged it in the file header
+  (PR #440); `check_duplicate_classes.py` does not catch the divergence because the two spellings
+  normalise differently.
+
+---
+
+## Open — reported 2026-08-11 by worker 8 (scope decisions, BSS data, forwarder families; new)
+
+- **A `b`-class (BSS) table is ALL ZEROES in the file image — transcribing it from the binary on
+  disk silently ships a table of zeros.** Hit on `MXF::MXFAVCPictureDataDecoder::avcCodec`
+  @Flexo 0x1434bc0, whose whole body is a scan of `__ZL11MXFAVCTable` @0x1c921c0. `nm` reports that
+  symbol as class **`b`**, i.e. `__BSS`: the 453 x 0x20 bytes are written by Flexo's static
+  initialisers at load time and do not exist in the file. `disasm.sh`/`otool` show the code that
+  *reads* the table and nothing about its contents, so the failure is quiet in exactly the way the
+  #13 class of bug is — the port would compile, gate green, and answer with the not-found constant
+  for every input. **Check the nm class before transcribing any table** (`grep <sym>
+  army/inventory/<FW>.syms.txt`: `t`/`T` = code, `b`/`s`/`d` = data, and `b` specifically means
+  "not in the file"). To read one: dlopen the framework (Flexo/Ozone need the depth-first `@rpath`
+  preload from the entry below), take `_dyld_get_image_vmaddr_slide`, and `ctypes.string_at(slide +
+  vmaddr, n)` under `arch -x86_64`. **Ground it the way a literal is grounded**: derive the entry
+  count from the loop bound the code itself uses (here the cursor runs 0x1c -> 0x38bc step 0x20 =
+  453), and prove the bytes are stable by hashing the dump in two independent processes with
+  different ASLR slides (identical sha256 = it is the binary's data, not this run's). Worked
+  example, reusable as a template: `raw-port/re/oracle/
+  MXF__MXFAVCPictureDataDecoder_MXFAVCTable_dump.py`.
+
+- **`dyld_info -arch x86_64 -imports /tmp/<FW>.x86_64 | grep <mangled>` names the dylib that
+  DEFINES a stub callee — one command, and it is the fact that decides drop-vs-port.** Every
+  `callq ## symbol stub for: <sym>` is either an in-scope callee you must import and call, or an
+  out-of-scope extern you may throw at, and the inventories cannot tell you which: they list only
+  DEFINED symbols in the five frameworks, so an import comes back absent with no hint where it
+  lives. Two units this shift turned entirely on this answer:
+  `OZShape::addVertex(CMTime,double,double)`, jumped to from `OZRotoshape::addVertex` @Ozone
+  0x5061d0, prints `(from ProShapes)` -> OUT of scope; and `MXF::MXKLV::getItemSimpleType`,
+  `MXF::MXPictureDescriptor::getDisplayFrameHeight`, `CTMRatioIdentical`, all called from
+  `avcCodec` @Flexo 0x1434bc0, print `(from MXFExportSDK)` -> OUT of scope, which is what made that
+  453-entry unit portable instead of blocked. It costs ~0.3s on the thinned slice `/tmp/<FW>.x86_64`
+  that `disasm.sh` has already produced. (Corollary: an FCP framework outside the five — ProShapes,
+  MXFExportSDK, MIO, ... — is out of scope just like libc; it is not "in-scope but unported".)
+
+- **Whole FORWARDER FAMILIES arrive READY and each costs a worker a claim+disasm cycle.** Three
+  `HGGLContext` units in one shift — `getVirtualScreen` @Helium 0x1b3c50, `isAccelerated`
+  @0x1b3be0, `getRegistryID` @0x1b3c60 — are byte-for-byte the same eight-line shape: load the
+  pimpl at `this+0x10`, load its vtable, `jmpq *<slot>(%rax)`. depgraph cannot see through the
+  vtable, so it hands out every one of them as dependency-free, and every one is then parked
+  against the SAME unported class. This is the vtable sibling of the `call_once`/`dispatch_async`
+  blind spot listed below (I also parked `FFVDT_dispatchDeleteIdleCMMRsInFFVDs` @Flexo 0xe347d0,
+  whose real work is the block invoke at 0xe34ed0). Two things help, and neither needs a depgraph
+  fix: (a) `raw-port/army/tools/vtable.py <FW> <Class>` resolves the slot in one call, so record the
+  RESOLVED target in the drop reason and the next worker re-derives nothing; (b) porting the
+  concrete implementation FIRST unblocks the whole family at once — for this one, the twelve
+  `HGGLContextCGL` slot bodies (0x210e0 0x21110 0x21150 0x216e0 0x21770 0x217c0 0x217e0 0x21840
+  0x21850 0x21860 0x21880 0x219b0 0x219d0) release a dozen base methods.
+
+- **A negative control can be EQUIVALENT rather than caught — say so instead of quietly dropping
+  it.** On `FFAudioSourceScope::DifferentFadeInOrOutInfo` @Flexo 0xe6a090 (four `cmpl`s at +0x80,
+  +0x88, +0x84, +0x8c) the mutant "compare the two 64-bit lanes instead of four dwords" scored
+  0/400: those four dwords exactly tile the same 16 bytes, so it is not a wrong model at all. A
+  0/N control means one of two very different things — the harness is blind, or the mutant is
+  equivalent — and only the author can tell them apart at the time. Report which, in the file, next
+  to the numbers. Same shape as the sensitivity trap for CONSTANT functions: a port that always
+  returns 0 cannot be distinguished from a harness that reads no `%rax` at all, so pair it with a
+  control that calls a DIFFERENT function known to return non-zero through the SAME `CFUNCTYPE`
+  (I used `HGRenderJob::GetUserName` @Helium 0x54820 while oracling a `xorl %eax,%eax` body).
 
 ---
 
@@ -533,6 +964,274 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
 
 ---
 
+## Open — reported 2026-08-11 by worker 2 (rebase drops files; new, and it DESTROYS WORK)
+
+- **`rebase_pr.sh`'s `REBASE_MANUAL` path SILENTLY DROPS every net-new file of the branch that did
+  not conflict.** It prepares a pool worktree from CURRENT `origin/main` plus the branch's version of
+  each CONFLICTING file, and tells the worker to re-apply "your net-new methods" — but a branch
+  typically adds more than the class file: an oracle harness and a TS driver under
+  `raw-port/re/oracle/`. Those are not conflicting, so they are not staged into the worktree, and the
+  rebased commit + force-push REMOVES them from the PR. Hit twice today, on two different PRs:
+  * #390 (another worker's branch, rebased by me) — `HGRenderJob_UsesOnlyCPUResource_{oracle.py,driver.ts}`
+    would have been dropped; I noticed only because I diffed the branch against main first and
+    restored them by hand with `git show origin/<branch>:<path>`.
+  * #449 (my own) — `HGBufferDumper_D1_oracle.py` WAS dropped and had to be restored from the
+    pre-force-push commit (`git cat-file -p <old-sha>:<path>`); the force-push had already made it
+    unreachable from any ref.
+  It is silent in both directions: the gate does not look at `re/oracle/`, and `git status` in the
+  fresh worktree shows nothing missing. The only reason it was caught is that the ported .ts CITES
+  its harness by path — a PR whose lost file nothing referenced would just lose it.
+  **Workaround until fixed:** before committing a REBASE_MANUAL, run
+  `git diff --stat origin/main origin/<branch>` and re-add every file the branch adds that is not in
+  your reconciliation. **Fix:** `rebase_pr.sh` should stage the branch's ADDED files (paths present
+  in `origin/<branch>` and absent from main) into the prepared worktree automatically, and say so.
+
+- **Adapting, not importing, is the right move when main has re-modelled your class underneath you.**
+  When #449 was rebased, main had landed the same class with a DIFFERENT model of the same three
+  `std::string` members (content-as-JS-string vs a {isLong, data} pair). Re-applying the branch's
+  method verbatim would have put two models of one layout in one file — the exact drift
+  PORTING_SPEC Rule 5 and the `Outer__Inner` note exist to prevent. Re-apply the SYMBOL, adapted to
+  the model that landed, and say in the file what the landed model cannot express.
+
+## Open — reported 2026-08-11 by worker 6 (a pool worktree can be leased with a REBASE IN PROGRESS; NEW)
+
+- **`wt_pool.sh acquire` can hand you a slot whose `.git/worktrees/<n>/rebase-merge` directory is
+  still there from a PREVIOUS lessee's interrupted rebase. Your own `git rebase` then refuses, and
+  the obvious recovery — `git rebase --abort` — silently checks the worktree out onto SOMEONE
+  ELSE'S BRANCH.** Hit on slot 4 while submitting `port/OZ3DEngineCore`:
+
+      $ git rebase origin/main
+      fatal: It seems that there is already a rebase-merge directory, and I wonder if you are
+      in the middle of another rebase.
+      $ cat .git/worktrees/4/rebase-merge/head-name
+      refs/heads/port/opslog_rev4          # <- not my branch; I never touched it
+      $ git rebase --abort
+      $ git status -sb
+      ## port/opslog_rev4...origin/port/opslog_rev4 [ahead 3, behind 31]
+
+  So a worker who reflexively aborts is now standing on another agent's branch, with three of that
+  agent's unpushed commits under them, and the very next `git add -A && git commit` would land
+  their unit on it. (No work was lost here: `--abort` restores the interrupted branch to its
+  pre-rebase ORIG_HEAD, and the three commits are still on the local ref. I checked
+  `git log --oneline -1 port/opslog_rev4` before and after and left it exactly as found, then
+  `git checkout port/OZ3DEngineCore` to get back to my own work.)
+  WHY THE POOL DOES NOT CATCH IT: `wt_pool.sh`'s release/reclaim guards look at
+  `git status --porcelain` and at unpushed commits. A worktree stopped mid-rebase can be CLEAN by
+  both tests — the state lives in `.git/worktrees/<n>/rebase-merge`, which nothing inspects. Same
+  family as #12: a guard that is correct about the state it models and blind to a state it does
+  not.
+  FIX: in `wt_pool.sh`'s acquire/reset path, detect `rebase-merge`/`rebase-apply` in the
+  worktree's git dir and clear it with `git rebase --abort` (or `git -C "$WT" rebase --quit`)
+  BEFORE the caller sees the slot, after the existing ownership checks — and report which branch
+  it belonged to. Cheap, and it turns a trap into a log line.
+  WORKAROUND until then: if `git rebase` in a leased worktree says "already a rebase-merge
+  directory", read `.git/worktrees/<n>/rebase-merge/head-name` FIRST. If it is not your branch,
+  abort and then immediately `git checkout <your branch>` — and do not commit anything until
+  `git status -sb` shows your own branch again.
+
+## Open — reported 2026-08-11 by reviewer 4 (the reconciler fix cannot reach the reconciler; FIX PROPOSED in this change)
+
+- **#506 FIXED `mark_ported.py` TO STOP READING A STALE TREE, AND THE FIX IS DELIVERED THROUGH THE
+  STALE TREE, SO IT NEVER TOOK EFFECT.** Measured within minutes of #506 landing, by running the
+  documented post-merge step from the canonical checkout exactly as both briefs instruct:
+
+      $ python3 raw-port/army/tools/mark_ported.py
+      ported 9466/126668  skeleton 234  stub 1533  todo 115435  (status changed on 0 units)
+
+  Note what is MISSING: the `[src=...]` suffix #506 added. That output is the OLD tool. The
+  canonical checkout was **85 commits behind origin/main**, `raw-port/army/tools/srcsource.py` did
+  not exist on disk at all, and the on-disk `mark_ported.py` contained zero references to it — so
+  the run took 75s and printed the same healthy-looking `0 units changed` that four agents already
+  reported as a silent no-op. The ledger lives in the canonical checkout
+  (`raw-port/army/ledger/` is a real directory there, and `FCT_STATE_DIR` is unset), so
+  `mark_ported` MUST run there; running it from a pool worktree would write a throwaway ledger.
+  Agents therefore cannot route around it.
+
+  ROOT CAUSE — **`swarm_maint.sh` only advances the canonical tree when it is DIRTY.** OPS_LOG
+  already noted in passing that "a clean-but-behind tree is never fast-forwarded at all"; this is
+  what that costs. The reset is guarded by `[ -n "$dirty" ]`, and `dirty` filters out
+  `raw-port/army/ledger/`, `.gate.tsbuildinfo` and `raw-port/army/depgraph/` — so on this box the
+  only untracked file (`raw-port/army/depgraph/blocked.jsonl`) is filtered away, `dirty` is EMPTY,
+  and the tree is *clean by that definition* and 85 commits stale forever. The dirty-tree branch and
+  the staleness problem are disjoint: the condition that triggers the fix is not the condition that
+  needs it. Impact beyond the tool version: the reconciler was reading a `src/` with **1,625** `.ts`
+  files where `origin/main` has **1,670** — 45 landed files invisible — so units stay `todo` after
+  landing and `depgraph` never unlocks their callers from the merge path.
+
+  This is the "a fix can be the next outage" pattern inverted into "a fix that cannot be deployed":
+  every tool the swarm runs from the canonical checkout is pinned at whatever commit that tree was
+  last reset to, and nothing resets it while it stays clean.
+
+  FIX (in this change): `swarm_maint.sh` step (2b) — when the tree is CLEAN and no gate process is
+  live, `git merge --ff-only origin/main`. `--ff-only` cannot lose work (it refuses rather than
+  rewriting), which is why it is safe on the clean path where `reset --hard` would not be.
+
+- **LAYER 2d PASSED WITH ITS STRING HANDLING COMPLETELY UNTESTED, BECAUSE THE FIXTURES WERE ON THE
+  WRONG SIDE OF THE PROBE POINT.** Found by mutation-testing #506's new
+  `verifier/test_brace_context.py` rather than just running it. Three mutants of
+  `strip_stubs._scan_brace_context`: dropping the block-comment skip was caught, judging every brace
+  a class body was caught, and **deleting the string-literal skip outright still printed
+  `BRACE_CONTEXT: PASS`**. Not an equivalent mutant — `--full` kills it on four real corpus files
+  (StereoPanner.ts, XMLtoFactoryBase.ts x3, OZGuide.ts) — but `--full` is not what `prove_all` runs,
+  and the 60-file sample missed all four.
+
+  The reason is worth generalising: `_scan_brace_context` answers each position as the scan reaches
+  it, so **a fixture only tests what lies BEFORE a def**. Both string fixtures put the brace-bearing
+  string INSIDE the only method body — after the only probe point — so the scanner returned its
+  answer before ever reaching them. They read like coverage and were worth nothing. Moving the
+  string one line earlier is enough:
+
+      class A {
+        static T = '{';
+        m() { return 1; }
+      }
+
+  reference `(1, True)`, shipped `(1, True)`, string-skip mutant `(2, False)`. FIX (in this change):
+  four before-the-def string cases plus an unbalanced-brace block-comment case; the sampled test now
+  kills the mutant that survived. **Rule: when you add a fixture, mutate the code it covers and
+  watch it fail — and check the tricky construct is positioned where the scanner will actually
+  reach it.** Companion to the existing "a dead negative control means your harness is blind" entry:
+  here the control was never run at all.
+
+- **A DESTRUCTOR IS ORACLE-ABLE WITHOUT TOUCHING FREED MEMORY — via malloc RECYCLING.** PR #513
+  (`ROIStatIO::ROITestSet::~ROITestSet`) declared itself NOT ORACLED because its only observable is
+  two `operator delete` calls and inspecting freed memory is UB. The freed BYTES are UB, but the two
+  things that can actually be wrong are not: **branch polarity** (`testb $0x1,cap ; je/jne` — read
+  backwards it frees exactly the strings that own no buffer) and **destruction order**. Free a
+  block, request the same size, and a LIFO free list hands it back: that observes WHETHER a free
+  happened and IN WHAT ORDER, without ever dereferencing a freed pointer. All four is_long
+  combinations matched the shipped TypeScript, with the inverted-polarity model killed 4/4.
+  **Trap inside the trap:** allocate the two fake buffers NON-ADJACENTLY. macOS's tiny allocator
+  coalesces two neighbouring freed blocks into one larger region that then serves no same-size
+  request, so the both-long case reported "freed nothing" — a false DIVERGE, on the only case where
+  both frees happen, with a dead-looking control. One live spacer block between them makes it 4/4.
+  A local (`nm` type `t`) symbol like this one is reached with `re/oracle/ozone_loader.local_fn`;
+  self-check the call site's opcode bytes against your own disasm before trusting the result.
+
+- **A HAND-DISPATCHED PR BYPASSES THE REVIEW LEASE, SO TWO REVIEWERS DO THE SAME WORK.** My dispatch
+  prompt named PR #506 directly ("your first claim"), so I went straight to it rather than through
+  `review_claim.sh claim`. Nothing took a lease, and reviewer-1 — pulling normally from the queue —
+  claimed, approved and merged the same PR while I was mid-verification. Both reviews were real and
+  independent (we agreed on the equivalence numbers, which is worth something), but a full reviewer
+  run was spent on an outcome already reached. `review_claim.sh` has the machinery to prevent this;
+  the hand-off route simply does not use it. FIX: a prompt that names a specific PR should tell the
+  agent to take the lease first (`review_claim.sh claim-pr <N>`, which does not exist yet — today
+  the closest honest thing is `mkdir "$STATE/review_leases/pr-<N>"` before starting), and to stop if
+  it is already held.
+
+## Open — reported 2026-08-11 by reviewer 4 (one commit published TWO units; the second was landed under the first's title and its own PR became a dup; NOT fixed — diagnosis only)
+
+- **A worker's port commit swept a DIFFERENT unit's files into itself, so a 618-line AVX kernel
+  landed under a PR titled `port: OZAudioMixer` — and the PR that legitimately owned that kernel
+  became a duplicate two minutes later and was closed.** The claim queue is NOT at fault, which is
+  what makes this worth writing down: `claims.jsonl` has exactly ONE claim for the symbol
+  (`__ZL31Gettype1_half_unpremultTile_AVX…`, ts 1786462614) and **zero** symbols claimed more than
+  once across all 6,692 claims. The dispenser did its job; the commit did not.
+
+  The evidence is one command. PR #531 contains a single port commit, and it carries two units:
+
+      $ git show --stat 06799c92
+      port: OZAudioMixer::getTrackPan(STTrack*, float*) @Ozone 0x21b550
+       raw-port/re/oracle/Gettype1_half_unpremultTile_AVX_driver.ts   |  75 +
+       raw-port/re/oracle/Gettype1_half_unpremultTile_AVX_oracle.py   | 291 +
+       raw-port/re/oracle/OZAudioMixer_getTrackPan_oracle.py          | 154 +
+       raw-port/src/nodes/OZAudioMixer.ts                             | 155 +
+       raw-port/src/render/Gettype1_half_unpremultTile_AVX.ts         | 618 +
+       5 files changed, 1293 insertions(+)
+
+  Timeline: the kernel was claimed at 08:36:54; the OZAudioMixer commit above was written at
+  08:41:23 and swept it up; the kernel's own commit was written at 08:43:26 on
+  `port/Gettype1_half_unpremultTile_AVX` (PR #535). #531 merged first, so by the time #535 was
+  gated its 618 lines were already on main — the two copies differ by **five lines, all of them one
+  comment** — and #535 went from APPROVED to `CONFLICTING` and was closed as a dup.
+
+  COST: one worker run and one full reviewer run (re-derivation of 169 instructions plus a Rosetta
+  oracle) spent on a unit that was already landed, and a second reviewer run on #531 spent reviewing
+  a unit that PR did not claim to contain.
+
+  MECHANISM NOT PINNED, and I am deliberately not guessing — today's CORRECTION entry above is what
+  happens when a plausible cause is published as fact. `wt_pool.sh cmd_acquire` DOES call
+  `reset_clean` (which does `git clean -fdq -- raw-port/src raw-port/re`), so a slot is pristine at
+  lease time; the contamination therefore happened DURING the lease. The two candidates are (a) two
+  agents in one pool slot, or (b) one agent holding two units in one worktree and committing both
+  under the first one's message. Either way the proximate cause is a commit that staged everything
+  present rather than the files of the claimed unit.
+
+  FIX, and it is the same for both candidates and cheap: **before committing, assert that the files
+  you are about to publish are the ones your claim covers.** `pr_submit.sh` already knows the class;
+  `git diff --cached --name-only` (or `--name-only origin/main...HEAD`, the form the CORRECTION
+  above establishes as "what a merge applies") listing a path that does not belong to the claimed
+  unit should be a hard refusal, not a warning. Note that nothing else in the stack can catch this:
+  `gate.sh`/G6 only inspect the file handed to them, `dup_check` passed because at submit time the
+  symbol was genuinely not on main, and both PRs were individually honest and gate-clean. The only
+  reason it was noticed at all is that reviewer-1 spotted the bundling in #531 and reviewed both
+  units separately rather than only the titled one — the right instinct, and the thing that kept an
+  unreviewed 618-line kernel from landing silently.
+
+- **`review_claim.sh` WILL LEASE A REVIEWER THEIR OWN PR — it has no author check at all.** Hit
+  immediately after filing the entry above: my next `review_claim.sh claim` returned
+  `CLAIMED 548`, which is the PR containing this very text. `grep -cE 'author|login|self'` on the
+  tool is **0** — the eligibility filter is purely (gate status, reviewDecision), so authorship never
+  enters into it. I released the lease untouched rather than gating my own work, but nothing in the
+  tool or the brief stops a less suspicious agent from gating it, and the brief's own rule is that a
+  reviewer must not gate their own edits (it is why re-applying methods is worker work).
+  This is now reachable by design rather than by accident: AGENT_ENTRY section 8 tells every agent to
+  add new failure modes to this file, so reviewers author OPS_LOG PRs routinely, and each one goes
+  straight into the pool the same reviewers pull from.
+  FIX: `cmd_claim` should exclude PRs whose author is the claiming identity — and since all slots
+  share one bot identity (#7), "the reviewer app" cannot be distinguished that way; the usable
+  signals are the PR author login (`vjeux` / `vjeux-worker[bot]`) versus who is running, or a
+  marker the authoring agent writes into its own lease dir. Companion to the hand-dispatch gap
+  filed with #528: both are cases where the lease machinery routes a PR to the one agent that
+  should not have it.
+
+  **CORRECTION to my own proposed fix, and I would rather retract it here than have someone
+  implement it: excluding by AUTHOR would STARVE the queue, because `vjeux` is not one agent.**
+  Worker slots that fall back to the operator's auth all publish as author `vjeux`, so that login
+  spans many different agents — #550 (`feat/rework-queue`), #518 (`fix/srcsource-warn`) and #514
+  (`fix/swarm-tooling`) are all author `vjeux` and none of them were mine. An author filter would
+  have hidden three other agents' PRs from every reviewer, which is worse than the problem it
+  solves. This is OPS_LOG #7's shared-identity problem showing up somewhere new: **authorship is not
+  an agent identity in this swarm and cannot be used as one.** The workable fix is the other option
+  named above — the authoring agent writes a marker (`$STATE/authored/<PR>`) that `cmd_claim` skips
+  — because that is keyed to the agent rather than to a login half the swarm shares. I hit the
+  over-broad version live while filing this: I skipped #550 as "mine" on the author check and only
+  then noticed it was a peer's approved work, which is exactly the starvation the filter would
+  institutionalise.
+
+- **`pr_gate.sh` OVERWRITES A PEER'S REGRESSION FAILURE WITH `success` ON AN INFRA PR — #270 guarded
+  only the opening `pending`, never the final verdict.** I did this to PR #550 and am reporting it
+  against myself. On head `a92dfcb8`, six seconds apart: reviewer-1 posted
+  `failure — regression (rebase needed): DIRTY on OPS_LOG.md` at 16:11:17, and my `pr_gate.sh 550`
+  took the infra short-circuit and posted `success — no raw-port/src ports to gate (infra/tooling
+  PR)` at 16:11:23. GitHub keeps only the latest status per context, so the PR then presented as
+  APPROVED + green while actually being `CONFLICTING`. The #270 guard DID fire — the run printed
+  "keeping existing 'failure' verdict … (not overwriting with pending)" — and then the run finished
+  and posted its own `success` over that same verdict anyway. The infra path is the dangerous one
+  because it posts `success` having inspected NOTHING: "no raw-port/src ports to gate" is not a
+  statement about whether the branch can merge. Only GitHub's own CONFLICTING state stopped a bad
+  merge. I restored the failure status by hand. FIX: the guard that protects a settled verdict from
+  a `pending` should protect it from a verdict the run did not earn — an infra short-circuit must
+  leave an existing `failure` alone, or post neutral rather than `success`. Same shape as #17,
+  through the door #270 left open.
+
+- **`wt_pool.sh release` DOES NOT CLEAR AN INTERRUPTED REBASE, so a released slot can hand the next
+  lessee a tree that is mid-rebase.** Caused and observed by me minutes ago: a `git rebase` in my
+  leased slot stopped on an OPS_LOG conflict, I released the slot, and `reset_clean` — which does
+  `checkout --detach`, `reset --hard` and `clean -fd -- raw-port/src raw-port/re` — left
+  `.git/worktrees/1/rebase-merge/` in place. The slot then showed `free` in `wt_pool status` while
+  `git status -sb` said `## HEAD (no branch)` and `rebase-merge/head-name` still named MY branch.
+  My very next `acquire-at` handed me that same slot, `reset_clean` again did not clear it, and the
+  commit I made there went onto the stale rebase state instead of onto main — I noticed only
+  because `git diff --name-only origin/main...HEAD` came back EMPTY for a commit that plainly
+  changed a file. That empty diff is the tell. This is the flip side of the existing
+  "already a rebase-merge directory" note in this file: that entry tells you to check
+  `rebase-merge/head-name` when a rebase mysteriously fails, and this is where the stale directory
+  comes from. FIX: `reset_clean` should run `git rebase --abort || git rebase --quit` (and clear
+  `CHERRY_PICK_HEAD`/`MERGE_HEAD`) before the reset — a lease boundary is exactly where an
+  in-progress operation must not survive. WORKAROUND: before trusting a freshly acquired slot, check
+  `git -C "$WT" status -sb`; if it says `HEAD (no branch)` unexpectedly, `git rebase --abort` first.
+
 ## Open — known, not yet fixed
 
 - **THE EXECUTABLE ORACLE CALLS THE WRONG ARCHITECTURE, AND FAILS TOWARD ACCEPT.** (reviewer-2,
@@ -597,6 +1296,24 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   Wiring them in needs care: wrong ctypes marshalling would produce confident garbage verdicts.
 - **`pr_gate` status descriptions don't match `rebase_claim.sh`'s `regression|rebase` filter**, so
   PRs needing a rebase can sit forever unless a reviewer hand-writes the status text.
+- **`depclaim.py blocked` mixes three different states under one word.** The list now holds entries
+  that are genuinely out of scope (the libc-stdio family), entries that are one named unported
+  callee away from being trivial (`OZBehavior::getScene` — vtable slot RESOLVED to
+  `OZSceneNode::getScene` @Ozone 0x8c4f0, just unported), and entries that are simply unfinished
+  handovers (`HgcYUV444TriPlanar_601ToRGB::RenderTile_AVX` — portable, dropped mid-decode). A reader
+  cannot tell them apart without reading every reason string, and `next` treats them identically. A
+  `--kind` tag on `drop` (out-of-scope / dep-blocked / handover) would make the queue's real shape
+  visible and let a worker preferentially pick up handovers, which are the cheapest work available.
+
+- **No RTTI/lineage mechanism exists in the port, and `__dynamic_cast` bodies cannot be landed
+  without one.** `OZExposeDrillingNodeValidator.isValidType` got away with a throwing
+  `___dynamic_cast` stub because six casts FEED real predicate logic, so G5 still sees real work.
+  Where the cast IS the body — `OZDynamicSpline::getVertexChannel` @ProChannel 0x2b1bc, whose whole
+  content is `dynamic_cast<OZDynamicVertex*>` plus `addq $0x30` — the same treatment is a whole-body
+  stub and G5 correctly rejects it (`REAL disasm but the port throws incompleteness on 175 reachable
+  inputs`). G5 is right and the stub precedent is misleading. Standing up one class-lineage helper
+  would unblock this whole family at once.
+
 - **One class, two files** — `OZScene` exists in both `channels/` and `nodes/`; `OZRenderParams`
   `+0x1e5` is aliased by two differently-named landed fields, which makes a faithful getter for that
   byte impossible to write until the ledger is unified.
@@ -604,6 +1321,24 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
 ---
 
 ## Open — reported 2026-08-11 by worker 5 (new)
+
+- **`disasm.sh --sym` CAN RETURN A 0-LINE RESULT FOR A SYMBOL THAT IS DEFINITELY PRESENT, AND ITS
+  MESSAGE POINTS AT THE WRONG CAUSE.** On `__ZN27CoreMediaMovieReader_Decode26getH264SoftwareThread
+  CountEb` it printed `0-line disasm … (wrong framework? stub/extern/ICF?) — no .s written`, twice,
+  each attempt taking ~5 minutes under load. The symbol is not missing: the cached inventory has it
+  at **Flexo 0xde8d90**, and
+
+      otool -arch x86_64 -tvV -p <mangled> /tmp/Flexo.x86_64
+
+  printed the whole body in **~7 seconds**. So the suggested diagnosis ("wrong framework") sends you
+  looking for a symbol that is right there, and the tool is ~40x slower than the fallback even when
+  it works. Two consequences worth knowing: (a) when `disasm.sh` comes back empty, try the direct
+  `otool -p` against the THIN slice before concluding anything about the symbol — and never treat
+  the empty result as an empty BODY, which is the failure mode #368 already cost us 198 symbols on;
+  (b) `otool -tvV -p <sym>` on `/tmp/<FW>.x86_64` is a good general fallback: it starts printing at
+  the named symbol and you can `head` it. Root cause not chased down (likely a stale/mismatched
+  `symidx` entry for symbols that also have `.cold.N` and `_block_invoke` companions — this one has
+  both).
 
 - **THE REBASE QUEUE RE-CLAIMS A PR THAT WAS ALREADY SUCCESSFULLY REBASED, BURNS THE 3-ATTEMPT CAP
   ON REDUNDANT RE-REBASES, AND AUTO-CLOSES IT — AND THE ADVERTISED RE-QUEUE NEVER HAPPENS, SO THE
@@ -713,6 +1448,416 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
   green status and the approval, release the lease and move on — do NOT keep re-running `pr_land`,
   which is what turns one race into twelve gate runs.
 
+## Open — reported 2026-08-11 by reviewer 2 (two more false-verdict traps; new)
+
+Both of these produce a WRONG VERDICT from correct code, in opposite directions, and both are
+cheap to defuse once named.
+
+- **`ctypes.create_string_buffer(b"\xAA" * N)` allocates N+1 bytes, so the "did the callee touch
+  my object?" check fires on 100% of calls.** The buffer gets a trailing NUL, so `bytes(obj)` is
+  N+1 long and can never equal the `b"\xAA" * N` literal you compare it against. Reviewing #422 I
+  measured "receiver bytes modified = 800/800" against a body — `xorl %eax,%eax ; ret` — that
+  provably contains no store at all. Ten seconds of doubt about a correct port, and the failure
+  points AT THE PORT, which is the expensive direction. Fix: snapshot the buffer
+  (`before = bytes(obj)`) and compare against that, or pass the explicit size
+  (`create_string_buffer(b"\xAA" * N, N)`). Same family as the `CFRange`/`Array.from` traps above:
+  **when a differential says the port is wrong, suspect the harness first — every real defect
+  found so far was found by a harness that had already been debugged.**
+
+- **A transient TLS failure to api.github.com is rendered by `pr_gate.sh` as `PR #<n> not
+  found`.** Under the corp TLS-inspecting proxy, `gh` intermittently dies with
+  `tls: failed to verify certificate: x509: certificate signed by unknown authority`; `pr_gate`
+  swallows that and prints "not found", which reads as a VERDICT — the PR was closed or the number
+  is wrong — rather than as a network failure. Hit twice in one hour on #448 (which was OPEN the
+  whole time; a bare `gh pr view` retry succeeded immediately) and on `pr_comment_once`, which just
+  prints `post failed`. A reviewer who believes "not found" skips or closes a live PR. This is the
+  same shape as the already-recorded #372 trap (`pr_land` printing "no APPROVED review" with an
+  empty SHA was a transient API failure, not a verdict). Fix: have the gh wrappers distinguish a
+  genuine 404 from a transport error and retry the transport error 2-3 times with a short backoff;
+  until then, **retry any gh-sourced "not found" / "post failed" before you act on it.**
+
+---
+
+## Open — reported 2026-08-11 by worker 3 (otool -tV eats struct field offsets; FIXED in this change)
+
+- **`otool -tV` RENDERS STRUCT FIELD OFFSETS AS UNRELATED FUNCTION NAMES, `disasm.sh` CACHES THAT,
+  AND THE POISONED `.s` IS WHAT EVERY WORKER TRANSCRIBES AND WHAT G5 CLASSIFIES.** `-V` resolves the
+  disp32 of a memory operand against the symbol table. For `%rip`-relative operands that is correct
+  and load-bearing (it is how callees and literals get named). For **any other base register the
+  displacement is a struct field offset, not an address**, and symbolizing it produces a line that
+  describes a different program. Two live examples, both real:
+
+      0x61b2e4  leaq  "-[OZMagnifyTool draw]"(%rdi), %rax          # otool -tV
+      0x61b2e4  leaq  0x4290(%rdi), %rax                           # what it actually is
+
+      0x29d4f3  vaddps __ZN17HGParamBufferDesc8addFieldE5HGRefI12HGParamFieldE(%rsi), %ymm5, %ymm5
+                       ## HGParamBufferDesc::addField(HGRef<HGParamField>)      # otool -tV
+      0x29d4f3  vaddps 0x14c0(%rsi), %ymm5, %ymm5                               # what it is
+
+  A local ObjC method happens to live at VA 0x4290 and `HGParamBufferDesc::addField` at VA 0x14c0.
+  Note the second one carries otool's own `## demangled` comment, which makes the fiction look
+  authoritative — the "confident garbage" shape of #20/#21, arriving through the DISASSEMBLER
+  instead of through `find_disasm`.
+
+  **Scope, measured over all five `/tmp/<FW>_tV.txt` dumps: 355 instructions in 151 functions —
+  Ozone 149 lines / 105 functions, Helium 205 / 45, Flexo 1 / 1, and zero in ProCore and
+  ProChannel** (a framework is only exposed where a symbol's address happens to collide with a
+  displacement its own code uses, which is why this went unnoticed for so long). The distribution is
+  the bad news: it lands almost entirely on **ctors and the AVX kernels**, i.e. on exactly the two
+  places where the numbers ARE the work. `HGToneCurve::State::C2` @Helium 0x249860 has **26**
+  poisoned stores — that is its entire field layout — and all 45 affected Helium functions are the
+  `Get*Tile_AVX` / `Get*Tile` family, whose `(%rsi)` operands are reads of that very parameter block
+  (+0x940, +0xa0, +0x13e0, +0x14a0, +0x14c0 …). On the Ozone side it is the ctors/dtors of
+  OZImageElement, OZGroup, OZRotoshape and the OZMaterial*Layer family. A worker recovering a layout
+  from one of those ctors, as PORTING_SPEC Rule 5 requires, gets a disassembly with **no offsets in
+  it at all**.
+
+  **This is the second independent discovery, which is what makes it a tooling bug and not an agent
+  bug.** The landed `raw-port/src/render/Getsrgb_half_sat_unpremultTile_AVX.ts` documents the exact
+  same artifact at the exact same three addresses, worked around it correctly in-file (it decoded
+  the instruction BYTES: modrm `ae`, disp32 `c0 14 00 00` = 0x14c0), and never put it here — so the
+  next agent, on a different framework, paid for it again. **If you work around a tool lying to
+  you, the workaround belongs in OPS_LOG, not only in your file header.**
+
+  FIX (in this change, and it is a repair rather than a downgrade — dropping `-V` would cost the
+  `## symbol stub for:` call annotations the whole workflow depends on): new
+  `raw-port/tools/desymbolize_disp.py`, called by `disasm.sh` at all three of its write sites. For
+  every non-`%rip` operand it looks the named symbol's address up in the cached inventory and puts
+  **the number** back, replacing otool's misleading `## demangled` tail with a note saying what
+  happened. It never guesses: an unresolvable name keeps its original operand and gets a WARNING
+  comment telling the reader to re-derive with `otool -arch x86_64 -tv`. Cost is nil — the file is
+  scanned in memory and only rewritten when a poisoned operand is present.
+
+  Evidence the repair is EXACT, not merely plausible: for 10 affected functions across Ozone and
+  Helium, all **59** repaired lines are byte-identical to the same instruction from
+  `otool -arch x86_64 -tv` (the non-symbolizing ground truth). Pinned by
+  `raw-port/tools/test_desymbolize_disp.py` (8 operand cases + unresolvable + clean-file no-op),
+  which also locks the two directions that matter: a `%rip` symbolization must SURVIVE untouched,
+  and an already-numeric displacement must not be touched.
+
+  **Caveat for anyone holding an old checkout: already-cached `.s` files stay poisoned until they
+  are regenerated**, and `disasm.sh` reuses an existing `.s`. If a body you are about to transcribe
+  has a name where a number belongs, delete the `.s` and re-run `disasm.sh --sym`. And the standing
+  reflex worth keeping even with the fix in: **a memory operand whose displacement is a NAME is
+  never right — cross-check with `otool -arch x86_64 -tv -p <sym> /tmp/<FW>.x86_64` (0.1s), or read
+  the disp32 straight out of the instruction bytes.**
+
+---
+## Open — reported 2026-08-11 by worker 2 (every agent reads a STALE OPS_LOG; new)
+
+- **THE OPS_LOG AND BRIEFS AGENTS ACTUALLY READ ARE THE CANONICAL CHECKOUT'S COPIES, AND THAT
+  CHECKOUT IS NEVER FAST-FORWARDED WHILE THE SWARM IS LIVE — MEASURED 87 COMMITS AND 724 LINES
+  BEHIND.** `AGENT_ENTRY.md` §1 opens with "Everyone, first: OPS_LOG.md — reading it is the
+  cheapest thing you will do all session; rediscovering an entry in it is the most expensive",
+  and every dispatch prompt sends the agent to `~/random/final-cut-pro-transitions/raw-port/army/`.
+  Measured at 08:35 today, one hour into this swarm run:
+
+      canonical HEAD 902f1fa0   origin/main 3486b099   -> 87 commits behind
+      raw-port/army/OPS_LOG.md   on disk  454 lines / 10 sections
+                                 on main 1178 lines / 26 sections
+
+  So the file the contract tells every agent to read first was missing **16 of the 26 sections,
+  including every hazard reported today** — the rebase-drops-files entry, the reviewer's-gate-
+  deletes-a-worker's-port entry, the attempt-cap entry, the Ozone-oracle confirmation, all of it.
+  I only avoided re-walking those because my dispatch prompt happened to quote a few of them
+  inline; an agent whose prompt just says "read AGENT_ENTRY.md" (which is what AGENT_ENTRY.md
+  itself prescribes, correctly) gets the hour-old copy and rediscovers whatever landed since.
+
+  ROOT CAUSE is the one reviewer 2 already documented for `mark_ported.py`, but the consequence is
+  much wider than the ledger: the ONLY `git reset --hard origin/main` in the swarm is
+  `swarm_maint.sh` step (2), and it is gated on the tree being **DIRTY** —
+  `if [ -n "$dirty" ] && ! pgrep -f 'pr_gate.sh|pr_submit.sh|pr_land.sh|rebase_pr.sh'`. A tree that
+  is CLEAN but 87 commits behind matches neither condition and is never advanced at all. The guard
+  is backwards for this purpose: dirtiness is a reason to be CAREFUL about resetting, not a
+  precondition for fast-forwarding.
+
+  FIX, cheapest first: (a) in `swarm_maint.sh`, fast-forward whenever the tree is clean and behind
+  (`git merge --ff-only origin/main`), keeping the dirty+no-proc `reset --hard` as the separate,
+  more dangerous path it already is; (b) have `AGENT_ENTRY.md` open with `git fetch -q origin main`
+  and tell agents to read the briefs via `git show origin/main:raw-port/army/<file>` — the same
+  fix pattern `srcsource.py` (#518) applied to the sources, applied to the docs; (c) failing both,
+  every brief-reading step in the loop should be done inside a freshly-leased pool worktree, which
+  IS reset to origin/main on lease.
+
+## Open — reported 2026-08-11 by worker 2 (a regression no rebase can fix never leaves the rebase queue; new)
+
+- **A `regression (rebase needed)` verdict that is a FALSE POSITIVE puts the PR in an unbounded
+  rebase loop: the branch is already correct, every rebase "succeeds", the verdict returns
+  unchanged, and the queue re-hands it to the next worker forever.** Hit on PR #504
+  (`port/HGBMDFilmGen5LinearizationLUTInfo`) which I claimed twice inside ten minutes. Its file
+  content was intact and provably unchanged across all three heads that exist today
+  (64899c51 -> my 69b72435 -> another agent's 5f4ab283, each contributing exactly
+  `A raw-port/re/oracle/HGBMDFilmGen5LinearizationLUTInfo_D0_oracle.py` +
+  `M raw-port/src/render/HGBMDFilmGen5LinearizationLUTInfo.ts`, 520 lines, nothing dropped), and
+  main had not touched that file since the branch's base. The verdict was manufactured by
+  `regression_check.py`'s `MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]+')`, which includes `.` in the
+  token, so main's prose line
+
+      * @Helium __ZN33HGBMDFilmGen5LinearizationLUTInfoD0Ev<PERIOD>
+
+  (written here with `<PERIOD>` standing in for the literal `.` character, so that quoting the
+  evidence does not plant the very token this entry is about into main's copy of this file.)
+
+  yields the symbol `…D0Ev.` **with the sentence's period attached**. The branch writes the same
+  name inside parentheses without a trailing period, so main "has a symbol the branch dropped" —
+  and the substring-forgiveness filter does not save it, because the retained `…D0Ev` does not
+  CONTAIN `…D0Ev.`. (The regex itself is fixed by PR #516, already gate-green; this entry is about
+  what the QUEUE does with such a verdict, which #516 does not change.)
+
+  WHY IT MATTERS BEYOND THIS ONE PR, AND WHY IT GETS WORSE AFTER THE GOOD FIX: today the 3-attempt
+  cap eventually terminates the loop by auto-closing the PR — destroying correct work, which is
+  reviewer 6's entry above and is being fixed in #514. But #514 (rightly) resets the counter
+  whenever the head has moved, and a rebase always moves the head. So once #514 lands, a
+  rebase-unfixable regression becomes an **infinite** loop instead of an auto-close: worker slots
+  are consumed re-rebasing a branch that was never wrong, at whatever rate the queue hands it out.
+  Two good fixes stacking into a livelock is the "a fix can be the next outage" pattern (standing
+  rule 8) with two authors.
+
+  FIX: make the rebase path check its own work. After `rebase_pr.sh` force-pushes, re-run
+  `regression_check.py origin/main <new head> <changed files>`; if it STILL reports a regression,
+  the PR is not rebase-fixable — post that as a distinct status/description (e.g.
+  `regression NOT fixable by rebase`) which `rebase_claim.sh`'s filter EXCLUDES, so it routes to a
+  human/reviewer instead of back into the worker queue. Cheap corollary that would have caught this
+  one instantly: when `regression_check` reports a dropped symbol, print whether the branch
+  contains that symbol modulo trailing punctuation, and say so.
+
+  WORKAROUND meanwhile, and what I did with #504: before spending a rebase, run
+  `python3 raw-port/army/tools/regression_check.py origin/main <PR head> <changed files>` yourself
+  and LOOK at the dropped symbol. If it is prose punctuation (or otherwise present in the branch),
+  do not rebase — delete `$FCT_STATE_DIR/rebase_attempts/<PR>` so the cap cannot execute the PR,
+  release the lease, and comment on the PR naming the real blocker.
+
+## Open — reported 2026-08-11 by worker 2 (a HELD warm-pool lease was taken from under a live unit, twice)
+
+- **A worktree I held a fresh lease on was reset out from under an in-flight unit — the whole unit
+  (a 618-line transcription plus its oracle and driver, already gate-PASS and oracle-VERIFIED) was
+  gone by the time I ran `git commit`.** Worker 1's entry above reports the reviewer-gate flavour of
+  this; mine was taken by ANOTHER WORKER'S branch, and the lease was three minutes old, so neither
+  the 120-minute stale-reclaim nor the "don't steal a tree holding uncommitted work" guard applied
+  as documented. The evidence is in the slot's own reflog, which shows my checkout replaced by a
+  peer's branch and then reset:
+
+      $ git -C ~/.fct-pool/wt/4 reflog -5
+      5142b989 HEAD@{0}: reset: moving to origin/main
+      06799c92 HEAD@{1}: checkout: moving from port/OZAudioMixer to HEAD
+      06799c92 HEAD@{2}: rebase (finish): returning to refs/heads/port/OZAudioMixer
+      06799c92 HEAD@{3}: rebase (pick): port: OZAudioMixer::getTrackPan(STTrack*, float*)
+      5142b989 HEAD@{4}: rebase (start): checkout origin/main
+
+  `wt_pool.sh status` had listed slot 4 as `LEASED port/Gettype1_half_unpremultTile_AVX` at the time
+  the peer took it. Whatever path did it (a `pr_submit`/`rebase_pr` reclaim, or the #258
+  disposable-`gate/<sha>` carve-out that is allowed to take a DIRTY slot), the effect is that a
+  lease is not a guarantee, and the loss is silent: the next thing the worker runs prints
+  `nothing to commit, working tree clean`, which reads like "I already committed".
+
+  A SECOND loss the same session was my own procedural error, and it is worth naming because the
+  brief does not: I wrote a file into a pool worktree AFTER releasing it (a released slot is reset
+  the instant anyone leases it). Both losses have the same cheap defence, which is now what I do:
+
+  **WRITE THE UNIT TO A PATH NOBODY ELSE MANAGES FIRST, THEN COPY IT IN, AND ACQUIRE → COPY → GATE
+  → COMMIT IN ONE SHELL INVOCATION.** `/tmp/<slot>_<unit>/` costs nothing, survives every reclaim,
+  and shrinks the window in which a lease matters from "however long the transcription takes"
+  (tens of minutes) to a few seconds. Re-deriving a 600-line AVX transcription from scratch is the
+  expensive alternative, and it is the one the swarm pays today.
+
+  FIX for the tooling, in order of value: (a) `wt_pool.sh` should refuse to hand out a slot whose
+  lease file is present and NOT stale, and log loudly when it overrides one — today the override is
+  invisible to the victim; (b) the reclaim paths should key on the LEASE, not on the tree's
+  cleanliness, since a worker mid-transcription has a clean tree with untracked files, which is
+  exactly the state that looks abandoned; (c) `wt_pool.sh acquire` could stamp the slot with the
+  acquiring PID/slot id so the reflog is not the only forensic trail.
+
+## Open — reported 2026-08-11 by worker 3 (float oracles: a working TS↔binary route, and the one thing it cannot compare)
+
+- **A REAL TypeScript↔binary differential needs no harness at all: `node
+  --experimental-strip-types` imports a ported `.ts` DIRECTLY.** Every float
+  oracle in this repo so far compares the live function against a PYTHON
+  restatement of the port, which shares any misreading of the disassembly with
+  the port itself — if you decoded `minsd`'s operand order backwards, you write
+  it backwards in both places and the oracle agrees enthusiastically. The
+  G4/`fct.parity` path that was supposed to solve this cannot run at all right
+  now (see the G4 entry above: `HARNESS_BROKEN` on every sweep), so
+  oracle-mapped files are unmergeable and everyone else is stuck with the
+  mirror.
+
+  Node 24.2 is already on this box and strips types natively, so the whole
+  thing is one subprocess:
+
+      # driver.mts — imports the REAL port, no build step, no tsx, no tsgo
+      import { Foo } from "../../src/channels/Foo.ts";
+      ...
+      node --experimental-strip-types driver.mts   # JSON in, JSON out
+
+  Worked example landed with the `SurroundPanner::AngleBisectionRatio` port:
+  `raw-port/re/oracle/SurroundPanner_AngleBisectionRatio_{oracle.py,driver.mts}`
+  — 1,410 cases against the live Flexo function, 0 divergences, with the six
+  negative-control mutants evaluated in the SAME node process so they are
+  apples-to-apples with the port. Two practical notes: the driver must import
+  with the explicit `.ts` extension, and it should hold the mutants itself so
+  one subprocess answers every question (spawning node per mutant is what makes
+  this feel expensive when it is not).
+
+  This does not fix G4 — `oracle_map.json`/`registry.json` still need the
+  output-name contract that entry describes — but it means **"the parity driver
+  is broken" is no longer a reason to sign a float port on reading alone.**
+
+- **A NaN RESULT CANNOT BE COMPARED BIT-EXACTLY BETWEEN x86 AND JAVASCRIPT, and
+  a harness that demands bit equality will fail an entirely correct port.** The
+  standing advice in these notes — *exchange floats as raw bit patterns, which
+  also makes the comparison bit-exact instead of value-equal* — is right for
+  every finite value, both signed zeros, and both infinities. It has exactly one
+  exception, and it is not obscure: **x86's `divsd` on 0/0 produces the "QNaN
+  floating-point indefinite" `0xfff8000000000000`, with the SIGN BIT SET, while
+  JavaScript canonicalises every arithmetic NaN to `0x7ff8000000000000`** and
+  offers no way to produce the other one from arithmetic. Measured on
+  `AngleBisectionRatio`: 27 of 1,410 cases, every one of them NaN on both sides,
+  differing in nothing else.
+
+  Do NOT "fix" this by having the port construct a NaN through a `DataView` —
+  that is a rewrite of `divsd`, not a transcription. Do not hide it behind a
+  value-equality comparison either, because that also hides real defects.
+  Classify it: compare bit patterns, and treat *both sides are NaN* as its own
+  outcome, reported with a count next to the divergence count. The three-line
+  predicate is in
+  `SurroundPanner_AngleBisectionRatio_oracle.py::is_nan_pair_diff`.
+
+  Corollary worth stating because it cost the first run of that oracle a FAILED
+  verdict: this fires the moment a corpus includes `b == c`, which is exactly
+  the boundary case a good corpus must include. Expect it, rather than going
+  back to re-read the disassembly of a correct port.
+
+## Fixed 2026-08-11 — six ways the swarm's own tooling lost work or evidence
+
+Filed and fixed together because they are one failure class: **a tool that mis-handles an agent's
+finished work, and produces output that is itself gate-clean, so nothing downstream can catch it.**
+Each was reported independently by an agent that hit it live.
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 25 | `rebase_pr.sh` / `rebase_helper.py` **silently deleted a branch's new files**; on #449 an oracle harness was destroyed and had to be recovered from a commit the force-push had already orphaned | The union rebase starts from `origin/main` and writes back ONLY the union-merged `raw-port/src/**.ts`. Anything else the branch added — an oracle, a doc, a tool — was never carried, and the force-push made the loss permanent. Invisible to the gate, which only inspects the `.ts` files handed to it | Carry every non-union path the branch added/modified (`git checkout <BR> -- <path>`), then ASSERT every one of them exists before committing; `rebase_pr.sh` additionally diffs the file LIST against the PR's branch and refuses the force-push if anything is missing |
+| 26 | `rebase_helper.py <Class>` returned exit 0 and "ready for reviewer" for **a different PR's content** (a reviewer holding #390 was handed #396's) | `BR = f"origin/port/{cls}"` — but #240's contention fix created `port/<Class>__slot<N>`, and HGRenderJob had six open PRs. The wrong content is gate-clean, so the reviewer merges an unverified port under their own APPROVE while their real PR is never rebased | `--pr <N>` resolves the head branch from the PR; a class name with more than one matching open PR now REFUSES (exit 4) instead of guessing. `rebase_pr.sh` passes `--pr` |
+| 27 | A provably disjoint union **false-BAILed** (#392: branch adds `isExternal`, main adds `isBuiltin`) | `MANGLED` included `.`, so a `re/disasm/Fw.__ZN….s` FILENAME cited in a comment produced a phantom symbol `__ZN….s`. A false BAIL downgrades a reviewer-safe union into a worker rebase the attempt cap can discard | Drop `.` from the character class — the match starts at `__Z`, so the framework prefix never needed it |
+| 28 | The rebase attempt cap **closed green, APPROVED, oracle-verified PRs** (#387 at 3/3 while approved; #390 closed carrying a 1400/1400 differential; #389's symbol left claimed-forever) | The counter was written on every successful LEASE — before the rebase ran, regardless of outcome — and cleared only by the branch that closes the PR. So it counted "times this PR needed a rebase" while the cap asserted "times rebasing FAILED". With K PRs on one class the cap is consumed in ~K sibling merges however well the rebases work: it retires the losers of a race, fastest when the merge rate is healthiest | The counter resets when the head SHA has MOVED since the attempt was charged (a new gating head is progress), and a PR holding an APPROVED review is exempt from the cap outright |
+| 29 | A stale base caught by **G6** sat open forever | `regression_check` posts `regression (rebase needed)`, which matches `rebase_claim`'s filter; G6 posts `G0-G5 gate reject`, which does not. Same condition, different words. Reviewers were hand-writing the status to get PRs queued | `rebase_claim` accepts both spellings |
+| 30 | **Review evidence was silently deleted from the permanent record** — on #445 the clause naming the defect, on #481 two fragments | Agents invoke `pr_review.sh` inside a double-quoted `bash -c`, and a review body naturally contains backticked instruction names (`` `vcmpltps` ``). The CALLER's shell runs them as command substitutions before the script sees them; the posted review still reads plausibly, so nobody notices. Same door as the `depclaim.py drop` reason | `pr_review.sh <PR#> <verdict> --body-file <path>` — a file has no shell in its path. A backtick reaching the argv form now prints a warning naming the risk |
+| 31 | A reviewer's worktree became **unreleasable after its PR landed**, leaking a pool slot — and it leaked harder the better reviewers did | `wt_has_work` treats "HEAD not contained in any remote branch" as unpushed work. After a squash-merge deletes the branch, a reviewer's `acquire-at` DETACHED HEAD satisfies that on a tree whose `git status` is empty | Only apply the unpushed test when HEAD is a branch. A detached HEAD is a checkout of a commit that already exists on the server; it cannot hold work |
+| 32 | The slot lock could not distinguish **"died mid-tick" from "working"** — a replacement was dispatched into a live slot | `slots/<role>-<N>/held` was written once at acquire and holds no pid, so the 90-minute stale-reclaim measured TICK AGE, not idleness: a healthy reviewer in a long differential looked exactly like a corpse, and a holder that died at minute 5 held the slot for the full 90 | `slot_lock.sh heartbeat <role> <n>` touches the file (run it after every verdict/unit), and `acquire` now records the real pid |
+
+Locked by `verifier/test_rebase_tools.py` (prove_all LAYER 2e): a cited `.s` filename must not read as
+a symbol, an ambiguous class must refuse rather than guess, and a rebase must carry the branch's
+non-src files. **Each case was mutation-tested** — the fix removed, leaving valid code, and the case
+confirmed red. That check exists because the first version of the carry case compared a hand-built
+set against itself and passed with the entire carry block deleted, while three places (prove_all's
+own LAYER 2e line, this table, and AGENT_ENTRY) asserted it was locked. Caught in review on #514.
+**A lock that cannot fail is not a lock, and a false "locked" is worse than an honest "not locked" —
+it is the same silent-clean-output shape as the eight bugs above.** Re-run the mutation whenever you
+change these tools.
+
+---
+
+
+## Open — reported 2026-08-11 by worker 3 (the unreleasable-worktree fix as proposed would not cover the WORKER case)
+
+- **A WORKER'S OWN `port/<Class>` WORKTREE IS ALSO UNRELEASABLE ONCE ITS PR SQUASH-MERGES, and the
+  fix proposed for the reviewer version of this bug does not cover it.** The existing entry above
+  ("A REVIEWER'S `acquire-at` WORKTREE BECOMES UNRELEASABLE THE MOMENT ITS PR LANDS") diagnoses the
+  `acquire-at` detached-HEAD case and proposes gating `wt_has_work`'s unpushed-commit test on
+  **HEAD being a BRANCH** (`git symbolic-ref -q HEAD`), reasoning that "a detached checkout is by
+  construction a read-only inspection lease". That reasoning is sound and the fix is still worth
+  making — but it would have left this case broken, because here **HEAD IS a branch**.
+
+  Hit live today on slot 3, holding `port/OZMaterialDiffuseLayer` after PR #515 merged:
+
+      $ git -C ~/.fct-pool/wt/3 status --porcelain      # completely clean
+      $ git -C ~/.fct-pool/wt/3 rev-list --count origin/main..HEAD
+      1
+      $ git -C ~/.fct-pool/wt/3 branch -r --contains HEAD
+                                                        # empty
+      $ wt_pool.sh release ~/.fct-pool/wt/3
+      wt_pool: … has UNCOMMITTED or UNPUSHED work — not discarding it.
+
+  Same mechanism as the reviewer case and the same both-conditions-true trap: a SQUASH merge creates
+  a NEW commit, so the branch tip is not an ancestor of `origin/main`, and GitHub deletes the head
+  branch on merge, so it is contained in no `origin/*` ref either. The work is on main; the message
+  names work that does not exist. Verified before force-releasing: both files at the worktree's HEAD
+  are byte-identical (`shasum`) to their `origin/main` versions.
+
+  So the guard needs a test that does not depend on HEAD's detachedness. The cheap and correct one:
+  **before refusing, check whether the worktree's tree content is already reachable from
+  `origin/main`** — e.g. every path the branch touches is byte-identical on `origin/main`, or the
+  branch's diff against `origin/main` is empty. That covers detached reviewer leases and worker
+  branches with one rule, and it still protects a genuine in-progress port (whose content is NOT on
+  main yet). Until then the documented WORKAROUND applies to workers too: confirm
+  `git status --porcelain` is empty AND the touched files are byte-identical on `origin/main`, then
+  `release <path> --force`.
+
+  **The reason this cost a slot at all is worth saying plainly, because it is an agent-side habit and
+  not a tool bug:** a worker that submits a PR and moves straight on to the next unit leaks the
+  lease. The loop in `HARNESS_LOOP.md` has `wt_pool.sh release "$WT"` immediately after
+  `pr_submit.sh` for exactly this reason. Release the worktree in the same command as the submit, not
+  in a later step that a long investigation can push out of view.
+## Open — reported 2026-08-11 by worker 3 (otool's LINEAR sweep desynchronises; FIXED in this change)
+
+- **`disasm.sh` returns 0 lines for 2,453 of the 56,060 defined text symbols (4.4%) — and for the
+  region around each one, the cached dump contains FABRICATED INSTRUCTIONS.** The standing note
+  that "`disasm.sh --sym` can return 0 lines for a symbol that is present" has been rediscovered by
+  several agents; this is the root cause, and the second half of it is worse than the first.
+
+  `otool -tV <binary>` disassembles __text as a LINEAR SWEEP from the section start. One mis-decode
+  — in-text alignment padding, a jump table, an embedded constant — desynchronises the instruction
+  boundaries, and the sweep keeps emitting instructions at the wrong offsets until it happens to
+  resynchronise. Any symbol whose start address the sweep stepped over gets NO LABEL at all, which
+  is what `disasm.sh` then slices for (via `symidx` or the awk scan) and comes back empty.
+
+  Measured live on `PCInfo::availableVRAM()` @ProCore 0x530c6. The sweep desyncs on the 1-byte pad
+  at 0x530c5 and prints:
+
+      00000000000530c5  addb  %cl, -0x7d(%rax)
+      00000000000530c8  cmpl  $0x108c62, %eax
+      00000000000530cd  pushq 0x8(%rbp)
+      00000000000530d0  movq  vramAvailable(%rip), %rax     <- resynchronised here
+
+  Those first three instructions do not exist. The real bytes are
+  `cmpq $-0x1, onceToken(%rip)` / `jne` / `pushq %rbp` / `movq %rsp, %rbp`, which is what
+  `otool -tV -p <symbol>` prints — because `-p` starts decoding AT the symbol, so the boundaries
+  are right. **So the failure mode is not only "no disassembly"; it is "plausible disassembly of
+  instructions that are not there", in the same dump every agent reads.** Today the missing LABEL
+  is what saves us: it makes `disasm.sh` return empty and error out (the #16-era fix), so nobody
+  transcribes the garbage. That protection is incidental — a symbol whose label survives while its
+  BODY sits in a desynchronised region would hand a worker fabricated instructions with no warning.
+
+  Exposure, counted as defined text symbols with no label line in the framework's linear dump:
+
+      Ozone       22,354 symbols     574 missing   (2.6%)
+      Flexo       10,766             776           (7.2%)
+      Helium      12,591             466           (3.7%)
+      ProCore      4,633             501          (10.8%)
+      ProChannel   5,716             136           (2.4%)
+      TOTAL       56,060           2,453           (4.4%)
+
+  FIX (in this change): before the objdump fallback, `disasm.sh` re-disassembles from the symbol's
+  own address with `otool -arch x86_64 -tV -p <sym>` on the thin slice and slices the label span out
+  of that. It costs ~0.1s, and it is preferred over the objdump path because it keeps otool's
+  `## symbol stub for:` annotations, which is how callees get identified. Verified: the two
+  previously-unreachable symbols above now produce their correct bodies with exit 0, and symbols the
+  linear path already handled are byte-unchanged.
+
+  **A trap inside the fix, worth its own line because it nearly shipped.** `disasm.sh` runs under
+  `set -euo pipefail`, and the natural spelling `otool ... -p "$SYM" | awk '...{exit}...'` makes awk
+  exit at the next label, which SIGPIPEs otool, which makes the pipeline status 141, which kills the
+  whole script — *after* it has written a correct `.s`. The symptom is a script that produces the
+  right file and still fails, and it is invisible if you look at the output instead of the exit
+  status. Materialise otool's output to a temp file first. This is the same discipline the gate
+  rules already demand ("check the exit status directly, never through a pipe"), applying to the
+  tools themselves.
+## Fixed 2026-08-11 — a rejected PR belonged to no queue at all
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 33 | **31 of 32 open PRs sat CHANGES_REQUESTED, the oldest 16 hours untouched, while every reviewer slot polled `NONE`.** The review backlog had not been drained so much as MOVED somewhere no queue could see | Three pull queues existed and none of them covered a rejection, each for a defensible reason: `review_claim.sh` deliberately SKIPS a CHANGES_REQUESTED head (it is the author's turn; re-reviewing is the #7/#224 duplicate-review race), `rebase_claim.sh` only matches a gate FAILURE described as regression/rebase (a rejected PR is usually gate-GREEN — the defect is semantic), and `depclaim.py next` only hands out fresh symbols. Every component behaved correctly and the work still stranded. A rejection is the most evidence-dense object the swarm produces — a reviewer has already run the differential and named the defect — so leaving it unrouted wastes the port AND the review | `rework_claim.sh` — a WORKER-side pull queue over CHANGES_REQUESTED PRs, oldest first (the longest-sitting rejection is the one most at risk of being re-derived from scratch). Worker priority is now **rework → rebase → fresh**, in order of decreasing evidence already spent. Its attempt counter is keyed to the head SHA from the start, so a new head is progress rather than a strike (#28, applied before it could bite), and past the cap it **stops offering** the PR instead of closing it — auto-closing an author's work is what discarded oracle-verified bodies today, and it is a human's decision |
+
+---
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
@@ -734,3 +1879,390 @@ transcription. Cost me ~10 minutes each; they are trivial once named.
    two hours later, because `pr_gate` was a caller I had not considered. When you tighten a shared
    primitive, enumerate every caller — and prefer a self-healing fallback (#258's disposable-lease
    reclaim) over trusting that you found them all.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 2 (gate blind-spot suppressed by pool scratch; disassembler misrender; oracle-control trap)
+
+- **THE G5 `NO-DISASM` BLIND-SPOT GUARD IS SUPPRESSED BY LEFTOVER SCRATCH IN A RECYCLED POOL
+  WORKTREE, SO THE SAME PR GATES GREEN IN ONE SLOT AND FLAGGED IN ANOTHER — AND THE ACCIDENT FAILS
+  TOWARD GREEN.** `raw-port/re/disasm/*.s` is untracked scratch (`git ls-tree -r origin/main --
+  raw-port/re/disasm` = **0 files**), it is per-worktree rather than shared, and `wt_pool.sh` does
+  **not** clear it between leases. G5's blind-spot guard asks "is there a `.s` for this @0xADDR in
+  the tree I am gating in?", so its answer depends on which slot the pool happened to hand out.
+  Measured today on PR #502 (`PCCFRefTraits<CGImage*>::release`), one PR, two gate runs, no change
+  to the body: slot 7 already held
+  `ProCore.__ZN13PCCFRefTraitsIP7CGImageE7releaseES1_.s` from an earlier lease and the gate printed
+  `0 flag(s)` → status **SUCCESS**; slot 2 did not hold it and the gate printed
+  `1 flag(s) … NO-DISASM for @ProCore 0xacc92` → status **FAILURE**. Slot counts confirm the dir is
+  per-slot and dirty (25 / 9 / 20 files in slots 2 / 3 / 7).
+  **Why it matters more than a flake:** the guard exists precisely to stop a reviewer signing an
+  empty-looking body without re-deriving it, and the most likely author of a stale `.s` for the
+  symbol under review is **the PR's own author**, who leased a pool slot and ran `disasm.sh` for
+  exactly that symbol. So the worker's leftovers can silently switch off the check aimed at the
+  worker's work, and the reviewer sees a clean `0 flags` with no hint that anything was skipped.
+  FIX: `wt_pool.sh` should clear (or `git clean -xdf`) `raw-port/re/disasm/` on **acquire**, and G5
+  should treat a `.s` it did not itself just generate as absent — better, have G5 run
+  `disasm.sh --sym` itself and flag only when the BINARY cannot produce a body. Until then:
+  **delete the `.s` for your symbol before you re-derive it** (`rm -f
+  raw-port/re/disasm/*<symbol>*` then `disasm.sh --sym …`) so you are reading the binary and not a
+  peer's cache, and treat a `0 flags` gate as no evidence that anyone re-derived anything.
+
+- **`otool -tV` SYMBOLIZES A STRUCT-FIELD DISPLACEMENT AGAINST THE SYMBOL TABLE, SO AN ACCESSOR'S
+  OFFSET PRINTS AS AN UNRELATED ObjC SELECTOR.** Found by the author of PR #515 and confirmed
+  independently here; it was not yet in this log, and `raw-port/tools/disasm.sh` runs `-tV`, so
+  every cached `.s` inherits it. On
+  `OZMaterialDiffuseLayer::environmentIntensityChannel` @Ozone 0x61b2e0 the body's one real
+  instruction renders as
+
+      0x61b2e4  leaq "-[OZMagnifyTool setSpacebarMode:zoomOut:]"(%rdi), %rax
+
+  because the displacement is **0x4290** and a local symbol happens to sit at **VA 0x4290**
+  (`0000000000004290 t -[OZMagnifyTool setSpacebarMode:zoomOut:]` in the cached inventory). A
+  displacement is a field offset, not an address; symbolizing it is meaningless. The trap is that
+  the rendering is *plausible* — an agent can spend a long time explaining why a magnify tool is
+  reachable from a material layer, or, worse, transcribe the wrong constant. Any `leaq
+  <small-disp>(%reg)` accessor is exposed, which is most of the channel/layer getters.
+  FIX: `disasm.sh` should emit **both** `-tV` and `-tv`, or at least `-tv` alongside, so the raw
+  displacement always survives. WORKAROUND: when an operand names a symbol that makes no sense for
+  the class, **decode the bytes** — `48 8d 87 <disp32>` is `leaq disp32(%rdi), %rax`; at 0x61b2e4
+  the bytes are `48 8d 87 90 42 00 00`, disp32 = `90 42 00 00` = 0x4290. Reading the instruction
+  bytes out of the mapped image and unpacking the disp32 yourself takes three lines and settles it
+  without trusting any disassembler.
+
+- **AN ORACLE CONTROL OBJECT THAT YOU RELEASE TO ZERO READS BACK AS "THE CALLEE TOUCHED IT".** The
+  CoreFoundation cousin of the `create_string_buffer(b"\xAA"*N)` trap. Verifying PR #502 I checked
+  that `PCCFRefTraits<CGImage*>::release` only affects its argument by holding a second CGImage as
+  a control — but the control's retain count was 1, my own direct `CGImageRelease` on it took it to
+  0, CoreGraphics freed it, and `CFGetRetainCount` on the dead object returned
+  `1152921504606846975` (0x0FFF…FFF). The harness dutifully reported *"MISMATCH: the trait's calls
+  perturbed an UNRELATED image"* — a DIVERGED verdict on a correct port, caused entirely by the
+  measurement. RULE: give every control object **headroom** (retain it several times up front),
+  check the untouched-control assertion **before** any destructive comparison, and treat a
+  retain count of 0x0FFFFFFFFFFFFFFF as "you are reading freed memory", not as data.
+
+- **Two-line traps worth knowing before they cost you a run:** `ozone_loader.image_slide(fw)`
+  returns a **tuple** `(slide, image_name)`, not an int — `slide + vmaddr` then dies with
+  `TypeError: can only concatenate tuple (not "int") to tuple`; unpack it as `slide, _ = ...`
+  (`local_fn` already does). And a negative control can be **undiscriminating rather than passing**:
+  checking that a `movsd` constant was not a `movss` misread is vacuous for 200.0, which is exactly
+  representable in f32 — say so in the report instead of counting it as a control that fired
+  (PR #459).
+
+---
+
+## Open — reported 2026-08-11 by reviewer 8 (a reviewer can record an APPROVE over a standing rejection, and cannot take it back; NEW)
+
+- **NOTHING IN THE REVIEWER LOOP LOOKS AT EXISTING REVIEWS BEFORE YOU SIGN, AND `pr_review.sh` WILL
+  NOT LET YOU CORRECT THE VERDICT ONCE IT IS WRONG.** Hit live on PR #400. Three separate pieces
+  line up, and each one alone would be harmless:
+
+  1. **The documented loop never mentions the review history.** `REVIEWER_BRIEF` STEP 1 is
+     `review_claim.sh claim`, then gate, then the semantic verdict, then `pr_review.sh … approve`,
+     then `pr_land.sh`. The `faithfulness-gate` status is the only prior state a reviewer is told to
+     consult, and it says nothing about a peer's blocking review. So a reviewer who follows the
+     brief exactly can reach `approve` on a PR another reviewer has already rejected — I did.
+  2. **The guard that catches it lives one step too late.** `pr_land` refuses correctly
+     ("REFUSING to merge PR #400 — an un-dismissed CHANGES_REQUESTED stands"), which is why nothing
+     actually merged. But by then the APPROVE is already a permanent review on the head, sitting
+     under the rejection it contradicts. The merge is protected; the RECORD is not.
+  3. **`pr_review.sh` then refuses to let you fix it.** Its idempotence key is
+     (PR, head SHA, this identity) with a state filter of APPROVED/CHANGES_REQUESTED, and there is
+     no `--force`: `pr_review: PR #400 @ 9603e2d2 already has APPROVED from vjeux-reviewer[bot] —
+     not re-reviewing`. The guard is right for its intended case (a reviewer loop re-verifying the
+     same head should not spam duplicates) and exactly wrong for this one — a reviewer who realises
+     they were wrong is the one caller who MUST be able to speak again on the same head. Since all
+     slots share one bot identity, that stray APPROVE is also indistinguishable from any other
+     reviewer's, so the next agent sees "one APPROVED, one older CHANGES_REQUESTED" and the
+     tempting read is that the rejection was superseded.
+
+  **What made it reachable at all is the fourth piece, and it is the nastiest: `pr_land` MOVES THE
+  HEAD, which re-qualifies the PR for the review queue.** #400's rejection was recorded at
+  `97d867a9`. `review_claim` leases a PR whose CURRENT head has no fresh verdict, so when an earlier
+  `pr_land` ran `update-branch` and the head became `9603e2d2`, the PR became "unreviewed" again and
+  the queue handed it to me with the rejection two heads back and invisible from anything the brief
+  told me to look at. The rejection had never been addressed — the exact sentence reviewer 6 asked
+  to be corrected was still in the diff.
+
+  WORKAROUND, and it is clean: **dismiss your own review deliberately, then re-post.**
+  `gh_as.sh reviewer api -X PUT repos/<slug>/pulls/<PR>/reviews/<id>/dismissals -f message='…'`
+  moves it to state DISMISSED, which the idempotence filter does not match, so `pr_review.sh` will
+  then accept the correct verdict on that same head. Dismissing your OWN approval only ever removes
+  an approval — it unblocks nothing and cannot override a peer — so it is safe in a way that
+  dismissing someone else's is not. Do NOT dismiss the peer's rejection to get moving.
+
+  FIXES, in order of value: (a) `review_claim.sh claim` should skip, or loudly annotate, a PR with an
+  un-dismissed CHANGES_REQUESTED — a rejection outranks a later approval per the standing rules, so
+  such a PR is waiting on its AUTHOR, not on a fresh reviewer, and leasing it to one burns a full
+  reviewer run (mine: gate, three tool re-derivations and a full claim verification); (b) move
+  `pr_land`'s CHANGES_REQUESTED check to the top of the reviewer's flow, or into `pr_review.sh`
+  itself, so an approve over a standing rejection is REFUSED rather than recorded and caught later;
+  (c) give `pr_review.sh` a `--supersede` that dismisses this identity's own prior review on the
+  same head and posts the new one, so correcting yourself does not need a raw API call; (d) when
+  `pr_land` triggers `update-branch`, carry the prior verdicts forward or note the head move, so a
+  mechanical rebase cannot launder a rejection into "unreviewed".
+
+- **TWO SHIPPED GUARDS IN ONE MORNING COULD NOT FIRE FOR THE CASE THEY WERE WRITTEN FOR.** Filing
+  the pattern rather than the instances, because both were found the same way — by trying to make
+  the guard fail, which took under five minutes each and neither author had done:
+  - a regression test whose third case referenced none of the code under test: it recomputed a set
+    difference from two literals and asserted it equalled itself, so deleting the entire fix left it
+    green, while `prove_all` printed a layer name claiming the property was pinned;
+  - a pre-force-push guard written as `git diff --name-only --diff-filter=D origin/main...HEAD`.
+    **THREE dots is the wrong relationship for "am I about to publish a stale head".** A three-dot
+    diff compares HEAD against the MERGE BASE, so files that landed on main after that base appear
+    on neither side and can never show as deletions. Measured on a scratch repo: with HEAD rebased
+    onto a main missing three landed files, the two-dot form lists all three and the three-dot form
+    returns EMPTY — and the incident that motivated the guard had itself been measured with the
+    two-dot form (`git diff origin/main --stat`, 16 files removed). Use `origin/main HEAD` when the
+    question is "how does my head differ from main RIGHT NOW"; three dots answers "what did my
+    branch change", which is a different question and the one you do not want here.
+  RULE (companion to "a dead negative control means your harness is blind", and to the mutation rule
+  added the same day): **a guard is not evidence until you have watched it fail.** Before you ship
+  one, break the thing it guards and confirm it goes red. A guard that cannot fire is worse than no
+  guard, because the next person reads the code, sees a check, and stops looking — which is the same
+  gate-clean-output failure class the rest of this file is about, moved into the safety net itself.
+
+- **A reviewer clearing a G5 NO-DISASM flag leaves the evidence behind for the next PR to reuse.**
+  A corollary of the pool-scratch entry above, from the other side. `disasm.sh --sym` writes into the
+  LEASED worktree's `raw-port/re/disasm/`, which `wt_pool` does not clear on acquire, so the `.s` a
+  reviewer generates to clear a flag stays in that slot. The next PR gated there can be waved through
+  on the previous reviewer's scratch, and the reviewer who benefits sees a clean `0 flags` with no
+  indication that the guard was answered from residue. I re-derived into three pool slots today, so
+  three slots now carry my leftovers. Until `wt_pool` clears the directory on acquire, treat `0 flags`
+  as no evidence that anything was re-derived, and keep every harness you write OUTSIDE the worktree
+  (`/tmp`) so the only thing you leave in a pool slot is the pristine checkout.
+
+
+## Open — reported 2026-08-11 by worker 6 (rework queue: five traps, two of them blockers; NEW)
+
+Found while working the new REWORK queue (`rework_claim.sh`, PR #550) through PRs #178,
+#180, #83, #243, #114 and #337. The first two BLOCK merges today and neither is visible
+from the PR that suffers it.
+
+- **G5's one-export escape hatch means the SECOND port of a class retroactively FLAGS the
+  FIRST — and for a NESTED class the naming convention makes it unavoidable.** Measured on
+  `render/HGTextureManager__PostTextureDeleteEventList.ts`, one pool worktree, same bodies,
+  same `.s` cache, three gate runs:
+
+      main as it stands (1 exported function)                    0 cheats, 0 flags
+      + unlock/hasEvent as HGTextureManager_PostTextureDelete...  0 cheats, 3 flags
+      + unlock/hasEvent as PostTextureDeleteEventList_...         0 cheats, 1 flag
+
+  The mechanism is two rules meeting. G5 joins an export to its disasm with
+  `method = name.split("_", 1)[1]` and then requires `method` to equal the LAST Itanium
+  component (`_sym_names_method`). For a nested class the repo convention
+  `Outer_Inner_method` yields the method `PostTextureDeleteEventList_unlock`, which no
+  symbol's last component can ever be — so the join is IMPOSSIBLE, not merely unlucky.
+  The landed single export escapes only through the `len(fns) == 1 and one candidate`
+  fallback at `g5_impl_gate.py:385`, and adding ANY second export to the file retires that
+  fallback for every export in it, including the one already on main.
+  So following the naming convention takes a CLEAN LANDED EXPORT red, and the file cannot
+  be made clean: renaming the landed export is exactly what G6 add-only refuses. Note who
+  this hits — it fires on precisely the ADD-only class-file extension every brief tells
+  workers to write, and it gets worse as a class fills in. Landed nested files already
+  carry the unsatisfiable spelling (`PCEvictionHeap_CSRefCache_bubble`), so they are all
+  one export away from it.
+  WHAT I DID: named the two new exports for the class that owns them
+  (`PostTextureDeleteEventList_unlock`), which is what worker 4's naming entry above
+  already prescribes, took 3 flags down to 1, and documented the split naming in the file
+  header with the measurement so the inconsistency reads as a decision instead of a slip.
+  FIX: `_ts_functions` should derive the method from the LAST underscore-separated
+  component, not `split("_", 1)[1]` — `Outer_Inner_method` then joins correctly and the
+  convention and the gate stop contradicting each other. (Also: G5 sees only
+  `export function`. A file that exports a CLASS with methods — `PCDelaunay__Triangle.ts`
+  — is invisible to it entirely, which is a much bigger hole than this one.)
+  CONFIRMING worker 4's entry with three fresh instances: the flag text names the WRONG
+  ADDRESS every time. `..._lock` was flagged for @0x42c30 (unlock's address), `..._unlock`
+  for @0x47f72 (the ctor's `pthread_mutex_init`), `..._hasEvent` for @0x42b10 (lock's).
+  Three exports, three addresses, none of them the export's own.
+
+- **`raw-port/src/infra/CMTime.ts` IS UNMERGEABLE ON MAIN TODAY: `gate.sh` on the
+  UNMODIFIED file is a REJECT, so every PR touching it inherits a red gate for landed code
+  it did not write.** Measured in a fresh pool worktree on main's own copy:
+
+      $ gate.sh <wt>/raw-port/src/infra/CMTime.ts        # main, unmodified
+        CoreMedia ORACLE DIVERGENCE: 175 wrong + 0 threw, of 341 calls
+        G4 CoreMedia REJECT
+        GATE: REJECT
+
+  The G4 CoreMedia oracle covers four functions — `CMTimeMultiplyByFloat64`, `CMTimeAdd`,
+  `CMTimeSubtract`, `CMTimeGetSeconds` — all landed, and the divergences are real, not a
+  harness fault: `CMTimeMultiplyByFloat64((100,600,1,0)) x0.5` returns
+  `(83333334, 1000000000, 3, 0)` from CoreMedia (it RESCALES to a 1e9 timescale) against
+  the landed port's `(50, 600, 1, 0)`. This is OPS_LOG #24's shape — a gate RED for a
+  reason unrelated to the PR, on exactly the files it can measure — except that #24 was a
+  broken harness and this is a working harness reporting true defects in landed code.
+  Consequence for the queue: PR #114 was rejected for a different (real) defect, that
+  defect is now fixed and oracled at 512/557 field-exact with 0 divergences, and the PR
+  STILL cannot go green. A reviewer re-gating it will see G4 REJECT and, without this
+  note, will attribute it to the PR.
+  FIX: the four landed functions need their own port unit. `CMTimeMultiplyByFloat64` is
+  not a one-liner — it is a different algorithm (rescale to 1e9 with rounding). Until
+  then, a reviewer handling any CMTime.ts PR should diff the G4 count against main's
+  before treating it as the author's.
+
+- **The house `node --experimental-strip-types` differential recipe DIES on the first port
+  that imports a sibling, and the error names a file the port is correct to reference.**
+  This repo's tsconfig is NodeNext, so every intra-repo import must be written with a `.js`
+  extension (`import { hgAlignedHeap } from "./HGAllocAlign.js"`) — which is what G2
+  requires. Node then resolves that literally, finds no `HGAllocAlign.js` (nothing is
+  compiled), and the driver dies with `ERR_MODULE_NOT_FOUND`. The port is right, the gate
+  is green, and only the harness cannot load it. The recipe was landed on a LEAF port
+  (SurroundPanner) so nobody had hit it; most non-leaf ports import a sibling, so without a
+  fix the recipe silently narrows to leaf math functions — the "the differential is
+  unavailable" excuse coming back through a new door.
+  FIX (shipped with PR #180): `raw-port/re/oracle/ts_js_hooks.mjs`, a 12-line resolve hook
+  mapping a relative `.js` specifier to the `.ts` beside it, only when that `.ts` exists.
+  Use it as `register("./ts_js_hooks.mjs", import.meta.url)` followed by a DYNAMIC import
+  (a static import is resolved before the hook is live). Do NOT copy the hook into your own
+  PR if one is already open adding it — two PRs adding the same path is a guaranteed
+  conflict; a driver whose port imports nothing needs a plain static import and no hook.
+
+- **`ozone_loader.local_fn` returns a 3-TUPLE `(callable, vmaddr, slide)`, not a
+  callable.** The existing "two-line traps" entry warns that `image_slide` returns a tuple
+  and says "`local_fn` already does" the unpacking, which reads as though `local_fn` hands
+  back a function. It does not, and the failure is
+  `TypeError: 'tuple' object is not callable` at the first call site. Unpack it —
+  `fn, vmaddr, slide = local_fn(...)` — and then USE the two extras for the self-check the
+  local-symbol recipe asks for: `ctypes.string_at(slide + vmaddr, n)` must equal the
+  prologue bytes of the function you transcribed (`55 48 89 e5 ...`). Three of my six units
+  called local symbols and all three now refuse to report a number until that matches,
+  which is the cheapest available guard against the arm64-vmaddr trap.
+
+- **`slot_lock.sh heartbeat <role> <N>` DOES NOT EXIST**, though the dispatch prompts ask
+  for it after every unit and the "slot lock cannot detect a live agent" entry above
+  proposes it as the fix. Running it prints
+  `usage: slot_lock.sh {acquire <role> <n>|release <role> <n>|status}` and exits non-zero —
+  harmless, but an agent that treats a non-zero exit as a problem will stop on it, and an
+  agent that does not will believe it is heartbeating when nothing is recorded.
+  WORKAROUND until the subcommand lands: `touch "$HOME/.fct-pool/slots/<role>-<N>/held"`,
+  which is exactly what the proposed fix would do to the mtime.
+
+---
+
+## Open — reported 2026-08-11 by worker 6 (an oracle on the WRONG SLICE can look CLEANER; NEW)
+
+- **The architecture trap has a second face that nobody has written down: running the
+  differential on the arm64 slice does not merely risk a wrong verdict, it SYSTEMATICALLY
+  HIDES the NaN-sign divergence class, so the wrong-slice run reports a BETTER score than
+  the correct one.** OPS_LOG already records "the executable oracle calls the wrong
+  architecture, and fails toward ACCEPT", and the standing NaN entries record that x86
+  `divsd` 0/0 gives `0xfff8…` while JS canonicalises to `0x7ff8…`. Put together they imply
+  something neither entry says: **arm64's default NaN has the SIGN BIT CLEAR, which matches
+  JavaScript exactly.** So a bit-pattern differential run against the arm64 slice sees NaN
+  agreement everywhere, while the same port against the x86_64 slice it was transcribed
+  from shows a NaN-sign difference on every NaN lane.
+
+  MEASURED on PR #243 (`PCQuat<double>::setRotation` @Ozone 0x7bd30). The reviewer called
+  `slide + 0x6c704`, which their own note names as the arm64 address, and reported
+  **106/106 bit-exact** after their fix. The same port, same fix, called at the x86_64
+  vmaddr `0x7bd30` from the inventory under `arch -x86_64`, over 103 cases:
+
+      bit-exact               95/103
+      NaN-on-both-sides only   8/103
+      REAL divergences          0/103
+
+  The 8 are exactly the inputs that made `cosθ` NaN — i.e. the very inputs that exposed the
+  branch defect under review. The verdict is the same either way here, which is why this is
+  worth writing down rather than shrugging at: the wrong slice produced a *cleaner-looking*
+  number and no visible symptom. An agent comparing two harnesses' scores would pick the
+  arm64 one as the better instrument.
+  RULES that follow: (1) take the vmaddr from `army/inventory/<FW>.syms.txt`, which is
+  x86_64 by construction, and never from a bare `nm`; (2) self-check the prologue bytes at
+  `slide + vmaddr` before trusting a number — it costs one line and catches the wrong
+  address directly rather than through its consequences; (3) on the x86_64 slice, EXPECT a
+  NaN-payload count above zero on any corpus containing `0/0`, classify it separately, and
+  never "fix" it in the port — constructing that NaN through a `DataView` is a rewrite of
+  `divsd`, not a transcription; (4) a differential reporting 100% on a corpus that includes
+  NaN cases is itself a signal worth checking, because on the correct slice it should not.
+
+- **A REVIEWER'S "not blocking on this" can be worth fixing, and the way to settle it is to
+  price it with a mutant.** On PR #337 the reviewer named a signed-zero divergence
+  (C `modf` returns a fraction carrying the sign of the argument, so `modf(-30.0)` is
+  `-0.0` while `value - Math.trunc(value)` is `+0.0`) and explicitly did not block, on the
+  grounds that the project's own differential compares absolute differences. Compared as
+  BIT PATTERNS against the live symbol it fires on `sample=-48000` at rates 32000/48000 and
+  fps 24/30/60 — an exact frame boundary at a negative timeline position, i.e. ordinary
+  input, not an edge case. Fixed, and then PRICED by keeping a mutant that has the
+  non-finite fix but not the signed-zero one: it kills 9 of 257. That number is the honest
+  answer to "was this worth doing", and it is cheap to produce once the harness compares
+  bits. Same class as #445, which was rejected for the sign of zero after passing 4,764 of
+  4,768 cases.
+
+- **Two smaller ones, each of which cost a cycle.** (a) G1's banned-language check reads
+  PROSE, so the word "roughly" in an explanatory comment is a hard REJECT
+  (`P3 shortcut language`) — mine was in a sentence explaining why a throw is unreachable.
+  The tokens to avoid in comments are approximate / roughly / guess / heuristic / hack /
+  fudge; write "more than 480,000 years" rather than "roughly 487,000". (b) When a
+  differential's corpus is generated by drawing operands independently and then filtering,
+  CHECK HOW MANY SURVIVED: my first CMTimeMultiply corpus drew value and multiplier
+  independently and 272 of 400 "in-range" cases silently fell out of range into the
+  throw path, so the rule they were meant to exercise was barely tested while the summary
+  line still looked healthy. Draw the constrained operand LAST (pick the multiplier, then
+  bound the value by `MAX/|m|`), and print the per-class counts so a collapsed class is
+  visible.
+
+---
+
+## Open — reported 2026-08-11 by worker 6 (two MORE from the rework queue: a landed class hiding in another layer dir, and a self-inflicted near-miss; NEW)
+
+- **A rejected PR often forked a class that is ALREADY LANDED UNDER A DIFFERENT LAYER
+  DIRECTORY, and nothing in the pipeline notices — not `dup_check`, not the gate, and in
+  one of the two cases I hit, not the reviewer either.** Two of eight reworks this session
+  were this:
+  * #178 filed `render/HGTextureManager_PostTextureDeleteEventList.ts` while main held
+    `render/HGTextureManager__PostTextureDeleteEventList.ts` (single vs DOUBLE underscore).
+    The reviewer caught this one.
+  * #44 filed `src/ozone/OZNotificationManager.ts` while main held
+    `src/nodes/OZNotificationManager.ts` — 750 lines, three ported methods, a full
+    `OZObserverRecord` layout. **Different directory, identical class name.** The review
+    was thorough (it re-derived all 34 instructions) and rejected the PR for an unrelated
+    defect without mentioning the fork. Landing it would have put one C++ class in two
+    files with two incompatible models of the same circular list.
+  Nothing mechanical covers it. `dup_check` keys on the lowercased BASENAME and compares
+  paths, so `nodes/X.ts` and `ozone/X.ts` are simply two different files. G6 add-only only
+  inspects the file handed to `gate.sh`, and a brand-new file has no base version to lose
+  anything against.
+  **DO THIS BEFORE EVERY PORT AND EVERY REWORK — it costs 0.2s and is in no brief:**
+
+      git ls-tree origin/main -r --name-only | grep -i <ClassName>
+
+  Note the `-i`: the volume is case-insensitive, so a case-only difference is a silent
+  OVERWRITE rather than a second file (the separate hazard already logged here). If the
+  class exists anywhere, ADD to that file, in ITS model, wherever it lives — do not file a
+  second copy because the layer directory looks wrong to you. (Layer disagreements are
+  real — `HGFreeAlign` did belong in `infra/` beside its allocator half rather than
+  `render/` — but that is MOVING a file that exists in exactly one place, not adding a
+  second one.)
+
+- **`git reset --hard origin/main` DOES NOT REMOVE UNTRACKED FILES, so the standard rework
+  move — "rebuild the branch on current main" — can silently re-publish the very file you
+  are removing.** I nearly did exactly this on #44. Sequence: copy the branch's file into
+  the worktree to gate it (creating `src/ozone/OZNotificationManager.ts`, untracked);
+  discover it duplicates a landed class; `git reset --hard origin/main` intending a clean
+  slate; write the method into the landed file instead; `git add -A`; commit; push. The
+  reset left the untracked copy exactly where it was, `add -A` staged it, and the pushed
+  commit added BOTH files — the duplicate I was in the middle of removing, under a commit
+  message explaining why duplicates are bad.
+  WHAT CAUGHT IT, and it is the only thing that would have: reading
+  `git diff --name-status origin/main...HEAD` before treating the push as done. This is the
+  third distinct incident in this log where THE FILE LIST rather than the content was the
+  thing that mattered, and the first where the unintended path was ADDED rather than
+  deleted — so the `--diff-filter=D` guard would have passed it silently.
+  RULE: after any rework push, read the three-dot file list and confirm every path is one
+  you meant. And when you want a genuinely clean slate in a pool worktree, `reset --hard`
+  is only half of it; `git clean -fd` is the other half. That is exactly why `reset_clean`
+  in `wt_pool.sh` runs both — and why OPS_LOG #3's forensic tell works, since gitignored
+  `.s` files survive a reset but not the clean.
+  SECOND-ORDER, before you reach for it: `rm -rf raw-port/src/<layer>` to undo that also
+  deletes the SEVEN TRACKED files sharing the directory. `git checkout -- <dir>` restores
+  them, and `git status --porcelain` must be EMPTY before you release the slot — a pool
+  worktree released with tracked files missing is a trap for the next lessee.
+
+- **Corroborating the "a transient TLS failure reads as a verdict" entry with a fresh
+  instance, because the fix is a retry loop and costs nothing to adopt:**
+  `pr_comment_once.sh` printed `post failed` on PR #44 and the identical call succeeded on
+  the very next attempt with no change of any kind. Wrap the gh-backed helpers in a
+  3-attempt loop with a short sleep, breaking on `posted|already`, and never treat the
+  first failure as information.

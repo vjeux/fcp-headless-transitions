@@ -143,6 +143,38 @@ export class OZSceneSettings {
   }
 
   /**
+   * `OZSceneSettings::get360ProjectMode() const`
+   *   — @Ozone 0x33a540
+   *   — __ZNK15OZSceneSettings17get360ProjectModeEv
+   *
+   * Faithful line-for-line transcription of the 7-line disassembly:
+   *   0x33a540  pushq  %rbp
+   *   0x33a541  movq   %rsp, %rbp
+   *   0x33a544  movl   0x10c(%rdi), %eax   ; eax = (int32) this->+0x10c
+   *   0x33a54a  popq   %rbp
+   *   0x33a54b  retq                       ; return the raw 32-bit value in %eax
+   *   0x33a54c  nopl   (%rax)              ; padding
+   *
+   * Semantics: return the raw 32-bit slot at +0x10c verbatim. This is the
+   * SAME slot `is360Project()` @0x33a550 tests for non-zero — so the field
+   * is a 360°-project MODE discriminator (an int32/enum), and `is360Project`
+   * is just the `!= 0` predicate over it. `get360ProjectMode` exposes the
+   * full value (a plain 32-bit load, no comparison), confirming the slot is
+   * an enum-like project-mode code rather than a bare bool.
+   *
+   * Zero in-scope callees, zero externs, no indirect calls — pure field load.
+   * The `movl` is a 32-bit fetch; `| 0` reproduces the int32 read width.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK15OZSceneSettings17get360ProjectModeEv.s (7 lines)
+   */
+  get360ProjectMode(): number {
+    // @0x33a544  movl 0x10c(%rdi),%eax
+    //   32-bit load of the +0x10c project-mode slot, returned verbatim.
+    return this.is360ProjectFlagAt10c | 0;
+  }
+
+  /**
    * `OZSceneSettings::getFrameDuration() const`
    *   — @Ozone 0x33a2b0
    *   — __ZNK15OZSceneSettings16getFrameDurationEv

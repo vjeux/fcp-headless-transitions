@@ -54,6 +54,103 @@ DEF = re.compile(
     r')\(', re.M
 )
 
+# ─────────────────────────────────────────────────────────────────────────────
+# BATCH brace-context scan (one linear pass for a whole file).
+#
+# WHY: `_structural_depth` and `_enclosing_brace_is_class` each re-walk the file
+# FROM CHARACTER 0 to the position asked about. Called once per method def — as
+# mark_stub_bodies does — that is quadratic in file size. Measured over
+# raw-port/src: 18,942 defs across 27.7M chars cost 0.73 BILLION char-steps,
+# a 27x amplification over a single linear pass, and 95 of mark_ported's 142
+# seconds. `_scan_brace_context` answers every position in ONE pass.
+#
+# It is deliberately a SEPARATE function rather than a rewrite of the two
+# originals: they are used elsewhere and their behaviour is the reference this
+# is tested against (verifier/test_brace_context.py asserts the two agree on
+# every def in every file of the corpus).
+# ─────────────────────────────────────────────────────────────────────────────
+def _scan_brace_context(text, positions):
+    """[(depth, enclosing_brace_is_class)] for each pos in `positions` (any order).
+
+    Semantics are IDENTICAL to calling `_structural_depth(text, pos)` and
+    `_enclosing_brace_is_class(text, pos)` for each pos — including the quirk
+    that a string or comment straddling `pos` is skipped whole (harmless: depth
+    never changes inside one), and that `depth` is a counter which may go
+    negative on unbalanced input while the brace STACK only pops when non-empty.
+    """
+    order = sorted(range(len(positions)), key=lambda k: positions[k])
+    out = [None] * len(positions)
+    k = 0                      # next index into `order` awaiting an answer
+    depth = 0; stack = []      # counter and open-brace positions, as the originals keep them
+    class_cache = {}           # open_pos -> bool, so one class body is judged once, not once per method
+
+    def _is_class_open(open_pos):
+        v = class_cache.get(open_pos)
+        if v is None:
+            v = _brace_opens_class(text, open_pos)
+            class_cache[open_pos] = v
+        return v
+
+    i = 0; n = len(text)
+    while k < len(order):
+        # answer every position we have already passed
+        while k < len(order) and positions[order[k]] <= i:
+            idx = order[k]
+            out[idx] = (depth, _is_class_open(stack[-1]) if stack else False)
+            k += 1
+        if k >= len(order) or i >= n:
+            break
+        c = text[i]
+        if c == '"' or c == "'" or c == '`':
+            q = c; i += 1
+            while i < n and text[i] != q:
+                if text[i] == '\\': i += 1
+                i += 1
+            i += 1
+        elif c == '/' and i+1 < n and text[i+1] == '/':
+            while i < n and text[i] != '\n': i += 1
+        elif c == '/' and i+1 < n and text[i+1] == '*':
+            i += 2
+            while i+1 < n and not (text[i]=='*' and text[i+1]=='/'): i += 1
+            i += 2
+        elif c == '{':
+            depth += 1; stack.append(i); i += 1
+        elif c == '}':
+            depth -= 1
+            if stack: stack.pop()
+            i += 1
+        else:
+            i += 1
+    # positions at or past EOF
+    while k < len(order):
+        idx = order[k]
+        out[idx] = (depth, _is_class_open(stack[-1]) if stack else False)
+        k += 1
+    return out
+
+
+def _brace_opens_class(text, open_pos):
+    """Was the `{` at open_pos opened by a class body (vs an object literal / Proxy handler)?
+
+    A DELIBERATE SECOND COPY of the judgement in `_enclosing_brace_is_class`, which still
+    carries its own inline version. (An earlier note here claimed the two SHARE one copy; they
+    do not, and describing the tree wrongly is how the next person "tidies up" the thing that
+    makes the test work.) The duplication is the point: `verifier/test_brace_context.py`
+    compares the batch scanner against the per-def originals, so folding them onto one
+    implementation would make the is-class half of that comparison tautological. Keep them
+    separate, and let LAYER 2d catch any drift.
+    """
+    pre = text[max(0, open_pos-800):open_pos]
+    pre = re.sub(r'/\*.*?\*/', ' ', pre, flags=re.S)
+    pre = re.sub(r'//[^\n]*', ' ', pre)
+    pre = pre.rstrip()
+    if re.search(r'\bclass\s+\w+[^{};()=,]*$', pre):
+        return True
+    if re.search(r'\b(?:extends|implements)\s+[\w.,<>\s]+$', pre):
+        return True
+    return False
+
+
 def _match_brace(text, open_idx):
     """Return index just past the matching } for the { at open_idx, honoring strings/comments."""
     depth = 0; i = open_idx; n = len(text)
