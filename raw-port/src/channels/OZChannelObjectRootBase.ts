@@ -180,4 +180,35 @@ export class OZChannelObjectRootBase {
     const t = this.timeOffset;
     return { value: t.value, timescale: t.timescale, flags: t.flags, epoch: t.epoch };
   }
+
+  /**
+   * `OZChannelObjectRootBase::getDefaultParameterColorSpaceID() const` — @ProChannel 0x7337c
+   * (__ZNK23OZChannelObjectRootBase31getDefaultParameterColorSpaceIDEv).
+   *
+   * FULL DISASM (raw-port/re/disasm/ProChannel.__ZNK23OZChannelObjectRootBase31getDefaultParameterColorSpaceIDEv.s):
+   *   0x7337c  pushq %rbp
+   *   0x7337d  movq  %rsp, %rbp
+   *   0x73380  movl  $0x3, %eax        ; the whole body: a 32-bit constant 3
+   *   0x73385  popq  %rbp
+   *   0x73386  retq
+   *   0x73387  nop                     ; inter-function alignment padding, not part of the body
+   *
+   * The base class's answer for "which colour space do parameters default to" is a hard-coded
+   * `3`, moved with `movl` (32-bit — the C++ return type is an int-sized colour-space id, not a
+   * pointer). `this` is never dereferenced: the function reads no memory at all, which is also
+   * what makes it safely callable against the live binary with a poisoned `this` (the oracle
+   * does exactly that).
+   *
+   * WHAT 3 MEANS IS DELIBERATELY NOT NAMED HERE. This TU contains no enum, and the id is
+   * consumed elsewhere (`PCColorSpaceCache::intToColorSpaceID` and friends, unported). Inventing
+   * a symbolic name — `kSRGB` or similar — would be a guess dressed as a decode, so the constant
+   * carries the address it was read from and nothing more. A subclass that overrides this virtual
+   * is a separate ledger entry; this is the base's value.
+   */
+  getDefaultParameterColorSpaceID(): number {
+    // @0x7337c..0x7337d — prologue (no TS-visible effect).
+    // @0x73380  movl $0x3, %eax
+    // @0x73385..0x73386 — epilogue + retq.
+    return 3; // @ProChannel 0x73380
+  }
 }

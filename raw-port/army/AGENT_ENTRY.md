@@ -44,6 +44,13 @@ Reviewers additionally run `python3 raw-port/army/verifier/prove_all.py` once at
    authored by the worker app and the operator login is shared), so this variable is the only thing
    that lets `pr_submit.sh` stamp the PRs you opened and `review_claim.sh` skip them instead of
    leasing you your own work. With it unset both tools say so out loud and the skip is inert.
+   **If your harness runs each command in a FRESH shell** — most tool-call harnesses do; every
+   command arrives as its own `sh -c` — then an `export` in one command is gone by the next, and
+   the warning scrolls past inside a successful submit. Put the assignment in the SAME command as
+   every tool that reads it (`export FCT_AGENT_ID=<role>-<N> && bash …/pr_submit.sh <Class>`), or
+   write it once into your shell profile. To repair a PR already filed without it:
+   `echo <role>-<N> > "${FCT_STATE_DIR:-$HOME/.fct-pool}"/authored/<PR#>` — that file IS the
+   marker, and writing it after the fact is equivalent.
 4. **Workers never merge. Reviewers never merge a PR whose `faithfulness-gate` is not success**, and
    never a REJECT/CHEAT/SKELETON. Never a bare `gh pr merge`.
 5. **No stubs, throw-stubs, or skeletons for in-scope symbols.** Every in-scope callee you are handed

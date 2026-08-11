@@ -30,8 +30,38 @@ PR="${1:?usage: rebase_pr.sh <PR#>}"
 SLUG="vjeux/fcp-headless-transitions"; CANON="$HOME/random/final-cut-pro-transitions"; cd "$CANON"
 git fetch -q origin main 2>/dev/null || true
 
-BR=$(gh pr view "$PR" --repo "$SLUG" --json headRefName --jq .headRefName 2>/dev/null)
-[ -z "$BR" ] && { echo "rebase_pr: PR #$PR not found"; exit 1; }
+# A TRANSPORT FAILURE IS NOT A VERDICT, and this lookup used to report one as the other. The corp
+# TLS proxy fails intermittently on this box — `Post "https://api.github.com/graphql": tls: failed
+# to verify certificate: x509: certificate signed by unknown authority`, measured 3 times in 25
+# minutes by one reviewer and twice in one minute here — and with stderr swallowed by 2>/dev/null
+# an empty answer printed `rebase_pr: PR #656 not found` about a PR that was open, conflicted and
+# had just been handed to me by rebase_claim. Two costs, both real: the worker is told the wrong
+# thing (I went looking for a deleted PR), and the rebase LEASE is already charged, so the queue
+# has spent one of the PR's three attempts on a blip. Retry, and when the query still cannot be
+# answered say THAT instead of inventing a fact about the PR.
+BR=""; LOOKUP_ERR=""
+for _try in 1 2 3; do
+  BR=$(gh pr view "$PR" --repo "$SLUG" --json headRefName --jq .headRefName 2>/tmp/rebase_pr_${PR}_lookup.err)
+  [ -n "$BR" ] && break
+  LOOKUP_ERR=$(tr -d '\r' < /tmp/rebase_pr_${PR}_lookup.err | tail -1)
+  sleep $((_try * 2))
+done
+if [ -z "$BR" ]; then
+  # GitHub ANSWERING "there is no such PR" is a verdict; anything else is the transport. Told apart
+  # by the error text, because both arrive as an empty stdout and a non-zero exit:
+  #   verdict    GraphQL: Could not resolve to a PullRequest with the number of 999999.
+  #   transport  Post "https://api.github.com/graphql": tls: failed to verify certificate: ...
+  if printf '%s' "$LOOKUP_ERR" | grep -qiE 'could not resolve to a (pullrequest|repository)|no pull requests found'; then
+    echo "rebase_pr: PR #$PR not found (GitHub answered: $LOOKUP_ERR)"; exit 1
+  fi
+  if [ -n "$LOOKUP_ERR" ]; then
+    echo "rebase_pr: could not READ PR #$PR after 3 tries — this is a transport failure, not a"
+    echo "           verdict about the PR. Last error: $LOOKUP_ERR"
+    echo "           Re-run; if it persists, check \`gh auth status\`. The PR has NOT been examined."
+    exit 7
+  fi
+  echo "rebase_pr: PR #$PR not found (gh answered, and it has no head branch)"; exit 1
+fi
 CLS="${BR#port/}"; CLS="${CLS%_rebased}"
 # THE PR'S BASE IS NOT ALWAYS main, AND MERGEABILITY IS COMPUTED AGAINST THE BASE. This tool used to
 # merge/rebase `origin/main` unconditionally, so for a STACKED PR (base = another open branch) the
@@ -61,24 +91,40 @@ echo "rebase_pr: PR #$PR  branch=$BR  base=$BASE  class=$CLS"
 # content with exit 0. We know the PR number here, so there is no reason to guess.
 python3 raw-port/army/tools/rebase_helper.py --pr "$PR" > /tmp/rebase_pr_${PR}_rh.log 2>&1; rc=$?
 if [ "$rc" = 0 ]; then
-  # rebase_helper pushed port/<Class>_rebased. Repoint: the SAME PR can't change head branch, so the
-  # reviewer will gate the _rebased branch as its own PR. For in-place, force-push _rebased -> BR.
-  git fetch -q origin "port/${CLS}_rebased" 2>/dev/null
+  # rebase_helper pushed the union result. ASK IT WHICH BRANCH — do not re-derive the name here.
+  # It strips BOTH `__slot<N>` and `_rebased` to get the CLASS (rebase_helper.py:134) and pushes
+  # `port/<Class>_rebased`; this file used to strip only `_rebased` from the BRANCH, so for the
+  # normal contention shape `port/<Class>__slot<N>` it looked for `port/<Class>__slot<N>_rebased`,
+  # a ref that does not exist. `git diff` then fataled, the empty side made `comm` report EVERY file
+  # as missing, and the last-guard refused a push whose union was sitting on the remote, gate-green.
+  # The PR went back to the queue unchanged, and at 3/3 attempts that queue CLOSES it (#28's shape).
+  # Measured on #660 (`port/OZChannelBase__slot3`), 2026-08-11. The `port/<Class>` PRs everyone
+  # tested with are exactly the ones where the two spellings coincide.
+  RB=$(sed -n 's|^PUSHED origin/\(port/[^ ]*_rebased\).*|\1|p' "/tmp/rebase_pr_${PR}_rh.log" | tail -1)
+  [ -z "$RB" ] && RB="port/$(printf '%s' "$CLS" | sed -E 's/__slot[0-9]+$//')_rebased"
+  git fetch -q origin "+refs/heads/${RB}:refs/remotes/origin/${RB}" 2>/dev/null
+  # A MISSING REF IS A TOOL FAULT, NOT A DROPPED FILE, and the two must never print the same
+  # sentence: the file-list guard below is only meaningful once both sides of it exist.
+  if ! git rev-parse --verify -q "refs/remotes/origin/${RB}^{commit}" >/dev/null; then
+    echo "rebase_pr: rebase_helper reported success but its branch ($RB) is not on the remote —"
+    echo "rebase_pr: NOT force-pushing, and this is a tooling fault rather than a missing file."
+    echo "REBASE_MANUAL"; exit 6
+  fi
   # LAST GUARD BEFORE AN IRREVERSIBLE FORCE-PUSH: compare the FILE LIST, not just the gate. A green
   # gate says nothing about a file the rebase dropped, because the gate only inspects the .ts files
   # handed to it (that is how #449 lost an oracle harness). rebase_helper now carries non-src files
   # and asserts they survived; this repeats the check at the push, where the damage would be done.
-  MISSING=$(comm -23 \
-    <(git diff --name-only "origin/main...origin/$BR" | sort) \
-    <(git diff --name-only "origin/main...origin/port/${CLS}_rebased" | sort) | tr '\n' ' ')
+  git diff --name-only "origin/main...origin/$BR"   | sort > "/tmp/rebase_pr_${PR}_pr.files"
+  git diff --name-only "origin/main...origin/${RB}" | sort > "/tmp/rebase_pr_${PR}_rb.files"
+  MISSING=$(comm -23 "/tmp/rebase_pr_${PR}_pr.files" "/tmp/rebase_pr_${PR}_rb.files" | tr '\n' ' ')
   if [ -n "${MISSING// /}" ]; then
     echo "rebase_pr: REFUSING to force-push — the rebased branch is missing files the PR has: $MISSING"
     echo "REBASE_MANUAL"; exit 6
   fi
-  git push -f origin "refs/remotes/origin/port/${CLS}_rebased:refs/heads/$BR" 2>/dev/null \
+  git push -f origin "refs/remotes/origin/${RB}:refs/heads/$BR" 2>/dev/null \
     && { echo "REBASE_UNION: force-pushed union result onto $BR (PR #$PR updates in place)"; \
-         git push -q origin --delete "port/${CLS}_rebased" 2>/dev/null || true; exit 0; }
-  echo "REBASE_UNION: pushed port/${CLS}_rebased (reviewer merges that)"; exit 0
+         git push -q origin --delete "${RB}" 2>/dev/null || true; exit 0; }
+  echo "REBASE_UNION: pushed ${RB} (reviewer merges that)"; exit 0
 fi
 # ---- rebase_helper exit 3 = "this branch changes no .ts files" --------------------------------
 # THAT IS NOT "nothing to rebase", and printing it as one turned the REBASE QUEUE into a no-op loop
