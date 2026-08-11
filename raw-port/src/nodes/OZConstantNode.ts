@@ -647,3 +647,76 @@ export function OZConstantNode_operatorEq(
   // same reference semantics.
   return self;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// EQUALITY OPERATOR  (note: NOT the assignment above — see the warning)
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `OZConstantNode::operator==(OZConstantNode const&) const` — @ProChannel 0x029b18
+ *   (`__ZNK14OZConstantNodeeqERKS_`).
+ *
+ * WATCH THE NEIGHBOUR: `OZConstantNode_operatorEq` directly above is `operator=` — the ASSIGNMENT
+ * @0x029b0a (`__ZN14OZConstantNodeaSERKS_`). The two symbols differ by one mangled character, sit
+ * 14 bytes apart, and do entirely different things. This one is named `operatorEquals` to keep them
+ * apart in a grep.
+ *
+ * FULL transcription of the 6-instruction body. Bytes quoted and checked against BOTH the mapped
+ * image and the on-disk thin slice, because every operand is an addressing mode:
+ *
+ *   0x029b18  55              pushq %rbp             ; prologue
+ *   0x029b19  48 89 e5        movq  %rsp, %rbp
+ *   0x029b1c  48 8b 07        movq  (%rdi), %rax     ; rax = this->vptr  (the RECEIVER's)
+ *   0x029b1f  48 8b 40 70     movq  0x70(%rax), %rax ; rax = vtable[+0x70]
+ *   0x029b23  5d              popq  %rbp             ; epilogue BEFORE the jump
+ *   0x029b24  ff e0           jmpq  *%rax            ; TAIL-CALL with %rdi and %rsi untouched
+ *
+ * THE SLOT IS RESOLVED, not guessed (PORTING_SPEC Rule 2):
+ *
+ *   army/tools/resolve.py ProChannel vtable OZConstantNode 0x70
+ *     # OZConstantNode vtable @0xd4e18; installed ptr 0xd4e28
+ *       *0x70 -> 0x29aae  OZConstantNode::compare(OZCurveNode const*) const
+ *
+ * and that target is ALREADY PORTED in this file as `OZConstantNode_compare` (@0x029aae), so this
+ * calls it rather than stubbing it. `a == b` IS `a.compare(&b)`: the argument passes through
+ * unchanged, reinterpreted from `OZConstantNode const&` to `OZCurveNode const*` (an upcast to the
+ * base at offset 0 — the same vtable's +0x60 slot holds `OZCurveNode::getNeededTime`, and the
+ * vtable's offset-to-top word reads 0, so there is no pointer adjustment to model).
+ *
+ * IT IS A VIRTUAL DISPATCH, and the port keeps that visible: the slot is taken from the RECEIVER's
+ * vtable, so a subclass overriding +0x70 is what would run. TS has no vtable, so for an object
+ * whose type is `OZConstantNode` the dispatch and the direct call coincide; the comment is here so
+ * a later subclass port does not read this as a static call.
+ *
+ * THE RESULT IS NOT NORMALISED. @0x029b23 pops the frame BEFORE @0x029b24 jumps, so the callee's
+ * %al reaches operator=='s caller untouched — measured with 0x00, 0x01 and 0xff all surviving
+ * verbatim. Hence `number`, matching `OZConstantNode_compare`'s own return type, rather than a
+ * `boolean` this method never computes.
+ *
+ * ORACLE (executed, not read — raw-port/re/oracle/OZConstantNode_operatorEquals_probe.py), under
+ * `arch -x86_64`, called BY ADDRESS at slide+0x029b18 after the opcode self-check. Two parts:
+ *   A. THE DISPATCH, through a FAKE vtable whose +0x70 slot is a ctypes callback: %rdi and %rsi
+ *      arrive unchanged and the callee's return value comes back verbatim (0x00 / 0x01 / 0xff),
+ *      while 0xdeadbeef in the neighbouring +0x68 and +0x78 slots is never called.
+ *   B. END-TO-END through the REAL slot, with both objects carrying the genuine installed vtable
+ *      0xd4e28 so `compare`'s `__dynamic_cast` @0x29ad5 runs for real. Live ProChannel and this
+ *      port agree on every case: equal -> 1, value differs -> 0, defaultValue differs -> 0,
+ *      +0.0 vs -0.0 -> 1 (IEEE ordered equality), NaN on both sides -> 0 (the `jp` checks at
+ *      0x29aec/0x29afb), NULL argument -> 0 (the `testq %rsi,%rsi` at 0x29ab5).
+ *   The probe also PRINTS one deliberately unresolved observation — a hand-built object carrying
+ *   OZSplineNode's RTTI is NOT rejected by the live cast — and refuses to score it, because the
+ *   objects are hand-built rather than constructed and the direct `__dynamic_cast` calls behave
+ *   inconsistently enough to suspect the harness first. It is not relied on here; it is left for
+ *   whoever owns `compare` @0x29aae, whose port models that cast as a strict type test.
+ *
+ * @0x029b18
+ */
+export function OZConstantNode_operatorEquals(
+  self: OZConstantNode,
+  other: OZConstantNode,
+): number {
+  // @0x029b1c-0x029b1f — rax = this->vptr[+0x70]; virtual on the RECEIVER.
+  // @0x029b24 — jmpq *%rax: tail-call, argument passed straight through as OZCurveNode const*,
+  //   and whatever it returns is what our caller sees.
+  return OZConstantNode_compare(self, other);
+}

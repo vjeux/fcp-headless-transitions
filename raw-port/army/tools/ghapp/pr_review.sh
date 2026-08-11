@@ -153,6 +153,28 @@ HEAD_SHA=$("$ROOT/gh_as.sh" reviewer pr view "$PR" --repo "$SLUG" --json headRef
 # The reviewer knows which SHA they verified — they leased it. Pass it, and a moved head becomes a
 # refusal instead of a signature. Omitting it still works (and warns), because a hard requirement
 # would break every existing caller mid-swarm.
+#
+# WHAT THIS FLAG DOES **NOT** PROMISE, stated here because the first attempt to fix it (#619) was a
+# no-op built on the wrong mechanism, and because the help text implied the stronger guarantee.
+# It closes exactly one window: a head that moved BEFORE the POST, which becomes an exit 5 refusal.
+# It cannot keep a verdict pinned afterwards. A review's `commit_id` is NOT a durable record of what
+# was read:
+#
+#     PR    review submitted_at   bound commit (a `Merge branch 'main' into <branch>`)   delta
+#     #585  18:41:58Z             7280342e   committed 18:42:37Z                         +39s
+#     #610  18:45:35Z             99e5acd2   committed 18:45:43Z                          +8s
+#     #599  18:50:18Z             46ddcf82   committed 18:50:21Z                          +3s
+#
+# All three were signed WITH --expect-head, matching, and this script has always sent an explicit
+# `commit_id` (the POST below). No POST can bind to a commit created 39 seconds after it: GitHub
+# re-points a review forward along the FIRST-PARENT chain of the server-side merges that
+# `pr_land.sh`'s `PUT /pulls/<N>/update-branch` produces — 46ddcf82's first parent is 581e29c7, the
+# head that was signed; on #585 it moved two hops. Same review id, same body, same submitted_at,
+# only commit_id changed. So `pr_land` re-points the very signature it demanded.
+# THE FIX IS IN pr_land, NOT HERE: do not `update-branch` a PR that holds a live review lease
+# (expose it from review_claim.sh), or re-verify the approval against the head update-branch created.
+# Until then the only available check is to re-read the binding AFTER the PR lands and report a move
+# rather than refuse it — see the note printed after a successful APPROVE below.
 if [ -n "${EXPECT_HEAD:-}" ]; then
   if [ "$EXPECT_HEAD" != "$HEAD_SHA" ]; then
     cat >&2 <<EOM
@@ -216,10 +238,71 @@ if printf '%s' "$resp" | grep -q '"state"'; then
     echo "pr_review: WARNING — GitHub stored $got chars but $sent were sent; your evidence may have" >&2
     echo "  been mangled in transit. Read it back: gh pr view $PR --json reviews --jq '.reviews[-1].body'" >&2
   fi
-  echo "pr_review: PR #$PR @ ${HEAD_SHA:0:8} -> $state (as ${ME:-app}, body ${sent} chars)"
+  # READ THE BINDING BACK TOO. The body-length check above catches a destroyed BODY; this catches a
+  # binding the API did not honour at write time. It cannot catch the retroactive re-pointing
+  # documented at --expect-head above — nothing sent from here can — so the note below says so
+  # instead of implying a guarantee this script cannot give.
+  bound=$(printf '%s' "$resp" | python3 -c "import json,sys;print(json.load(sys.stdin).get('commit_id') or '')" 2>/dev/null || echo "")
+  if [ -n "$bound" ] && [ "$bound" != "$HEAD_SHA" ]; then
+    echo "pr_review: WARNING — signed ${HEAD_SHA:0:12} but GitHub recorded this review against ${bound:0:12}." >&2
+    echo "  Your evidence describes the first. Say so on the PR before anyone lands it." >&2
+  fi
+  echo "pr_review: PR #$PR @ ${HEAD_SHA:0:8} -> $state (as ${ME:-app}, body ${sent} chars, recorded against ${bound:0:8})"
+  if [ "$EVENT" = "APPROVE" ]; then
+    echo "pr_review: note — this binding is not durable. pr_land's update-branch makes a merge commit" >&2
+    echo "  whose first parent is this head, and GitHub moves the review onto it (measured +3s to +39s" >&2
+    echo "  after signing, on #599/#610/#585). Re-read it AFTER the PR lands, and report a move:" >&2
+    echo "    gh api repos/$SLUG/pulls/$PR/reviews --jq '.[]|[.state,.commit_id[0:8],(.body[0:40])]|@tsv'" >&2
+  fi
   exit 0
 fi
 
+# A PR AUTHORED BY THE REVIEWER APP CAN NEVER BE APPROVED BY ANY REVIEWER, so say so plainly rather
+# than letting each slot rediscover it by burning a lease. GitHub refuses a self-review, and every
+# reviewer slot shares this one app identity — so such a PR is structurally unmergeable: no queue can
+# claim it (swarm_doctor reports it as an orphan), and it sits open forever. Two are open right now,
+# both OPS_LOG reports a reviewer filed with raw `gh pr create` instead of pr_submit.sh, which pushes
+# as the WORKER app precisely so that author != reviewer.
+if printf '%s' "$resp" | grep -qiE 'own pull request|not approve your own'; then
+  # ONE PRINCIPAL, TWO NAMES — this is the whole reason the first version of this block was dead
+  # code. `pulls/<n>/reviews` calls the reviewer `vjeux-reviewer[bot]`, which is what $ME is built
+  # from and is correct for the idempotence check above; `pulls/<n>` reports the same principal as
+  # the AUTHOR `app/vjeux-reviewer`. Comparing the second against the first is false on exactly the
+  # PRs this message exists for (#601, #604), so the reader got the generic "apps not configured"
+  # message — the one this block replaces. Accept every spelling instead of picking one.
+  ME_SLUG="${ME%\[bot\]}"
+  AUTHOR=$("$ROOT/gh_as.sh" reviewer pr view "$PR" --repo "$SLUG" --json author --jq .author.login 2>/dev/null)
+  # THREE STATES, NOT TWO. "the author is someone else" and "I could not read the author" are
+  # different facts, and folding the second into the first is this file's recurring bug. GitHub has
+  # already told us that whoever we are acting as authored this PR, so the dead end is certain even
+  # when the lookup fails; what an unreadable author costs us is only the app-vs-operator
+  # distinction, and the message says so rather than guessing.
+  MINE=other
+  case "${AUTHOR:-}" in
+    "app/$ME_SLUG"|"$ME_SLUG[bot]"|"$ME_SLUG") MINE=yes ;;
+    "")                                        MINE=unknown ;;
+  esac
+  if [ "$MINE" = unknown ]; then
+    echo "pr_review: could not read PR #$PR's author (gh did not answer), so the remedy below is the" >&2
+    echo "  likely one rather than the confirmed one: GitHub's refusal proves that whoever this" >&2
+    echo "  script is acting as authored the PR. If the apps are NOT configured you are acting as the" >&2
+    echo "  operator and the fix is setup_apps.py, not a re-file." >&2
+  fi
+  if [ "$MINE" = yes ] || [ "$MINE" = unknown ]; then
+    cat >&2 <<EOM
+pr_review: PR #$PR was authored by the REVIEWER app (${AUTHOR:-could not read the author}), so NO reviewer can ever approve it —
+  every reviewer slot shares this identity and GitHub refuses a self-review. It is structurally
+  unmergeable and invisible to every queue.
+  This happens when a reviewer files a PR with raw \`gh pr create\`. Use pr_submit.sh, which pushes
+  as the WORKER app for exactly this reason (author != reviewer).
+  To rescue THIS one: re-push the branch as the worker app and open a fresh PR —
+      bash raw-port/army/tools/ghapp/git_push_as.sh worker -q -u origin <branch> --force-with-lease
+      bash raw-port/army/tools/ghapp/gh_as.sh worker pr create --base main --head <branch> ...
+  then close #$PR with a pointer to the replacement.
+EOM
+    exit 3
+  fi
+fi
 if printf '%s' "$resp" | grep -qiE 'own pull request|not approve your own'; then
   cat >&2 <<EOF
 pr_review: REFUSED — GitHub says this identity authored PR #$PR, so it cannot review it.
