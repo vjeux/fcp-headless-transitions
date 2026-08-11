@@ -63,7 +63,7 @@ Your loop:
 4. If gate PASS: do the SEMANTIC adversarial review below (classify → oracle → reach → LINE-BY-LINE,
    re-deriving disasm INDEPENDENTLY from the binary). If the PR had G5 FLAGs, after you confirm it is
    genuinely faithful re-run `pr_gate.sh <PR#> --reviewed` to post the green status. If genuinely
-   faithful and status is green: `gh pr merge <PR#> --squash --auto --delete-branch`. GitHub merges
+   faithful and status is green: `pr_land.sh <PR#>` (NEVER a bare `gh pr merge` — that bypasses the guard that refuses to merge over an un-dismissed CHANGES_REQUESTED, which is how the rejected #108 landed). GitHub merges
    SERVER-SIDE once the required status is green — the local tree is NEVER touched. (Auto-merge waits
    for the status if still pending.) The same gh token opened the PR, so a GitHub "approving review"
    is blocked (self-approve); the REQUIRED CHECK is the STATUS, and your judgment is enforced because
@@ -140,7 +140,7 @@ Your verdict is expressed by the `faithfulness-gate` commit STATUS + your merge 
 (`pr_gate.sh` posts the status; branch protection makes it the required check). Keep your judgment
 classification the same:
 - ACCEPT (merge allowed) ONLY when verdict ∈ {VERIFIED, LIKELY_REAL(+your line-by-line sign), TRAP, EMPTY}.
-  Post green via `pr_gate.sh <PR#>` (or `--reviewed` if it had G5 flags) THEN `gh pr merge <PR#> --squash --auto --delete-branch`.
+  Post green via `pr_gate.sh <PR#>` (or `--reviewed` if it had G5 flags) THEN `pr_land.sh <PR#>` (NEVER a bare `gh pr merge` — that bypasses the guard that refuses to merge over an un-dismissed CHANGES_REQUESTED, which is how the rejected #108 landed).
 - SKELETON: a DISPATCH_ONLY shell is a HARD G5 REJECT. Do NOT sign a dispatch-only shell as
   LIKELY_REAL to force it through. `ghapp/pr_review.sh <PR#> request-changes "dispatch-only skeleton"`.
 - REJECT stops the merge. `ghapp/pr_review.sh <PR#> request-changes "<exactly which instruction the TS omits>"`.
@@ -192,7 +192,7 @@ outrunning it (retry later). It NEVER force-merges — only merges a green, merg
 a PR you have ALREADY semantically verified this run (it does not do your line-by-line for you).
 
 MANUAL equivalent (if you prefer, or pr_land prints REBASE-RACE): post green via `pr_gate.sh <PR#>`
-(or `--reviewed`), then `gh pr merge <PR#> --repo vjeux/fcp-headless-transitions --squash --auto --delete-branch`.
+(or `--reviewed`), then `pr_land.sh <PR#>` (NEVER a bare `gh pr merge` — that bypasses the guard that refuses to merge over an un-dismissed CHANGES_REQUESTED, which is how the rejected #108 landed).
 If it reports BEHIND: `gh api -X PUT repos/vjeux/fcp-headless-transitions/pulls/<PR#>/update-branch`,
 wait for the new head SHA, re-run `pr_gate.sh <PR#>` on it, then merge.
 
