@@ -30,10 +30,19 @@ cmd_claim () {
   # mergeable. That is exactly how #243 reached one merge from landing while its own TS diverged from
   # the live symbol on 8 of 106 cases (issue #285). A green mechanical gate is not a verdict; only a
   # reviewer's APPROVE is. PRs already APPROVED or CHANGES_REQUESTED on their head are left alone.
+  #
+  # THE VERDICT FILTER APPLIES TO EVERY BRANCH, NOT JUST `SUCCESS`. It used to read
+  #     .s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or (.s=="SUCCESS" and .d!="CHANGES_REQUESTED")
+  # so a PR whose gate was NONE/PENDING was offered again REGARDLESS of a standing rejection — a
+  # reviewer was re-handed a PR six minutes after rejecting it (#571), and a freshly force-pushed
+  # rework has no status at all, which is exactly the PENDING/NONE case. That wastes the lease, and
+  # worse, invites a second verdict on a PR whose author is mid-fix: the duplicate-review race of
+  # #7/#224 through a new door. The rework queue owns a CHANGES_REQUESTED PR until its author
+  # answers; the gate's state does not change whose turn it is.
   local rows
   rows=$(gh pr list --repo "$SLUG" --state open --limit 100 \
       --json number,headRefOid,statusCheckRollup,reviewDecision \
-      --jq '.[] | {n:.number, sha:.headRefOid, d:(.reviewDecision // ""), s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select(.s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or (.s=="SUCCESS" and .d!="APPROVED" and .d!="CHANGES_REQUESTED")) | "\(.n)\t\(.sha)"' 2>/dev/null)
+      --jq '.[] | {n:.number, sha:.headRefOid, d:(.reviewDecision // ""), s:([.statusCheckRollup[]?|select(.context=="faithfulness-gate")]|last|.state // "NONE")} | select((.d!="APPROVED" and .d!="CHANGES_REQUESTED") and (.s=="NONE" or .s=="PENDING" or .s=="EXPECTED" or .s=="SUCCESS")) | "\(.n)\t\(.sha)"' 2>/dev/null)
   [ -z "$rows" ] && { echo "NONE"; return 1; }
   # randomize so parallel reviewers don't collide on the same first row
   rows=$(printf '%s\n' "$rows" | sort -R 2>/dev/null || printf '%s\n' "$rows")
