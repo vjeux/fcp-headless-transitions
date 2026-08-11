@@ -150,6 +150,46 @@ echo "$OUT" | grep -q "reverts-ok: raw-port/army/tools/tool.sh" \
   || { echo "  FAIL — I2 the blanket note must name each path it covers"; echo "$OUT" | tail -5; FAIL=$((FAIL+1)); }
 rm -rf "$D"
 
+# ------------------------------------------------- J: growing a line is not deleting it
+# The edit AGENT_ENTRY §7b requires of every swarm-level fix: append a layer to prove_all's return
+# chain. The old line is "removed" and a longer one added; nothing is lost. Rejected head 5a134a2b
+# failed exactly here, on its own checker.
+D=$(newrepo)
+printf 'return ok and ok2 and ok3\n' > "$D/raw-port/army/tools/tool.sh"
+git -C "$D" commit -qam "the return chain"
+git -C "$D" checkout -qb work
+printf 'return ok and ok2 and ok3 and ok4\n' > "$D/raw-port/army/tools/tool.sh"
+git -C "$D" commit -qam "add a layer"
+OUT=$(cd "$D" && run main work); RC=$?
+check "J  appending to a line (prove_all's return chain) -> PASS" 0 "$RC" "" "$OUT"
+rm -rf "$D"
+
+# ------------------------------------------------- K: a MID-LINE insertion is not deleting either
+# Registering a check in swarm_doctor's CHECKS list. Substring containment does NOT clear this one
+# (the insertion is in the middle), which is why the rule is token-based.
+D=$(newrepo)
+printf 'CHECKS = [check_leases, check_heartbeats, check_inventory]\n' > "$D/raw-port/army/tools/tool.sh"
+git -C "$D" commit -qam "the CHECKS registry"
+git -C "$D" checkout -qb work
+printf 'CHECKS = [check_leases, check_no_double_lease, check_heartbeats, check_inventory]\n' > "$D/raw-port/army/tools/tool.sh"
+git -C "$D" commit -qam "register a new check"
+OUT=$(cd "$D" && run main work); RC=$?
+check "K  inserting into a list mid-line (swarm_doctor CHECKS) -> PASS" 0 "$RC" "" "$OUT"
+rm -rf "$D"
+
+# ------------------------------------------------- L: SHRINKING a line is still a loss
+# The direction the rule must NOT clear, and the reason rewritten_in_place only labels: half the
+# statement is gone, and no added line carries it.
+D=$(newrepo)
+printf 'foo(); bar();\n' > "$D/raw-port/army/tools/tool.sh"
+git -C "$D" commit -qam "two calls"
+git -C "$D" checkout -qb work
+printf 'foo();\n' > "$D/raw-port/army/tools/tool.sh"
+git -C "$D" commit -qam "drop half of it"
+OUT=$(cd "$D" && run main work); RC=$?
+check "L  shortening a line so a call disappears -> REJECT" 2 "$RC" "bar();" "$OUT"
+rm -rf "$D"
+
 echo "BASELINE (M0): $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || { echo "TEST_STALE_FILE_CHECK: FAIL"; exit 1; }
 
@@ -176,6 +216,8 @@ echo "== mutation control (each must be KILLED) =="
 # was rejected for.
 mutate pre_image 's|mb_c = Counter(l for l in blob_lines(mb, p)|mb_c = Counter(l for l in blob_lines(base, p)|' \
                  "the three-dot rule — measuring against main's tip instead of the merge base (case B)"
+mutate no_token_rule 's|lost = Counter({l: c for l, c in lost.items() if not tokens_all_survive(added, l)})|lost = Counter(lost)|' \
+                     "the grow-is-not-a-loss rule — the mandated CHECKS / return-chain edits go red (cases J, K)"
 mutate no_filter 's|lost = removed & main_c|lost = removed|'    "the still-on-main filter (case G)"
 mutate no_ack    's|if not unacked:|if False:|'                 "the acknowledgement path (case C)"
 mutate lax_flag  's|            return 2|            return 1|'  "strict flag parsing — exit 1 is a code pr_gate.sh lets through (case H)"

@@ -22,7 +22,7 @@ import { kCMTimeFlags_Valid } from "./CMTime.js";
 // TypeScript-vs-binary differential for this file — the port is correct and only the harness
 // cannot load it. `import type` is erased unconditionally and is identical for tsc.
 import type { CMTime } from "./CMTime.js";
-
+import type { PCSerializer } from "./PCSerializer.js";
 
 /**
  * The receiver side of the virtual dispatch at the end of
@@ -285,6 +285,140 @@ export class PCSerializerReadStream {
     // @0x264a5  movq (%rcx,%rax,8), %rax  /  @0x264a9..0x264aa  epilogue + retq
     return blockPtrs[slot];
   }
+  // ===========================================================================
+  // THE HANDLER STACK — `std::deque<PCSerializerReadStream::HandlerInfo>` at `this+0x38`
+  // ===========================================================================
+  // ADDED 2026-08-11 with currentHandlerElement() @ProCore 0x264f6, and modelled the way the
+  // element stack above it is: three fields naming the three words the method loads, no more.
+  // The deque's ADDRESS is proved by a sibling rather than inferred from the arithmetic —
+  // `PCSerializerReadStream::pushHandler(PCSerializer*)` @ProCore 0x26114 reads:
+  //
+  //   0x26167  leaq  0x38(%rbx), %rdi                  ; this + 0x38
+  //   0x2616f  callq std::__1::deque<PCSerializerReadStream::HandlerInfo, allocator<…>>::push_back
+  //
+  // so the second deque subobject begins at +0x38 (the element deque occupies +0x08..+0x30), and
+  // the same libc++ layout places its members at:
+  //
+  //   deque+0x00 = this+0x38   __map_.__first_
+  //   deque+0x08 = this+0x40   __map_.__begin_   the ARRAY OF BLOCK POINTERS
+  //   deque+0x10 = this+0x48   __map_.__end_
+  //   deque+0x18 = this+0x50   __map_.__end_cap_
+  //   deque+0x20 = this+0x58   __start_          index of element 0 within block 0
+  //   deque+0x28 = this+0x60   __size_
+  //
+  // THE BLOCK SIZE IS 102, NOT 512, and that difference from the element stack is the whole reason
+  // this deque cannot borrow the sibling's arithmetic: libc++ uses `max(1, 4096/sizeof(T))`, and
+  // HandlerInfo is 40 bytes, so 4096/40 = 102.4 -> 102 records per block. Both numbers are read
+  // straight out of the instructions rather than out of that formula:
+  //   * `imulq $0x66, %rdx, %rdx` @0x26529 — 0x66 = 102 records per block;
+  //   * `leaq (%rcx,%rcx,4), %rcx` @0x26530 then a `,8` scale @0x26534 — the record index is
+  //     multiplied by 5 and then by 8, i.e. sizeof(HandlerInfo) == 40 (0x28).
+  // A block count that is not a power of two is also why this method divides with a MAGIC MULTIPLY
+  // where currentElement() could shift (see the note on the method itself).
+  //
+  // Only the words currentHandlerElement() touches are modelled; `__first_`, `__end_` and
+  // `__end_cap_` belong to push_back/pop_front's growth policy and are separate ledger units.
+
+  /** `this+0x40` — libc++ `__map_.__begin_`: the array of BLOCK pointers, each block holding 102
+   *  `HandlerInfo` records. Loaded @ProCore 0x2651d (`movq 0x40(%rdi), %rax`) and indexed by the
+   *  magic-multiply quotient @0x26525. */
+  _handlersMap: Array<Array<PCSerializerReadStream__HandlerInfo>> = [];
+  /** `this+0x58` — libc++ `__start_`: the offset of logical record 0 inside block 0, so a physical
+   *  index is `__start_ + i`. Loaded @ProCore 0x26503. */
+  _handlersStart = 0;
+  /** `this+0x60` — libc++ `__size_`: the number of frames on the handler stack. Loaded and tested
+   *  for zero @ProCore 0x264f6-0x264fd. */
+  _handlersSize = 0;
+
+  /**
+   * `PCSerializerReadStream::currentHandlerElement() const` — @ProCore 0x264f6
+   * (__ZNK22PCSerializerReadStream21currentHandlerElementEv, nm class `T`).
+   *
+   * The `PCStreamElement*` recorded in the TOP frame of the handler stack — i.e. an inlined
+   * `std::deque::back()` with an empty-check in front of it, then one field read out of the
+   * 40-byte record. Line-for-line transcription of all 17 instructions; as with currentElement(),
+   * the `pushq %rbp` frame is set up only on the non-empty path and the empty path returns through
+   * its own `xorl %eax,%eax; retq` at 0x2653b:
+   *
+   *   0x264f6  movq     0x60(%rdi), %rax          ; rax = __size_
+   *   0x264fa  testq    %rax, %rax
+   *   0x264fd  je       0x2653b                   ; empty -> return nullptr
+   *   0x264ff  pushq    %rbp                      ; (frame only on the non-empty path)
+   *   0x26500  movq     %rsp, %rbp
+   *   0x26503  movq     0x58(%rdi), %rcx          ; rcx = __start_
+   *   0x26507  addq     %rax, %rcx                ; rcx = __start_ + __size_
+   *   0x2650a  decq     %rcx                      ; rcx = physical index of the LAST record
+   *   0x2650d  movabsq  $0xA0A0A0A0A0A0A0A1, %rdx
+   *   0x26517  movq     %rcx, %rax
+   *   0x2651a  mulq     %rdx                      ; rdx:rax = idx * magic (unsigned 128-bit)
+   *   0x2651d  movq     0x40(%rdi), %rax          ; rax = __map_.__begin_
+   *   0x26521  shrq     $0x6, %rdx                ; rdx = high64 >> 6  = idx / 102  -> block
+   *   0x26525  movq     (%rax,%rdx,8), %rax       ; rax = map[block]
+   *   0x26529  imulq    $0x66, %rdx, %rdx         ; rdx = block * 102
+   *   0x2652d  subq     %rdx, %rcx                ; rcx = idx - block*102  -> record in block
+   *   0x26530  leaq     (%rcx,%rcx,4), %rcx       ; rcx = record * 5
+   *   0x26534  movq     0x20(%rax,%rcx,8), %rax   ; rax = block[record].element  (stride 40, +0x20)
+   *   0x26539  popq     %rbp
+   *   0x2653a  retq
+   *   0x2653b  xorl     %eax, %eax                ; the empty path
+   *   0x2653d  retq
+   *
+   * THE DIVISION IS A MAGIC MULTIPLY and is transcribed as one. 0xA0A0A0A0A0A0A0A1 is
+   * ceil(2^70 / 102), so `(idx * M) >> 70` — the `mulq`'s high half, shifted right 6 — is exact
+   * unsigned division by 102 across the whole u64 range. Writing `Math.floor(idx / 102)` instead
+   * would agree for every index below 2^53 and is the shorter line, but it replaces the
+   * instruction with a different operation; the sibling currentElement() has no such choice to
+   * make, because 512 is a power of two and its `shrq $0x9` IS a shift. Done in BigInt so the
+   * "high half" is really the high half: `(a * b) >> 64n` on values below 2^64 is exactly `mulq`'s
+   * %rdx, and JS numbers cannot hold that product.
+   *
+   * WHY +0x20 AND NOT +0x18. HandlerInfo is built by `pushHandler` @0x26114 in its own frame at
+   * -0x40(%rbp) and push_backed whole, which names every field:
+   *   +0x00  a pointer zeroed at push (`xorps %xmm0,%xmm0; movaps %xmm0,-0x40(%rbp)` @0x26125) and
+   *          `operator delete`d when the temporary is destroyed (@0x2618f `callq __ZdlPv`) — an
+   *          owning pointer this method never reads, so it is not modelled here.
+   *   +0x08  zeroed by that same 16-byte `movaps`.
+   *   +0x10  zeroed (`movq $0x0, -0x30(%rbp)` @0x2612c).
+   *   +0x18  the `PCSerializer*` being pushed (`movq %rsi, -0x28(%rbp)` @0x26134). This is what the
+   *          OTHER accessor, `currentHandler()` @0x264ae, returns — its 22 instructions are
+   *          identical to these except for `0x18(%rax,%rcx,8)` in place of `0x20(...)`. That is a
+   *          separate ledger unit and is not ported here.
+   *   +0x20  the `PCStreamElement*` that was current when the handler was pushed (currentElement()
+   *          inlined @0x26138-0x26163, stored `movq %rax, -0x20(%rbp)`) — the field THIS method
+   *          returns.
+   *
+   * BOUNDS. The two loads @0x26525 and @0x26534 are unchecked, exactly as in currentElement(): the
+   * empty case has already returned and libc++'s invariant guarantees the block exists. The port
+   * indexes as the machine does and invents no fallback.
+   *
+   * ORACLE. `raw-port/re/oracle/PCSerializerReadStream_currentHandlerElement_oracle.py` builds a
+   * real handler deque in ctypes memory (a real block map, real 40-byte records), calls the LIVE
+   * ProCore symbol on it under `arch -x86_64`, and compares against THIS method through
+   * `..._driver.mts`, which imports this file. 17/17 cases agree; see the file header for the
+   * mutant table.
+   */
+  currentHandlerElement(): PCStreamElement | null {
+    // @0x264f6  movq 0x60(%rdi), %rax
+    const size = this._handlersSize;
+    // @0x264fa  testq %rax, %rax  /  @0x264fd  je 0x2653b
+    if (size === 0) {
+      // @0x2653b  xorl %eax, %eax  /  @0x2653d  retq
+      return null;
+    }
+    // @0x264ff..0x26500 — prologue (no TS-visible effect; non-empty path only).
+    // @0x26503  movq 0x58(%rdi), %rcx
+    const start = this._handlersStart;
+    // @0x26507  addq %rax, %rcx  /  @0x2650a  decq %rcx
+    const idx = BigInt(start) + BigInt(size) - 1n;
+    // @0x2650d  movabsq $0xA0A0A0A0A0A0A0A1  /  @0x2651a  mulq  /  @0x26521  shrq $0x6
+    const block = Number(((idx * kPCSerializerReadStreamDiv102Magic) >> 64n) >> 6n);
+    // @0x26529  imulq $0x66, %rdx, %rdx  /  @0x2652d  subq %rdx, %rcx  /  @0x26530  leaq (5x)
+    const record = Number(idx - BigInt(block) * BigInt(kPCSerializerReadStreamHandlersPerBlock));
+    // @0x2651d  movq 0x40(%rdi), %rax  /  @0x26525  movq (%rax,%rdx,8), %rax
+    const blockRecords = this._handlersMap[block];
+    // @0x26534  movq 0x20(%rax,%rcx,8), %rax  /  @0x26539..0x2653a  epilogue + retq
+    return blockRecords[record].element;
+  }
 
   /**
    * `PCSerializerReadStream::processElement(PCStreamElement&)`
@@ -403,3 +537,28 @@ export class PCSerializerReadStream {
     return serializer.parseElement(this, element);
   }
 }
+
+/**
+ * `PCSerializerReadStream::HandlerInfo` — one frame of the handler stack at `this+0x38`.
+ * 40 bytes (0x28); every field is derived in the block comment above `currentHandlerElement()`
+ * from `pushHandler` @ProCore 0x26114, which builds the record and push_backs it.
+ *
+ * It is declared here beside its only owner rather than in an `Outer__Inner` file of its own,
+ * following the sibling precedent in `PCXMLWriteStream.ts` for that class's nested
+ * `PCXMLElementInfo` deque record: the two fields modelled below are the two an accessor of THIS
+ * class reads, and nothing else in the corpus can construct or observe one.
+ */
+export interface PCSerializerReadStream__HandlerInfo {
+  /** @ProCore +0x18 — the pushed `PCSerializer*` (@0x26134); what `currentHandler()` @0x264ae
+   *  returns. Modelled but not read here, so that a port confusing the two fields is a DIVERGENCE
+   *  in the oracle rather than a coincidence. */
+  handler: PCSerializer | null;
+  /** @ProCore +0x20 — the `PCStreamElement*` current at push time (@0x26163); the field
+   *  `currentHandlerElement()` @0x264f6 returns. */
+  element: PCStreamElement | null;
+}
+
+/** 102 HandlerInfo records per block — `imulq $0x66, %rdx, %rdx` @ProCore 0x26529. */
+const kPCSerializerReadStreamHandlersPerBlock = 102;
+/** `movabsq $0xA0A0A0A0A0A0A0A1, %rdx` @ProCore 0x2650d — ceil(2^70/102), the unsigned /102 magic. */
+const kPCSerializerReadStreamDiv102Magic = 0xa0a0a0a0a0a0a0a1n;

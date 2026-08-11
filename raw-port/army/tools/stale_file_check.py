@@ -99,6 +99,41 @@ def acknowledged_paths(base, head, ack_flags, ack_all):
     return acks
 
 
+def tokens_all_survive(added_lines, line):
+    """Does this removed line lose NOTHING — i.e. does every one of its non-whitespace tokens still
+    appear in the lines this same change ADDS?
+
+    This is the discriminator reviewer 6 asked for on #600, and it is what separates the two
+    directions `rewritten_in_place` lumps together:
+
+      * GROW  `… and ok11`                       -> `… and ok11 and ok12`
+              `check_leases, check_heartbeats,`  -> `check_leases, check_no_double, check_heartbeats,`
+        every token survives -> nothing was lost -> NOT a deletion.
+      * SHRINK `foo(); bar();`                   -> `foo();`
+        `bar();` appears in no added line -> a real loss -> still reported, still red.
+
+    Why this rule and not plain containment: the two edits above are the two edits AGENT_ENTRY §7b
+    *requires* of every swarm-level fix — register a check in `swarm_doctor`'s CHECKS list, and add
+    a layer to `prove_all`'s return chain — and both are MID-LINE insertions, which substring
+    containment does not catch. Measured on the live queue at the time of the review, this guard
+    without the rule reddened 8 of 24 open PRs, two of them APPROVED and waiting to land, and the
+    remedy it prescribed (`reverts-ok: swarm_doctor.py`, again and again) would have become a
+    standing blanket waiver on the two hottest shared files in the repo — the guard switched off
+    exactly where it is meant to be strong. It also failed on this PR's OWN head.
+
+    Tokens, not characters, in either direction: a token that moved to a different added line still
+    survives (a wrapped list), while a token that vanished does not, wherever the vanishing happened
+    in the line.
+    """
+    toks = line.split()
+    if not toks:
+        return False
+    pool = set()
+    for a in added_lines:
+        pool.update(a.split())
+    return all(t in pool for t in toks)
+
+
 def rewritten_in_place(added_lines, line):
     """Is this removed line a REWRITE rather than a loss?
 
@@ -185,9 +220,13 @@ def main(argv):
             continue                      # not on main any more: nothing of main's to lose
         removed = mb_c - head_c           # what the merge applies as deletions (three dots)
         lost = removed & main_c           # ...of lines main still has
+        added = list((head_c - mb_c).elements())
+        # A removed line whose every token reappears in the added lines lost NOTHING — it was
+        # grown, not dropped. See tokens_all_survive: this clears the mid-line insertion that
+        # registering a check or adding a verifier layer performs, while a SHRINK still counts.
+        lost = Counter({l: c for l, c in lost.items() if not tokens_all_survive(added, l)})
         n = sum(lost.values())
         if n:
-            added = list((head_c - mb_c).elements())
             losses.append((p, n, list(lost.elements()), added))
 
     if not losses:

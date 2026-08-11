@@ -134,12 +134,32 @@ $row"; else cand="$row"; fi
     # This test applies to a REJECTION only. A `stale-file` row was selected from the status on THIS
     # head, so it is by construction current — and it may well also carry an older, already-answered
     # rejection, which is precisely the case the test below would misread as "waiting on a reviewer".
-    local rej
     if [ "$why" = "rejection" ]; then
-      rej=$(gh api "repos/$SLUG/pulls/$num/reviews" \
-              --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
-      # An EMPTY answer is a transport failure or an API shape change, never a verdict — offer the
-      # PR rather than starving the queue on it (OPS_LOG: a gh "not found" is not information).
+      # RETRY BEFORE FAILING OPEN. The fail-open below is right in principle and it is reached far too
+      # often in practice: `gh` on this box intermittently dies with
+      # `tls: failed to verify certificate: x509: certificate signed by unknown authority`, and the
+      # identical call succeeds on the next attempt. When that lands here the guard sees an empty
+      # answer, offers a PR the author has ALREADY answered, and a worker spends a full run
+      # rediscovering it — the exact cost #36 was written to remove. Measured 2026-08-11: #655 was
+      # handed to me at attempt 1/3 with its rejection recorded on dbeb23cc and its head at 998dfc5f,
+      # two pushes and a peer's completed rework later. Re-running this very query three times
+      # immediately afterwards returned dbeb23cc every time — the data was there, the call was not.
+      local rej="" _try
+      for _try in 1 2 3; do
+        rej=$(gh api "repos/$SLUG/pulls/$num/reviews" \
+                --jq '[.[] | select(.state=="CHANGES_REQUESTED")] | last | .commit_id' 2>/dev/null)
+        [ -n "$rej" ] && [ "$rej" != "null" ] && break
+        [ "$_try" -lt 3 ] && sleep 2
+      done
+      # An EMPTY answer AFTER THREE TRIES is a transport failure or an API shape change, never a
+      # verdict — offer the PR rather than starving the queue on it (OPS_LOG: a gh "not found" is not
+      # information). Say so out loud, though: a silent fail-open is indistinguishable from a real
+      # offer, and the worker who receives the PR is the only one who can tell the difference.
+      if [ -z "$rej" ] || [ "$rej" = "null" ]; then
+        echo "rework_claim: WARNING PR #$num — could not read the rejection's commit after 3 tries;" >&2
+        echo "              offering it anyway (fail-open). If its head has moved since the review it" >&2
+        echo "              may already be reworked — check before redoing the work." >&2
+      fi
       if [ -n "$rej" ] && [ "$rej" != "null" ] && [ "$rej" != "$sha" ]; then
         echo "rework_claim: PR #$num already reworked (rejection was on ${rej:0:8}, head is now ${sha:0:8}) — it is waiting on a REVIEWER, skipping" >&2
         rm -f "$ATT/$num" "$ATT/$num.sha" 2>/dev/null
