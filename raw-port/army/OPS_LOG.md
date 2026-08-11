@@ -2627,3 +2627,264 @@ Two things worth keeping in mind even with the fix in:
   symbols. Note this is #18 in a new form: the queue is append-only precisely so that an honest
   refusal cannot delete a unit, and the same property means an agent that dies mid-unit removes it
   just as permanently.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 2 (an UNKNOWN FLAG eats the whole review body; the arch trap can REJECT; new)
+
+- **AN UNRECOGNISED `--flag` PASSED TO `pr_review.sh` BECOMES THE REVIEW BODY, AND THE `--body-file`
+  IS NEVER READ — SO THE ENTIRE VERDICT IS REPLACED BY THE COMMAND LINE, WITH EXIT 0 AND A SUCCESS
+  LINE NAMING THE RIGHT VERDICT AND THE RIGHT SHA.** This is the `--body-file` fix (#30) working
+  exactly as designed and still losing everything, through the argument parser instead of through the
+  shell. Hit live, by me, on PR #553:
+
+      $ pr_review.sh 553 request-changes --expect-head 50ed06eb… --body-file /tmp/verdict.md
+      pr_review: PR #553 @ 50ed06eb -> CHANGES_REQUESTED (as vjeux-reviewer[bot])
+
+      $ gh api …/pulls/553/reviews --jq '.[-1] | "\(.state) len=\(.body|length)"'
+      CHANGES_REQUESTED len=91          # the file was 11,313 bytes
+
+  The posted body was the literal string
+  `--expect-head 50ed06eb… --body-file /tmp/rev2_553_verdict.md`. Mechanism: `--expect-head` does not
+  exist on main — it is added by PR #553, which is UNLANDED — and main's `pr_review.sh` tests only
+  `[ "${1:-}" = "--body-file" ]`. `$1` was `--expect-head`, so the branch was not taken and
+  `BODY="${*:-}"` swallowed the whole argv, `--body-file` and path included, as prose.
+
+  **Why this is not a one-off mistake by one agent:** the flag is advertised in three places an agent
+  is told to trust — PR #553 adds it to `AGENT_ENTRY.md`'s reviewer checklist, it is in that PR's
+  OPS_LOG row 35, and dispatch prompts are already instructing reviewers to sign with it (mine did,
+  in bold, as hard-won advice). Every one of those is correct about what the tool WILL do and silent
+  about what it does TODAY, so the natural, obedient action destroys the evidence. Same family as
+  #30/#445 — evidence deleted from the permanent record while the posted review still reads
+  plausibly — but strictly worse: the backtick trap removed a clause, this removes the document.
+
+  DETECTION, and it is the only reason I caught it: **read the posted body back after signing.**
+  `gh api repos/<slug>/pulls/<PR>/reviews --jq '.[-1].body | length'` next to the byte count of the
+  file you wrote is a one-line check, and nothing else in the loop performs it.
+  RECOVERY: dismiss your OWN broken review
+  (`gh_as.sh reviewer api -X PUT …/reviews/<id>/dismissals -f message='…'`) — the idempotence filter
+  does not match DISMISSED, so the same verdict can then be re-posted on the same head with the real
+  body. Dismissing your own review removes nothing but your own signature; a peer's rejection on the
+  same PR is untouched and still blocks (verified: reviewer 1's CHANGES_REQUESTED survived mine).
+  FIX: `pr_review.sh` should REFUSE any argument beginning with `--` that it does not recognise,
+  rather than folding it into the body — three lines, and it converts every future
+  flag-ahead-of-the-tool into a loud stop instead of a silent deletion. A cheap corollary: refuse a
+  body that CONTAINS the token `--body-file`, which can only mean the file was not read. General
+  rule, since this is the third door into the same room: **a tool whose job is to record evidence
+  must never accept an unparsed argument as that evidence.**
+
+- **THE WRONG-ARCHITECTURE ORACLE DOES NOT ONLY FAIL TOWARD VERIFIED — IT CAN PRODUCE A REJECT, WITH
+  MEASURED NUMBERS THAT ARE EXACTLY BACKWARDS, AND THOSE NUMBERS THEN GET BAKED INTO A GATE MESSAGE
+  EVERY FUTURE AGENT READS.** The standing entries say the arm64 slice fails toward "equal"/VERIFIED
+  and that it hides the NaN-sign class. PR #154 (`HGFormatUtils::RGBtoRGBA` @Helium 0xa1cf0) is the
+  other direction: three reviewers independently rejected it citing
+  *"fmt 232 -> live FCP 232, port 24"*, and on the x86_64 slice the port was transcribed from, live
+  FCP returns **24** for fmt 232 — the same answer the port gave. Same symbol, same corpus, one
+  process each:
+
+      fmt        17 18 19 20 21 40 41 | 81 82 83 84 | 232 233 913 | 616 | 65576
+      x86_64     24 24 25 27 28 24 24 | 81 82 83 84 |  24  24  24 | 616 | 65576
+      arm64      24 24 25 27 28 24 24 | 24 24 24 24 | 232 233 913 |  24 | (n/a)
+
+  I reproduced the reviewers' figures exactly from a native arm64 process, which is how I know that
+  is what happened rather than something about my own run (x86_64 side: three runs, three ASLR
+  slides, identical answers; prologue bytes at `slide + 0xa1cf0` self-checked; dlsym address equal to
+  the cached x86_64 inventory address + slide).
+
+  WHY THE TWO SLICES DISAGREE AT ALL, and it is the interesting part: the method's `btq %rax,%rcx`
+  masks the bit index to `fmt & 63` while the following `shlq $0x5` scales the FULL fmt, so any
+  fmt >= 64 whose low six bits land in the bitmap indexes PAST the 44-entry table. The answer is then
+  whatever bytes follow that table — and the two slices lay out that memory differently. So on the
+  out-of-table domain there is **no value a port can return that is faithful to "the binary"**, which
+  is a much stronger argument for raising than the one the PR made for itself. (A negative fmt whose
+  low six bits hit the bitmap — -47, -24 — faults with SIGBUS; call those in a forked child or the
+  harness dies.)
+
+  THE PART THAT OUTLIVES THE PR: the wrong number is now quoted inside `undef_index_gate`'s flag text
+  — *"the #154 RGBtoRGBA class: returned 24 where live FCP returns 232"* — so every G7 flag in the
+  repo teaches the reversed fact to whoever reads it. Fix that string when the gate is next touched.
+  RULES: (1) an oracle report should NAME the slice it ran on, in the report, next to the numbers —
+  a differential that cannot say which architecture it called is not evidence; (2) when a reviewer
+  rejects on measured values, the values belong in the review body (these did, which is the only
+  reason this was recoverable); (3) if you are about to reject a port whose disagreement is confined
+  to indices the machine itself reads out of bounds, check the other slice before you sign — that
+  domain is exactly where the two disagree.
+
+- **Third confirmation, with three fresh instances: the G5 NO-DISASM flag names an address that is
+  not the flagged export's.** On PR #154, `textureSizeBytes` was flagged for @Helium 0xa1bf4 (not a
+  symbol start at all — `toHGGLContextID` is at 0xa1bf0), `collapseRectForFormat` for @0xa1d60
+  (that is `bytesPerPixel`; `collapseRectForFormat` is at 0xa22f0), and `buildFormat` for @0xa0bfc0
+  (`buildFormat` is at 0xa26e0). Workers 4 and 6 already reported this; it is still live, and it
+  costs a reviewer real time because the natural first move is to disassemble the address in the
+  message. Until it is fixed, resolve the export's own address from
+  `army/inventory/<FW>.syms.txt` and ignore the one in the flag.
+
+- **Re-deriving the disassembly turns 11 flags into 0 in 1.5 seconds, which is worth knowing before
+  you treat a flag storm as a verdict on the PR.** Same #154: the gate leased a slot whose
+  `re/disasm/` happened to be empty and reported **11 G5 NO-DISASM flags**; running
+  `disasm.sh --sym` for the file's 14 HGFormatUtils symbols (1.5s total, all from the cached symidx)
+  and re-gating gave **0 cheats, 0 flags**. The flags were a property of the slot, not of the change
+  — the pool-scratch entry above, seen from the flagging side rather than the suppressing side.
+
+- **A STALE `rebase-merge` IN A FRESHLY LEASED POOL SLOT COST A PEER THEIR UNPUSHED COMMIT, AND THE
+  ONLY THING THAT STOPPED IT BECOMING A PUSH WAS `pr_submit.sh`'S BRANCH GUARD.** Worker 6 reported
+  the trap ("a pool worktree can be leased with a rebase in progress"); this is what it costs when
+  you follow the documented recovery. Full sequence, mine, slot 1, 2026-08-11 16:54Z — I was
+  authoring the OPS_LOG entry above:
+
+      1. wt_pool.sh acquire opslog_rev2_guards      -> slot 1, `## port/opslog_rev2_guards [ahead 1]`
+      2. commit, then pr_submit.sh                  -> "REBASE CONFLICT on port/opslog_rev2_guards"
+      3. cat .git/worktrees/1/rebase-merge/head-name -> refs/heads/port/opslog_w5   <-- NOT MY BRANCH
+      4. git rebase --abort                         -> HEAD is now port/opslog_w5 @ d5a8225d
+      5. git reset --hard origin/main               -> moved THEIR branch ref off d5a8225d
+      6. git commit                                 -> MY commit now sits on THEIR branch
+      7. pr_submit.sh opslog_rev2_guards            -> REFUSING: worktree is on 'port/opslog_w5'
+                                                       but you asked to submit 'opslog_rev2_guards'
+
+  Two things are worse than the existing entry describes. First, **the "REBASE CONFLICT" message is a
+  lie about whose rebase it is**: `pr_submit.sh` renders git's "already a rebase-merge directory"
+  refusal as a conflict on YOUR branch, so the natural next step is to abort — and aborting is what
+  moves you onto the previous lessee's branch. Second, **step 5 is the documented workaround for a
+  different hazard** (OPS_LOG's own "if anything else appears, `git fetch origin main && git reset
+  --hard origin/main` in the worktree"), and applied here it silently discarded worker 5's unpushed
+  104-line OPS_LOG commit — `git branch -r --contains d5a8225d` was EMPTY, so it existed nowhere else.
+  I recovered it from the worktree reflog (`rebase (abort): returning to refs/heads/port/opslog_w5`
+  names the pre-abort tip) and restored the ref with `git branch -f port/opslog_w5 d5a8225d`; nothing
+  was lost. But the recovery depended on noticing at all, and the only reason I looked was
+  `pr_submit.sh`'s #338 branch guard refusing to push — a guard written for a different problem
+  catching this one at the last possible moment.
+
+  **PR #553's `reset_clean` change would have prevented the whole sequence** (it aborts any
+  rebase/merge/cherry-pick before handing the slot over, and `acquire` then refuses a slot where one
+  survived). Until that lands: after EVERY `wt_pool.sh acquire`, run `git status -sb` and
+  `ls .git/rebase-merge 2>/dev/null` before you write anything, and **never `git rebase --abort` in a
+  pool slot without reading `rebase-merge/head-name` first** — if it names someone else's branch,
+  the safe move is `git rebase --quit` (which leaves their branch ref alone) followed immediately by
+  `git checkout -B <your branch> origin/main`, not `--abort`.
+
+- **`check_duplicate_classes.py` IS THE GUARD FOR THE CLASS-FORK HAZARD, IT WORKS, IT REPORTS SEVEN
+  REAL VIOLATIONS ON MAIN TODAY — AND NOTHING HAS EVER CALLED IT.** Found while reviewing worker 6's
+  fork entry (PR #556), which concludes "nothing mechanical covers it". Something does; it is simply
+  not plugged in:
+
+      $ python3 raw-port/army/tools/check_duplicate_classes.py
+      DUPLICATE class 'ozretimingutil':  ['raw-port/src/ozone/OZRetimingUtil.ts',  'raw-port/src/channels/OZRetimingUtil.ts']
+      DUPLICATE class 'ozscene':         ['raw-port/src/nodes/OZScene.ts',         'raw-port/src/channels/OZScene.ts']
+      DUPLICATE class 'ozscenesettings': ['raw-port/src/nodes/OZSceneSettings.ts', 'raw-port/src/channels/OZSceneSettings.ts']
+      check_duplicate_classes: 7 duplicate(s) -> REJECT
+
+      $ grep -rn check_duplicate_classes raw-port/army/gate raw-port/army/tools/pr_gate.sh \
+            raw-port/army/tools/pr_land.sh raw-port/army/verifier/prove_all.py
+      (nothing)
+
+  Its own docstring opens with "CI guard: reject two .ts files with the same class basename across
+  ..." and `PORTING_SPEC.md` describes it as one. The only files that mention it are the tool itself,
+  `PORTING_SPEC.md`, this log, and four stale `.gate-*` worktree copies. No gate, no `pr_gate`, no
+  `pr_land`, no `prove_all` layer.
+
+  Measured cost of the gap, grouping every `raw-port/src/**.ts` on origin/main by lowercased basename:
+  **five classes are filed twice under different layer directories** — `FFSemanticMatteNode`
+  (channels + nodes), `OZAudioMixer` (channels + nodes), `OZRetimingUtil` (channels + ozone),
+  `OZScene` (channels + nodes), `OZSceneSettings` (channels + nodes). This log's "known, not yet
+  fixed" section names only `OZScene`, so four accumulated unrecorded, underneath a check that would
+  have caught every one of them.
+
+  This is the purest instance of the pattern the rest of this file keeps naming — a guard written,
+  documented as CI, and never wired, so a reader greps, sees a check exists, and stops looking.
+  Distinct from "a guard that cannot fire" (#40, the `--arg` query; the LAYER 2f cases): this one
+  fires perfectly and is simply never invoked.
+
+  FIX, in order: (1) reconcile the five forks, or record them as accepted exceptions in the tool, and
+  (2) wire it into `pr_gate.sh` or as a `prove_all` layer. It cannot be turned on before (1) — it
+  exits REJECT against main as it stands, which is presumably why it was left out and then forgotten.
+  Note for whoever does it: `dup_check.py` is NOT this check and cannot be extended into it — its
+  `_exists_on_main` keys on the cited MANGLED SYMBOL, deliberately skipping comment lines, so a fork
+  that adds methods main does not have is correctly NEW to it. The two tools answer different
+  questions and the class-level one is the one with no caller.
+---
+
+## Open — reported 2026-08-11 by reviewer 1 (a destroyed-review RECOVERY that works on merged PRs; a test that posts to the live queue; and a mutation rule)
+
+- **THE `--expect-head` BODY-EATING BUG DESTROYED SEVEN OF SEVEN REVIEWS IN ONE RUN — AND THE
+  RECOVERY RECORDED FOR IT DOES NOT WORK ON THE PRs THAT MATTER MOST.** Reviewer 2 diagnosed the
+  mechanism on PR #558 (an unrecognised `--flag` is folded into `BODY="${*}"`, so the verdict file is
+  never read); this entry is the scale of it and the repair, because #558 is itself blocked by a
+  conflict and its recovery advice is incomplete.
+
+  My dispatch prompt instructed me, in bold, to sign every verdict with
+  `pr_review.sh <PR#> approve --expect-head <sha> --body-file <path>`. `--expect-head` does not exist
+  in main's `pr_review.sh` (it is added by the unlanded #553). Result, read back afterwards:
+
+      PR #557 7178 -> 91    PR #112 4939 -> 91    PR #395 4449 -> 91    PR #377 4901 -> 91
+      PR #492 5118 -> 91    PR #523 4832 -> 91    PR #562 5248 -> 91
+
+  Every one posted the same 91-byte string `--expect-head <sha> --body-file /tmp/<file>`, at exit 0,
+  behind a success line naming the right verdict and the right SHA. **Four of those PRs merged** on
+  differentials that were not in the record. Note the second, quieter half: `--expect-head` also
+  performed **no head check at all**, so the advice that exists to stop a signature landing on
+  unreviewed code was providing exactly zero protection while reading like protection. On #492 the
+  head then moved under the review (`pr_land`'s `update-branch` created the merge commit `35718cef`
+  at 17:09:51, four seconds AFTER my approve was submitted at 17:09:47) and GitHub recorded my
+  approval against that later commit — harmless there, because the ported file was byte-identical at
+  both SHAs and I checked, but nothing in the loop would have told me otherwise.
+
+  **THE RECOVERY, and it is better than the dismiss-and-re-post one in #558:**
+
+      gh_as.sh reviewer api -X PUT repos/<slug>/pulls/<n>/reviews/<review_id> -F body=@<file>
+
+  `PUT .../reviews/{review_id}` updates a SUBMITTED review's body in place. It preserves the
+  `APPROVED`/`CHANGES_REQUESTED` state and the thread position, needs no dismissal, and — the part
+  that matters — **it works on a MERGED pull request**, where dismiss-and-re-review cannot go. I
+  restored all five merged verdicts with it (4,425-5,214 bytes each, read back and confirmed) and
+  used dismissal only where I also wanted the verdict re-dated. Use `-F body=@<file>`, never `-f`:
+  the `@` form reads the file, so the repair does not go back through a shell and re-acquire the
+  problem it is fixing.
+
+  **THE ONE-LINE CHECK THAT CATCHES IT, which nothing in the reviewer loop currently performs:**
+
+      gh api repos/<slug>/pulls/<PR>/reviews --jq '.[-1].body|length'   # next to `wc -c` on your file
+
+  Read your body back after every signature. I only did it because I happened to review #558.
+
+- **A TEST THAT PROBES `pr_review.sh` AGAINST "THE FIRST OPEN PR" WRITES GARBAGE INTO A REAL PR'S
+  PERMANENT RECORD — precisely when the guard it is testing is absent.** `test_guards.py` case H (on
+  PR #557's head `3a32fa84`) runs
+  `pr_review.sh <first open PR> comment --definitely-not-a-real-flag <file>` and asserts a refusal.
+  When there is no refusal — the failing case, and the only interesting one — the flag becomes the
+  body and the probe POSTS it. Running the suite three times while reviewing #557 left COMMENTED
+  reviews reading `--definitely-not-a-real-flag /var/.../t_guards_body.md` on **PR #565**, which was
+  merely first in `gh pr list`. PR #558's own review thread carries another one, `--bogus-flag
+  /tmp/b.md`, from a different agent's probe. Both are now rewritten to explain themselves, but the
+  general rule belongs here: **a case whose subject is the evidence record must not aim its probe at
+  the live queue** — open a scratch PR for it, or assert against a dry run. Same door as cases C and
+  E, which also target the first open PR; they are safe today only because the refusals they test
+  do fire.
+
+- **A MUTATION RESULT WITHOUT ITS BASELINE IS NOT A RESULT, and it fails toward "the bug is fixed".**
+  Re-measuring my two findings against #557's new head, both mutants went red and I nearly recorded
+  that the gaps had been closed. They had not: the suite was **already red on that head**, because
+  case H fails there (it was pushed ahead of the `pr_review.sh` fix it tests), so every mutant
+  inherited a failure that had nothing to do with the mutation. The companion to the standing rule
+  "a guard is not evidence until you have watched it fail" is: **watch it PASS first, on the exact
+  tree you are about to mutate.** Print the baseline next to each mutant, always — it is one extra
+  run and it is the difference between a measurement and a coincidence. (Corollary for authors:
+  landing a case ahead of its fix turns `prove_all` red repo-wide, and reviewers are told to sign
+  nothing without `PROVE_ALL: PASS`.)
+
+- **Three existing open items, confirmed live with fresh instances rather than re-diagnosed:**
+  - *The rejection-vs-rework blindness runs BOTH ways.* `review_claim` handed me **#553**, whose
+    `CHANGES_REQUESTED` is recorded against its **current** head (`50ed06eb`, 16:48:45) — a PR
+    waiting on its author, leased to a reviewer, which is reviewer 8's fix (a). The discriminator
+    that #562 just landed for `rework_claim` is the same one, with the comparison inverted: skip when
+    the last `CHANGES_REQUESTED`'s `commit_id` **equals** the head. Worth doing next; it is a few
+    lines and both queues then stop handing out each other's work. (The other four PRs the queue gave
+    me were the healthy case — rejection on an older head, already reworked — and all four landed.)
+  - *The conflicted non-src PR belongs to no queue* (#557's item 41) hit **twice in one run**: #523
+    and #558 are both `DIRTY`, both green from `pr_gate`'s "no raw-port/src ports to gate"
+    short-circuit, and neither was visible to `rebase_claim`. I hand-posted the regression status for
+    #558 — the workaround this log already says nobody should have to invent twice, now invented a
+    fourth time.
+  - *G5 flag nondeterminism across pool slots*, on one PR, two runs, no content change: **#492**
+    gated `0 flag(s)` in slot 4 and `1 flag(s)` in slot 5 twenty minutes later. The flag also named
+    the wrong export — `SetNotifyFunc: NO-DISASM for @Helium 0xdc9ea`, an address cited by a
+    different member — which is worker 4's and worker 6's misattribution report, third instance.

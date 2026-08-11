@@ -62,6 +62,10 @@
 // 0x69736f6d "isom" (offset 59). "mp41"/"mp42" come from the ecx<2 range at
 // 0x25535, and "qt  " from the explicit compare at 0x2553a.
 
+/** 100.0 — the percentage scale, `mulsd 0xfc67c(%rip)` @ProCore 0x25ebc, read out of
+ *  __TEXT,__const at VA 0x122540 (the displacement is measured from the next instruction). */
+const PCATOMBOXFILE_PERCENT_SCALE = 100.0; // @ProCore 0x25ebc
+
 // --- FourCC constants (read big-endian; the raw 32-bit values ARE the compares) ---
 const FCC_iso1 = 0x69736f31; // "iso1"  @0x254f0
 const FCC_M4A_ = 0x4d344120; // "M4A "  @0x254f8
@@ -401,6 +405,102 @@ export class PCAtomBoxFile {
     this.writeCancelled_at_0x7c = 1;
     // @0x25ed7 retq — returns void.
   }
+
+  // ===========================================================================
+  // PCAtomBoxFile::getWritePercentDone()  @ProCore 0x25e94
+  //   __ZN13PCAtomBoxFile19getWritePercentDoneEv
+  // ===========================================================================
+  // Returns the write progress as a percentage: the byte counter at +0x80 times 100, divided by
+  // the total at +0x68. Both operands are 64-bit integers, and THE TWO ARE CONVERTED TO DOUBLE BY
+  // DIFFERENT INSTRUCTIONS — the numerator SIGNED, the denominator UNSIGNED — which is the whole
+  // content of this unit and the only thing in it that can be got wrong silently.
+  //
+  // Source disasm: raw-port/re/disasm/ProCore.__ZN13PCAtomBoxFile19getWritePercentDoneEv.s (11 lines)
+  //
+  // FULL DISASM (@ProCore 0x25e94):
+  //   0x25e94  pushq %rbp ; movq %rsp,%rbp
+  //   0x25e98  movq     0x80(%rdi), %rax     ; rax = this->writtenBytes  (+0x80)
+  //   0x25e9f  cvtsi2sd %rax, %xmm0          ; xmm0 = (double)(int64)rax   <- SIGNED
+  //   0x25ea4  movsd    0x68(%rdi), %xmm1    ; xmm1 lanes 0,1 = the two u32 halves of +0x68
+  //   0x25ea9  unpcklps 0xfd9c0(%rip), %xmm1 ; xmm1 = [lo, 0x43300000, hi, 0x45300000]
+  //   0x25eb0  subpd    0xfd9c8(%rip), %xmm1 ; -= {2^52, 2^84}
+  //   0x25eb8  haddpd   %xmm1, %xmm1         ; xmm1 = lane0 + lane1 = (double)(uint64)+0x68
+  //   0x25ebc  mulsd    0xfc67c(%rip), %xmm0 ; xmm0 *= 100.0
+  //   0x25ec4  divsd    %xmm1, %xmm0         ; xmm0 = xmm0 / xmm1
+  //   0x25ec8  popq %rbp ; retq              ; returns the double in %xmm0
+  //
+  // THE THREE RIP-RELATIVE CONSTANTS, read out of the mapped image rather than guessed (each
+  // displacement measured from the NEXT instruction, which is where these addresses come from):
+  //   @0x123870  00 00 30 43 | 00 00 30 45   two u32 lanes: 0x43300000, 0x45300000
+  //   @0x123880  4503599627370496.0 (2^52), 1.9342813113834067e+25 (2^84)   as two f64
+  //   @0x122540  100.0
+  //
+  // That trio is the textbook exact uint64 -> double conversion, and it is exact by construction:
+  // interleaving the low half under exponent 0x433 makes `2^52 + lo`, the high half under 0x453
+  // makes `2^84 + hi*2^32`, the `subpd` removes both biases leaving `lo` and `hi*2^32` exactly, and
+  // `haddpd` adds them — so the ONLY rounding in the whole conversion is that final add, exactly as
+  // a `cvtsi2sd` of an unsigned value would round. The port performs the same three steps in the
+  // same order rather than calling a language-level conversion, because the order is what fixes
+  // where the rounding happens.
+  //
+  // WHY THE ASYMMETRY MATTERS: for any value with bit 63 set, the signed numerator is NEGATIVE and
+  // the unsigned denominator is not, so a port that converts both the same way agrees with the
+  // machine on ordinary inputs and diverges wildly at the top of the range. That is exactly the
+  // silent-wrong-answer shape, and it is what the oracle's corpus is built around.
+  //
+  // NO GUARD ON A ZERO DENOMINATOR: `divsd` by +0.0 yields +/-Infinity and 0/0 yields the x86
+  // "indefinite" QNaN. The machine has no check and neither does this port; a JS divide produces
+  // the same Infinity, and for 0/0 both sides produce a NaN whose PAYLOAD differs (x86 sets the
+  // sign bit, JS canonicalises) — the oracle classifies that case separately rather than hiding it,
+  // and it is not a defect this port can fix without rewriting `divsd`.
+  //
+  // ORACLE: raw-port/re/oracle/PCAtomBoxFile_getWritePercentDone_{oracle.py,driver.mts} — 300 cases
+  // over both fields including the sign-bit boundary, values above 2^53, zero denominators and the
+  // int64 extremes, compared as raw IEEE-754 bit patterns. Result: 0 REAL divergences, 0 stray
+  // bytes in the poisoned receiver, and 1 NaN-payload-only case (the 0/0 denominator, where x86's
+  // `divsd` produces the indefinite QNaN with the sign bit set and JS canonicalises — classified,
+  // not hidden, and not fixable in a transcription).
+  // CONTROLS: reading the denominator SIGNED kills 112 of 300, reading the numerator UNSIGNED
+  // kills 109, applying the x100 after the divide kills 51.
+  // AND ONE CONTROL KILLED 0, WHICH IS REPORTED HERE RATHER THAN DROPPED because a dead control
+  // means either a blind harness or an equivalent mutant, and here it is EQUIVALENT: writing the
+  // conversion as `Number(BigInt.asUintN(64, u))` produces the identical double for every one of
+  // the 300 cases. That is not luck — `Number()` on a bigint is correctly rounded, and the lane
+  // sequence computes two exactly-representable halves and rounds once when it adds them, which is
+  // the same correctly-rounded result. The lane form is kept anyway because it is what the
+  // instructions do and it documents WHERE the single rounding happens; the equivalence is a
+  // measured fact rather than an assumption, and if a future edit moves the rounding, that control
+  // starts killing.
+
+  /**
+   * `PCAtomBoxFile::getWritePercentDone()` @ProCore 0x25e94
+   * (__ZN13PCAtomBoxFile19getWritePercentDoneEv).
+   *
+   * @returns `(double)(int64)writtenBytes * 100.0 / (double)(uint64)totalBytes`.
+   */
+  getWritePercentDone(): number {
+    // @0x25e98 movq 0x80(%rdi),%rax ; @0x25e9f cvtsi2sd %rax,%xmm0 — SIGNED conversion.
+    const xmm0Init = Number(BigInt.asIntN(64, this.writtenBytes_at_0x80));
+    // @0x25ea4..@0x25eb8 — the exact uint64 -> double sequence, transcribed lane by lane so the
+    // single rounding stays in the same place the machine puts it (the final add).
+    const u = BigInt.asUintN(64, this.totalBytes_at_0x68);
+    const lo = Number(u & 0xffffffffn);          // lane 0 after subpd: 2^52 + lo, minus 2^52
+    const hi = Number(u >> 32n) * 4294967296;    // lane 1 after subpd: 2^84 + hi*2^32, minus 2^84
+    // @0x25eb8 haddpd %xmm1,%xmm1 — the one rounding step of the conversion.
+    const xmm1 = hi + lo;
+    // @0x25ebc mulsd 100.0
+    const xmm0 = xmm0Init * PCATOMBOXFILE_PERCENT_SCALE;
+    // @0x25ec4 divsd %xmm1,%xmm0 — no zero guard on the machine, none here.
+    return xmm0 / xmm1;
+    // @0x25ec8/@0x25ec9 — epilogue + retq (the result is in %xmm0).
+  }
+
+  /** +0x68 (u64) — the write TOTAL, converted UNSIGNED @0x25ea4..@0x25eb8. Held as a bigint
+   *  because a u64 exceeds 2^53 and the unsigned reading is the whole point. */
+  totalBytes_at_0x68: bigint = 0n;
+  /** +0x80 (i64) — the bytes written so far, converted SIGNED by `cvtsi2sd` @0x25e9f. Held as a
+   *  bigint for the same reason, and read as SIGNED because that instruction is. */
+  writtenBytes_at_0x80: bigint = 0n;
 
   /** Output stdio stream handle at struct +0x50 (FILE*); null when not open. */
   outputFile: object | null = null;
