@@ -1,9 +1,12 @@
 // OZChanObjectManipRef.ts — raw transcription of Ozone's `OZChanObjectManipRef`.
 //
-// ONE symbol is transcribed in this file — `setAllowsDelete(bool)`. The class's
-// other members are SEPARATE ledger units and are NOT ported here; the one read
-// below purely to pin the field is:
+// TWO symbols are transcribed in this file — `setAllowsDelete(bool)` @0x3796a0 and
+// `setAlwaysUpdateDefaultValue(bool)` @0x3796c0 (the second added by its own later ledger unit,
+// additively). The class's other members are SEPARATE ledger units and are NOT ported here; the
+// ones read below purely to pin the two fields are:
 //   0x3796b0  getAllowsDelete() const   (read only — its own ledger unit)
+//   the copy ctors @0x379114 / @0x379174 / @0x37920c / @0x3792cc, `clone` @0x3793df and
+//   `setObjectID` @0x379499 / @0x3794ff  (read only — each its own ledger unit)
 //
 // (The unrelated `OZChanObjectManipRef_Factory` — the singleton factory whose
 // symbols cluster around @0x1a690 — is landed separately as
@@ -13,9 +16,11 @@
 // Provenance (Ozone framework, x86_64 slice):
 //   /Applications/Final Cut Pro.app/Contents/Frameworks/Ozone.framework/Versions/A/Ozone
 //
-// Symbol ported in this file:
+// Symbols ported in this file:
 //   @0x3796a0  OZChanObjectManipRef::setAllowsDelete(bool)
 //                __ZN20OZChanObjectManipRef15setAllowsDeleteEb
+//   @0x3796c0  OZChanObjectManipRef::setAlwaysUpdateDefaultValue(bool)
+//                __ZN20OZChanObjectManipRef27setAlwaysUpdateDefaultValueEb
 //
 // Source disassembly (re-derived with
 // `raw-port/tools/disasm.sh --sym __ZN20OZChanObjectManipRef15setAllowsDeleteEb Ozone`):
@@ -101,5 +106,60 @@ export class OZChanObjectManipRef {
     //   with no `test`/`setne` normalisation anywhere in the body.
     this.allowsDelete_at_0x98 = allowsDelete & 0xff;
     // @0x3796ab/@0x3796ac — epilogue + retq (void).
+  }
+
+  /**
+   * @Ozone OZChanObjectManipRef@0x99 — the u8 "always update the default value" flag, the byte
+   * immediately after `allowsDelete_at_0x98`.
+   *
+   * Written by `setAlwaysUpdateDefaultValue` @0x3796c4 with `movb %sil, 0x99(%rdi)`; the offset,
+   * the width and its flag nature are pinned by other decoded methods of this same class, each of
+   * which is its own ledger unit and none of which is ported here:
+   *   * both copy ctors and both factory copy ctors carry it across one byte at a time —
+   *     `movzbl 0x99(%rbx),%eax ; movb %al,0x99(%r14)` @0x37910d/@0x379114, @0x37916d/@0x379174,
+   *     @0x379205/@0x37920c, @0x3792c5/@0x3792cc;
+   *   * `clone() const` does the same @0x3793d7/@0x3793df;
+   *   * `setObjectID(unsigned, bool)` BRANCHES on it with `cmpb $0x0,0x99(%rbx)` @0x379499 and
+   *     @0x3794ff — a zero/non-zero test, i.e. it is consumed as a flag.
+   *
+   * Held as a NUMBER, not a boolean, for the same reason as the +0x98 flag above: the store is
+   * verbatim, so the slot can hold any of 256 values and the copy ctors propagate the exact byte.
+   * Zero-initialised until a ctor is transcribed to reveal the true default.
+   */
+  alwaysUpdateDefaultValue_at_0x99: number = 0; // @Ozone OZChanObjectManipRef@0x99
+
+  /**
+   * `OZChanObjectManipRef::setAlwaysUpdateDefaultValue(bool)` — @Ozone 0x3796c0
+   *   __ZN20OZChanObjectManipRef27setAlwaysUpdateDefaultValueEb
+   *
+   * FULL transcription — the whole function:
+   *
+   *   0x3796c0  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x3796c1  movq  %rsp, %rbp
+   *   0x3796c4  movb  %sil, 0x99(%rdi)     ; this->alwaysUpdateDefaultValue = (byte)arg
+   *   0x3796cb  popq  %rbp
+   *   0x3796cc  retq
+   *
+   * The exact structural twin of `setAllowsDelete` @0x3796a0 one slot over: a ONE-byte store of
+   * the low byte of the second SysV argument, with no `test`/`setne` normalisation, no branch, no
+   * validation and no callee.
+   *
+   * ORACLE (executed against live FCP, not read; RE-RUN during this rebase rather than carried
+   * over on trust). The symbol is exported (`00000000003796c0 T` in the cached inventory), so it
+   * was dlsym'd after preloading Ozone's `@rpath` chain depth-first, under
+   * `arch -x86_64 /usr/bin/python3` — every address here is an x86_64 offset. Calling the real
+   * setter on a 0x120-byte object poisoned with 0xEE, for all 256 byte values and for arguments
+   * whose low byte is right but whose upper bits are not: the byte at +0x99 always equalled the
+   * argument's LOW byte, and every other byte of the object — including the +0x98 neighbour this
+   * file's other setter owns — was left untouched in every case. Harness:
+   * raw-port/re/oracle/OZChanObjectManipRef_setAlwaysUpdateDefaultValue_oracle.py.
+   *
+   * @param value — the C++ `bool` argument (SysV %sil, one byte), passed as a number so a caller
+   *                can reproduce the machine's non-normalising behaviour.
+   */
+  setAlwaysUpdateDefaultValue(value: number): void {
+    // @0x3796c4 — movb %sil, 0x99(%rdi) : a ONE-byte store of the low 8 bits, verbatim.
+    this.alwaysUpdateDefaultValue_at_0x99 = value & 0xff;
+    // @0x3796cb/@0x3796cc — epilogue + retq (void).
   }
 }
