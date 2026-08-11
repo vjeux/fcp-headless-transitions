@@ -18,6 +18,7 @@ ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LED=os.path.join(ROOT,"army","ledger")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from stubscan import scan_src, norm, status_for as _stub_status_for
+import srcsource
 # structural classifier (verifier) for the DISPATCH_ONLY (skeleton) downgrade
 sys.path.insert(0, os.path.join(ROOT,"army","verifier"))
 try:
@@ -57,7 +58,22 @@ def _is_dispatch_only(fw, mangled):
         return _classify_disasm(dpath)["class"] == "DISPATCH_ONLY"
     return True  # structural DISPATCH_ONLY candidate, no disasm to refute -> treat as skeleton
 
-real_cited, stub_cited = scan_src(ROOT)
+# WHICH TREE COUNTS AS "LANDED": `origin/main`, not the canonical working tree.
+# Four agents independently reported this tool as a silent no-op. The cause was the source, not the
+# logic: it scanned the canonical checkout's WORKING TREE, and nothing advances that tree during a
+# swarm run (agents work in pool worktrees; swarm_maint only resets the canonical tree when it is
+# dirty AND no gate process is live). It was measured 9, then 26, then 30 commits behind origin/main
+# in one morning, so every reconcile printed a healthy `0 units changed` while ignoring every port
+# that had actually landed. Reading a ref also needs no lock and cannot race an agent mid-write.
+# `--ref WORKTREE` restores the old behaviour for one-off local analysis.
+SRC_REF = None
+for _i, _a in enumerate(sys.argv):
+    if _a == "--ref" and _i + 1 < len(sys.argv):
+        SRC_REF = sys.argv[_i + 1]
+if SRC_REF is None:
+    SRC_REF = srcsource.DEFAULT_REF
+
+real_cited, stub_cited = scan_src(ROOT, ref=SRC_REF)
 
 # SYMBOL-KEYED class-C override. Some throw-stubs cite CALL-SITE / callee addresses in their message
 # (e.g. OZChannelBool3D::setValue throws citing @0x53869/... not its own @0x537c6), so the
@@ -77,7 +93,7 @@ if os.path.exists(_ov):
 # and mark_stub_bodies agree in one pass instead of oscillating). Keyed by (fileClass, leaf).
 try:
     from mark_stub_bodies import _throwonly_methods as _tom
-    _THROWONLY = _tom()
+    _THROWONLY = _tom(ref=SRC_REF)
 except Exception:
     _THROWONLY = set()
 
@@ -126,5 +142,12 @@ for fw in ["ProChannel","ProCore","Ozone","Flexo","Helium"]:
     with open(_tmp, "w") as _f:
         json.dump(led, _f)
     os.replace(_tmp, lp)
-print(f"ported {port}/{tot}  skeleton {skel}  stub {stub}  todo {todo}  (status changed on {changed} units)")
+# Print the EFFECTIVE source, never the requested one. `iter_src` falls back to the working tree
+# when a ref does not resolve (a typo in --ref/FCT_SRC_REF is the realistic trigger); printing
+# SRC_REF there would assert `origin/main` over numbers that came from the stale tree — the very
+# thing this tool was fixed to stop doing.
+_EFF = srcsource.effective_ref(SRC_REF)
+print(f"ported {port}/{tot}  skeleton {skel}  stub {stub}  todo {todo}  "
+      f"(status changed on {changed} units)  [src={_EFF}"
+      f"{'' if _EFF == SRC_REF else f' — FELL BACK from {SRC_REF}'}]")
 

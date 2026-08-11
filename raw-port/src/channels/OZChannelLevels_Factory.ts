@@ -5,8 +5,9 @@
 // VAs from `otool -tV`). Disassembly source:
 //   raw-port/re/disasm/ProChannel.__ZN23OZChannelLevels_Factory11getInstanceEv.s
 //
-// This unit ports ONLY the `getInstance()` static singleton accessor at
-// @0x2230. The remaining methods on this factory (C2/D1/D0/
+// This file ports TWO methods, one ledger unit each: the `getInstance()`
+// static singleton accessor @0x2230 and `getIconIDInternal()` @0xce94
+// (added later, ADD-ONLY, with its own disassembly below). The remaining methods on this factory (C2/D1/D0/
 // create/... etc.) are separate ledger entries and are OUT OF SCOPE for
 // this file (they will be added to this same class file when their own
 // ledger entries are claimed by future depclaim rounds — per the "one
@@ -202,6 +203,12 @@ function __call_once_proxy_getInstance_lambda(_arg: unknown): void {
  * in the init lambda; field offsets not yet decoded since only
  * getInstance is transcribed here).
  */
+/**
+ * The "no icon ID" sentinel the factory reports — the int32 -1 written by
+ * `movl $0xffffffff,%eax` @ProChannel 0xce98.
+ */
+export const OZCHANNEL_FACTORY_ICON_ID_NONE = -1 as const;
+
 export class OZChannelLevels_Factory {
   /**
    * `OZChannelLevels_Factory::getInstance()` — @ProChannel 0x2230
@@ -265,5 +272,49 @@ export class OZChannelLevels_Factory {
     // @0x2277..@0x227c — epilogue + retq.
     // ------------------------------------------------------------
     return _instance;
+  }
+
+  /**
+   * `OZChannelLevels_Factory::getIconIDInternal()` — @ProChannel 0xce94
+   * (__ZN23OZChannelLevels_Factory17getIconIDInternalEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0xce94  pushq %rbp             ; frame setup (no TS counterpart)
+   *   0xce95  movq  %rsp,%rbp        ; frame setup (no TS counterpart)
+   *   0xce98  movl  $0xffffffff,%eax ; %eax = -1 (int32)
+   *   0xce9d  popq  %rbp             ; frame teardown (no TS counterpart)
+   *   0xce9e  retq                   ; returns the int in %eax
+   *   0xce9f  nop                    ; alignment padding, not executed
+   *
+   * One instruction with value semantics. `this` (%rdi) is never
+   * dereferenced, nothing is called and nothing is allocated: no in-scope
+   * callee, no extern, no allocation, no indirect or virtual dispatch
+   * (`depgraph.py deps` lists nothing).
+   *
+   * WHY -1 IS THE IMPLEMENTATION, NOT A GAP. `getIconIDInternal()` sits at
+   * slot +0x98 of the factory vtable, which the abstract base leaves as
+   * `__cxa_pure_virtual` (see the vtable table in the landed
+   * raw-port/src/nodes/OZSceneNodeFactory.ts), so every concrete factory has
+   * to supply a body, and the shipped bodies answer both ways: of Ozone's 125
+   * concrete overrides 94 return -1 while the rest return real icon IDs —
+   * OZSceneNode_Factory / OZTransformNode_Factory / OZElement_Factory return
+   * 0x12, OZRotoshape_Factory 0xe, OZAudioTrackBase_Factory 0x3, with 0xa and
+   * 0x11 also appearing. In ProChannel the sibling channel factories agree
+   * with this one: OZChannel_Factory, OZChannel2D_Factory, OZChannel3D_Factory
+   * and OZChannelBase_Factory all emit the identical `movl $0xffffffff,%eax`.
+   * So -1 is the "this factory contributes no icon ID" sentinel and a channel
+   * factory deliberately has none.
+   *
+   * SIGNEDNESS: the immediate is written into the 32-bit %eax, so the value is
+   * the int32 -1 rather than the unsigned 4294967295 a 64-bit read would give;
+   * the non-sentinel IDs above are small positive ints, so callers compare
+   * against -1.
+   *
+   * @returns %eax — always -1 (@0xce98).
+   */
+  getIconIDInternal(): number {
+    // @0xce98  movl $0xffffffff,%eax ; @0xce9e retq
+    return OZCHANNEL_FACTORY_ICON_ID_NONE;
   }
 }

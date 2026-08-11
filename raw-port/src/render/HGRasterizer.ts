@@ -80,6 +80,12 @@ const OFF_MODELVIEW_CONTROLLER = 0x300;
  *  written by color4f at disasm 0x1978e6 (`movaps %xmm0, 0x260(%rdi)`). */
 const OFF_CURRENT_COLOR = 0x260;
 
+/** Byte offset of the CURRENT line width (a single f32), written by
+ *  setLineWidth at disasm 0x1978c4 (`movss %xmm0, 0x258(%rdi)`). It sits
+ *  immediately below OFF_CURRENT_COLOR (0x258 + 4 = 0x25c, then the 16-byte
+ *  color lane starts at the next 16-byte boundary, 0x260). */
+const OFF_LINE_WIDTH = 0x258;
+
 /** Modeled HGRasterizer shape used by rotatef. Only the fields the disasm
  *  touches are named; the rest of the class is unmapped and marked so. */
 export interface HGRasterizer {
@@ -101,6 +107,12 @@ export interface HGRasterizer {
    *  [r, g, b, a] (a 16-byte SSE lane). Written by color4f @0x1978d0 via a
    *  single `movaps %xmm0, 0x260(%rdi)`. See OFF_CURRENT_COLOR below. */
   currentColor: [number, number, number, number];
+  /** +0x258 — the rasterizer's CURRENT line width, ONE f32 (glLineWidth-style).
+   *  Written by setLineWidth @0x1978c0 via a single `movss %xmm0, 0x258(%rdi)`;
+   *  the `ss` (scalar single) form is what pins the width at 4 bytes, as
+   *  against the 16-byte `movaps` its +0x260 neighbour uses. See
+   *  OFF_LINE_WIDTH above. Its reader is FRONTIER — not decoded here. */
+  lineWidth: number;
 }
 
 /** A GL_PROJECTION stack slot at rasterizer+0x1b0+8*i is a pointer-to-
@@ -280,4 +292,60 @@ export function HGRasterizer_color4f(
     Math.fround(b),
     Math.fround(a),
   ];
+}
+
+/**
+ * HGRasterizer::setLineWidth(float w) — sets the rasterizer's CURRENT line
+ * width (glLineWidth-style). Pure state write: one scalar f32 store, no
+ * branches, no calls, no clamping.
+ *
+ * @0x1978c0  __ZN12HGRasterizer12setLineWidthEf
+ *
+ * FULL DISASM (raw-port/re/disasm/Helium.__ZN12HGRasterizer12setLineWidthEf.s
+ * — 7 lines, the whole function):
+ *
+ *   0x1978c0  pushq  %rbp                  ; frame prologue
+ *   0x1978c1  movq   %rsp, %rbp
+ *   0x1978c4  movss  %xmm0, 0x258(%rdi)    ; this.lineWidth = w   (SCALAR f32)
+ *   0x1978cc  popq   %rbp                  ; frame epilogue
+ *   0x1978cd  retq                         ; returns void
+ *   0x1978ce  nop                          ; alignment pad — no effect
+ *
+ * The single float argument arrives in %xmm0 (System-V). `movss` is the SCALAR
+ * SINGLE form, so exactly 4 bytes are written and the three neighbouring dwords
+ * up to the +0x260 color lane are untouched — contrast `color4f` above, whose
+ * `movaps` writes all 16. Numerics: the stored value is an f32, so it is
+ * wrapped in Math.fround to preserve its exact single-precision identity, the
+ * same treatment color4f gives its four components.
+ *
+ * The binary does NOT validate, clamp, or reject the value: a negative, zero,
+ * infinite or NaN width is stored verbatim, and this port stores it verbatim
+ * too (Math.fround preserves NaN and both signed zeroes).
+ *
+ * ORACLE: verified against the live Helium binary. The symbol is LOCAL
+ * (`nm` type `t`), so the harness dlopens Helium under
+ * `arch -x86_64 /usr/bin/python3` (the port is transcribed from the x86_64
+ * slice) and calls it at `nm -n -arch x86_64` vmaddr 0x1978c0 + the dyld image
+ * slide — NOT the bare `nm -n` fct/parity/local_call uses, which reports the
+ * ARM64 slice even from a Rosetta process. 2,048 cases on a 0x600-byte
+ * noise-filled buffer, with widths drawn from 0, -0, 1, -1, 0.5, FLT_MIN,
+ * FLT_MAX, +/-inf, NaN and random floats (1,888 of them NOT exactly
+ * representable in f32): 2048/2048 stored the exact 4 bytes this port computes
+ * AND left every other byte of the buffer unchanged, which pins both the
+ * +0x258 offset and the 4-byte store width, and shows the value is stored
+ * verbatim — signed zero, both infinities and NaN all round-trip.
+ * NEGATIVE CONTROLS (measured): clamping negatives to 0 -> 968 of 2048 wrong;
+ * taking abs(w) -> 984 wrong.
+ * WHAT THIS ORACLE CANNOT SEE: removing the `Math.fround` scores 2048/2048
+ * too. That is not a gap in the fuzz — it is that the f32 store rounds the
+ * value identically, on both sides, so the two spellings are observationally
+ * equal at this field. The `Math.fround` is kept because it makes the slot's
+ * single-precision identity explicit for anyone reading `lineWidth` back as a
+ * JS number (where the f64 residue WOULD show), and because it is the
+ * treatment its +0x260 neighbour `color4f` already uses.
+ */
+export function HGRasterizer_setLineWidth(self: HGRasterizer, w: number): void {
+  // 0x1978c4 — movss %xmm0, 0x258(%rdi) (OFF_LINE_WIDTH): one scalar f32 store.
+  self.lineWidth = Math.fround(w);
+  // 0x1978cd — retq, returns void.
 }

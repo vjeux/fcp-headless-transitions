@@ -20,10 +20,54 @@ Usage: dup_check.py <mainRef> <branchRef> <path> [<path> ...]
   exit 0 = >=1 introduced mangled symbol is genuinely new to main  -> real port, mergeable
   exit 5 = DUP (every introduced mangled symbol already exists on main, maybe under another file)
   exit 1 = usage error
+
+v3 (2026-08-10) -- STOP CONDEMNING REAL PORTS. A false DUP destroys transcription work: #108, #110
+and #197 each carried an "already on main" status and were one click from being closed. Two
+reviewers flagged it and DISAGREED about #197 -- one closed it as a true dup, the other called it a
+false positive. When two careful reviewers read the same evidence oppositely, it is not evidence.
+
+Root cause, reproduced on #110: v2 harvested `__Z*` TOKENS from file TEXT and treated "introduced 0
+new mangled symbols" as proof of duplication. OZPasteEntry does not exist on main in ANY form, yet
+it was condemned -- the file cites its methods only by @0xADDR and so contains ZERO mangled tokens.
+Where files do cite `__Z*` names, the tokens are often just libc++ externs (__Znwm, __ZdlPv) which
+trivially "already exist".
+
+The asymmetry that drives v3: a MISSED dup is cheap (a reviewer notices; dedup is cleanup), a FALSE
+dup destroys work. So v3 biases hard toward NEW:
+  * compiler/libc++ runtime externs excluded -- never a unit of porting work;
+  * "no units found" is DUP-INCONCLUSIVE (exit 0), never DUP;
+  * v2's cross-file dup detection is preserved intact for files that cite mangled names (the norm).
 """
 import sys, re, subprocess
 
-MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]+')
+MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]*[A-Za-z0-9_$]')   # may contain '.' (.cold/.eh/.1)
+                                                          # but may NOT END on one: a token
+                                                          # like `...D0Ev.` is a mangled name
+                                                          # followed by a full stop in prose.
+
+# Compiler / libc++ / libc++abi runtime symbols. They appear in almost every ported file as
+# out-of-scope externs, are never a unit of porting work, and always "already exist on main" --
+# which is exactly how they manufactured false DUP verdicts.
+# Use the FULL operator discriminator, not a 2-char prefix. "__Zn"/"__Zd" also swallow every free
+# operator whose mangling starts with those letters — __Zdv (operator/), __Zng (unary minus),
+# __Zne (operator!=) — which are REAL port targets, not runtime externs. reviewer-01 counted 15 such
+# exported symbols in ProCore alone, including all four CMTime::operator/ overloads (issue #254).
+EXTERN_PREFIXES = (
+    "__Znw", "__Zna",   # operator new / new[]
+    "__Zdl", "__Zda",   # operator delete / delete[]
+    "__ZSt", "__ZNSt", "__ZNKSt",   # std::
+    "__ZTI", "__ZTS", "__ZTV",      # typeinfo / typeinfo-name / vtable
+    "__ZGV",     # guard variables
+)
+
+def _is_degenerate(sym):
+    """Too short to be a real Itanium symbol. A bare `__ZL` token was being 'found' on main and
+    counted as a duplicate of everything."""
+    return len(sym) < 8
+
+
+def _is_extern(sym):
+    return sym.startswith(EXTERN_PREFIXES) or "__cxa" in sym or "__cxxabi" in sym
 
 def _show(ref, path):
     r = subprocess.run(["git","show",f"{ref}:{path}"], capture_output=True, text=True)
@@ -34,9 +78,42 @@ def _mangled(text):
     return {m[:-2] if m.endswith(".s") else m for m in MANGLED.findall(text)}
 
 def _exists_on_main(main_ref, sym):
+    """Is `sym` genuinely IMPLEMENTED on main — not merely mentioned in a comment?
+
+    v3 still used a plain text grep, so a symbol named in a PROVENANCE COMMENT counted as "already
+    landed". That is not an edge case: every ported file cites sibling mangled names in its
+    documentation. It produced real false DUP verdicts on work that exists nowhere on main —
+    #180 (HGFreeAlign: main's only match is a `//   raw-port/re/disasm/__ZL11HGFreeAlignPv.s` line
+    inside HGAllocAlign.ts) and #197 (matched a sibling's evidence comment). Two reviewers
+    independently warned that closing those as dups would have destroyed real work.
+
+    So: look for the symbol OUTSIDE comments. Block comments are handled crudely but
+    conservatively — when in doubt we treat a mention as a comment, biasing toward NEW, because a
+    missed dup is cheap cleanup while a false dup destroys a real port.
+    """
     r = subprocess.run(["git","grep","-l","--fixed-strings",sym,main_ref,"--","raw-port/src"],
                        capture_output=True, text=True)
-    return r.returncode == 0 and bool(r.stdout.strip())
+    if r.returncode != 0 or not r.stdout.strip():
+        return False
+    for path in r.stdout.split():
+        path = path.split(":", 1)[-1]
+        txt = _show(main_ref, path)
+        if txt is None: continue
+        in_block = False
+        for line in txt.splitlines():
+            st = line.strip()
+            if in_block:
+                if "*/" in st:
+                    in_block = False; st = st.split("*/", 1)[1]
+                else:
+                    continue
+            if st.startswith("//") or st.startswith("*"):
+                continue
+            if "/*" in st and "*/" not in st:
+                in_block = True; st = st.split("/*", 1)[0]
+            if sym in st.split("//", 1)[0]:
+                return True      # a real code reference: genuinely on main
+    return False
 
 def main(argv):
     if len(argv) < 3:
@@ -47,10 +124,19 @@ def main(argv):
         b = _mangled(_show(br_ref, path))
         m = _mangled(_show(main_ref, path))   # empty set if file absent on main (new file)
         introduced |= (b - m)
+    # Runtime externs are not units of work; counting them is what made libc++ noise look like
+    # "everything here already exists on main".
+    introduced = {s for s in introduced if not _is_extern(s) and not _is_degenerate(s)}
     if not introduced:
-        print(f"  DUP-LEDGER: branch {br_ref} introduces 0 new mangled symbols in its changed files.")
-        print("  -> re-port / body-rewrite of already-landed symbols. Not a new port.")
-        return 5
+        # v2 called this a DUP. It is not: it means the file cites its methods by @0xADDR only,
+        # which is common and legal -- #110's OZPasteEntry does not exist on main in any form and
+        # was condemned by this branch of the logic. Absence of a mangled citation is absence of
+        # evidence, so say so and let the reviewer decide.
+        print(f"  DUP-INCONCLUSIVE: branch {br_ref} cites no mangled port symbols in its changed "
+              f"files (address-only provenance).")
+        print("  -> cannot determine duplication mechanically. NOT treated as a dup; the reviewer")
+        print("     must confirm the class exists on main before closing anything.")
+        return 0
     genuinely_new = [s for s in sorted(introduced) if not _exists_on_main(main_ref, s)]
     if genuinely_new:
         return 0

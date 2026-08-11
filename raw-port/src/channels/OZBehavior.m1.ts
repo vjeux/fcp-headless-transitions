@@ -1,9 +1,17 @@
-// OZBehavior.m1.ts — OZBehavior methods, chunk 1 (indices 20..40 of 90).
+// OZBehavior.m1.ts — OZBehavior methods, chunk 1 (indices 20..40 of 90), PLUS one method from
+// outside that range (getSceneNode @0x10a8b0, index < 20) that was claimed as its own ledger unit
+// later. The chunk boundary came from `claim.py chunk`, a work-splitting artifact — it is not a
+// class boundary, and PORTING_SPEC's rule is ONE CLASS = ONE FILE. Adding the method here keeps
+// OZBehavior at a single file; opening a second `OZBehavior.ts` would create exactly the
+// two-files-one-class drift OPS_LOG records for OZScene. Flagged for the reviewer: if the project
+// prefers the chunk files renamed/merged to `OZBehavior.ts`, that is a rename of this file, not a
+// new one.
 // Framework: Ozone.framework/Versions/A/Ozone (x86_64 slice, macOS FCP).
 // Faithful port following raw-port/army/PORTING_SPEC.md — every function cites its @0xADDR;
 // undecoded control-flow branches / callees / vtable slots are throw-stubs citing the address.
 //
 // Scope of this chunk (from `claim.py chunk Ozone OZBehavior 1`):
+//   --  @0x000000000010a8b0  OZBehavior::getSceneNode()            [added later; its own unit]
 //   20  @0x000000000010a9a0  OZBehavior::getPasteEntry(OZChannelBase*)
 //   21  @0x000000000010aa70  OZBehavior::allowDrag(OZFactoryBase*, OZChannelBase*, uint, uint*, uint*, uint)
 //   22  @0x000000000010abe0  OZBehavior::prepareForDragOperation(OZPasteList*, OZChannelBase*, uint, uint)
@@ -375,4 +383,61 @@ export function isUltimatelyAffectedBy_channel_OZBehavior(
   throw new Error(
     "OZBehavior::isUltimatelyAffectedBy(OZChannel const*, list) @Ozone 0x10bc10 not yet transcribed",
   );
+}
+
+// -- Added later, its own ledger unit: OZBehavior::getSceneNode() ------------------------------
+
+/**
+ * `OZBehavior::getSceneNode()` — @Ozone 0x10a8b0
+ *   `__ZN10OZBehavior12getSceneNodeEv`
+ *
+ * FULL transcription — every instruction, in order:
+ *
+ *   0x10a8b0  pushq %rbp                    ; frame setup (no TS counterpart)
+ *   0x10a8b1  movq  %rsp,%rbp               ; frame setup (no TS counterpart)
+ *   0x10a8b4  movq  0x140(%rdi),%rax        ; return *(OZSceneNode**)(this + 0x140)
+ *   0x10a8bb  popq  %rbp                    ; frame teardown (no TS counterpart)
+ *   0x10a8bc  retq
+ *   0x10a8bd  nopl  (%rax)                  ; alignment padding, not executed
+ *
+ * A single 8-byte field read: no null check, no branch, no callee, no indirect or virtual dispatch
+ * (`depgraph.py deps` lists nothing). The pointer is returned exactly as stored, including null.
+ *
+ * WHAT +0x140 IS. This body is what TYPES that slot for the rest of the class: the parked analysis
+ * of `OZBehavior::getScene() const` @0x10a8e0 (see army/depgraph/blocked.jsonl) reads +0x140 and
+ * then dispatches through the loaded pointer's vtable slot +0x110, which resolves to
+ * `OZSceneNode::getScene() const` — so the field holds an `OZSceneNode*`, and this getter is the
+ * accessor for it.
+ *
+ * THREE NEARBY SYMBOLS THAT ARE NOT THIS ONE, each its own ledger unit and none assumed here:
+ * the const overload `__ZNK10OZBehavior12getSceneNodeEv` @0x10a8d0, the non-virtual adjustor thunk
+ * `__ZThn16_N10OZBehavior12getSceneNodeEv` @0x10a8c0, and `getScene() const` @0x10a8e0.
+ *
+ * ORACLE (executed against live FCP, not read). The symbol is exported (`T`), so it was dlsym'd
+ * from Ozone in a Rosetta x86_64 process — `arch -x86_64 /usr/bin/python3` — after preloading
+ * Ozone's `@rpath` chain depth-first (44 images, 0 failures). A 0x200-byte object was poisoned with
+ * 0xCD and its qword at +0x140 set to each of 0, 1, 0xDEADBEEF, INT64_MAX and all-ones: live Ozone
+ * returned exactly that qword every time, and a byte-diff of the object afterwards showed it
+ * UNMODIFIED (this is a getter, and that is checked, not assumed). NEGATIVE CONTROL: with a
+ * different value planted at the +0x148 neighbour, the return was still the +0x140 value — so the
+ * offset in this port is pinned by measurement, not just by reading the displacement.
+ *
+ * @param self the `OZBehavior*` in %rdi.
+ * @returns the `OZSceneNode*` stored at `this + 0x140`, verbatim (null included).
+ */
+export function getSceneNode_OZBehavior(self: OZBehaviorFields): unknown {
+  // @0x10a8b4 — movq 0x140(%rdi),%rax : one 8-byte field read, returned unchanged.
+  return self.sceneNodeAt0x140;
+}
+
+/**
+ * The one field of `OZBehavior` that `getSceneNode` reads.
+ *
+ * Declared as a narrow structural view rather than a whole-class model on purpose: this chunk file
+ * ports methods, not the class's layout, and the only offset any of them establishes so far is
+ * this one. The ctor units will supply the rest.
+ */
+export interface OZBehaviorFields {
+  /** +0x140 — `OZSceneNode*`; read by getSceneNode @0x10a8b4 and by getScene @0x10a8e4. */
+  sceneNodeAt0x140: unknown;
 }

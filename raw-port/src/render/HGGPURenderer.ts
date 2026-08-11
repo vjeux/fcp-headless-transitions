@@ -10,10 +10,16 @@
 //     __ZN13HGGPURenderer15GetMetalContextEv
 //   * HGGPURenderer::GetGLState() const          @Helium 0x12070
 //     __ZNK13HGGPURenderer10GetGLStateEv
+//   * HGGPURenderer::UsingSharedStorage() const  @Helium 0x17720
+//     __ZNK13HGGPURenderer18UsingSharedStorageEv
+//   * HGGPURenderer::GetMetalHandler() const     @Helium 0x11d30
+//     __ZNK13HGGPURenderer15GetMetalHandlerEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZN13HGGPURenderer15GetMetalContextEv.s
 //   raw-port/re/disasm/Helium.__ZNK13HGGPURenderer10GetGLStateEv.s
+//   raw-port/re/disasm/Helium.__ZNK13HGGPURenderer18UsingSharedStorageEv.s
+//   raw-port/re/disasm/Helium.__ZNK13HGGPURenderer15GetMetalHandlerEv.s
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (7 lines, @0xa560..@0xa56c)
@@ -24,6 +30,17 @@
 //     0xa564  movq   0x458(%rdi), %rax        ; rax = this[+0x458]
 //     0xa56b  popq   %rbp                     ; frame epilogue
 //     0xa56c  retq
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM (6 lines, @0x11d30..@0x11d3c)
+// -----------------------------------------------------------------------------
+//   __ZNK13HGGPURenderer15GetMetalHandlerEv:
+//     0x11d30  pushq  %rbp                    ; frame prologue
+//     0x11d31  movq   %rsp, %rbp
+//     0x11d34  movq   0x520(%rdi), %rax       ; rax = this[+0x520]
+//     0x11d3b  popq   %rbp                    ; frame epilogue
+//     0x11d3c  retq
+//     0x11d3d  nopl   (%rax)                  ; alignment padding (not code)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (7 lines, @0x12070..@0x1207c)
@@ -98,6 +115,28 @@ export interface HGGLState {
 }
 
 /**
+ * `HGMetalHandler` — opaque handle to Helium's Metal command handler, the object
+ * `HGGPURenderer::GetMetalHandler() const` @Helium 0x11d30 hands back from this[+0x520].
+ *
+ * PROVENANCE OF THE TYPE NAME (a load has no type, so the name is evidence-backed, not guessed):
+ * the SLOT's writer is `HGGPURenderer::InitMetal()` @Helium 0x9d8f..0x9dab, which allocates
+ * 0x790 bytes with `operator new` (`movl $0x790, %edi ; callq __Znwm`), passes the renderer's own
+ * `HGMetalContext*` from +0x458 (`movq 0x458(%rbx), %rsi`), calls
+ * `__ZN14HGMetalHandlerC1EP14HGMetalContext` — i.e. `HGMetalHandler::HGMetalHandler(
+ * HGMetalContext*)` — and stores the result with `movq %r14, 0x520(%rbx)` @0x9dab. That
+ * matched 8-byte store/load pair is what fixes both the offset and the width, and the ctor's own
+ * mangled name is what fixes the type.
+ *
+ * Nothing about the pointee is modelled: HGMetalHandler is its own (not yet ported) ledger unit,
+ * and inventing fields for a 0x790-byte object from a single load would be exactly the
+ * magic-offset guesswork PORTING_SPEC Rule 5 forbids. Branded like the two handles above so the
+ * opaque pointers cannot be interchanged at the type level.
+ */
+export interface HGMetalHandler {
+  readonly __hgMetalHandler: unique symbol;
+}
+
+/**
  * `HGGPURenderer` — Helium GPU-backed renderer. Only the field touched
  * by `GetMetalContext` is decoded here; every other field is undecoded
  * and NOT modelled (per Rule 5 — no fabricated fields).
@@ -115,6 +154,77 @@ export class HGGPURenderer {
    * OUT OF SCOPE for this ledger unit.
    */
   metalContext_at_0x458: HGMetalContext | null = null;
+
+  /**
+   * @Helium offset +0x520 — the `HGMetalHandler*` this renderer owns. Read by
+   * `GetMetalHandler` @0x11d34 via `movq 0x520(%rdi), %rax`, and written by `InitMetal`
+   * @0x9dab via `movq %r14, 0x520(%rbx)` after `HGMetalHandler::HGMetalHandler(HGMetalContext*)`
+   * constructs a fresh 0x790-byte instance from this[+0x458].
+   *
+   * NULLABLE, and that is not a modelling convenience: the slot is only filled by `InitMetal`,
+   * and the dtor @0xa0d7/@0xa235 plus `FinishMetalCommandBuffer` @0xa4c5, `RenderEnd` @0xc22b,
+   * `FrameEnd` @0xc3d9/@0xc42d, `WaitForCommandBuffers` @0xc4d2, `FlushMetalCommandBuffer`
+   * @0x106eb and `ReadbackMetalTexture` @0xb84f all load it, so a renderer that never ran
+   * InitMetal hands back whatever the ctor left there. The getter below does NOT null-check —
+   * neither does the machine.
+   */
+  metalHandler_at_0x520: HGMetalHandler | null = null;
+
+  /**
+   * @Helium offset +0x590 — int32, the renderer's MAXIMUM multi-sample count.
+   *
+   * Three decoded sites fix the width, the signedness and the meaning, and none of them is this
+   * getter alone (each is its own ledger unit; cited here as evidence):
+   *   * the ctor `HGGPURenderer(unsigned long long, bool)` @Helium 0x88a0 initialises it with
+   *     `movabsq $-0x100000000,%rax ; movq %rax,0x590(%rbx)` @0x89b9/@0x89c3 — one 8-byte store
+   *     whose LOW half is 0 and whose HIGH half (+0x594) is 0xFFFFFFFF, so this field starts at 0
+   *     and its neighbour starts at -1;
+   *   * `BindMultiSampleBuffer(int, bool, bool)` @0x116d0 consumes it as a CLAMP:
+   *     `movl 0x590(%rbx),%eax ; cmpl %r13d,%eax ; cmovll %eax,%r13d` @0x11770..@0x11779 — and
+   *     `cmovl` is the SIGNED conditional move, so the requested sample count is lowered to this
+   *     value when this value is smaller, comparing as int32 rather than uint32;
+   *   * this getter reads it with `movl`, a 32-bit load.
+   * Hence `number` holding a SIGNED int32, and hence the `| 0` in the getter rather than `>>> 0`.
+   */
+  maxMultiSamples_at_0x590 = 0;
+
+  /**
+   * `HGGPURenderer::GetMaxMultiSamples() const` — @Helium 0x197d0
+   *   `__ZNK13HGGPURenderer18GetMaxMultiSamplesEv`
+   *
+   * FULL transcription — every instruction, in order:
+   *
+   *   0x197d0  pushq %rbp                    ; frame setup (no TS counterpart)
+   *   0x197d1  movq  %rsp,%rbp               ; frame setup (no TS counterpart)
+   *   0x197d4  movl  0x590(%rdi),%eax        ; return *(int32*)(this + 0x590)
+   *   0x197da  popq  %rbp                    ; frame teardown (no TS counterpart)
+   *   0x197db  retq
+   *   0x197dc  nopl  (%rax)                  ; alignment padding, not executed
+   *
+   * A single 32-bit field read: no clamp, no branch, no callee, no indirect or virtual dispatch
+   * (`depgraph.py deps` lists nothing). The clamping happens in the CALLER
+   * (`BindMultiSampleBuffer` @0x11770) — this getter hands the raw stored value back, negative
+   * values included, and the port must not "helpfully" clamp what the machine does not.
+   *
+   * `movl` into a 32-bit register is width-exact, so the value is the int32 at that offset; `| 0`
+   * models that width, and SIGNED because the consumer compares it with `cmovl`.
+   *
+   * ORACLE (executed against live FCP, not read). The symbol is exported (`T`), so it was dlsym'd
+   * from Helium in a Rosetta x86_64 process — `arch -x86_64 /usr/bin/python3`. A 0x200-byte object
+   * poisoned with 0xCD, its int32 at +0x590 set to each of 0, 1, 4, INT32_MAX, 0xFFFFFFFF and
+   * 0x80000000: live Helium returned 0, 1, 4, 2147483647, **-1** and **-2147483648** — i.e. it
+   * really is a SIGNED int32, which is the one thing a reader could get wrong here. A byte-diff of
+   * the object afterwards showed it UNMODIFIED (it is a const getter, and that is checked, not
+   * assumed). NEGATIVE CONTROL: with a different value planted at the +0x594 neighbour — the half
+   * the ctor sets to -1 — the return was still the +0x590 value, so the offset is pinned by
+   * measurement and not just by reading the displacement.
+   *
+   * @returns the int32 stored at `this + 0x590`, verbatim.
+   */
+  GetMaxMultiSamples(): number {
+    // @0x197d4  movl 0x590(%rdi),%eax : one 32-bit field read, returned unchanged.
+    return this.maxMultiSamples_at_0x590 | 0;
+  }
 
   /**
    * `HGGPURenderer::GetMetalContext()` — @Helium 0xa560
@@ -189,5 +299,112 @@ export class HGGPURenderer {
     // @0x12074  movq 0x490(%rdi), %rax
     //   rax = this->glState_at_0x490
     return this.glState_at_0x490;
+  }
+
+  /**
+   * @Helium offset +0x4f0 — a ONE-BYTE texture-storage hint. Read by
+   * `UsingSharedStorage() const` @0x17724 via `cmpb $0x2, 0x4f0(%rdi)`, so the
+   * field is a byte-wide enum, not a pointer or a bool.
+   *
+   * Its writers (each a separate, unported ledger unit) fix both the default
+   * and the meaning of the value this getter tests for:
+   *   * the ctor `HGGPURenderer::HGGPURenderer(unsigned long long, bool)` [C2]
+   *     @0x8944 stores `movw $0x101,0x4f0(%rbx)` — a 16-bit store that sets
+   *     THIS byte to 1 and its neighbour at +0x4f1 to 1. So the default hint is
+   *     1, and +0x4f1 is a different field this unit must not disturb.
+   *     (`HGGPURenderer::Init()` re-applies the same `movw $0x101` @0x9465.)
+   *   * `HGGPURenderer::Init()` sets it to 2 — `movb $0x2,0x4f0(%rbx)` @0x9118
+   *     — exactly when `HGMetalContext::deviceInfo()` @0x9107 →
+   *     `HGMetalDeviceInfo::isIntel()` @0x910f returns true. An Intel
+   *     integrated GPU shares physical memory with the CPU, which is what
+   *     makes "2" mean SHARED storage.
+   *   * `HGGPURenderer::InitTextureStorage()` @0x9e61 stores 2 the same way.
+   *   * the environment override `HG_RENDERER_ENV::FORCE_TEXTURE_STORAGE_HINT`
+   *     is copied in verbatim when it is not -1 — `movb %al,0x4f0(%rbx)`
+   *     @0x9185 / @0x9ece — which is why the getter compares against a value
+   *     rather than reading a bool.
+   *   * `HGGPURenderer::SetParameter(HGRendererParameter, int)` @0xd16e writes
+   *     it, and `HGGPURenderer::LoadTexture(HGRect, HGBitmap*, bool)` reads it
+   *     @0xf7d7/@0xf7e1 (`cmpb $0x0` and `movzbl`), confirming the byte width
+   *     and that 0 is a distinct third state.
+   *
+   * Modelled as a `number` holding the raw byte, defaulting to the ctor's 1.
+   */
+  textureStorageHint_at_0x4f0 = 1;
+
+  /**
+   * `HGGPURenderer::UsingSharedStorage() const` — @Helium 0x17720
+   * (__ZNK13HGGPURenderer18UsingSharedStorageEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x17720  pushq %rbp             ; frame setup (no TS counterpart)
+   *   0x17721  movq  %rsp,%rbp        ; frame setup (no TS counterpart)
+   *   0x17724  cmpb  $0x2,0x4f0(%rdi) ; AT&T: computes this[+0x4f0] - 2
+   *   0x1772b  sete  %al              ; al = (this[+0x4f0] == 2)
+   *   0x1772e  popq  %rbp             ; frame teardown (no TS counterpart)
+   *   0x1772f  retq                   ; returns the bool in %al
+   *
+   * Decode notes:
+   *   * `cmpb` is a BYTE compare against the immediate 2 and `sete` keys on ZF
+   *     alone, so this is an exact equality test on one byte — not a
+   *     "non-zero" test and not a bitmask. Any other hint value (the default 1
+   *     @0x8944, the 0 that LoadTexture @0xf7d7 tests for, or an arbitrary
+   *     forced value from HG_RENDERER_ENV::FORCE_TEXTURE_STORAGE_HINT @0x9185)
+   *     yields false.
+   *   * `this` is read and never written; nothing else on the instance is
+   *     touched. No callq, no in-scope dependency, no extern, no indirect or
+   *     virtual dispatch (`depgraph.py deps` lists nothing).
+   *   * the port masks the field to 8 bits before comparing because the machine
+   *     only ever looks at the one byte at +0x4f0 — the neighbouring byte at
+   *     +0x4f1 that the ctor's 16-bit `movw $0x101` also writes is NOT part of
+   *     this test.
+   *
+   * @returns %al — true iff the +0x4f0 storage hint is exactly 2 (the value
+   *          Init() installs for an Intel GPU @0x9118).
+   */
+  UsingSharedStorage(): boolean {
+    // @0x17724..@0x1772b  cmpb $0x2,0x4f0(%rdi) ; sete %al
+    return (this.textureStorageHint_at_0x4f0 & 0xff) === 0x2;
+  }
+
+  /**
+   * `HGGPURenderer::GetMetalHandler() const` — @Helium 0x11d30
+   * (__ZNK13HGGPURenderer15GetMetalHandlerEv).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x11d30  pushq %rbp             ; frame setup (no TS counterpart)
+   *   0x11d31  movq  %rsp,%rbp        ; frame setup (no TS counterpart)
+   *   0x11d34  movq  0x520(%rdi),%rax ; rax = this[+0x520]
+   *   0x11d3b  popq  %rbp             ; frame teardown (no TS counterpart)
+   *   0x11d3c  retq                   ; returns the pointer in %rax
+   *   0x11d3d  nopl  (%rax)           ; alignment padding (not code)
+   *
+   * Decode notes:
+   *   * A single 8-byte load and a return. No branch, no null check, no callq, no extern, no
+   *     indirect or virtual dispatch (`depgraph.py deps` lists nothing) — the value is handed
+   *     back RAW, null included. Adding a guard the binary does not have would be a rewrite.
+   *   * `const` in the mangled name (`__ZNK...`) and in the body: `this` is only read.
+   *   * The structural twin of `GetMetalContext` @0xa560 and `GetGLState` @0x12070 above, one
+   *     slot over; the only thing that differs is the offset and therefore the handle type.
+   *
+   * ORACLE: verified against the live Helium binary. The symbol is EXPORTED
+   * (raw-port/army/inventory/Helium.syms.txt: `0000000000011d30 T`), so the harness dlopens
+   * Helium under `arch -x86_64 /usr/bin/python3` — the port is transcribed from the x86_64 slice
+   * and calling the arm64 image would compare against code this port did not transcribe — and
+   * calls the real method on a 0x600-byte object POISONED with 0xEE, with a distinct sentinel
+   * written into +0x520 for each case. See
+   * raw-port/re/oracle/HGGPURenderer_GetMetalHandler_oracle.py: 1,000 sentinels (0, 1, -1, the
+   * canary patterns, and seeded-random 64-bit values) all round-trip exactly, the poison at every
+   * other offset never leaks into the result, and writing the SAME sentinel to the neighbouring
+   * slots +0x518 / +0x528 while leaving +0x520 alone does not change the answer — which is what
+   * pins the offset rather than merely being consistent with it.
+   *
+   * @returns %rax — the `HGMetalHandler*` at this[+0x520], unfiltered.
+   */
+  GetMetalHandler(): HGMetalHandler | null {
+    // @0x11d34  movq 0x520(%rdi),%rax — returned raw, exactly as loaded.
+    return this.metalHandler_at_0x520;
   }
 }
