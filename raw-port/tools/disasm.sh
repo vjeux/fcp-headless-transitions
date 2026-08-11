@@ -59,6 +59,9 @@ if [ "${1:-}" = "--sym" ]; then
     echo "  Do NOT treat this as an empty body: verify the framework with \`nm -n\` before porting." >&2
     exit 2
   fi
+  # otool -tV symbolizes the disp32 of NON-%rip memory operands, turning struct field offsets into
+  # unrelated function names (see desymbolize_disp.py). Put the numbers back before anyone reads it.
+  python3 "$ROOT/tools/desymbolize_disp.py" "$OUT" "$FW" || true
   echo "wrote $OUT ($(wc -l < "$OUT") lines)  [$SYM]"; exit 0
 fi
 CLS="${1:?usage: disasm.sh <Class> [method] [framework]   OR   disasm.sh --sym <mangled> <FW>}"; METH="${2:-parseElement}"; FW="${3:-Ozone}"
@@ -136,7 +139,9 @@ if [ ! -s "$OUT" ]; then
     echo "   * throw-stub the method citing @0xADDR. (kept the dump at $OUT for inspection.)" >&2
     exit 3
   fi
+  python3 "$ROOT/tools/desymbolize_disp.py" "$OUT" "$FW" || true
   echo "wrote $OUT ($NLINES lines via objdump ICF-fallback)  [$SYM]"
   exit 0
 fi
+python3 "$ROOT/tools/desymbolize_disp.py" "$OUT" "$FW" || true
 echo "wrote $OUT ($(wc -l < "$OUT") lines)  [$SYM]"

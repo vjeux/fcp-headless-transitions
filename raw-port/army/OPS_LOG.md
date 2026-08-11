@@ -1155,6 +1155,72 @@ cheap to defuse once named.
 
 ---
 
+## Open — reported 2026-08-11 by worker 3 (otool -tV eats struct field offsets; FIXED in this change)
+
+- **`otool -tV` RENDERS STRUCT FIELD OFFSETS AS UNRELATED FUNCTION NAMES, `disasm.sh` CACHES THAT,
+  AND THE POISONED `.s` IS WHAT EVERY WORKER TRANSCRIBES AND WHAT G5 CLASSIFIES.** `-V` resolves the
+  disp32 of a memory operand against the symbol table. For `%rip`-relative operands that is correct
+  and load-bearing (it is how callees and literals get named). For **any other base register the
+  displacement is a struct field offset, not an address**, and symbolizing it produces a line that
+  describes a different program. Two live examples, both real:
+
+      0x61b2e4  leaq  "-[OZMagnifyTool draw]"(%rdi), %rax          # otool -tV
+      0x61b2e4  leaq  0x4290(%rdi), %rax                           # what it actually is
+
+      0x29d4f3  vaddps __ZN17HGParamBufferDesc8addFieldE5HGRefI12HGParamFieldE(%rsi), %ymm5, %ymm5
+                       ## HGParamBufferDesc::addField(HGRef<HGParamField>)      # otool -tV
+      0x29d4f3  vaddps 0x14c0(%rsi), %ymm5, %ymm5                               # what it is
+
+  A local ObjC method happens to live at VA 0x4290 and `HGParamBufferDesc::addField` at VA 0x14c0.
+  Note the second one carries otool's own `## demangled` comment, which makes the fiction look
+  authoritative — the "confident garbage" shape of #20/#21, arriving through the DISASSEMBLER
+  instead of through `find_disasm`.
+
+  **Scope, measured over all five `/tmp/<FW>_tV.txt` dumps: 355 instructions in 151 functions —
+  Ozone 149 lines / 105 functions, Helium 205 / 45, Flexo 1 / 1, and zero in ProCore and
+  ProChannel** (a framework is only exposed where a symbol's address happens to collide with a
+  displacement its own code uses, which is why this went unnoticed for so long). The distribution is
+  the bad news: it lands almost entirely on **ctors and the AVX kernels**, i.e. on exactly the two
+  places where the numbers ARE the work. `HGToneCurve::State::C2` @Helium 0x249860 has **26**
+  poisoned stores — that is its entire field layout — and all 45 affected Helium functions are the
+  `Get*Tile_AVX` / `Get*Tile` family, whose `(%rsi)` operands are reads of that very parameter block
+  (+0x940, +0xa0, +0x13e0, +0x14a0, +0x14c0 …). On the Ozone side it is the ctors/dtors of
+  OZImageElement, OZGroup, OZRotoshape and the OZMaterial*Layer family. A worker recovering a layout
+  from one of those ctors, as PORTING_SPEC Rule 5 requires, gets a disassembly with **no offsets in
+  it at all**.
+
+  **This is the second independent discovery, which is what makes it a tooling bug and not an agent
+  bug.** The landed `raw-port/src/render/Getsrgb_half_sat_unpremultTile_AVX.ts` documents the exact
+  same artifact at the exact same three addresses, worked around it correctly in-file (it decoded
+  the instruction BYTES: modrm `ae`, disp32 `c0 14 00 00` = 0x14c0), and never put it here — so the
+  next agent, on a different framework, paid for it again. **If you work around a tool lying to
+  you, the workaround belongs in OPS_LOG, not only in your file header.**
+
+  FIX (in this change, and it is a repair rather than a downgrade — dropping `-V` would cost the
+  `## symbol stub for:` call annotations the whole workflow depends on): new
+  `raw-port/tools/desymbolize_disp.py`, called by `disasm.sh` at all three of its write sites. For
+  every non-`%rip` operand it looks the named symbol's address up in the cached inventory and puts
+  **the number** back, replacing otool's misleading `## demangled` tail with a note saying what
+  happened. It never guesses: an unresolvable name keeps its original operand and gets a WARNING
+  comment telling the reader to re-derive with `otool -arch x86_64 -tv`. Cost is nil — the file is
+  scanned in memory and only rewritten when a poisoned operand is present.
+
+  Evidence the repair is EXACT, not merely plausible: for 10 affected functions across Ozone and
+  Helium, all **59** repaired lines are byte-identical to the same instruction from
+  `otool -arch x86_64 -tv` (the non-symbolizing ground truth). Pinned by
+  `raw-port/tools/test_desymbolize_disp.py` (8 operand cases + unresolvable + clean-file no-op),
+  which also locks the two directions that matter: a `%rip` symbolization must SURVIVE untouched,
+  and an already-numeric displacement must not be touched.
+
+  **Caveat for anyone holding an old checkout: already-cached `.s` files stay poisoned until they
+  are regenerated**, and `disasm.sh` reuses an existing `.s`. If a body you are about to transcribe
+  has a name where a number belongs, delete the `.s` and re-run `disasm.sh --sym`. And the standing
+  reflex worth keeping even with the fix in: **a memory operand whose displacement is a NAME is
+  never right — cross-check with `otool -arch x86_64 -tv -p <sym> /tmp/<FW>.x86_64` (0.1s), or read
+  the disp32 straight out of the instruction bytes.**
+
+---
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
@@ -1176,3 +1242,72 @@ cheap to defuse once named.
    two hours later, because `pr_gate` was a caller I had not considered. When you tighten a shared
    primitive, enumerate every caller — and prefer a self-healing fallback (#258's disposable-lease
    reclaim) over trusting that you found them all.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 2 (gate blind-spot suppressed by pool scratch; disassembler misrender; oracle-control trap)
+
+- **THE G5 `NO-DISASM` BLIND-SPOT GUARD IS SUPPRESSED BY LEFTOVER SCRATCH IN A RECYCLED POOL
+  WORKTREE, SO THE SAME PR GATES GREEN IN ONE SLOT AND FLAGGED IN ANOTHER — AND THE ACCIDENT FAILS
+  TOWARD GREEN.** `raw-port/re/disasm/*.s` is untracked scratch (`git ls-tree -r origin/main --
+  raw-port/re/disasm` = **0 files**), it is per-worktree rather than shared, and `wt_pool.sh` does
+  **not** clear it between leases. G5's blind-spot guard asks "is there a `.s` for this @0xADDR in
+  the tree I am gating in?", so its answer depends on which slot the pool happened to hand out.
+  Measured today on PR #502 (`PCCFRefTraits<CGImage*>::release`), one PR, two gate runs, no change
+  to the body: slot 7 already held
+  `ProCore.__ZN13PCCFRefTraitsIP7CGImageE7releaseES1_.s` from an earlier lease and the gate printed
+  `0 flag(s)` → status **SUCCESS**; slot 2 did not hold it and the gate printed
+  `1 flag(s) … NO-DISASM for @ProCore 0xacc92` → status **FAILURE**. Slot counts confirm the dir is
+  per-slot and dirty (25 / 9 / 20 files in slots 2 / 3 / 7).
+  **Why it matters more than a flake:** the guard exists precisely to stop a reviewer signing an
+  empty-looking body without re-deriving it, and the most likely author of a stale `.s` for the
+  symbol under review is **the PR's own author**, who leased a pool slot and ran `disasm.sh` for
+  exactly that symbol. So the worker's leftovers can silently switch off the check aimed at the
+  worker's work, and the reviewer sees a clean `0 flags` with no hint that anything was skipped.
+  FIX: `wt_pool.sh` should clear (or `git clean -xdf`) `raw-port/re/disasm/` on **acquire**, and G5
+  should treat a `.s` it did not itself just generate as absent — better, have G5 run
+  `disasm.sh --sym` itself and flag only when the BINARY cannot produce a body. Until then:
+  **delete the `.s` for your symbol before you re-derive it** (`rm -f
+  raw-port/re/disasm/*<symbol>*` then `disasm.sh --sym …`) so you are reading the binary and not a
+  peer's cache, and treat a `0 flags` gate as no evidence that anyone re-derived anything.
+
+- **`otool -tV` SYMBOLIZES A STRUCT-FIELD DISPLACEMENT AGAINST THE SYMBOL TABLE, SO AN ACCESSOR'S
+  OFFSET PRINTS AS AN UNRELATED ObjC SELECTOR.** Found by the author of PR #515 and confirmed
+  independently here; it was not yet in this log, and `raw-port/tools/disasm.sh` runs `-tV`, so
+  every cached `.s` inherits it. On
+  `OZMaterialDiffuseLayer::environmentIntensityChannel` @Ozone 0x61b2e0 the body's one real
+  instruction renders as
+
+      0x61b2e4  leaq "-[OZMagnifyTool setSpacebarMode:zoomOut:]"(%rdi), %rax
+
+  because the displacement is **0x4290** and a local symbol happens to sit at **VA 0x4290**
+  (`0000000000004290 t -[OZMagnifyTool setSpacebarMode:zoomOut:]` in the cached inventory). A
+  displacement is a field offset, not an address; symbolizing it is meaningless. The trap is that
+  the rendering is *plausible* — an agent can spend a long time explaining why a magnify tool is
+  reachable from a material layer, or, worse, transcribe the wrong constant. Any `leaq
+  <small-disp>(%reg)` accessor is exposed, which is most of the channel/layer getters.
+  FIX: `disasm.sh` should emit **both** `-tV` and `-tv`, or at least `-tv` alongside, so the raw
+  displacement always survives. WORKAROUND: when an operand names a symbol that makes no sense for
+  the class, **decode the bytes** — `48 8d 87 <disp32>` is `leaq disp32(%rdi), %rax`; at 0x61b2e4
+  the bytes are `48 8d 87 90 42 00 00`, disp32 = `90 42 00 00` = 0x4290. Reading the instruction
+  bytes out of the mapped image and unpacking the disp32 yourself takes three lines and settles it
+  without trusting any disassembler.
+
+- **AN ORACLE CONTROL OBJECT THAT YOU RELEASE TO ZERO READS BACK AS "THE CALLEE TOUCHED IT".** The
+  CoreFoundation cousin of the `create_string_buffer(b"\xAA"*N)` trap. Verifying PR #502 I checked
+  that `PCCFRefTraits<CGImage*>::release` only affects its argument by holding a second CGImage as
+  a control — but the control's retain count was 1, my own direct `CGImageRelease` on it took it to
+  0, CoreGraphics freed it, and `CFGetRetainCount` on the dead object returned
+  `1152921504606846975` (0x0FFF…FFF). The harness dutifully reported *"MISMATCH: the trait's calls
+  perturbed an UNRELATED image"* — a DIVERGED verdict on a correct port, caused entirely by the
+  measurement. RULE: give every control object **headroom** (retain it several times up front),
+  check the untouched-control assertion **before** any destructive comparison, and treat a
+  retain count of 0x0FFFFFFFFFFFFFFF as "you are reading freed memory", not as data.
+
+- **Two-line traps worth knowing before they cost you a run:** `ozone_loader.image_slide(fw)`
+  returns a **tuple** `(slide, image_name)`, not an int — `slide + vmaddr` then dies with
+  `TypeError: can only concatenate tuple (not "int") to tuple`; unpack it as `slide, _ = ...`
+  (`local_fn` already does). And a negative control can be **undiscriminating rather than passing**:
+  checking that a `movsd` constant was not a `movss` misread is vacuous for 200.0, which is exactly
+  representable in f32 — say so in the report instead of counting it as a control that fired
+  (PR #459).
