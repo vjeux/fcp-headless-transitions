@@ -5367,6 +5367,52 @@ mine rests on someone else's measurement I say so.
   the existing "a two-dot diff renders behind as deletions" rule: the two-dot diff over-reports, the
   three-dot diff under-reports, and only the file-to-file comparison answers "is this a revert".
 
+  **CORRECTED BEFORE MERGE — the RULE stands; read the #557 INSTANCE above in the past tense.**
+  (Correction added by worker 8 on reviewer 2's REQUEST_CHANGES, re-measured on this box before
+  writing rather than copied from the review.) #557 was reworked after the measurement above and
+  the revert is gone — main and that PR's head are now the SAME FILE:
+
+      $ git show origin/main:raw-port/army/tools/ghapp/pr_review.sh | shasum   959a1f389214…  317 lines
+      $ git show pr/557:raw-port/army/tools/ghapp/pr_review.sh    | shasum   959a1f389214…  317 lines
+
+  So the three guards named above are not at risk in #557, and nobody should go hunting a 59-line
+  revert in a file that no longer has one. Two things worth taking from the expiry rather than just
+  fixing it. First, **this is the second bullet in this one report to go stale in the present tense
+  in a single afternoon** (the PARK_MARKERS bullet above is the other), and both times the finding
+  was correct, was acted on by its author, and only the tense was wrong — so a finding about an OPEN
+  PR should be written with the head SHA and the clock time attached, exactly as the measured tables
+  in both corrections now are. Second, the check that found it is the same file-to-file comparison
+  the bullet prescribes, run again later: **a revert check is a snapshot, and re-running it costs
+  one `git show` — cheaper than the reader who goes looking.**
+
+- **`merge=union` ONLY HELPS A BRANCH THAT CARRIES `.gitattributes`, AND THE DIRTY BACKLOG IT WAS
+  WRITTEN FOR MOSTLY DOES NOT.** Measured by reviewer 2 while unsticking two OPS_LOG PRs eight
+  minutes apart, offered in review, and re-verified here by worker 8 against the two heads (both
+  since merged) rather than folded in on trust:
+
+      be3a4eb0  (#626) adds .gitattributes merge=union to main
+
+      PR #554, head 1ae503f2 — HAS .gitattributes (contains be3a4eb0)
+        git merge origin/main -> "Merge made by the 'ort' strategy", 0 conflicts
+      PR #571, head a029f21c — PREDATES be3a4eb0, no .gitattributes in the tree
+        git merge origin/main -> CONFLICT (content) in raw-port/army/OPS_LOG.md, hand-resolved
+
+  Confirmed independently: `git cat-file -e <head>:.gitattributes` succeeds on 1ae503f2 and fails on
+  a029f21c, and `git merge-base --is-ancestor be3a4eb0 <head>` agrees. The mechanism is that `git
+  merge` reads the attribute from the tree being merged INTO, so an old branch gets no union driver
+  however current main is. **First step when unsticking a conflicted OPS_LOG PR: ask whether its
+  head carries the attribute**, and expect to hand-resolve if it does not.
+
+- **"KEEP BOTH SIDES" IS NECESSARY AND NOT SUFFICIENT IN A HAND-RESOLVED OPS_LOG CONFLICT — THE
+  ORDER HAS TO KEEP EACH BULLET UNDER ITS OWN HEADING.** Also reviewer 2's, from the #571
+  resolution. The two sides were at different structural levels: theirs opened a new `---` /
+  `## Fixed 2026-08-11` section, ours continued a worker-3 list whose heading sat ABOVE the
+  conflict. Either concatenation order keeps every line, so a line-count or "nothing deleted" check
+  passes both ways — but theirs-first orphans worker 3's addendum under main's new heading, which
+  **attributes one agent's finding to another's report with nothing deleted and nothing to grep
+  for.** The union driver cannot make this judgement either; it is why a hand resolution still has
+  to be read, not just counted.
+
 - **`review_claim.sh` RE-OFFERED A PR AT THE SAME HEAD SIXTY SECONDS AFTER I REJECTED IT (third
   instance) — AND THE NEW DATUM IS THAT GATING IT CLOSES THE LOOP.** Reviewer 5 filed the mechanism:
   the `.d != "CHANGES_REQUESTED"` test lives only in the `SUCCESS` branch of the eligibility jq, so
