@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""test_find_disasm.py — LOCKED fixture test for classify_disasm.find_disasm's RESOLUTION rule.
+
+test_classify.py pins "given the right .s, is the verdict right?". This pins the question one step
+earlier and just as load-bearing: **is it even the right .s?** A verdict computed from another
+function's disassembly is not a weaker verdict, it is a fabricated one.
+
+THE BUG THIS LOCKS OUT (reviewer-2, 2026-08-10, found on PR #253 — HGRenderNode):
+  find_disasm fell back to a bare CLASS name and globbed `*HGRenderNode*.s`, which matched
+  `__ZN18OZHGRenderNodeBase8finishedEv.s` — a DIFFERENT class, whose body is a forwarding thunk.
+  G5 classified that as DISPATCH_ONLY and hard-rejected an honest two-store port as "a pure
+  dispatch shell". Measured across the 1,564 class files in raw-port/src, 83 (5.3%) resolved their
+  class-key fallback to a different class; 19 of those landed on an EMPTY body — and an EMPTY
+  verdict on the wrong class's disasm is precisely how an empty-body-for-REAL-work port passes G5
+  in silence (the OZChannelBase::parseElement cheat, CHEAT_INCIDENT_2026-07-29, via a second door).
+  So the collision cuts BOTH ways: false REJECT of real work, false ACCEPT of a cheat.
+
+The fallback only fires when the exact symbol's .s is absent — the normal state in a freshly leased
+pool worktree, because re/disasm is gitignored (OPS_LOG #16). That is where the gate actually runs.
+
+Fixtures are written into a temp DISASM dir, so this test needs no binary and no cache.
+"""
+import os, sys, tempfile, importlib
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+BODY_THUNK = ("__ZN18OZHGRenderNodeBase8finishedEv:\n"
+              "0000000000006a10\tmovq\t(%rdi), %rax\n"
+              "0000000000006a13\tjmpq\t*0x40(%rax)\n")
+BODY_STORE = ("__ZN12HGRenderNode11SetRendererEP10HGRenderer:\n"
+              "00000000000dcca0\tpushq\t%rbp\n"
+              "00000000000dcca1\tmovq\t%rsp, %rbp\n"
+              "00000000000dcca4\tmovq\t%rsi, 0xb0(%rdi)\n"
+              "00000000000dccab\tpopq\t%rbp\n"
+              "00000000000dccac\tretq\n")
+
+# (files to create, lookup key, expected basename or None)
+CASES = [
+    # THE REGRESSION: the class's own disasm is absent; a longer class merely CONTAINS its name.
+    ({"__ZN18OZHGRenderNodeBase8finishedEv.s": BODY_THUNK},
+     "HGRenderNode", None,
+     "bare class key must NOT match a different class that contains it as a substring"),
+    # the same directory, once the class's own disasm IS present -> it must be found
+    ({"__ZN18OZHGRenderNodeBase8finishedEv.s": BODY_THUNK,
+      "Helium.__ZN12HGRenderNode11SetRendererEP10HGRenderer.s": BODY_STORE},
+     "HGRenderNode", "Helium.__ZN12HGRenderNode11SetRendererEP10HGRenderer.s",
+     "bare class key resolves through the Itanium length prefix 12HGRenderNode"),
+    # a full mangled symbol still resolves exactly (the common path)
+    ({"Helium.__ZN12HGRenderNode11SetRendererEP10HGRenderer.s": BODY_STORE},
+     "__ZN12HGRenderNode11SetRendererEP10HGRenderer",
+     "Helium.__ZN12HGRenderNode11SetRendererEP10HGRenderer.s",
+     "exact mangled lookup unaffected"),
+    # reviewer-08's dotted human form still resolves (that fix must not regress)
+    ({"ProChannel.OZChannelBase.parseElement.s": BODY_STORE},
+     "OZChannelBase.parseElement", "ProChannel.OZChannelBase.parseElement.s",
+     "dotted <FW>.<Class>.<method>.s fallback still works"),
+    # ...and a dotted lookup must not be satisfied by a different class either
+    ({"ProChannel.OZChannelBaseExtra.parseElement.s": BODY_STORE},
+     "OZChannelBase", None,
+     "dotted form of a LONGER class name must not answer for the shorter one"),
+    # determinism: several candidates, the exact/shortest one wins regardless of readdir order
+    ({"Helium.__ZN12HGRenderNode11SetRendererEP10HGRenderer.s": BODY_STORE,
+      "Helium.__ZN12HGRenderNode11SetRendererEP10HGRendererXXXXXXXX.s": BODY_THUNK},
+     "__ZN12HGRenderNode11SetRendererEP10HGRenderer",
+     "Helium.__ZN12HGRenderNode11SetRendererEP10HGRenderer.s",
+     "ambiguous glob resolves deterministically to the shortest (exact) basename"),
+]
+
+
+# The shared anchoring rule, used both by the resolver and by G5's bare-key guard. Pinned here so
+# the two can never drift apart: a bare `method`/`class` key that lands on ANOTHER class must be
+# discarded (476 of 1,745 G5 verdicts were computed that way before the guard existed).
+NAMES_CLASS_CASES = [
+    ("__ZN18OZHGRenderNodeBase8finishedEv.s", "HGRenderNode", False,
+     "a longer class that merely contains the name is NOT this class"),
+    ("Helium.__ZN12HGRenderNode11SetRendererEP10HGRenderer.s", "HGRenderNode", True,
+     "Itanium length prefix 12HGRenderNode names it"),
+    ("Helium.HGColorGamma.ctor.s", "CrossCorrelation", False,
+     "the bare `ctor` key must not answer for an unrelated class"),
+    ("Flexo.UpdateScrubRateTask.performTask.s", "AdvanceScopingWindowTask", False,
+     "the bare `performTask` key must not answer for a different task class"),
+    ("ProChannel.__ZN13OZChannelImpl6setMinEd.s", "OZChannelImpl", True,
+     "export-name prefix resolves a multi-class helper file correctly"),
+    ("ProChannel.OZChannelGradientSample.copy.s", "OZChannelGradientSample", True,
+     "dotted human form names the class as a whole component"),
+]
+
+
+def main():
+    fails = 0
+    import classify_disasm as _C
+    for base, cls, expect, note in NAMES_CLASS_CASES:
+        got = _C.names_class(base, cls)
+        ok = got == expect
+        fails += (0 if ok else 1)
+        print("  %-6s names_class(%-30s, %-26s) = %-5s %s"
+              % ("OK" if ok else "FAIL", base[:30], cls, got, note))
+    for files, key, expect, note in CASES:
+        with tempfile.TemporaryDirectory() as d:
+            for name, body in files.items():
+                open(os.path.join(d, name), "w").write(body)
+            sys.path.insert(0, HERE)
+            import classify_disasm as C
+            importlib.reload(C)
+            C.DISASM = d                      # point the resolver at the fixture dir
+            got = C.find_disasm(key)
+            got = os.path.basename(got) if got else None
+        ok = got == expect
+        fails += (0 if ok else 1)
+        print("  %-6s key=%-46s got=%-58s %s" % ("OK" if ok else "FAIL", key, got, note))
+        if not ok:
+            print("         EXPECTED: %s" % expect)
+    print()
+    print("test_find_disasm:", "PASS ✅" if fails == 0 else "FAIL ❌ (%d fail)" % fails)
+    return 0 if fails == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

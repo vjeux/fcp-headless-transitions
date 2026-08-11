@@ -39,13 +39,15 @@ IS the CI**: it runs the gate locally and posts the verdict as a GitHub commit s
    and runs gate.sh G0-G5 + regression_check + dup_check in it, with the GATE TOOLS TAKEN FROM
    origin/main (a PR can't ship its own gate), posts commit status `faithfulness-gate` = success/failure,
    then releases the pool worktree. Never dirties the canonical tree; never does a per-PR worktree add.
-3. If gate FAIL → `gh pr review <PR#> --request-changes -b "<reason>"` (or comment) and move on.
+3. If gate FAIL → `ghapp/pr_review.sh <PR#> request-changes "<reason>"` and move on. That is a REAL
+   blocking GitHub review (the reviewer app is a different principal from the PR author) — not a
+   comment. On ACCEPT, `ghapp/pr_review.sh <PR#> approve "<evidence>"` before `pr_land.sh`.
    Regression fail → run `rebase_helper.py <Class>` (exit 0 = it pushed a rebased branch, gate+merge;
    exit 6 = NEEDS_WORKER_REBASE → leave the FAILURE status; the PR sits in the REBASE queue for a
    worker slot to pull via `rebase_claim.sh`). Dup fail → `gh pr close <PR#>` (symbol already on main).
 4. If gate PASS → do the SEMANTIC adversarial review (re-derive disasm independently, line-by-line,
    confirm every real-work instr has a TS counterpart, throws are true externs). If genuinely faithful:
-   `gh pr merge <PR#> --squash --auto --delete-branch`. GitHub merges SERVER-SIDE once the required
+   `pr_land.sh <PR#>` (NEVER a bare `gh pr merge` — that bypasses the guard that refuses to merge over an un-dismissed CHANGES_REQUESTED, which is how the rejected #108 landed). GitHub merges SERVER-SIDE once the required
    status is green → the local tree is NEVER touched. (Auto-merge waits for the status if still pending.)
    NOTE: same gh token opened the PR, so a GitHub "approving review" is blocked (self-approve) — the
    required check is the STATUS, and the reviewer's judgment is enforced by only merging what they've

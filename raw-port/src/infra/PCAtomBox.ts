@@ -10,6 +10,7 @@
 //   setOffset(unsigned long long)  @0x008b5e  (__ZN9PCAtomBox9setOffsetEy)
 //   getHeaderSize()  @0x008b90  (__ZN9PCAtomBox13getHeaderSizeEv)
 //   setPayloadSize(unsigned long long)  @0x008b86  (__ZN9PCAtomBox14setPayloadSizeEy)
+//   getChildCount()  @0x008eae  (__ZN9PCAtomBox13getChildCountEv)
 //   findFirstChild(int, unsigned int)  @0x008f8a  (__ZN9PCAtomBox14findFirstChildEij)
 //   updateSize()  @0x008eee  (__ZN9PCAtomBox10updateSizeEv)
 //
@@ -170,6 +171,28 @@ export class PCAtomBox {
   setPayloadSize(size: bigint): void {
     // @0x008b8a — movq %rsi,0x10(%rdi) : store the u64 payloadSize at +0x10.
     this.payloadSize = size;
+  }
+
+  /**
+   * PCAtomBox::getChildCount()
+   * @0xADDR ProCore 0x0000000000008eae  (__ZN9PCAtomBox13getChildCountEv)
+   *
+   * DECODE (raw-port/re/disasm/ProCore.__ZN9PCAtomBox13getChildCountEv.s):
+   *   0x008eae  pushq %rbp ; movq %rsp,%rbp        ; frame
+   *   0x008eb2  movq  0x38(%rdi), %rax             ; rax = children_end (+0x38)
+   *   0x008eb6  subq  0x30(%rdi), %rax             ; rax -= children_begin (+0x30)  (byte span)
+   *   0x008eba  shrq  $0x3, %rax                   ; rax >>= 3  (byte span / 8 = element count)
+   *   0x008ebe  popq %rbp ; retq                   ; return count
+   *
+   * `std::vector<PCAtomBox*>::size()` inlined: (end - begin) / sizeof(pointer=8).
+   * The same `children` array `findFirstChild` @0x008f8a walks — that method
+   * derives its own count with the identical
+   * `movq 0x38 ; subq 0x30 ; shrq $3` sequence (@0x008f98..@0x008fa3) — so the
+   * array's `.length` IS this count. Zero callees, no externs.
+   */
+  getChildCount(): number {
+    // @0x008eb2..0x008eba — (children_end - children_begin) >> 3 == array length.
+    return this.children.length;
   }
 
   /**

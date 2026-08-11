@@ -29,6 +29,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 VERIFIER = os.path.join(ROOT, "army", "verifier")
 sys.path.insert(0, VERIFIER)
 from classify_disasm import classify, find_disasm
+try:
+    from classify_disasm import names_class as _names_class
+except ImportError:  # a checkout whose verifier/ predates #322 (local pre-commit hook path)
+    import re as _re
+    def _names_class(basename, ident):
+        """Fallback copy of classify_disasm.names_class — keep the two in sync."""
+        if _re.search(r'(?<![0-9])%d%s' % (len(ident), _re.escape(ident)), basename):
+            return True
+        return (".%s." % ident) in basename or basename.startswith(ident + ".")
 import reach_check
 
 FW_RE = re.compile(r'@(ProCore|ProChannel|Helium|Ozone|Flexo)\s+0x([0-9a-fA-F]+)')
@@ -175,14 +184,45 @@ def check_file(path):
         # else class/name/method-derived keys.
         method = name.split("_", 1)[1] if "_" in name else name
         dpath = None
-        # rank cited symbols by whether they mention this method name
-        ranked = sorted(set(symm), key=lambda s: (0 if method.lower() in s.lower() else 1))
+        # rank cited symbols by whether they mention this method name. The tie-break on the symbol
+        # itself is load-bearing: `sorted(set(...))` with an equal key preserves SET iteration order,
+        # which Python randomizes per process (PYTHONHASHSEED) — so which cited symbol's disasm got
+        # classified for a given export changed from gate run to gate run, and with it the verdict.
+        # A verdict must be reproducible; sort fully.
+        ranked = sorted(set(symm), key=lambda s: (0 if method.lower() in s.lower() else 1, s))
         for s in ranked:
             dpath = find_disasm(s)
             if dpath: break
-        for key in (name, f"{file_class}.{method}", method, file_class):
+        for key in (name, f"{file_class}.{method}"):
             if dpath: break
             dpath = find_disasm(key)
+        # A BARE key (`method` or `file_class` alone) is not a symbol — it is a guess, and a guess
+        # that lands on ANOTHER CLASS produces a confident verdict about a function this file does
+        # not contain. Measured across the 2,298 exported functions in raw-port/src: of the 1,745
+        # that resolved to a disasm, 924 resolved via a bare key and 476 of those — 27% of ALL
+        # resolutions — named a DIFFERENT class. `AUPassThrough_D1` was judged against
+        # `LiMaterialLayer::D1` (TRAP), `AdvanceScopingWindowTask_performTask` against
+        # `UpdateScrubRateTask::performTask` (EMPTY), and every `*_ctor` export in the repo against
+        # one arbitrary framework's constructor. Both directions are wrong: a wrong EMPTY/TRAP waves
+        # an empty-body-for-REAL-work port through (the parseElement cheat), and a wrong REAL
+        # condemns an honest @0xADDR-cited sibling stub as a class-C cheat.
+        #
+        # So a bare-key hit must still NAME THE CLASS being ported. The class is the export's own
+        # prefix when it has one (`OZChannelImpl_setMin` -> OZChannelImpl, which is how a file that
+        # carries helpers for several classes still resolves correctly), else the file's class.
+        # A hit that names neither is discarded and falls through to the NO-DISASM FLAG below —
+        # "the reviewer must re-derive this from the binary" is the honest answer, and it is the
+        # answer this gate already has for the unresolvable case. #307 fixed the same disease for
+        # the class key alone; this closes the method key, which is 5x larger.
+        bare_dpath = None
+        for key in (method, file_class):
+            if bare_dpath: break
+            bare_dpath = find_disasm(key)
+        if bare_dpath and not dpath:
+            export_class = name.split("_", 1)[0] if "_" in name else file_class
+            base = os.path.basename(bare_dpath)
+            if _names_class(base, export_class) or _names_class(base, file_class):
+                dpath = bare_dpath
         # BLIND-SPOT FIX (reviewer-08, 2026-07-29): find_disasm sanitizes away dots, so a disasm
         # saved in the human-friendly dotted form `<FW>.<Class>.<method>.s` was NEVER matched by the
         # mangled-name search -> dpath=None -> silent flag+pass -> OZChannelBase::parseElement (a REAL
@@ -235,9 +275,21 @@ def check_file(path):
                         f"dispatch shell whose real work is the callee. Counting it `ported` is a "
                         f"false completion — port the concrete callee instead.")
         elif v == "REVIEW_NEEDED":
-            errs.append(f"{path}: G5 REVIEW_NEEDED — {name}: REAL disasm but not callable in "
-                        f"isolation; the adversarial reviewer must re-derive from the binary and "
-                        f"sign off (pr_gate.sh <PR#> --reviewed) before this can land.")
+            # A FLAG, NOT AN ERROR — and the distinction is load-bearing. REVIEW_NEEDED means exactly
+            # "a human must judge this": the disasm is REAL but the symbol is not callable in
+            # isolation, so no mechanical check can decide it. Filing that under `errs` made it a hard
+            # gate REJECT, and --reviewed only ever bypassed `flags` — so the gate's OWN instruction
+            # ("rerun --reviewed") could never work, and correct PRs were unmergeable by construction
+            # (reviewer-03: "this silently blocks correct PRs (#228, #231, and likely much of the
+            # G0-G5 gate reject backlog)"). It was doubly wrong while pr_gate passed relative paths,
+            # since a merely-unavailable fuzz produced this same verdict (fixed in #234).
+            # As a flag it still blocks a green status until a reviewer re-derives and signs — which
+            # is the whole intent — but the sign-off now actually clears it.
+            # A real cheat (REJECT_CHEAT / SKELETON / REJECT_INCOMPLETE_EMPTY) stays a hard error and
+            # is NOT clearable by --reviewed.
+            flags.append(f"{path}: G5 REVIEW_NEEDED — {name}: REAL disasm but not callable in "
+                         f"isolation; the adversarial reviewer must re-derive from the binary and "
+                         f"sign off (pr_gate.sh <PR#> --reviewed) before this can land.")
         elif v == "REJECT_INCOMPLETE_EMPTY":
             errs.append(f"{path}: G5 — {name}: EMPTY disasm but port throws incompleteness on a "
                         f"reachable input (a no-op must not throw).")

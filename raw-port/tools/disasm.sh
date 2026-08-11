@@ -29,7 +29,15 @@ if [ "${1:-}" = "--sym" ]; then
   mkdir -p "$(dirname "$OUT")"
   DIS="/tmp/${FW}_tV.txt"; THIN="/tmp/${FW}.x86_64"
   [ -s "$DIS" ] || otool -tV -arch x86_64 "$BIN" > "$DIS" 2>/dev/null
-  awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+  # INDEXED LOOKUP (symidx.py): seek straight to the symbol instead of linear-scanning the dump.
+  # These dumps are 9-220MB and this scan ran several times per ported unit (worker, G5 in gate.sh,
+  # reviewer re-derivation); under the corp MDM file-inspection stack one full Flexo scan measured
+  # 42s wall for 7.7s CPU, which pinned the box at load 119 with 31% CPU idle and capped the swarm
+  # at ~4 slots. The index is proven byte-identical to the awk below (tools/verify_symidx.py checks
+  # all ~45.8k symbol bodies), and falls back to the awk scan if anything is off.
+  if ! python3 "$ROOT/tools/symidx.py" slice "$FW" "$SYM" > "$OUT" 2>/dev/null; then
+    awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+  fi
   if [ ! -s "$OUT" ]; then
     OBJDUMP="$(command -v llvm-objdump || command -v objdump || echo /usr/bin/objdump)"
     [ -s "$THIN" ] || lipo "$BIN" -thin x86_64 -output "$THIN" 2>/dev/null || true
@@ -39,7 +47,18 @@ if [ "${1:-}" = "--sym" ]; then
       echo "  Not the method body. nm -n slice or throw-stub @0xADDR." >&2; : > "$OUT"
     fi
   fi
-  if [ ! -s "$OUT" ]; then echo "0-line disasm for [$SYM] (stub/extern/ICF) — throw-stub @0xADDR, do not guess." >&2; exit 2; fi
+  if [ ! -s "$OUT" ]; then
+    # DELETE the empty artifact. Leaving a 0-byte .s on disk is a correctness hazard, not just
+    # untidy: classify_disasm reads it as `EMPTY instrs=0`, which is INDISTINGUISHABLE from a
+    # genuinely empty function body — so a no-op TS port of a REAL function can be accepted as
+    # faithful. reviewer-03 hit this on #276 via a mistyped framework: `disasm.sh --sym <sym>
+    # <wrongFW>` finds nothing, writes the empty file, and every later reader silently believes the
+    # function has no body. Absence of a disassembly must look like an ERROR, never like evidence.
+    rm -f "$OUT"
+    echo "0-line disasm for [$SYM] in $FW (wrong framework? stub/extern/ICF?) — no .s written." >&2
+    echo "  Do NOT treat this as an empty body: verify the framework with \`nm -n\` before porting." >&2
+    exit 2
+  fi
   echo "wrote $OUT ($(wc -l < "$OUT") lines)  [$SYM]"; exit 0
 fi
 CLS="${1:?usage: disasm.sh <Class> [method] [framework]   OR   disasm.sh --sym <mangled> <FW>}"; METH="${2:-parseElement}"; FW="${3:-Ozone}"
@@ -62,7 +81,10 @@ if [ "${NHIT:-0}" -gt 1 ]; then
   echo "note: '${CLS}::${METH}' matches ${NHIT} symbols (e.g. D0/D1/D2 variants demangle alike);" >&2
   echo "  grabbed the first ($SYM). For an EXACT variant use: disasm.sh --sym <mangled> ${FW}" >&2
 fi
-awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+# Indexed lookup (see the --sym branch above for why); identical bytes, with the awk scan as fallback.
+if ! python3 "$ROOT/tools/symidx.py" slice "$FW" "$SYM" > "$OUT" 2>/dev/null; then
+  awk -v s="$SYM:" '$0==s{f=1;print;next} f&&/:$/{exit} f{print}' "$DIS" > "$OUT"
+fi
 # GUARD + AUTO-ICF-FALLBACK: otool -tV sometimes emits NO label for a symbol (ICF identical-code-
 # folding, or a linear-sweep that decoded the prior region into this entry so the true start has no
 # line). The old code wrote a 0-line file and returned success — and a worker would GUESS the body.

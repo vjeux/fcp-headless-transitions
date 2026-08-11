@@ -89,6 +89,17 @@ def classify(path):
     if not path or not os.path.exists(path):
         return {"class": "UNKNOWN", "reason": "no disasm file"}
     text = open(path, errors="replace").read()
+    # A ZERO-BYTE .s IS NOT EVIDENCE OF AN EMPTY FUNCTION. It means the disassembly could not be
+    # produced — usually the wrong framework was passed to disasm.sh (the symbol lives elsewhere),
+    # or an ICF blowup was truncated. Falling through would count 0 stores / 0 calls / 0 instrs and
+    # classify EMPTY, which is INDISTINGUISHABLE from a genuinely empty body — so a no-op TS port of
+    # a REAL function would be accepted as faithful. reviewer-03 hit this on #276. Audited when this
+    # guard was added: 197 zero-byte .s files existed in the cache and 24 of them named symbols with
+    # a real body in a DIFFERENT framework, i.e. 24 live opportunities for that false verdict.
+    if not text.strip():
+        return {"class": "UNKNOWN",
+                "reason": "empty disasm file — could not disassemble (wrong framework? ICF?); "
+                          "NOT evidence of an empty body"}
     if UD2.search(text):
         return {"class":"TRAP","stores":0,"compute":0,"direct_calls":0,"indirect_calls":0,
                 "loads":0,"cmp_data":0,"instrs":0,"reason":"ud2 present"}
@@ -143,11 +154,80 @@ def classify(path):
             "reason":"stores=%d compute=%d direct=%d indirect=%d loads=%d cmpdata=%d"
                      % (stores,compute,direct_calls,indirect_calls,loads,cmp_data)}
 
+def _pick(cands):
+    """Deterministic choice among candidate .s files.
+
+    `glob` returns readdir order, so `c[0]` picked a DIFFERENT file on different machines/runs —
+    i.e. the same PR could be classified REAL on one gate run and EMPTY on the next. Sort, and
+    prefer the SHORTEST basename: the exact `<FW>.<sym>.s` always sorts ahead of decorated
+    siblings (`.cold`, `.part`, template instantiations that merely contain the key).
+    """
+    cands = [c for c in cands if os.path.basename(c).endswith(".s")]
+    return sorted(cands, key=lambda p: (len(os.path.basename(p)), os.path.basename(p)))[0] if cands else None
+
+
+def _is_mangled(key):
+    """True for an Itanium mangled symbol (`_Z...` / `__Z...`), false for a bare Class/method name."""
+    return re.match(r'_+Z', key) is not None
+
+
+def names_class(basename, ident):
+    """Does BASENAME name IDENT as a WHOLE name component?
+
+    The single anchoring rule shared by the resolver and by G5's bare-key guard, so the two can
+    never drift: the Itanium length-prefixed form `<len><Ident>` not preceded by another digit
+    (`12HGRenderNode` matches `__ZN12HGRenderNode...` and cannot match `__ZN18OZHGRenderNodeBase...`),
+    or a whole dot-delimited component of the human form `<FW>.<Class>.<method>.s`.
+    """
+    if re.search(r'(?<![0-9])%d%s' % (len(ident), re.escape(ident)), basename):
+        return True
+    return (".%s." % ident) in basename or basename.startswith(ident + ".")
+
+
+def _ident_matches(ident):
+    """Files that name IDENT as a WHOLE name component — never as a loose substring.
+
+    WRONG-CLASS COLLISION (reviewer-2, 2026-08-10): the plain `*<ident>*.s` glob below is safe for a
+    full mangled symbol but catastrophic for a bare CLASS name, because a class name is very often a
+    substring of ANOTHER class's name. `find_disasm("HGRenderNode")` returned
+    `__ZN18OZHGRenderNodeBase8finishedEv.s` — a different class, classified DISPATCH_ONLY — so G5
+    hard-rejected an honest two-store port (PR #253) as "a pure dispatch shell". Measured over the
+    1,564 class files in raw-port/src: 83 (5.3%) resolved their class-key fallback to a DIFFERENT
+    class's disassembly — 1 DISPATCH_ONLY (false REJECT) and, far worse, 19 EMPTY: an EMPTY verdict
+    on the wrong class's body is how an empty-body-for-REAL-work port passes G5 silently, which is
+    exactly the OZChannelBase::parseElement cheat (CHEAT_INCIDENT_2026-07-29) coming back through a
+    second door. The class-key fallback only fires when the exact symbol's .s is missing — the
+    NORMAL state in a freshly leased pool worktree, since re/disasm is gitignored (OPS_LOG #16).
+
+    Whole-component means either:
+      * the Itanium length-prefixed form `<len><ident>` inside a mangled name, not preceded by
+        another digit — `12HGRenderNode` matches `__ZN12HGRenderNode...` and can NOT match
+        `__ZN18OZHGRenderNodeBase...`; or
+      * a whole dot-delimited component of the human form `<FW>.<Class>.<method>.s`.
+    """
+    hits = set()
+    for pat in (f"*.{ident}.s", f"*.{ident}.*.s", f"{ident}.*.s"):
+        hits.update(glob.glob(os.path.join(DISASM, pat)))
+    for p in glob.glob(os.path.join(DISASM, f"*{ident}*.s")):
+        if names_class(os.path.basename(p), ident):
+            hits.add(p)
+    return {h for h in hits if ".cold" not in h and "invoke" not in h and "proxy" not in h}
+
+
 def find_disasm(sym_or_class):
     san = re.sub(r'[^A-Za-z0-9_]', '', sym_or_class)
-    c = glob.glob(os.path.join(DISASM, f"*{san}*.s"))
-    if c:
-        return c[0]
+    # A BARE identifier (class or method name) must match a whole name component — see
+    # _ident_matches. Only a full mangled symbol may use the loose substring glob. Either way we
+    # fall through to the dotted-form fallback below when nothing matches, so the reviewer-08
+    # `<FW>.<Class>.<method>.s` fix keeps working.
+    if not _is_mangled(san) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', san):
+        p = _pick(_ident_matches(san))
+        if p:
+            return p
+    else:
+        c = glob.glob(os.path.join(DISASM, f"*{san}*.s"))
+        if c:
+            return _pick(c)
     # FILENAME LENGTH CAP (mirrors disasm.sh): names >200 chars are written as
     # "<prefix>.<san[:200]>__H<sha1(san)[:16]>.s" because the full sanitized mangled overflows the
     # 255-byte filename limit (318 STL __tree/__hash_table instantiations). Recompute the capped
@@ -158,7 +238,7 @@ def find_disasm(sym_or_class):
         capped = san[:200] + "__H" + h
         c = glob.glob(os.path.join(DISASM, f"*{capped}*.s"))
         if c:
-            return c[0]
+            return _pick(c)
     # CHEAT INCIDENT 2026-07-29 (reviewer-08): workers/reviewers save disasm in the human-friendly
     # dotted form `<FW>.<Class>.<method>.s`, but the sanitized-mangled glob above strips the dots so
     # e.g. "OZChannelBase.parseElement" -> "OZChannelBaseparseElement" never matches
@@ -172,12 +252,12 @@ def find_disasm(sym_or_class):
             c = [h for h in glob.glob(os.path.join(DISASM, pat))
                  if ".cold" not in h and "invoke" not in h and "proxy" not in h]
             if c:
-                return c[0]
+                return _pick(c)
     elif len(parts) == 1:
         for pat in (f"*.{parts[0]}.s",):
             c = glob.glob(os.path.join(DISASM, pat))
             if c:
-                return c[0]
+                return _pick(c)
     return None
 
 if __name__ == "__main__":

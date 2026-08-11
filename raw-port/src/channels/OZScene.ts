@@ -24,6 +24,18 @@
 //   __ZNK7OZScene18getRawWorkingGamutEv                               @0x81da0  ← CORE
 //   __ZN7OZScene18setRawWorkingGamutE19PCWorkingGamutValue             @0x81de0  ← CORE
 //   __ZN7OZScene30setDynamicRangeTrackingEnabledEb                    @0x81ed0  ← CORE
+//   __ZN7OZScene19gotoHeadOfPlayRangeEv                               @0x71ea0  ← CORE
+//   __ZN7OZScene7end_selEv                                            @0x51340  ← CORE
+//   __ZN7OZScene8rend_selEv                                           @0x63930  ← CORE
+//
+// WHY THIS FILE (and not raw-port/src/nodes/OZScene.ts): two files carry the
+// name OZScene. THIS one is the raw transcription of Ozone's C++ class — every
+// method cites an @Ozone address and the byte offsets of the real 0x500+-byte
+// object (+0x20 selector, +0x3b8 currentTime, +0x4b0/+0x4e0 play ranges), which
+// is exactly the storage `gotoHeadOfPlayRange` moves bytes between. The
+// `nodes/OZScene.ts` file is a different object: a .motr scene-graph model
+// (layers/settings/factories, parseElement) with no address provenance and none
+// of these fields. A method decoded from the binary belongs here.
 //
 // ============================================================================
 //  STRUCT LAYOUT (partial — only what's touched by the core surface)
@@ -137,6 +149,25 @@ export interface OZSceneSettingsHandle {
 /** PCTimeRange opaque — 0x30-byte value type (see layout comment). */
 export interface PCTimeRangeHandle {
   readonly __pcTimeRange: true;
+  /**
+   * +0x00..+0x17 — the range's `start` CMTime.
+   *
+   * Added by the `gotoHeadOfPlayRange` @0x71ea0 port, which reads exactly those
+   * 24 bytes out of the selected range (`movups (%rax),%xmm0` @0x71eba for
+   * value/timescale/flags and `movq 0x10(%rax),%rax` @0x71ec4 for epoch) and
+   * copies them into `currentTime`. The offsets agree with the landed
+   * `raw-port/src/infra/PCTimeRange.ts` model (start +0x00, duration +0x18).
+   *
+   * OPTIONAL because the pre-existing users of this handle (getPlayRange /
+   * setPlayRange / setTimeRange) treat the 0x30 bytes as opaque and never
+   * populate them; nothing about their behaviour changes.
+   */
+  start?: CMTime;
+  /**
+   * +0x18..+0x2f — the range's `duration` CMTime. Not read by any body in this
+   * file; recorded so the 0x30-byte layout is complete (same source as above).
+   */
+  duration?: CMTime;
 }
 
 /** PCSharedMutex opaque — non-recursive read/write lock (frontier). */
@@ -150,6 +181,12 @@ export interface PCSharedMutexHandle {
 
 /** PCWorkingGamutValue — 32-bit enum passed by value. Opaque u32 here. */
 export type PCWorkingGamutValue = number;
+
+/** `PCColorGamutValue` — 32-bit enum passed by value (the `setViewGamut`
+ *  argument arrives in `%esi` and is stored with a 32-bit `movl` @Ozone
+ *  0x81e84, which is what fixes the width). Opaque u32 here: no decoded code
+ *  compares it against any enumerator, so no names are invented. */
+export type PCColorGamutValue = number;
 
 /** OZSceneNode opaque — return type of getNode() after dynamic_cast. */
 export interface OZSceneNodeHandle {
@@ -213,6 +250,45 @@ export interface OZSceneAllSelIterator {
   f50: number;
 }
 
+/**
+ * The 0x44-byte iterator `OZScene::end_sel()` @Ozone 0x51340 and
+ * `OZScene::rend_sel()` @Ozone 0x63930 build in their sret slot.
+ *
+ * It is a SMALLER, differently-shaped sibling of {@link OZSceneAllSelIterator}
+ * above: same two source slots (+0x3d0 sentinel address, +0x3d8 companion) but
+ * a different payload layout — a one-BYTE flag at +0x18 instead of a 16-byte
+ * zero block, no +0x28 word, and the 1.0f at +0x40 rather than +0x50. Both
+ * bodies write EXACTLY these seven fields:
+ *
+ *   +0x00  node    = &this->allSelSentinel   (`movq %rsi,(%rdi)`      @0x51367/@0x63957)
+ *   +0x08  aux     = *(this+0x3d8)           (`movq %rcx,0x8(%rdi)`   @0x5136a/@0x6395a)
+ *   +0x10  nodeAlt = &this->allSelSentinel   (`movq %rsi,0x10(%rdi)`  @0x5136e/@0x6395e)
+ *   +0x18  b18     = 0  (ONE byte)           (`movb $0x0,0x18(%rdi)`  @0x51372/@0x63962)
+ *   +0x20  zero20  = 16 zero bytes           (`movups %xmm0,0x20(%rdi)`@0x5135c/@0x6394c)
+ *   +0x30  zero30  = 16 zero bytes           (`movups %xmm0,0x30(%rdi)`@0x51358/@0x63948)
+ *   +0x40  f40     = 1.0f                    (`movl $0x3f800000,0x40(%rdi)` @0x51360/@0x63950)
+ *
+ * Nothing at or past +0x44 is written, so the struct's decoded extent is
+ * 0x44 bytes (the ABI may round it up; this port models only what is stored).
+ * Each field carries its documented offset per Rule 5.
+ */
+export interface OZSceneSelIterator {
+  /** +0x00 — &OZScene::allSelSentinel (past-the-end node). */
+  node: OZSceneAllSelSentinelHandle;
+  /** +0x08 — companion pointer copied from OZScene+0x3d8. */
+  aux: OZSceneAllSelNodeHandle | null;
+  /** +0x10 — same sentinel address as `node` (stored twice by both bodies). */
+  nodeAlt: OZSceneAllSelSentinelHandle;
+  /** +0x18 — a single zeroed BYTE (`movb $0x0`), not a word. */
+  b18: number;
+  /** +0x20 — 16 bytes, zero-initialized. */
+  zero20: [number, number, number, number];
+  /** +0x30 — 16 bytes, zero-initialized. */
+  zero30: [number, number, number, number];
+  /** +0x40 — f32 = 1.0 (0x3f800000 == Math.fround(1.0)). */
+  f40: number;
+}
+
 // -----------------------------------------------------------------------------
 //  OZScene class
 // -----------------------------------------------------------------------------
@@ -266,6 +342,47 @@ export class OZScene {
   rawWorkingGamutCache: PCWorkingGamutValue = 0;
 
   /**
+   * +0xd0 — toneMappingMode : u32 (an enum code).
+   *
+   * The one and only slot `getToneMappingMode() const` @Ozone 0x81e90 reads,
+   * via `movl 0xd0(%rdi), %eax` @0x81e94 — a 32-bit load returned directly
+   * in `%eax`. That instruction fixes the WIDTH (4 bytes) and the OFFSET; it
+   * does not reveal the enumerator set, so no enum type is invented here and
+   * the value is modelled as a plain `number` holding the raw 32 bits.
+   *
+   * `movl` into a full 32-bit register is width-exact and sign-agnostic (the
+   * upper 32 bits of `%rax` are zeroed by the 32-bit write), so the returned
+   * value is the unsigned 32-bit word; the getter below preserves that with
+   * `>>> 0`. The setter for this slot is a separate ledger unit and is NOT
+   * decoded here — nothing about who writes it is claimed.
+   *
+   * Note this sits immediately after `rawWorkingGamutCache` (+0xc8, u32) and
+   * the slot at +0xcc, which is consistent with a run of small colour-pipeline
+   * settings caches on the scene object. (+0xcc is now decoded — see
+   * `viewGamut_at_0xcc` below, grounded by `setViewGamut` @0x81e84 and
+   * `getViewGamut` @0x81e54 — so this adjacency is no longer just an
+   * observation.)
+   */
+  toneMappingMode_at_0xd0: number = 0;
+
+  /**
+   * +0xcc — viewGamut : PCColorGamutValue (u32).
+   *
+   * The scene's VIEW gamut, the sibling of the working gamut cached at +0xc8.
+   * Two one-instruction accessors pin the slot and its width:
+   *   `OZScene::setViewGamut(PCColorGamutValue)` @Ozone 0x81e84
+   *     `movl %esi, 0xcc(%rdi)`   — 32-bit store of the by-value enum;
+   *   `OZScene::getViewGamut() const` @Ozone 0x81e54
+   *     `movl 0xcc(%rdi), %eax`   — the matching 32-bit load.
+   * Neither takes a lock (contrast `getRawWorkingGamut` @0x81da0, which reads
+   * +0xc8 under the shared lock @0x81db6), and neither validates the value.
+   *
+   * Modelled as a plain `number` holding the raw 32 bits, like
+   * `rawWorkingGamutCache`.
+   */
+  viewGamut_at_0xcc: PCColorGamutValue = 0;
+
+  /**
    * +0x480 — timeRange : PCTimeRange (0x30 bytes).
    * Modelled as a nullable handle; setTimeRange copies bytes from src into
    * this slot.
@@ -289,6 +406,25 @@ export class OZScene {
    * the reader touches; per Rule 3 we don't guess where else it's written.
    */
   currentTime: CMTime = { value: 0n, timescale: 0, flags: 0, epoch: 0n };
+
+  /**
+   * +0x590 — the scene's 32-bit FLAG WORD (a bitset, not a counter).
+   *
+   * Grounded in the three accessors that share this slot, all reading/writing
+   * it 32 bits wide:
+   *   `setFlag(u32)`   @Ozone 0x4d374  `orl  %esi, 0x590(%rdi)`   — set bits
+   *   `resetFlag(u32)` @Ozone 0x4d386  `andl %esi, 0x590(%rdi)`   — clear bits
+   *                                     (after `notl %esi` @0x4d384)
+   *   `testFlag(u32)`  @Ozone 0x582e0  — the const reader of the same word
+   * plus in-place bit edits elsewhere in the class, e.g. `testb $0x10,
+   * 0x590(%rbx)` @Ozone 0x4d489 and `andb $-0x21, 0x590(%rbx)` @Ozone 0x51ff7,
+   * which is what shows the individual bits are independent flags.
+   *
+   * Declared 0 here because this class's constructor is not yet transcribed, so
+   * the slot's real initial value is not known from any decoded instruction;
+   * only the read-modify-write semantics below are ported.
+   */
+  flagsAt590 = 0;
 
   /**
    * +0x3d0..+0x3df — allSelSentinel : the internal sentinel node of the
@@ -397,6 +533,79 @@ export class OZScene {
       // @0x81e11: release exclusive lock.
       mutex.unlock();
     }
+  }
+
+  /**
+   * OZScene::setViewGamut(PCColorGamutValue)  @Ozone 0x81e80
+   *   __ZN7OZScene12setViewGamutE17PCColorGamutValue
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZN7OZScene12setViewGamutE17PCColorGamutValue.s):
+   *
+   *   0x81e80  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x81e81  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x81e84  movl  %esi, 0xcc(%rdi)     ; this->viewGamut_at_0xcc = v
+   *   0x81e8a  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x81e8b  retq                       ; void return
+   *   0x81e8c  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * A bare 32-bit field store and NOTHING else. Three things it deliberately
+   * does not do, each visible by their absence from the four-instruction body:
+   *   • no LOCK — contrast the working-gamut pair on the neighbouring +0xc8
+   *     slot, where `getRawWorkingGamut` @0x81da0 reads under `lock_shared`
+   *     (@0x81db1) and `setRawWorkingGamut` @0x81de0 writes under the
+   *     exclusive `lock` (@0x81df7);
+   *   • no FORWARDING to the `OZSceneSettings` sub-object at +0x90 — this
+   *     value lives directly on the scene, unlike the raw working gamut;
+   *   • no validation of the enum and no change notification.
+   *
+   * The 32-bit `movl` of `%esi` (the by-value `PCColorGamutValue` argument) is
+   * what fixes the slot's width; `getViewGamut() const` @0x81e54 reads the same
+   * offset back with the matching `movl 0xcc(%rdi), %eax` (its own ledger unit,
+   * not ported here). The port stores the value `>>> 0` to keep the exact 32
+   * bits the register holds.
+   *
+   * ZERO callees, ZERO externs, no indirect/virtual dispatch.
+   *
+   * @param v the new view gamut (`%esi`).
+   */
+  setViewGamut(v: PCColorGamutValue): void {
+    // @0x81e84: movl %esi, 0xcc(%rdi) — 32-bit store, no lock, no forwarding.
+    this.viewGamut_at_0xcc = v >>> 0;
+  }
+
+  /**
+   * OZScene::getViewGamut() const  @Ozone 0x81e50
+   *   __ZNK7OZScene12getViewGamutEv
+   *
+   * Full transcription — every instruction, in order
+   * (raw-port/re/disasm/__ZNK7OZScene12getViewGamutEv.s):
+   *
+   *   0x81e50  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x81e51  movq  %rsp, %rbp           ; frame setup (no TS counterpart)
+   *   0x81e54  movl  0xcc(%rdi), %eax     ; return this->viewGamut_at_0xcc
+   *   0x81e5a  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x81e5b  retq                       ; return %eax (u32)
+   *   0x81e5c  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * The exact inverse of `setViewGamut` @0x81e84 (`movl %esi, 0xcc(%rdi)`) on
+   * the same slot, and like it: NO LOCK (contrast `getRawWorkingGamut`
+   * @0x81da0, which reads the neighbouring +0xc8 cache under `lock_shared`
+   * @0x81db1), NO forwarding to the `OZSceneSettings` sub-object at +0x90, no
+   * mask and no validation — the raw 32-bit word, verbatim.
+   *
+   * `movl` into a 32-bit register zero-extends into `%rax`, so the ABI result
+   * is the unsigned 32-bit word; the port preserves that with `>>> 0`, exactly
+   * as `getRawWorkingGamut` does for +0xc8.
+   *
+   * ZERO callees, ZERO externs, no indirect/virtual dispatch — a pure field
+   * read.
+   *
+   * @returns the scene's view gamut (u32).
+   */
+  getViewGamut(): PCColorGamutValue {
+    // @0x81e54: movl 0xcc(%rdi), %eax — 32-bit load, zero-extended.
+    return this.viewGamut_at_0xcc >>> 0;
   }
 
   /**
@@ -537,6 +746,87 @@ export class OZScene {
       timescale: t.timescale,
       flags: t.flags,
       epoch: t.epoch,
+    };
+  }
+
+  /**
+   * OZScene::gotoHeadOfPlayRange()  @Ozone 0x71ea0
+   *   __ZN7OZScene19gotoHeadOfPlayRangeEv
+   *
+   * Sets `currentTime` to the START of whichever play range the +0x20 variant
+   * selector picks — "rewind the playhead to the head of the play range".
+   *
+   * Full transcription — every instruction, in order (14-line disasm at
+   * raw-port/re/disasm/__ZN7OZScene19gotoHeadOfPlayRangeEv.s):
+   *
+   *   0x71ea0  pushq  %rbp                    ; frame setup (no TS counterpart)
+   *   0x71ea1  movq   %rsp,%rbp               ; frame setup (no TS counterpart)
+   *   0x71ea4  leaq   0x4e0(%rdi),%rax        ; rax = &playRangeSecondary
+   *   0x71eab  leaq   0x4b0(%rdi),%rcx        ; rcx = &playRangePrimary
+   *   0x71eb2  cmpl   $-0x1,0x20(%rdi)        ; variantSelector == -1 ?
+   *   0x71eb6  cmoveq %rcx,%rax               ;   if equal, rax = &playRangePrimary
+   *   0x71eba  movups (%rax),%xmm0            ; \ 16 bytes: start.{value,timescale,flags}
+   *   0x71ebd  movups %xmm0,0x3b8(%rdi)       ; /  -> currentTime.{value,timescale,flags}
+   *   0x71ec4  movq   0x10(%rax),%rax         ; \ 8 bytes: start.epoch
+   *   0x71ec8  movq   %rax,0x3c8(%rdi)        ; /  -> currentTime.epoch
+   *   0x71ecf  popq   %rbp                    ; frame teardown (no TS counterpart)
+   *   0x71ed0  retq
+   *   0x71ed1  nopw %cs:(%rax,%rax)           ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * the selector test is the SAME `cmpl $-0x1,0x20(%rdi)` + `cmove` pair
+   *     that `getPlayRange` @0x4fb10 uses (and the same polarity: EQUAL to -1
+   *     selects the PRIMARY range at +0x4b0, otherwise the SECONDARY at +0x4e0),
+   *     so this method reuses the ported selector logic verbatim rather than
+   *     restating it. Both `leaq`s are computed before the compare; only the
+   *     `cmove` chooses.
+   *   * the copy reads the range's FIRST 24 bytes — offset +0x00 of the 0x30-byte
+   *     PCTimeRange, i.e. its `start` CMTime (the `duration` at +0x18 is not
+   *     touched) — and writes them into the +0x3b8 currentTime slot in the same
+   *     16-then-8 split the landed getCurrentTime/setCurrentTime ports document.
+   *   * unlike `setPlayRange`, there is NO self-alias check: source and
+   *     destination can never overlap here (+0x3b8 vs +0x4b0/+0x4e0).
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps` lists nothing). Pure field moves.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN7OZScene19gotoHeadOfPlayRangeEv.s (14 lines)
+   */
+  gotoHeadOfPlayRange(): void {
+    // @0x71ea4/@0x71eab/@0x71eb2/@0x71eb6 — the selector picks the range whose
+    //   address ends up in %rax. Identical to getPlayRange's cmove @0x4fb26.
+    const sel = this.playRangeVariantSelector >>> 0;
+    const range =
+      sel === 0xffffffff ? this.playRangePrimary : this.playRangeSecondary;
+
+    // @0x71eba/@0x71ec4 read 24 bytes out of that range. In the binary the two
+    //   slots are EMBEDDED storage (`leaq`, not a pointer load), so %rax is
+    //   never null and the bytes always exist. In this port they are nullable
+    //   handles because OZScene's ctor @0x4cc00 is still frontier and never
+    //   populates them — a null/unpopulated range here is a PORT-STATE gap, not
+    //   a branch the machine has, so it is surfaced loudly instead of being
+    //   silently replaced with a zero CMTime (which would be a plausible wrong
+    //   answer of exactly the kind the gate's G7 note warns about).
+    const start = range === null ? undefined : range.start;
+    if (start === undefined) {
+      throw new Error(
+        "OZScene::gotoHeadOfPlayRange @Ozone 0x71eba — the embedded PCTimeRange at " +
+          "+0x4b0/+0x4e0 has no decoded `start` in this port (OZScene's ctor @Ozone 0x4cc00 " +
+          "is not yet transcribed, so the slot is unpopulated); refusing to invent a CMTime",
+      );
+    }
+
+    // @0x71eba/@0x71ebd  movups (%rax),%xmm0 ; movups %xmm0,0x3b8(%rdi)
+    //   — the 16-byte {value, timescale, flags} block, copied FIRST.
+    // @0x71ec4/@0x71ec8  movq 0x10(%rax),%rax ; movq %rax,0x3c8(%rdi)
+    //   — then the 8-byte epoch tail. The copy is BY VALUE (bytes into the
+    //   embedded currentTime), so the port builds a fresh CMTime rather than
+    //   aliasing the range's object.
+    this.currentTime = {
+      value: start.value,
+      timescale: start.timescale,
+      flags: start.flags,
+      epoch: start.epoch,
     };
   }
 
@@ -736,6 +1026,119 @@ export class OZScene {
     };
   }
 
+  /**
+   * OZScene::end_sel()  @Ozone 0x51340
+   *   __ZN7OZScene7end_selEv
+   *
+   * Builds the past-the-end iterator of the scene's SELECTION collection into
+   * the caller's sret slot. Returns a {@link OZSceneSelIterator} — the 0x44-byte
+   * shape, NOT the 0x54-byte one `end_all_sel` @0x50cb0 returns.
+   *
+   * Full transcription — every instruction, in order (15-line disasm at
+   * raw-port/re/disasm/__ZN7OZScene7end_selEv.s):
+   *
+   *   0x51340  pushq  %rbp                        ; frame setup (no TS counterpart)
+   *   0x51341  movq   %rsp,%rbp                   ; frame setup (no TS counterpart)
+   *   0x51344  movq   %rdi,%rax                   ; ABI: return the sret pointer in rax
+   *   0x51347  movq   0x3d8(%rsi),%rcx            ; rcx = *(this+0x3d8)  (companion qword)
+   *   0x5134e  addq   $0x3d0,%rsi                 ; rsi = &this+0x3d0    (sentinel address)
+   *   0x51355  xorps  %xmm0,%xmm0                 ; xmm0 = 128 zero bits
+   *   0x51358  movups %xmm0,0x30(%rdi)            ; ret[+0x30..+0x3f] = 0
+   *   0x5135c  movups %xmm0,0x20(%rdi)            ; ret[+0x20..+0x2f] = 0
+   *   0x51360  movl   $0x3f800000,0x40(%rdi)      ; ret[+0x40] = 1.0f
+   *   0x51367  movq   %rsi,(%rdi)                 ; ret[+0x00] = &this+0x3d0
+   *   0x5136a  movq   %rcx,0x8(%rdi)              ; ret[+0x08] = *(this+0x3d8)
+   *   0x5136e  movq   %rsi,0x10(%rdi)             ; ret[+0x10] = &this+0x3d0 (again)
+   *   0x51372  movb   $0x0,0x18(%rdi)             ; ret[+0x18] = 0  (ONE byte)
+   *   0x51376  popq   %rbp                        ; frame teardown (no TS counterpart)
+   *   0x51377  retq
+   *
+   * Decode notes:
+   *   * `%rdi` is the hidden sret pointer (the struct is far larger than 16
+   *     bytes), so `%rsi` is `this` — the same shape the landed
+   *     `end_all_sel`/`getCurrentTime` ports document. `movq %rdi,%rax`
+   *     @0x51344 just hands the sret pointer back as the ABI requires.
+   *   * the companion is loaded BEFORE the sentinel address is formed, and the
+   *     zero/1.0f payload is written BEFORE the three pointer stores; the TS
+   *     object literal below lists the fields in the machine's store order.
+   *   * `addq $0x3d0,%rsi` forms an ADDRESS (the collection's embedded sentinel
+   *     at +0x3d0), which is why +0x00 and +0x10 hold the SAME value — modelled
+   *     by assigning the same `allSelSentinel` object to both, exactly as
+   *     `end_all_sel` does.
+   *   * +0x18 is written with `movb`, a single byte — it is NOT the 16-byte
+   *     zero block `end_all_sel` writes there, which is what makes this a
+   *     different iterator type.
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps` lists nothing).
+   */
+  end_sel(): OZSceneSelIterator {
+    // @0x51347  movq 0x3d8(%rsi),%rcx — companion qword read first.
+    const companion = this.allSelSentinelCompanion;
+    // @0x5134e  addq $0x3d0,%rsi — address-of the sentinel slot.
+    const sentinel = this.allSelSentinel;
+    return {
+      zero30: [0, 0, 0, 0], // @0x51358  movups %xmm0,0x30(%rdi)
+      zero20: [0, 0, 0, 0], // @0x5135c  movups %xmm0,0x20(%rdi)
+      f40: Math.fround(1.0), // @0x51360  movl $0x3f800000,0x40(%rdi)
+      node: sentinel, // @0x51367  movq %rsi,(%rdi)
+      aux: companion, // @0x5136a  movq %rcx,0x8(%rdi)
+      nodeAlt: sentinel, // @0x5136e  movq %rsi,0x10(%rdi)
+      b18: 0, // @0x51372  movb $0x0,0x18(%rdi)
+    };
+  }
+
+  /**
+   * OZScene::rend_sel()  @Ozone 0x63930
+   *   __ZN7OZScene8rend_selEv
+   *
+   * The reverse-end iterator of the same SELECTION collection. Its body is
+   * INSTRUCTION-FOR-INSTRUCTION IDENTICAL to `end_sel` @0x51340 above — same
+   * loads (+0x3d8 companion, +0x3d0 address-of), same seven stores in the same
+   * order, same 1.0f immediate — only the addresses differ (verified by diffing
+   * the two .s files with the address column stripped: the sole difference is
+   * the symbol line). Two separately-emitted bodies, two ledger symbols, so both
+   * are transcribed rather than one delegating to the other.
+   *
+   * Full transcription — every instruction, in order (17-line disasm at
+   * raw-port/re/disasm/__ZN7OZScene8rend_selEv.s):
+   *
+   *   0x63930  pushq  %rbp                        ; frame setup (no TS counterpart)
+   *   0x63931  movq   %rsp,%rbp                   ; frame setup (no TS counterpart)
+   *   0x63934  movq   %rdi,%rax                   ; ABI: return the sret pointer in rax
+   *   0x63937  movq   0x3d8(%rsi),%rcx            ; rcx = *(this+0x3d8)  (companion qword)
+   *   0x6393e  addq   $0x3d0,%rsi                 ; rsi = &this+0x3d0    (sentinel address)
+   *   0x63945  xorps  %xmm0,%xmm0                 ; xmm0 = 128 zero bits
+   *   0x63948  movups %xmm0,0x30(%rdi)            ; ret[+0x30..+0x3f] = 0
+   *   0x6394c  movups %xmm0,0x20(%rdi)            ; ret[+0x20..+0x2f] = 0
+   *   0x63950  movl   $0x3f800000,0x40(%rdi)      ; ret[+0x40] = 1.0f
+   *   0x63957  movq   %rsi,(%rdi)                 ; ret[+0x00] = &this+0x3d0
+   *   0x6395a  movq   %rcx,0x8(%rdi)              ; ret[+0x08] = *(this+0x3d8)
+   *   0x6395e  movq   %rsi,0x10(%rdi)             ; ret[+0x10] = &this+0x3d0 (again)
+   *   0x63962  movb   $0x0,0x18(%rdi)             ; ret[+0x18] = 0  (ONE byte)
+   *   0x63966  popq   %rbp                        ; frame teardown (no TS counterpart)
+   *   0x63967  retq
+   *   0x63968  nopl (%rax,%rax)                   ; alignment padding, not executed
+   *
+   * The decode notes on `end_sel` above apply verbatim (sret in %rdi, `this` in
+   * %rsi, address-of at +0x3d0 stored twice, single-byte +0x18, no callees of
+   * any kind).
+   */
+  rend_sel(): OZSceneSelIterator {
+    // @0x63937  movq 0x3d8(%rsi),%rcx — companion qword read first.
+    const companion = this.allSelSentinelCompanion;
+    // @0x6393e  addq $0x3d0,%rsi — address-of the sentinel slot.
+    const sentinel = this.allSelSentinel;
+    return {
+      zero30: [0, 0, 0, 0], // @0x63948  movups %xmm0,0x30(%rdi)
+      zero20: [0, 0, 0, 0], // @0x6394c  movups %xmm0,0x20(%rdi)
+      f40: Math.fround(1.0), // @0x63950  movl $0x3f800000,0x40(%rdi)
+      node: sentinel, // @0x63957  movq %rsi,(%rdi)
+      aux: companion, // @0x6395a  movq %rcx,0x8(%rdi)
+      nodeAlt: sentinel, // @0x6395e  movq %rsi,0x10(%rdi)
+      b18: 0, // @0x63962  movb $0x0,0x18(%rdi)
+    };
+  }
+
   // ==========================================================================
   //  FRONTIER — all other 359 methods kept as throwing stubs. Only the ones
   //  the OZ*Undo family names directly (or that appear in the disasm decoded
@@ -758,14 +1161,50 @@ export class OZScene {
     );
   }
 
-  /** OZScene::setFlag(u32)  @0x4d370 — frontier. */
-  setFlag(_v: number): void {
-    throw new Error("OZScene::setFlag unimplemented — @Ozone 0x4d370");
-  }
-
-  /** OZScene::resetFlag(u32)  @0x4d380 — frontier. */
-  resetFlag(_v: number): void {
-    throw new Error("OZScene::resetFlag unimplemented — @Ozone 0x4d380");
+  // `OZScene::setFlag(unsigned int)` @Ozone 0x4d370 — the frontier throw-stub
+  // that used to sit here is REPLACED by the real transcription at the bottom of
+  // this class (the same de-stubbing `resetFlag` @Ozone 0x4d380 got in #306).
+  // The declaration and its address citation live there now; only the throw is
+  // gone, so no landed symbol is dropped.
+  /**
+   * `OZScene::resetFlag(unsigned int)` — @Ozone 0x4d380
+   *   __ZN7OZScene9resetFlagEj
+   *
+   * (Was the frontier throw-stub `OZScene::resetFlag(u32)  @0x4d380`; this
+   * change replaces that stub with the transcribed body. The citation is kept
+   * in both the bare `@0x4d380` and the `@Ozone 0x4d380` forms so the landed
+   * address survives the edit.)
+   *
+   * Clears the given bits in the scene's 32-bit flag word at +0x590.
+   *
+   * FULL DISASM (6 lines — raw-port/re/disasm/__ZN7OZScene9resetFlagEj.s):
+   *
+   *   0x4d380  pushq %rbp                 ; prologue
+   *   0x4d381  movq  %rsp, %rbp
+   *   0x4d384  notl  %esi                 ; esi = ~mask            (32-bit)
+   *   0x4d386  andl  %esi, 0x590(%rdi)    ; this->flags &= ~mask   (read-modify-write)
+   *   0x4d38c  popq  %rbp
+   *   0x4d38d  retq
+   *   0x4d38e  nop                        ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * `notl` then `andl` is clear-these-bits, NOT assign: every other bit of
+   *     +0x590 is preserved. The port therefore does `&= ~mask`, not `= ~mask`.
+   *   * Both instructions are 32-bit (`notl`/`andl`), so the mask and the stored
+   *     word are truncated to 32 bits — reproduced with `>>> 0` on the result.
+   *   * The AT&T operand order `andl %esi, 0x590(%rdi)` means DESTINATION is the
+   *     memory operand: the field is the thing modified, the register is the
+   *     source. (Reading it the other way would silently invert this method.)
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch — the exact mirror of `setFlag` @0x4d370, whose one instruction
+   *     is `orl %esi, 0x590(%rdi)` @0x4d374 (that method remains a frontier stub
+   *     and is a separate ledger unit; it is NOT ported by this change).
+   *
+   * @param v the bit mask to CLEAR — %esi, unsigned 32-bit.
+   */
+  resetFlag(v: number): void {
+    // @0x4d384/@0x4d386  notl %esi ; andl %esi, 0x590(%rdi)
+    this.flagsAt590 = (this.flagsAt590 & ~(v >>> 0)) >>> 0;
   }
 
   /** OZScene::addRootNode(OZSceneNode*)  @0x4d390 — frontier. */
@@ -957,5 +1396,133 @@ export class OZScene {
     console.error(
       "OZScene::setTimeRange range is not numeric, setting num frames to 1.",
     );
+  }
+
+  /**
+   * `OZScene::getToneMappingMode() const`
+   *   — @Ozone 0x81e90
+   *   — __ZNK7OZScene18getToneMappingModeEv
+   *
+   * Faithful line-for-line transcription of the 5-instruction body — a
+   * single 32-bit field read, no branch, no callee:
+   *
+   *   0x81e90  pushq %rbp                    ; frame prologue
+   *   0x81e91  movq  %rsp, %rbp
+   *   0x81e94  movl  0xd0(%rdi), %eax        ; eax = *(u32*)(this + 0xd0)
+   *   0x81e9a  popq  %rbp                    ; frame epilogue
+   *   0x81e9b  retq                          ; return eax
+   *   0x81e9c  nopl  (%rax)                  ; alignment padding
+   *
+   * System-V x86_64: `%rdi` = `this` (the method is `const`, so nothing is
+   * written), `%eax` is the return register. `movl` is the 32-bit form, so
+   * exactly 4 bytes are read and the write to `%eax` zeroes the upper half
+   * of `%rax` — the result is the unsigned 32-bit word at +0xd0, which
+   * `>>> 0` reproduces.
+   *
+   * The return type is an enum code in C++ (the name says "mode"), but the
+   * disassembly shows only a raw 32-bit load, so this port returns `number`
+   * rather than inventing an enumerator set.
+   *
+   * Zero in-scope callees, zero externs, no indirect or virtual calls.
+   * Confirmed via `depgraph.py deps __ZNK7OZScene18getToneMappingModeEv`
+   * (no dependency rows).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK7OZScene18getToneMappingModeEv.s (7 lines)
+   */
+  getToneMappingMode(): number {
+    // @0x81e90..0x81e91 — prologue (no TS-visible effect).
+    // @0x81e94           — movl 0xd0(%rdi), %eax: read the u32 at +0xd0.
+    // @0x81e9a..0x81e9b — epilogue + retq (return eax).
+    return this.toneMappingMode_at_0xd0 >>> 0;
+  }
+
+  /**
+   * `OZScene::setToneMappingMode(PCToneMappingMode)`
+   *   — @Ozone 0x81ea0
+   *   — __ZN7OZScene18setToneMappingModeE17PCToneMappingMode
+   *
+   * Faithful line-for-line transcription of the 5-instruction body — the
+   * exact mirror of `getToneMappingMode()` @0x81e90: one 32-bit store, no
+   * branch, no read-back, no callee:
+   *
+   *   0x81ea0  pushq %rbp                    ; frame prologue
+   *   0x81ea1  movq  %rsp, %rbp
+   *   0x81ea4  movl  %esi, 0xd0(%rdi)        ; *(u32*)(this + 0xd0) = (u32)mode
+   *   0x81eaa  popq  %rbp                    ; frame epilogue
+   *   0x81eab  retq                          ; void
+   *   0x81eac  nopl  (%rax)                  ; alignment padding
+   *
+   * System-V x86_64: `%rdi` = `this`, `%esi` = the `PCToneMappingMode`
+   * argument (a 32-bit enum passed in the low half of the second integer
+   * register). `movl` stores exactly those 4 bytes at +0xd0 — the same slot
+   * the getter reads @0x81e94 — with no masking, no range check and no
+   * normalisation, so the port stores the raw 32 bits via `>>> 0`.
+   *
+   * The parameter is typed `number`, not an enum: `PCToneMappingMode` has no
+   * transcribed definition anywhere in the port yet (its enumerators are not
+   * observable from this instruction), and the machine copies whatever 32
+   * bits arrive. Typing it as a TS enum would assert a value set this unit
+   * has no evidence for.
+   *
+   * Returns void — %rax is never written before `retq`.
+   *
+   * Zero in-scope callees, zero externs, no indirect or virtual calls.
+   * Confirmed via `depgraph.py deps
+   * __ZN7OZScene18setToneMappingModeE17PCToneMappingMode` (no dependency
+   * rows).
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN7OZScene18setToneMappingModeE17PCToneMappingMode.s
+   *   (7 lines)
+   */
+  setToneMappingMode(mode: number): void {
+    // @0x81ea0..0x81ea1 — prologue (no TS-visible effect).
+    // @0x81ea4           — movl %esi, 0xd0(%rdi): store the 32-bit argument
+    //                      into the u32 field at +0xd0.
+    this.toneMappingMode_at_0xd0 = mode >>> 0;
+    // @0x81eaa..0x81eab — epilogue + retq (no return value).
+  }
+
+  /**
+   * `OZScene::setFlag(unsigned int)` — @Ozone 0x4d370
+   *   __ZN7OZScene7setFlagEj
+   *
+   * OR the argument's bits into the scene's 32-bit flag word at +0x590.
+   *
+   * Full transcription — every instruction, in order (7-line disasm at
+   * raw-port/re/disasm/__ZN7OZScene7setFlagEj.s):
+   *
+   *   0x4d370  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x4d371  movq  %rsp,%rbp            ; frame setup (no TS counterpart)
+   *   0x4d374  orl   %esi,0x590(%rdi)     ; this->flags |= mask (32-bit RMW)
+   *   0x4d37a  popq  %rbp                 ; frame teardown (no TS counterpart)
+   *   0x4d37b  retq                       ; returns void (%rax never written)
+   *   0x4d37c  nopl  (%rax)               ; alignment padding, not executed
+   *
+   * Decode notes:
+   *   * `orl %esi,0x590(%rdi)` is a read-modify-write to MEMORY with a 32-bit
+   *     operand size: the destination is the memory operand (AT&T puts the
+   *     destination last), so the flag word — not the register — is updated.
+   *     It is a plain `orl`, NOT `lock orl`: the update is non-atomic, so no
+   *     locking is modelled (contrast `getRawWorkingGamut` @0x81da0, which
+   *     really does take the shared mutex).
+   *   * the operand size fixes the field at 4 bytes; the port keeps it as an
+   *     unsigned 32-bit value with `>>> 0`. `|` in TS is a signed-32 operation,
+   *     so the `>>> 0` is what makes bit 31 read back as 0x80000000 rather than
+   *     a negative number — the same treatment the +0xd0 setter above uses.
+   *   * NO mask validation, NO read-back, NO other slot touched, and nothing
+   *     is returned: the single RMW is the entire function.
+   *   * ZERO callees: no in-scope call, no extern, no indirect or virtual
+   *     dispatch (`depgraph.py deps __ZN7OZScene7setFlagEj` lists nothing).
+   *
+   * @param mask the `unsigned int` bit mask arriving in %esi.
+   */
+  setFlag(mask: number): void {
+    // @0x4d370..0x4d371 — prologue (no TS-visible effect).
+    // @0x4d374          — orl %esi, 0x590(%rdi): set the mask's bits in the
+    //                     u32 flag word at +0x590.
+    this.flagsAt590 = (this.flagsAt590 | mask) >>> 0;
+    // @0x4d37a..0x4d37b — epilogue + retq (no return value).
   }
 }

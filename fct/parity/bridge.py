@@ -11,7 +11,14 @@ import os
 import subprocess
 import threading
 
-ENGINE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "engine")
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+# WHY THIS MOVED. #63 ("raw-port standalone: delete engine/, docs/, tools/") removed the engine tree,
+# but this still spawned its TS worker with cwd=<repo>/engine. Every spawn raised ENOENT, the driver
+# reported HARNESS_BROKEN — and gate.sh did not grep for that string, so G4, the only UN-FAKEABLE
+# gate, silently checked nothing while the gate printed PASS. It had been dead for months and no
+# gate ever failed because of it. Found by worker-02.
+ENGINE_DIR = os.path.join(_REPO, "raw-port")
+WORKER_TS = os.environ.get("FCT_PARITY_WORKER", "army/verifier/generic_worker.ts")
 CALL_TIMEOUT_S = float(os.environ.get("FCT_PARITY_TIMEOUT", "20"))
 
 
@@ -21,7 +28,7 @@ class TSWorker:
 
     def _spawn(self):
         self.proc = subprocess.Popen(
-            ["node_modules/.bin/tsx", "test/_parity_worker.ts"],
+            ["node_modules/.bin/tsx", WORKER_TS],
             cwd=ENGINE_DIR,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, bufsize=1, start_new_session=True,
@@ -54,12 +61,34 @@ class TSWorker:
             return None
         return result[0]
 
-    def eval(self, fn_id, args):
-        """Return the TS port's outputs dict for (fn_id, args). Retries once on crash."""
+    def eval(self, fn_id, args, node=None):
+        """Return the TS port's outputs dict. Retries once on crash.
+
+        generic_worker.ts is module-addressed ({modulePath, exportName}) rather than name-keyed
+        ({fn}) like the deleted engine worker, because it dynamically imports the ACTUAL ported
+        module instead of maintaining a hand-written table of wrappers — that is what lets the
+        oracle scale past a handful of nodes. `node` carries ts_module/ts_fn from registry.json.
+        """
+        mod = (node or {}).get("ts_module")
         for _attempt in range(2):
             if self.proc is None or self.proc.poll() is not None:
                 self._spawn()
-            req = json.dumps({"fn": fn_id, "args": args}) + "\n"
+            if mod:
+                # generic_worker takes POSITIONAL args; the registry's signature gives their order.
+                # The old engine worker took a name->value dict because each wrapper was hand-written
+                # and could destructure. Marshal here rather than changing the worker, which is the
+                # scalable side (it dynamically imports the real port instead of a wrapper table).
+                if isinstance(args, dict):
+                    names = [a.get("name") for a in
+                             (((node or {}).get("oracle") or {}).get("signature") or {}).get("args", [])
+                             if a.get("kind") == "in"]
+                    pos = [args[n] for n in names if n in args] if names else list(args.values())
+                else:
+                    pos = args
+                req = json.dumps({"modulePath": os.path.join(_REPO, mod),
+                                  "exportName": fn_id, "args": pos}) + "\n"
+            else:
+                req = json.dumps({"fn": fn_id, "args": args}) + "\n"
             try:
                 self.proc.stdin.write(req); self.proc.stdin.flush()
                 reply = self._readline_timeout(CALL_TIMEOUT_S)
@@ -73,7 +102,7 @@ class TSWorker:
             obj = json.loads(reply)
             if not obj.get("ok"):
                 raise RuntimeError("TS parity error for %s: %s" % (fn_id, obj.get("error")))
-            return obj["outputs"]
+            return obj.get("outputs", obj)
         raise RuntimeError("TS parity worker crashed/hung evaluating %s" % fn_id)
 
     def close(self):
