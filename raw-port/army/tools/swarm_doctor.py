@@ -648,15 +648,35 @@ def check_dead_counters():
                      if f.isdigit() and not f.endswith(".sha")]
     if not counters:
         return record("dead-counters", OK, "no attempt counters outlive their PR")
-    # ONE list call, not one per counter. The PR body reported 64 counters sitting in the state dir
-    # at one point; that would have been 64 serial API calls in a tool AGENT_ENTRY tells every agent
-    # to run, on a box where the network round-trip is the slowest thing here.
-    allprs, err = gh_json(f"pr list --repo {SLUG} --state all --limit 400 --json number,state")
-    if allprs is None:
-        return record("dead-counters", UNKNOWN, f"could not list PRs to age the counters: {err}", "#28")
-    state_of = {p["number"]: p.get("state") for p in allprs}
-    dead = [f"{kind}/{f}" for kind, f in counters
-            if state_of.get(int(f)) in ("MERGED", "CLOSED")]
+    # ONE call, not one per counter — 64 counters sat in the state dir at one point, and that would
+    # have been 64 serial round trips in a tool AGENT_ENTRY tells every agent to run.
+    #
+    # It used to be `pr list --state all --limit 400`, which has a WINDOW: with ~650 PRs, anything
+    # older than the 400 most recent came back absent, `state_of.get()` returned None, and the
+    # counter was silently treated as fine. The oldest counters are the likeliest to be dead, so the
+    # window hid exactly the population this check exists to find — measured: counter rebase/114
+    # (MERGED) was invisible here while rebase/554 (MERGED) was reported, purely because of where
+    # they fell in the list. Ask about the counters that actually exist instead: an aliased query
+    # over those numbers has no window at all and costs one round trip.
+    q = " ".join(f"p{f}: pullRequest(number: {f}) {{ state }}" for _k, f in counters)
+    owner, name = SLUG.split("/", 1)
+    r = sh(f'gh api graphql -f query=\'query {{ repository(owner: "{owner}", name: "{name}") '
+           f'{{ {q} }} }}\' --jq \'.data.repository | to_entries[] | "\\(.key) \\(.value.state)"\'')
+    if r.returncode != 0 or not r.stdout.strip():
+        return record("dead-counters", UNKNOWN,
+                      f"could not read the counters' PR states: {(r.stderr or 'empty answer').strip()[:120]}",
+                      "#28")
+    state_of = {}
+    for line in r.stdout.split("\n"):
+        parts = line.split()
+        if len(parts) == 2 and parts[0].startswith("p"):
+            state_of[parts[0][1:]] = parts[1]
+    dead = [f"{kind}/{f}" for kind, f in counters if state_of.get(f) in ("MERGED", "CLOSED")]
+    # A counter the query did not answer for is not a counter that is fine.
+    unanswered = [f"{kind}/{f}" for kind, f in counters if f not in state_of]
+    if unanswered and not dead:
+        return record("dead-counters", UNKNOWN,
+                      f"{len(unanswered)} counter(s) got no state back: {', '.join(unanswered[:6])}", "#28")
     if dead:
         return record("dead-counters", FAIL,
                       f"{len(dead)} attempt counter(s) for PRs that are already merged/closed — "
