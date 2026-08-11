@@ -1025,12 +1025,98 @@ def check_layer_letters():
     record("layer-letters", OK, f"{len(labels)} layer label(s), all distinct")
 
 
+def check_verifier_contention():
+    """Only ONE whole-repo verifier should be running on this box at a time.
+
+    `prove_all.py` verifies the ENTIRE repo, and AGENT_ENTRY §1 tells every reviewer to run it once
+    at start — so with N reviewer slots (and a harness that restarts dead ones, which clusters
+    restarts) N copies run at once by construction. Measured 2026-08-11 by worker 5: EIGHT
+    concurrent runs, all started within 5m22s of each other, **every one of them at 0.0% CPU**, box
+    at load average 168, none finishing. It is not merely the duplicated work of OPS_LOG #23's
+    concurrent `mark_ported` runs: the copies starve each other behind the MDM security stack, so
+    unrelated work stops too — a `gate.sh` on one file ran 51 minutes without returning, and an
+    8-second oracle ran 60.
+
+    AGENT_ENTRY §4 already carries the right rule ("before a global maintenance tool, check for a
+    peer already running it") and names `mark_ported.py`, `build_ledger.py` and `depgraph.py`. It
+    did not name `prove_all.py`, the one tool every agent is told to run at startup; this change
+    adds it there and makes the pile-up visible from the tool §7b already tells agents to run when
+    the swarm looks wrong. The cure — a single-flight lock keyed on the verified SHA that WAITS and
+    reuses the verdict rather than exiting — belongs in prove_all.py itself and is not in this
+    change; see raw-port/army/ops/2026-08-11-twenty-concurrent-prove-all-runs-peg-the-box-at-load-168-and.md.
+
+    Counted per RUN, not per matching process: one invocation typically shows up as a `/bin/sh -c`
+    wrapper, an optional `timeout`, and the python process itself, so a naive `pgrep | wc -l`
+    reports 20 for 8 runs. Only the interpreter processes are counted. A `ps` that cannot run
+    reports UNKNOWN — never OK.
+    """
+    r = sh("ps -Ao pid,etime,%cpu,command", timeout=30)
+    if r.returncode != 0:
+        return record("verifier-contention", UNKNOWN, "could not list processes")
+    record_runs = _prove_all_runs(r.stdout)
+    if len(record_runs) > 1:
+        stalled = sum(1 for _, _, cpu in record_runs if _cpu(cpu) < 1.0)
+        oldest = max((e for _, e, _ in record_runs), key=_etime_secs)
+        return record("verifier-contention", FAIL,
+                      f"{len(record_runs)} concurrent prove_all.py runs on this box "
+                      f"({stalled} of them at <1% CPU — they are starving each other, not working). "
+                      f"oldest {oldest}. One run verifies the tree for everyone: "
+                      f"`pgrep -f prove_all.py` in a command of its OWN before starting another, and "
+                      f"expect your own gate and oracle timings to be meaningless until this clears",
+                      "#verifier-contention")
+    record("verifier-contention", OK,
+           f"{len(record_runs)} whole-repo verifier run(s) live — no pile-up")
+
+
+def _cpu(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _etime_secs(etime):
+    """ps ELAPSED -> seconds. The format is [[dd-]hh:]mm:ss, so a plain string max would rank
+    '07:18' above '1-02:03:04' and report the wrong run as the oldest."""
+    days, _, rest = etime.rpartition("-")
+    try:
+        parts = [int(x) for x in rest.split(":")]
+    except ValueError:
+        return 0
+    while len(parts) < 3:
+        parts.insert(0, 0)
+    return int(days or 0) * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2]
+
+
+def _prove_all_runs(ps_out):
+    """(pid, etime, %cpu) for each prove_all.py INVOCATION in `ps -Ao pid,etime,%cpu,command`.
+
+    Split out of the check so it can be tested against captured `ps` text offline
+    (test_verifier_contention.py) — the counting is the part that was wrong in the first draft, and
+    a number nobody can reproduce is not evidence. Skips the `/bin/sh -c` and `timeout` wrappers
+    that surround a run, and this tool's own command line (a doctor that counts itself reports a
+    pile-up of one)."""
+    runs = []
+    for line in ps_out.splitlines()[1:]:
+        parts = line.split(None, 3)
+        if len(parts) < 4:
+            continue
+        pid, etime, cpu, cmd = parts
+        if "prove_all.py" not in cmd or "swarm_doctor" in cmd:
+            continue
+        head = cmd.split()[0]
+        if head.endswith("sh") or head.endswith("timeout") or head.endswith("bash"):
+            continue
+        runs.append((pid, etime, cpu))
+    return runs
+
+
 CHECKS = [check_pr_base, check_queue_coverage, check_guards_wired, check_tree_current, check_no_stranded,
           check_leases, check_no_double_lease, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
           check_brief_flags_exist, check_rebase_actionable, check_rebase_branch_naming,
           check_ops_contention, check_layer_letters,
-          check_orphan_drivers]
+          check_orphan_drivers, check_verifier_contention]
 
 
 def main():
