@@ -53,6 +53,7 @@
 //   __ZNK20PCWorkingColorVector6getRGBEPfS0_S0_       getRGB (const)   @0x7aeae
 //   __ZN20PCWorkingColorVector7setRGBAEffff           setRGBA          @0x7aece
 //   __ZNK20PCWorkingColorVector7getRGBAEPfS0_S0_S0_   getRGBA (const)  @0x7aee8
+//   __ZplRK20PCWorkingColorVectorS1_                  operator+ (free) @0x7af88
 //
 // C1/C2 (complete-object / base-object) pairs are ICF-identical in every
 // case here — the class has no non-trivial base to skip so the two
@@ -345,4 +346,56 @@ export class PCWorkingColorVector {
       a: Math.fround(this.a),
     };
   }
+}
+
+/**
+ * `operator+(PCWorkingColorVector const& lhs, PCWorkingColorVector const& rhs)`
+ * — @ProCore 0x7af88 (`__ZplRK20PCWorkingColorVectorS1_`).
+ *
+ * The free binary `+` for the colour vector — distinct from the member
+ * `operator+=` @0x7ae50, which mutates `*this` and returns a reference. This
+ * one reads both operands and returns a NEW value.
+ *
+ * Full transcription — every instruction, in order
+ * (raw-port/re/disasm/ProCore.__ZplRK20PCWorkingColorVectorS1_.s):
+ *
+ *   0x7af88  pushq    %rbp              ; frame setup (no TS counterpart)
+ *   0x7af89  movq     %rsp, %rbp        ; frame setup (no TS counterpart)
+ *   0x7af8c  movups   (%rdi), %xmm1     ; xmm1 = lhs (r,g,b,a) — 16 bytes
+ *   0x7af8f  movups   (%rsi), %xmm0     ; xmm0 = rhs (r,g,b,a) — 16 bytes
+ *   0x7af92  addps    %xmm1, %xmm0      ; xmm0 = rhs + lhs, FOUR float32 lanes
+ *   0x7af95  movaps   %xmm0, %xmm1
+ *   0x7af98  unpckhpd %xmm0, %xmm1      ; xmm1 = the HIGH eightbyte (b,a)
+ *   0x7af9c  popq     %rbp              ; frame teardown (no TS counterpart)
+ *   0x7af9d  retq                       ; return in xmm0:xmm1
+ *
+ * The trailing `movaps`/`unpckhpd` pair is not arithmetic — it is the SysV
+ * return-value packing: a 16-byte all-float struct is class SSE, so it comes
+ * back in TWO registers, `%xmm0` carrying (r,g) and `%xmm1` carrying (b,a).
+ * The port returns one object instead, which is the same four values.
+ *
+ * `addps` is a PACKED SINGLE-precision add, so each lane is a float32 add;
+ * the class's ctor already `Math.fround`s every component, which reproduces
+ * that per-lane rounding (Rule 4). Nothing is clamped, saturated or
+ * normalised — an out-of-gamut sum stays out of gamut, exactly as here.
+ *
+ * ZERO callees, zero externs, no indirect/virtual dispatch — pure SIMD
+ * arithmetic on the two 16-byte operands.
+ *
+ * @param lhs the left operand (`%rdi`).
+ * @param rhs the right operand (`%rsi`).
+ * @returns a new vector holding the per-lane sum.
+ */
+export function PCWorkingColorVector_operator_add(
+  lhs: PCWorkingColorVector,
+  rhs: PCWorkingColorVector,
+): PCWorkingColorVector {
+  // @0x7af8c/@0x7af8f/@0x7af92 — movups both operands, then one 4-lane addps.
+  return PCWorkingColorVector.from_rgba(
+    lhs.r + rhs.r,
+    lhs.g + rhs.g,
+    lhs.b + rhs.b,
+    lhs.a + rhs.a,
+  );
+  // @0x7af95/@0x7af98 — the unpckhpd is the two-register SysV return packing.
 }
