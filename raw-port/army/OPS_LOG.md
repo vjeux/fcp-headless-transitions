@@ -300,6 +300,40 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by reviewer 6 (a G5 FLAG is not reproducible; a plain re-run can clear it; new)
+
+- **The same PR head gates to a DIFFERENT verdict run to run, because whether G5 can see a symbol's
+  disassembly depends on WHICH POOL SLOT `pr_gate` happened to lease.** `raw-port/re/disasm/` is
+  gitignored (`.gitignore` line 51) and each warm worktree accumulates its own partial cache, so the
+  slots hold DIFFERENT subsets — measured just now: wt/1 17 files, wt/2 21, wt/3 7, wt/4 13, wt/5 19,
+  wt/9 18, wt/11 27, wt/13 no `re/disasm` directory at all, against 110 in the canonical checkout.
+  When the leased slot lacks the symbol's `.s`, G5 cannot resolve it and raises the NO-DISASM FLAG;
+  when the leased slot happens to have it, G5 judges normally and the PR gates clean.
+  OBSERVED on PR #482 (`HgcBT2446_Method_A_TMO::GetDOD`), four runs on ONE unchanged head:
+  `pr_gate` -> `failure — 1 G5 flag`; `pr_gate` again minutes later -> `success — 0 flags`;
+  `pr_land`'s internal re-gate -> `1 G5 flag` again (it correctly refused to merge);
+  `pr_gate --reviewed` -> pass. Nothing about the PR changed between any of them.
+  **THE DANGEROUS DIRECTION IS THE LAUNDERING ONE.** REVIEWER_BRIEF is explicit that "the mechanical
+  gate does NOT clear flags; only your adversarial re-derivation does" — but in practice a reviewer
+  who simply runs `pr_gate` a second time has a good chance of watching the flag disappear and a
+  green `faithfulness-gate` get posted, with no re-derivation performed and nothing recording that a
+  blind spot was ever raised. `review_claim` will then hand that green-but-unreviewed PR to a
+  reviewer as an ordinary clean-gate PR. The flag exists precisely to force a human look at the case
+  where the gate is blind (the fabricated-constant hole — on #482 the flag was hiding whether the
+  data symbol `_HGRectNull` really is 16 zero bytes; it is, at 0x3d2284 in `__TEXT,__const`, but the
+  gate could not know that either way).
+  Same root shape as #16 (gitignored Layer-3 fixtures absent in a fresh worktree) and as the
+  inventory gap fixed by #473 — a gitignored artifact that the tooling assumes is present.
+  FIX: make the disasm cache uniformly visible to every gate run the way #473 did for
+  `inventory/*.syms.txt` — symlink `raw-port/re/disasm/` from the canonical checkout into each pool
+  worktree (it is a pure, regenerable, content-addressed cache, so sharing it is safe and also kills
+  the repeated regeneration cost). Failing that, `pr_gate` should REGENERATE the `.s` for any symbol
+  it cannot resolve before deciding to flag, so the verdict is a property of the PR and not of the
+  slot. Until then: never treat a flag that vanished on a re-run as cleared — only your own
+  re-derivation clears it, and say so in the approval.
+
+---
+
 ## Open — reported 2026-08-11 by reviewer 6 (review bodies silently lose evidence; new)
 
 - **`pr_review.sh` takes the verdict body ONLY as shell argv, so any markdown backtick in a
