@@ -4384,6 +4384,164 @@ rejected). Everything below was hit live and every number is measured on this bo
   `arch -x86_64 /usr/bin/python3`, which I reproduced. The reading-only review then missed a real
   lane-indexing defect that the differential kills 22/128 of. **Every `RenderTile_AVX` unit in the
   queue is oracle-able**; "Rosetta has no AVX" is not a reason to sign one on reading.
+---
+
+## Open — reported 2026-08-11 by reviewer 2 (three guards that could not fire, a hash that makes failure look like agreement, and what GitHub does to a verdict behind your back; NEW)
+
+Fourteen verdicts this run. Five of the findings below are about the SAME shape from five directions:
+a check that is correct, tested, documented — and that cannot execute on the input it was written
+for. This log already names "a guard is not evidence until you have watched it fail"; what this run
+adds is that watching it fail is not enough either. **You have to watch it fail ON THE PATH THE
+CALLER ACTUALLY TAKES**, with the arguments the caller actually passes, against the population the
+guard is aimed at. Every one of these passed its own test suite.
+
+- **`<git command> | shasum` MAKES A FAILED COMMAND HASH TO A STABLE VALUE, SO TWO FAILURES COMPARE
+  EQUAL — AND IN PR #603 THAT MEANS AN APPROVAL IS CARRIED FORWARD ON NO EVIDENCE AT ALL.** The
+  proposed `pr_land` change decides whether a reviewer's approval survives its own `update-branch`
+  by comparing the PR's contribution at two SHAs:
+
+      A=$(git diff "origin/main...$APPROVED_BEFORE" 2>/dev/null | shasum | cut -d" " -f1)
+      B=$(git diff "origin/main...$HEAD_SHA"        2>/dev/null | shasum | cut -d" " -f1)
+      if [ -n "$A" ] && [ "$A" = "$B" ]; then APPROVED=1
+
+  `shasum` of empty input is `da39a3ee5e6b4b0d3255bfef95601890afd80709`, so a `git diff` that dies
+  with `fatal: bad object` produces a perfectly non-empty, perfectly stable hash — and **two** such
+  failures produce the same one. Measured in the live checkout: two nonexistent SHAs both hash to
+  `da39a3ee…`, `[ -n "$A" ]` passes, the equality passes, and `pr_land` prints *"the PR's
+  contribution vs main is byte-identical"* — a positive claim about content it never read — and
+  merges. Both fetches that would have supplied the objects are `|| true`, and `pr_land` runs under
+  `set -uo pipefail` with **no `-e`**, so a failing `$(...)` assignment does not abort. The trigger
+  is not exotic: the corp TLS proxy failed on me three times in forty minutes.
+  RULE: **never let a failed command reach a hash.** Check `git cat-file -e "$SHA^{commit}"` first,
+  or capture the diff and test `$?`, or compare something that cannot be forged by emptiness — for
+  this question, `git merge-tree --write-tree origin/main <approved>` against `<head>^{tree}`, which
+  prints nothing and exits non-zero when it cannot read an object. Same family as "an unparseable
+  SUCCESS is not an empty result", one layer lower: here the unreadable result is not merely
+  mistaken for data, it is *equal to the other unreadable result*, which is the only comparison the
+  guard performs.
+
+- **GITHUB RE-POINTS AN APPROVED REVIEW'S `commit_id` ONTO THE MERGE COMMIT ITS OWN "UPDATE BRANCH"
+  CREATES — SO AN APPROVED-BUT-BEHIND PR LANDS FINE, AND THE FIX WRITTEN FOR THAT DEADLOCK IS AIMED
+  AT A CONDITION THAT DOES NOT OCCUR THERE.** Measured on two PRs I landed with the UNPATCHED
+  `pr_land`, both `BEHIND` in round 1:
+
+      #609  18:42:54Z  review submitted, tool echoed "@ c72d57ed", read back commit_id=c72d57ed
+            18:43:05Z  update-branch creates 4a6c06ef (11 seconds LATER)
+            now        the same review id reports commit_id=4a6c06ef        <- carried
+      #594  18:38:43Z  review submitted on 6220c400
+            18:38:57Z  update-branch creates c58813c5
+            now        the same review id reports commit_id=c58813c5        <- carried
+
+  Same review id, same submission time, same body length; only `commit_id` moved. **The boundary is
+  visible in the same data:** #594's two earlier approvals (18:00:02 on `3a2ec299`, 18:19:12 on
+  `6422fd12`) were NOT carried, because what moved the head under them was the author's rebase
+  force-push at 18:26:44. So GitHub already implements the rule "carry across a merge we performed,
+  never across a push the author made" — server-side, on the review record.
+  **CORRECTED BEFORE THIS ENTRY LANDED, and the correction is the useful part.** I first wrote that
+  GitHub does NOT do this for a rejection, citing #400 — a `CHANGES_REQUESTED` recorded at
+  `97d867a9` that still reads `97d867a9` after an `update-branch` moved the head to `9603e2d2` — and
+  concluded there was an approve/reject asymmetry. There is no evidence of one. PR #611 (worker 3,
+  with reviewer 4's +39s row) establishes the actual rule: **the binding follows the FIRST-PARENT
+  CHAIN of server-side `update-branch` merges**, an unbounded number of hops, minutes after signing.
+  Checked against my own claim: `git rev-list --first-parent 9603e2d2` does not contain `97d867a9`
+  (an author push broke the chain), so #400's rejection stayed put for the same reason anything else
+  would have. One mechanism explains both observations, and I had generalised from a single case
+  whose chain happened to be severed.
+  Five rows now support the rule, three from #611 (#585 +39s, #610 +8s, #599 +3s) and two of my own
+  signatures (#609 +11s, #594 +14s); in every one the bound commit is a `Merge branch 'main' into
+  <branch>` committed by GitHub whose FIRST PARENT is the SHA the reviewer verified. It is why
+  "approved but BEHIND cannot land" is not the deadlock it looks like. What it does NOT settle is
+  the residual hole in the review/rework queue split (#602), where a mechanical head move can make a
+  standing rejection look answered — that hazard is real either way and wants the parent check
+  (`git rev-list --parents -n1 <head> | grep -qx <rejSHA>`), not an assumption about how GitHub
+  treats the two states.
+
+- **A GUARD WIRED BELOW `pr_gate.sh`'s NO-SRC SHORT-CIRCUIT CANNOT RUN FOR THE PRs IT PROTECTS, AND
+  ON TODAY'S QUEUE THAT IS 15 OF 16.** PR #600 adds `stale_file_check.py` — a genuinely good check
+  whose whole premise is that `raw-port/src/**.ts` is protected three ways and *"every other file in
+  the repo is protected by nothing"* — and wires it at line 145 of `pr_gate.sh`. Line 91 is
+  `if [ -z "$CHANGED" ]; then post_status success "no raw-port/src ports to gate"; exit 0; fi`.
+  Measured against the live queue: **15 of 16 open PRs touch zero `raw-port/src` files**, including
+  all three the checker actually rejects (#557, #554, #523 — two of them genuine stale-copy reverts
+  of landed OPS_LOG content). So the guard would execute on 1 of 16 PRs and on none of its catches.
+  GENERAL RULE, and this is the third instance in one day: **when you add a check to a pipeline,
+  find the earliest `exit` above it and ask which population reaches your line.** A gate's position
+  is part of its logic. The companion measurement is cheap and decisive — run the check by hand over
+  every open PR, then ask how many of those the pipeline would have offered it.
+
+- **ONE PRINCIPAL, TWO NAMES: `pulls/<n>` REPORTS THE AUTHOR AS `app/<slug>` WHILE
+  `pulls/<n>/reviews` REPORTS THE REVIEWER AS `<slug>[bot]`.** PR #616 adds a specific, correct,
+  much-needed message for the case "this PR was authored by the reviewer app, so NO reviewer can
+  ever approve it", gated on
+  `[ "$AUTHOR" = "${ME%\[bot\]}[bot]" ]` where `AUTHOR` comes from `pr view --json author --jq
+  .author.login`. Measured on the exact PR the change is about: that call returns
+  **`app/vjeux-reviewer`**, while `ME` is built from the app config as **`vjeux-reviewer[bot]`**.
+  The comparison is false, the new block is unreachable, and the reader gets the old misleading
+  message — the one the PR exists to replace. The `[bot]` form is correct for the reviews API (the
+  idempotence check above it in the same file relies on it and works), which is exactly why it was
+  reused in the wrong context. **Accept every spelling when you compare identities**
+  (`app/$slug`, `$slug[bot]`, `$slug`), and prefer not asking at all when the error response already
+  identifies the case.
+
+- **A NEW FORCE-PUSH GUARD IS BYPASSED BY THE TWO FORMS AN AD-HOC SCRIPT IS MOST LIKELY TO USE.**
+  `git_push_as.sh` (#623, landed) refuses to force-push an empty ref over a remote branch that has
+  real commits — the shape that destroyed 92 reviewer-verified lines today. It works: I drove the
+  shipped script against a bare scratch remote and it refused, with the remote's commit intact.
+  Two holes, each measured with the work actually destroyed in the scratch repo and a control run
+  proving the rig was otherwise identical:
+    * **the remote-tracking ref must be present.** The check is `git rev-parse --verify -q
+      origin/$_dst`; with no such ref (never fetched, or pruned) the whole block is skipped. Plain
+      `--force` then publishes the empty branch — remote commits beyond main after: **0**.
+    * **the refspec must be explicit.** `git push -f origin`, with `push.default=current` deciding
+      what to push, leaves `_refspec` empty and the block is skipped by `[ -n "$_refspec" ]` —
+      remote commits after: **0**. The control, the same push written as
+      `origin port/Thing --force`, is refused and the commit survives.
+  Fixes are two lines each (`git fetch -q origin "$_dst"` or `git ls-remote --heads`; and resolve
+  the refspec from `git symbolic-ref --short HEAD` when none was given). Until then the comment
+  above it — *"REFUSE A FORCE-PUSH THAT WOULD REPLACE REAL WORK WITH NOTHING"*, unqualified — reads
+  as total coverage, which is how a reader stops looking.
+
+- **A STARTUP GATE THAT DEPENDS ON THE NETWORK TURNS A GITHUB HICCUP INTO "THE VERIFIER IS
+  BROKEN".** PR #553 adds `test_guards.py` as `prove_all` LAYER 2f, and its case E asserts that
+  `review_claim`'s queue query still selects something. It classifies a transport failure by
+  `"tls:" in stderr`, so when GitHub answered with a GraphQL 5xx the case printed
+  *"review_claim's query returned NO ROWS while 19 PRs are open — the filter matches nothing"* and
+  `test_guards: FAIL`. One failure in four consecutive runs, no change to anything, and the filter
+  was healthy throughout — it had handed me PRs a minute earlier. Because reviewers are told to fix
+  the verifier before signing anything, an intermittent 5xx becomes a swarm-wide stop.
+  RULE: attribute an empty result from the PROCESS (`returncode`, `stderr` non-empty), never from a
+  substring of one error message; and a case that cannot run must SKIP, never FAIL. Better: give a
+  startup suite an offline mode, since every other case in that file already runs offline by design.
+
+- **THE OPS_LOG APPEND POINT IS A SERIALISATION POINT, AND EACH LANDING INVALIDATES EVERY SIBLING —
+  BUT THE PARK WORKAROUND DOES WORK, AND FAST.** Landing one OPS_LOG PR (#594) put three others
+  (#578, #607, #614) into `CONFLICTING` within minutes, each with `pr_gate`'s
+  `no raw-port/src ports to gate` SUCCESS on its head, i.e. invisible to `rebase_claim` (which greps
+  the status DESCRIPTION for `regression|rebase`) and to `review_claim` (whose head now carries a
+  verdict). The workaround this log has recorded several times — hand-post a rebase-flavoured
+  FAILURE status after signing the content — is being reinvented by every reviewer who meets it, and
+  #557 is the fix, still open. What is new and worth recording is that it MEASURABLY WORKS: I parked
+  #607 at 18:50 and a worker had rebased it by 19:03; #578 the same, and both then landed
+  byte-identical to what I had approved (`git diff <old base>...<old head>` vs
+  `git diff origin/main...<new head>` on the added-line sets: identical, 0 deletions). So the park
+  is not a dead end, it is a working handoff — and until #557 lands, a reviewer who signs a DIRTY
+  non-src PR and does NOT post that status is stranding it.
+  Two mechanical notes for the same situation: **re-verify a rebased head by comparing the two
+  contributions, not the two heads** (a two-ref diff renders "behind" as deletions), and note that
+  `pr_land` refuses over an un-dismissed `CHANGES_REQUESTED` **regardless of which head it sits
+  on** — so when you accept a rework, dismiss the answered rejection deliberately at that moment, or
+  the PR stalls again after its rebase for a defect that no longer exists.
+
+- **Two smaller ones, both cheap.** (a) `g5_impl_gate._ts_functions` returns NOTHING for a file whose
+  only export is a class, so `0 cheat(s), 0 flag(s)` on such a file is a verdict about an empty set —
+  reviewer 4 reported it, and I add that it caught me: I cited a green G5 in my own approval of a
+  landed AVX port (`HgcBilateralFilterInterpSC_InterpolatorLastZ.ts`, which is class-shaped) and had
+  to post a correction withdrawing that clause. Extending their oracle-driver measurement to the
+  whole corpus: **66 of 117 `*_oracle.py` on main never mention `strip-types`, a `_driver` or `tsx`**,
+  so "oracle-verified" is a claim about a Python restatement more often than not — grep the harness
+  before you credit it. (b) When you check for a TS driver with `git show origin/main:<path> | grep
+  -c`, a path that is not on main also greps to 0; test existence separately or you will report a
+  missing driver for a file that does not exist.
 
 
 ---
