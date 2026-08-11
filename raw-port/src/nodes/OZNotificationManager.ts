@@ -747,4 +747,134 @@ export class OZNotificationManager {
     // _objc_retain @0x4bb45 — ObjC runtime extern, no in-frame side effect
     // to model beyond the refcount, which is outside the port scope.
   }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // OZNotificationManager::removeObjCObserver(void* observer)
+  //
+  //   __ZN21OZNotificationManager18removeObjCObserverEPv   @Ozone 0x4bdc0
+  //   Disassembly source:
+  //     raw-port/re/disasm/__ZN21OZNotificationManager18removeObjCObserverEPv.s
+  //
+  // ADDED to this class rather than to a second file. `OZNotificationManager`
+  // already lives here, and the file header above says it in as many words —
+  // "the exact class rather than inventing a second, incompatible one". This
+  // method reuses the landed `OZObserverRecord` model and the landed sentinel
+  // convention (`this` IS the list terminator) instead of restating them.
+  //
+  // FULL DISASM (34 real insns, @0x4bdc0..@0x4be26):
+  //   0x4bdc0  pushq %rbp ; movq %rsp,%rbp ; pushq %r14 ; pushq %rbx
+  //   0x4bdc7  movq  0x8(%rdi), %rax        ; rax = this->next_at_0x8 (first)
+  //   0x4bdcb  cmpq  %rdi, %rax
+  //   0x4bdce  je    0x4bddf                ; empty list -> skip the search
+  //   ── search loop @0x4bdd0 ──
+  //   0x4bdd0  cmpq  0x10(%rax), %rsi       ; rec->observer_at_0x10 == observer ?
+  //   0x4bdd4  je    0x4bddf                ;   found
+  //   0x4bdd6  movq  0x8(%rax), %rax        ; rax = rec->next_at_0x8
+  //   0x4bdda  cmpq  %rdi, %rax
+  //   0x4bddd  jne   0x4bdd0                ; not back at the sentinel -> keep walking
+  //   ── @0x4bddf ──
+  //   0x4bddf  cmpq  %rdi, %rax
+  //   0x4bde2  je    0x4be22                ; landed on the sentinel -> NOT FOUND, return
+  //   0x4bde4  movl  0x20(%rax), %ebx       ; ebx = LOW 32 BITS of rec->field_at_0x20
+  //   0x4bde7  movq  (%rax), %rcx           ; prev = rec->prev_at_0x0
+  //   0x4bdea  movq  0x8(%rax), %rdx        ; next = rec->next_at_0x8
+  //   0x4bdee  movq  %rdx, 0x8(%rcx)        ; prev->next = next
+  //   0x4bdf2  movq  %rcx, (%rdx)           ; next->prev = prev
+  //   0x4bdf5  decq  0x10(%rdi)             ; this->count_at_0x10 -= 1
+  //   0x4bdff  callq __ZdlPv                ; operator delete(rec)   [libc extern]
+  //   0x4be04  movq  0x70(%r14), %rax       ; owner = this->owner_at_0x70
+  //   0x4be08  movq  0xa0(%rax), %rdi       ; target = owner->objcObject_at_0xa0
+  //   0x4be0f  testq %rdi, %rdi ; je 0x4be22    ; null target -> return
+  //   0x4be14  testl %ebx, %ebx ; je 0x4be22    ; field_at_0x20 low word 0 -> return
+  //   0x4be1c  jmpq  *_objc_release          ; TAIL-CALL objc_release(target)
+  //   0x4be22  popq/popq/popq ; retq
+  //
+  // WHAT THIS UNIT RESOLVES ABOUT THE LANDED LAYOUT. `field_at_0x20` is documented
+  // above as "a long initialised to 1 on insert ... likely a refcount / once
+  // bookkeeping word; only its initial value is exercised". This method exercises it:
+  // it is the flag deciding whether the owner's ObjC object gets released when the
+  // record goes away. Note it is read with `movl` — only the LOW 32 BITS are tested,
+  // even though `addObjCObserver` writes all 64 with `movq $0x1`. The name is left
+  // alone (renaming a landed declaration is what G6 refuses); the meaning is recorded.
+  //
+  // TWO PLACES THE MACHINE HAS NO GUARD, PRESERVED:
+  //   * `operator delete` @0x4bdff is a no-op here, as everywhere in this tree — the
+  //     GC reclaims the unlinked record and there is no observable field effect.
+  //   * @0x4be04/@0x4be08 dereference `owner` UNCONDITIONALLY. There is no null test
+  //     on it anywhere in the body; the only two tests are on the loaded target
+  //     (@0x4be0f) and on the flag (@0x4be14). So this port does not invent an
+  //     owner-null early return either — reading through a null owner raises, which
+  //     is the nearest thing the model has to the fault FCP takes.
+  //
+  // @0xADDR Ozone 0x4bdc0
+  removeObjCObserver(observer: object | null): void {
+    // @0x4bdc7  movq 0x8(%rdi), %rax : first = this->next_at_0x8.
+    let cur: OZObserverRecord | OZNotificationManager = this.next_at_0x8;
+
+    // @0x4bdcb/@0x4bdce  cmpq %rdi,%rax ; je : an empty list skips the search entirely.
+    if (cur !== this) {
+      // @0x4bdd0..@0x4bddd — walk, testing the cookie BEFORE advancing, exactly as the
+      // machine does (the `je` at 0x4bdd4 is checked at the top of each iteration).
+      for (;;) {
+        // @0x4bdd0  cmpq 0x10(%rax), %rsi
+        if ((cur as OZObserverRecord).observer_at_0x10 === observer) break;
+        // @0x4bdd6  movq 0x8(%rax), %rax
+        cur = (cur as OZObserverRecord).next_at_0x8;
+        // @0x4bdda/@0x4bddd  cmpq %rdi,%rax ; jne : stop when we wrap to the sentinel.
+        if (cur === this) break;
+      }
+    }
+
+    // @0x4bddf/@0x4bde2  cmpq %rdi,%rax ; je 0x4be22 : landing on the sentinel means the
+    // observer is not in the list — return without touching anything.
+    if (cur === this) return;
+    const rec = cur as OZObserverRecord;
+
+    // @0x4bde4  movl 0x20(%rax), %ebx : the LOW 32 BITS only.
+    const flagLow32 = Number(BigInt.asUintN(32, rec.field_at_0x20));
+
+    // @0x4bde7..@0x4bdf2 — unlink: prev->next = next ; next->prev = prev.
+    const prev = rec.prev_at_0x0;
+    const next = rec.next_at_0x8;
+    prev.next_at_0x8 = next;
+    next.prev_at_0x0 = prev;
+
+    // @0x4bdf5  decq 0x10(%rdi) : this->count_at_0x10 -= 1, 64-bit.
+    this.count_at_0x10 = BigInt.asUintN(64, this.count_at_0x10 - 1n);
+
+    // @0x4bdff  callq __ZdlPv : operator delete(rec) — libc extern boundary, a no-op
+    // here; the GC reclaims the record now that nothing links to it.
+
+    // @0x4be04/@0x4be08 — owner = this->owner_at_0x70 ; target = owner->objcObject_at_0xa0.
+    // Unguarded on purpose: see the note in the block comment above.
+    const target = (this.owner_at_0x70 as { objcObject_at_0xa0: object | null })
+      .objcObject_at_0xa0;
+
+    // @0x4be0f  testq %rdi,%rdi ; je : a null ObjC target releases nothing.
+    if (target === null) return;
+    // @0x4be14  testl %ebx,%ebx ; je : and neither does a zero flag word.
+    if (flagLow32 === 0) return;
+
+    // @0x4be1c  jmpq *_objc_release : tail-call the ObjC-runtime extern.
+    OZNotificationManager.objc_release(target);
+  }
+
+  /**
+   * Out-of-scope ObjC-runtime extern boundary for `_objc_release`
+   * (@Ozone 0x4be1c, `jmpq *_objc_release`).
+   *
+   * A NO-OP, and deliberately so — the exact twin of `objc_retain` below it.
+   * `objc_release` is a LIFETIME/OWNERSHIP primitive returning void, and under the
+   * RESOLVED lifetime-primitive ruling the faithful JS boundary model for the
+   * retain/release family is a no-op, because the JS GC owns the surrogate. It also
+   * sits on the NORMAL reachable path here — it is reached for exactly the inputs the
+   * machine tail-calls on, i.e. a removed record with a non-zero flag word and a
+   * non-null `objcObject_at_0xa0` — so a throw would break the ordinary case rather
+   * than mark an undecoded gap. Kept as a real call at the real place so the call site
+   * still mirrors the `jmpq`, and documented so a parity harness can hook the boundary.
+   */
+  private static objc_release(_obj: object): void {
+    // _objc_release @0x4be1c — ObjC runtime extern; the reference count is outside
+    // the port's scope and there is no in-frame side effect to model.
+  }
 }
