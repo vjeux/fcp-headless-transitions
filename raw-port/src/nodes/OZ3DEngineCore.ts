@@ -8,6 +8,11 @@
 // -----------------------------------------------------------------------------
 //   * OZ3DEngineCore::OZ3DEngineCore()  [C1]  @Ozone 0x4a2110
 //     __ZN14OZ3DEngineCoreC1Ev
+//   * OZ3DEngineCore::getEnvironmentMapIntensity(OZScene*)  @Ozone 0x4a34c0
+//     __ZN14OZ3DEngineCore26getEnvironmentMapIntensityEP7OZScene
+//     (added later; see "SECOND SYMBOL" below. It is a STATIC member — proved at the call site —
+//      so it does NOT contradict the stateless-class finding recorded above: the +0x188 double it
+//      reads belongs to the OZScene it is handed, not to OZ3DEngineCore.)
 //
 // re/disasm:
 //   raw-port/re/disasm/__ZN14OZ3DEngineCoreC1Ev.s
@@ -79,6 +84,23 @@
  * (see the file header). No field is modelled, because no decoded instruction writes or reads
  * one.
  */
+/**
+ * The single OZScene slot `OZ3DEngineCore::getEnvironmentMapIntensity` reads, modelled as a
+ * structural view rather than by importing an OZScene class.
+ *
+ * WHY A LOCAL VIEW: OZScene is the class OPS_LOG records as existing in TWO landed files
+ * (raw-port/src/channels/OZScene.ts and raw-port/src/nodes/OZScene.ts) with an unreconciled
+ * layout, so importing one of them would be picking a side of a known-open ledger problem on no
+ * evidence. This unit decodes exactly one offset of that object and says so; whoever unifies
+ * OZScene can fold this in.
+ */
+export interface OZSceneEnvironmentMapIntensityView {
+  /** @Ozone OZScene@0x188 — the environment-map intensity as a PERCENTAGE (a 64-bit double).
+   *  Read by `movsd 0x188(%rdi), %xmm0` @0x4a34c4 and by the sibling getEnvironmentMap
+   *  @0x4a3494. */
+  environmentMapIntensityPercent_at_0x188: number;
+}
+
 export class OZ3DEngineCore {
   /**
    * `OZ3DEngineCore::OZ3DEngineCore()` [C1] — @Ozone 0x4a2110
@@ -95,4 +117,61 @@ export class OZ3DEngineCore {
     // @0x4a2110..0x4a2111 — prologue; @0x4a2114..0x4a2115 — epilogue + retq.
     // There is no instruction in between.
   }
+
+  /**
+   * `OZ3DEngineCore::getEnvironmentMapIntensity(OZScene*)` @Ozone 0x4a34c0
+   *   (__ZN14OZ3DEngineCore26getEnvironmentMapIntensityEP7OZScene)
+   *
+   * Full transcription of the 5-instruction body:
+   *
+   *   0x4a34c0  pushq  %rbp                     ; frame prologue
+   *   0x4a34c1  movq   %rsp, %rbp
+   *   0x4a34c4  movsd  0x188(%rdi), %xmm0       ; xmm0 = scene->environmentMapIntensityPercent
+   *   0x4a34cc  divsd  0x261f54(%rip), %xmm0    ; xmm0 /= 100.0   [rip 0x4a34d4 -> @Ozone 0x705428]
+   *   0x4a34d4  popq   %rbp                     ; epilogue
+   *   0x4a34d5  retq                            ; the double is returned in %xmm0
+   *   0x4a34d6  nopw   %cs:(%rax,%rax)          ; padding — not executed
+   *
+   * IT IS A `static` MEMBER, and getting that wrong would silently read the wrong object. Itanium
+   * mangling does not distinguish static from non-static members, so the question is settled at a
+   * CALL SITE instead: OZ3DEngineSceneFile::getHeliumGraph @Ozone 0x3bbca2 does
+   *   movq -0x30(%rbp), %rax ; movq 0x3c0(%rax), %rdi ; callq …getEnvironmentMapIntensity…
+   * — it loads ONE argument, into %rdi, and never touches %rsi. A non-static member would need
+   * both (`this` in %rdi and the OZScene* in %rsi). The same call site does the identical thing
+   * for the sibling getEnvironmentMap @0x4a3490 @0x3bbc8b. So %rdi IS the OZScene*, and the
+   * +0x188 double is a field of OZSCENE — which is also why this addition leaves the
+   * stateless-OZ3DEngineCore finding above intact rather than contradicting it.
+   *
+   * THE DIVISOR is the 8 bytes at @Ozone 0x705428 — `00 00 00 00 00 00 59 40` = 100.0 exactly —
+   * reached by `divsd 0x261f54(%rip)` whose rip after the 8-byte instruction is 0x4a34d4
+   * (0x4a34d4 + 0x261f54 = 0x705428). So the stored field is a PERCENTAGE and the accessor hands
+   * back the 0..1 fraction. There is no clamp, no NaN guard and no zero check here — the sibling
+   * getEnvironmentMap @0x4a34a8 is the one that compares the result against 0.
+   *
+   * DIFFERENTIAL against the live binary (exported: `00000000004a34c0 T` in
+   * raw-port/army/inventory/Ozone.syms.txt; Ozone dlopen'd by preloading its @rpath chain
+   * depth-first, under `arch -x86_64 /usr/bin/python3` because every address cited here is an
+   * x86_64 offset and the arm64 slice is a different function, per OPS_LOG):
+   * raw-port/re/oracle/OZ3DEngineCore_getEnvironmentMapIntensity_oracle.py calls the real symbol
+   * on a 0xEE-poisoned 0x200-byte stand-in scene, comparing BIT PATTERNS (so -0.0 and NaN
+   * payloads are exact) over percentages including 0, ±100, denormals, ±Inf and NaN — and, as the
+   * control that matters here, it passes a SECOND poisoned object in %rsi with a different value
+   * at its +0x188: if this method were non-static the answer would track that one instead. See
+   * the commit message for the recorded run.
+   *
+   * @param scene the OZScene (SysV %rdi — this method is static, so it is the FIRST argument).
+   * @returns the environment-map intensity as a fraction: `scene[+0x188] / 100.0`.
+   */
+  static getEnvironmentMapIntensity(scene: OZSceneEnvironmentMapIntensityView): number {
+    // @0x4a34c4 — movsd 0x188(%rdi), %xmm0 : a 64-bit double load from the SCENE.
+    // @0x4a34cc — divsd @0x705428 (=100.0) : percent -> fraction, IEEE-754 double division with
+    //   no guard of any kind (0/100 = 0, inf/100 = inf, NaN/100 = NaN).
+    return scene.environmentMapIntensityPercent_at_0x188 / OZ_SCENE_ENV_MAP_INTENSITY_DIVISOR;
+  }
 }
+
+/**
+ * The 100.0 divisor at @Ozone 0x705428, loaded by `divsd 0x261f54(%rip), %xmm0` @0x4a34cc. The
+ * eight bytes read out of the slice are `00 00 00 00 00 00 59 40`.
+ */
+const OZ_SCENE_ENV_MAP_INTENSITY_DIVISOR = 100.0; // @Ozone 0x705428
