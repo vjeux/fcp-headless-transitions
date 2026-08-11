@@ -171,6 +171,19 @@ def _is_mangled(key):
     return re.match(r'_+Z', key) is not None
 
 
+def names_class(basename, ident):
+    """Does BASENAME name IDENT as a WHOLE name component?
+
+    The single anchoring rule shared by the resolver and by G5's bare-key guard, so the two can
+    never drift: the Itanium length-prefixed form `<len><Ident>` not preceded by another digit
+    (`12HGRenderNode` matches `__ZN12HGRenderNode...` and cannot match `__ZN18OZHGRenderNodeBase...`),
+    or a whole dot-delimited component of the human form `<FW>.<Class>.<method>.s`.
+    """
+    if re.search(r'(?<![0-9])%d%s' % (len(ident), re.escape(ident)), basename):
+        return True
+    return (".%s." % ident) in basename or basename.startswith(ident + ".")
+
+
 def _ident_matches(ident):
     """Files that name IDENT as a WHOLE name component — never as a loose substring.
 
@@ -195,9 +208,8 @@ def _ident_matches(ident):
     hits = set()
     for pat in (f"*.{ident}.s", f"*.{ident}.*.s", f"{ident}.*.s"):
         hits.update(glob.glob(os.path.join(DISASM, pat)))
-    rx = re.compile(r'(?<![0-9])%d%s' % (len(ident), re.escape(ident)))
     for p in glob.glob(os.path.join(DISASM, f"*{ident}*.s")):
-        if rx.search(os.path.basename(p)):
+        if names_class(os.path.basename(p), ident):
             hits.add(p)
     return {h for h in hits if ".cold" not in h and "invoke" not in h and "proxy" not in h}
 

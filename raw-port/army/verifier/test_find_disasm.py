@@ -67,8 +67,34 @@ CASES = [
 ]
 
 
+# The shared anchoring rule, used both by the resolver and by G5's bare-key guard. Pinned here so
+# the two can never drift apart: a bare `method`/`class` key that lands on ANOTHER class must be
+# discarded (476 of 1,745 G5 verdicts were computed that way before the guard existed).
+NAMES_CLASS_CASES = [
+    ("__ZN18OZHGRenderNodeBase8finishedEv.s", "HGRenderNode", False,
+     "a longer class that merely contains the name is NOT this class"),
+    ("Helium.__ZN12HGRenderNode11SetRendererEP10HGRenderer.s", "HGRenderNode", True,
+     "Itanium length prefix 12HGRenderNode names it"),
+    ("Helium.HGColorGamma.ctor.s", "CrossCorrelation", False,
+     "the bare `ctor` key must not answer for an unrelated class"),
+    ("Flexo.UpdateScrubRateTask.performTask.s", "AdvanceScopingWindowTask", False,
+     "the bare `performTask` key must not answer for a different task class"),
+    ("ProChannel.__ZN13OZChannelImpl6setMinEd.s", "OZChannelImpl", True,
+     "export-name prefix resolves a multi-class helper file correctly"),
+    ("ProChannel.OZChannelGradientSample.copy.s", "OZChannelGradientSample", True,
+     "dotted human form names the class as a whole component"),
+]
+
+
 def main():
     fails = 0
+    import classify_disasm as _C
+    for base, cls, expect, note in NAMES_CLASS_CASES:
+        got = _C.names_class(base, cls)
+        ok = got == expect
+        fails += (0 if ok else 1)
+        print("  %-6s names_class(%-30s, %-26s) = %-5s %s"
+              % ("OK" if ok else "FAIL", base[:30], cls, got, note))
     for files, key, expect, note in CASES:
         with tempfile.TemporaryDirectory() as d:
             for name, body in files.items():
