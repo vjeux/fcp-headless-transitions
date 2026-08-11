@@ -553,6 +553,18 @@ export class HGTextureManager {
   storageRecyclingPolicy_at_0xa8: TextureStorageRecyclingPolicy = 0; // @Helium HGTextureManager@0xa8
 
   /**
+   * @Helium HGTextureManager@0xac — a ONE-BYTE flag, written by
+   * `recycleClientStorageTextures` @0x4b334 via a single `movb %sil, 0xac(%rdi)`.
+   * It sits immediately after the u32 policy slot at +0xa8 (0xa8 + 4 = 0xac), and the two
+   * really are independent fields: this setter's own negative control below, and the
+   * already-landed `storageRecyclingPolicy` note that writing +0xac instead of +0xa8 was
+   * wrong in 208/208 cases, prove it from both sides. Measured on the live setter: the byte
+   * at +0xac takes the argument and NO other byte of a 0x200-byte object changes.
+   * Zero-initialised (`false`) until a ctor is transcribed to reveal the true default.
+   */
+  recycleClientStorageTextures_at_0xac: boolean = false; // @Helium HGTextureManager@0xac
+
+  /**
    * `HGTextureManager::storageRecyclingPolicy(HGTextureManager::TextureStorageRecyclingPolicy)`
    *   — @Helium 0x4b320
    *     __ZN16HGTextureManager22storageRecyclingPolicyENS_29TextureStorageRecyclingPolicyE
@@ -582,5 +594,49 @@ export class HGTextureManager {
     //   truncation, so a negative or oversized JS number stores the same bit
     //   pattern the machine would.
     this.storageRecyclingPolicy_at_0xa8 = policy >>> 0;
+  }
+
+  /**
+   * `HGTextureManager::recycleClientStorageTextures(bool)` — @Helium 0x4b330
+   *   __ZN16HGTextureManager28recycleClientStorageTexturesEb
+   *
+   * Stores the flag into the one-byte slot at `this+0xac`. The whole body is a single `movb`
+   * between a frame prologue and a `retq` — no validation, no branching, no callee
+   * (`depgraph.py deps` lists nothing). Like its neighbour `storageRecyclingPolicy` above,
+   * this is a SETTER despite the getter-style name; the export table has no zero-argument
+   * counterpart, and the `Eb` mangling makes the single `bool` parameter explicit.
+   *
+   * FULL DISASM (raw-port/re/disasm/
+   * Helium.__ZN16HGTextureManager28recycleClientStorageTexturesEb.s):
+   *   0x4b330  pushq %rbp                 ; frame setup (no TS counterpart)
+   *   0x4b331  movq  %rsp, %rbp
+   *   0x4b334  movb  %sil, 0xac(%rdi)     ; this->recycleClientStorageTextures = (byte)arg
+   *   0x4b33b  popq  %rbp
+   *   0x4b33c  retq
+   *   0x4b33d  nopl  (%rax)               ; padding, not executed
+   *
+   * `movb` fixes the width at ONE byte — this is the detail that matters, because the u32
+   * policy slot at +0xa8 ends exactly where this field begins, so a 32-bit store here would
+   * silently corrupt the neighbour (and a 32-bit store into +0xa8 would corrupt this flag).
+   *
+   * ORACLE: raw-port/re/oracle/HGTextureManager_recycleClientStorage_oracle.py. The symbol is
+   * EXPORTED (`nm -arch x86_64` type `T`), called at x86_64 vmaddr + the loaded image's slide
+   * under `arch -x86_64 /usr/bin/python3` (the port cites x86_64 offsets; calling the arm64
+   * slice fails silently toward VERIFIED — OPS_LOG). On a 0x200-byte object pre-filled with
+   * 0xAA, for ALL 256 possible argument bytes: the byte at +0xac holds the argument in
+   * 256/256, and NO other byte of the object changes in any case — which is what rules out a
+   * wider store. A further 3 cases call `storageRecyclingPolicy` and this setter in sequence
+   * and confirm neither disturbs the other's slot: 0/3 interfered.
+   *
+   * Typed `boolean` per the `b` mangling and the landed `PCImage::setIsPremultiplied`
+   * @ProCore 0x4af6c precedent for the identical `movb %sil, off(%rdi)` shape; the measured
+   * full-byte behaviour is recorded above so a future getter port can choose with evidence.
+   *
+   * @param recycle — the `bool` argument (SysV %rsi; only its low byte %sil is stored).
+   */
+  recycleClientStorageTextures(recycle: boolean): void {
+    // @0x4b334 — movb %sil, 0xac(%rdi) : a ONE-byte store, verified live to leave every other
+    //   byte of the object — including the u32 policy slot at +0xa8 — untouched.
+    this.recycleClientStorageTextures_at_0xac = recycle;
   }
 }
