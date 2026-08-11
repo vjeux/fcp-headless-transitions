@@ -39,7 +39,7 @@ lose exactly the high bits these overflow cases test.
 USAGE
     coremedia_oracle.py <path-to-CMTime.ts>      exit 0 = match / not applicable, 2 = DIVERGED
 """
-import ctypes, json, os, subprocess, sys
+import ctypes, json, os, struct, subprocess, sys
 
 CM_PATH = "/System/Library/Frameworks/CoreMedia.framework/CoreMedia"
 
@@ -140,10 +140,20 @@ def main():
                 elif kind == "t_t":      R = getattr(cm, cm_fn)(A, CMTime(a[0], a[1], a[2], a[3]))
                 else:                    R = getattr(cm, cm_fn)(A)
                 if kind == "t_secs":
-                    want, have = R, got.get("n")
+                    # The scalar arrives as `nbits`, the exact IEEE754 pattern, because JSON cannot
+                    # carry NaN or +/-Infinity: `JSON.stringify(NaN)` is `null`, and reading that
+                    # `null` as the port's answer made every non-finite case an unpassable
+                    # divergence — and rewarded a port that returned a finite number where the
+                    # framework returns NaN. `n` is only a fallback for an older worker.
+                    if isinstance(got.get("nbits"), str):
+                        have = struct.unpack("<d", bytes.fromhex(got["nbits"]))[0]
+                    else:
+                        have = got.get("n")
+                    want = R
                     ok = (isinstance(have, (int, float)) and
                           (abs(have - want) <= 1e-12 * max(1.0, abs(want)) or
-                           (have != have and want != want)))   # NaN == NaN
+                           (have != have and want != want) or       # NaN == NaN
+                           have == want))                           # +/-Infinity
                     desc = f"{want!r} vs {have!r}"
                 else:
                     g = got.get("r", {})

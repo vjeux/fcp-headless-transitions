@@ -204,15 +204,194 @@ const SURROUND_PANNER_ONE = 1.0; // @Flexo 0x156ca00
  */
 const SURROUND_PANNER_ZERO = 0.0; // @Flexo 0x12513b4
 
+// ── Constructor-only provenance: the vtable, the 16-byte literal, the two externs ────────────
+
+/**
+ * The value `SurroundPanner::SurroundPanner()` stores at `this+0x00`: 0x124dacf + 0x6d3531.
+ * @Flexo 0x1921000 — the installed pointer of the SurroundPanner vtable at @Flexo 0x1920ff0
+ * (`resolve.py Flexo vtable SurroundPanner`: *0x00 Process, *0x08 SetParameter, *0x10 Reset,
+ * *0x18 Panner::SetAlgorithm, *0x20 SetPannerUIMode, *0x28/*0x30 ~SurroundPanner,
+ * *0x38 Panner::GetPannerUIMode).
+ */
+const SURROUND_PANNER_VTABLE_PTR = 0x1921000;
+
+/**
+ * The 16 bytes at @Flexo 0x15831d0, loaded by `movaps` @0x124dad2 and stored to `this+0x14`.
+ * Read out of the mapped image as `74 6c 66 64 00 00 00 00 6e 68 63 36 06 00 00 00`, i.e. four
+ * little-endian u32s. The first and third are printable four-character codes read big-endian —
+ * 0x64666c74 is 'dflt' and 0x3663686e is '6chn' — which together with the trailing 6 reads as a
+ * default six-channel layout tag. That reading is an OBSERVATION about the bytes; what is
+ * transcribed is the bytes.
+ */
+const SURROUND_PANNER_C2_CONST: readonly [number, number, number, number] = [
+  0x64666c74, 0x00000000, 0x3663686e, 0x00000006,
+];
+
+/**
+ * `operator new[](unsigned long)` — libc++ extern, out of scope. Called @Flexo 0x124daea with
+ * 0x90 from `SurroundPanner::SurroundPanner()` [C2].
+ *
+ * Raises rather than answering: it is VALUE-PRODUCING (it returns the pointer the constructor
+ * stores at +0x28 and writes through), and a JS array is not that pointer. This follows the
+ * landed treatment of the same extern in the same position — `HgcVibrancy`'s C2 constructor
+ * raises on `operator new[](0x227)` @Flexo 0x146f77e.
+ */
+function operatorNewArray(_size: number): Uint8Array {
+  throw new Error(
+    "operator new[](unsigned long) not yet transcribed " +
+      "(frontier callee @Flexo 0x124daea in SurroundPanner::SurroundPanner [C2], size 0x90)",
+  );
+}
+
+/**
+ * `bzero(void*, size_t)` — libc extern, called @Flexo 0x124dafe with (block, 0x90).
+ * Unlike the allocation this one produces NO value and its whole effect is expressible: it
+ * writes `n` zero bytes. Modelling it as anything else would be inventing a difference.
+ */
+function bzero(buffer: Uint8Array, n: number): void {
+  buffer.fill(0, 0, n);
+}
+
 /**
  * `SurroundPanner` — Flexo's surround-panning geometry helper.
  *
- * No instance state is modelled: the one transcribed method never reads `this`
- * (see the file header).
+ * As of the C2 constructor below the instance layout IS modelled, as far as the constructor
+ * grounds it (see the per-field byte offsets on the members). `AngleBisectionRatio` remains a
+ * static: that method never reads `this`.
  *
  * @Flexo 0x12513a0
  */
 export class SurroundPanner {
+  // ── Instance layout, grounded by the C2 constructor @Flexo 0x124dab0 ────────
+  // Only the offsets that constructor actually writes are asserted here. The object is at
+  // least 0xc0 bytes (the last field it initialises is +0xb8), and the members between the
+  // named ones are the zeroed spans described on `zeroedTail`.
+
+  /** +0x00 — vtable pointer. Written @0x124dacf from `leaq 0x6d3531(%rip)` @0x124dac8. */
+  vtable = 0;
+  /** +0x08 — u64, zeroed @0x124daba (`movq $0x0, 0x8(%rdi)`). */
+  field_08 = 0n;
+  /** +0x10 — u16, zeroed @0x124dac2 (`movw $0x0, 0x10(%rdi)`) — a 16-bit store, not 32. */
+  field_10 = 0;
+  /** +0x14 — first u32 of the 16-byte constant at @Flexo 0x15831d0. */
+  field_14 = 0;
+  /** +0x18 — second u32 of that constant. */
+  field_18 = 0;
+  /** +0x1c — third u32 of that constant. */
+  field_1c = 0;
+  /** +0x20 — fourth u32 of that constant. */
+  field_20 = 6;
+  /**
+   * +0x28 — pointer to the 0x90-byte block from `operator new[]` @0x124daea. Modelled as the
+   * block itself; the C2 body zeroes all 0x90 bytes of it (twice — see the constructor).
+   */
+  block: Uint8Array | null = null;
+  /**
+   * The spans this constructor zeroes and does not otherwise name: +0x30..+0x47 and
+   * +0x48..+0xbf. Modelled as one byte array so the stores can be transcribed at their real
+   * offsets rather than invented as fields the disassembly does not distinguish.
+   */
+  zeroedTail = new Uint8Array(0x90); // covers +0x30..+0xbf
+
+  /**
+   * `SurroundPanner::SurroundPanner()` [C2, base-object constructor]
+   * @Flexo __ZN14SurroundPannerC2Ev @0x124dab0..0x124db80
+   *
+   * FULL DISASM, in address order — every instruction has a counterpart below:
+   *   0x124dab0  pushq %rbp ; movq %rsp,%rbp ; pushq %r14 ; pushq %rbx      ; frame
+   *   0x124dab7  movq  %rdi, %rbx                    ; rbx = this
+   *   0x124daba  movq  $0x0, 0x8(%rdi)               ; this->+0x08 = 0        (64-bit)
+   *   0x124dac2  movw  $0x0, 0x10(%rdi)              ; this->+0x10 = 0        (16-bit)
+   *   0x124dac8  leaq  0x6d3531(%rip), %rax          ; = 0x1921000
+   *   0x124dacf  movq  %rax, (%rdi)                  ; this->vtable = 0x1921000
+   *   0x124dad2  movaps 0x3356f7(%rip), %xmm0        ; = 0x15831d0, 16 bytes
+   *   0x124dad9  movups %xmm0, 0x14(%rdi)            ; this->+0x14..+0x23 = that constant
+   *   0x124dadd  movq  $0x0, 0x28(%rdi)              ; this->block = null
+   *   0x124dae5  movl  $0x90, %edi
+   *   0x124daea  callq __Znam                        ; operator new[](0x90)
+   *   0x124daef  movq  %rax, %r14                    ; r14 = block
+   *   0x124daf2  movq  %rax, 0x28(%rbx)              ; this->block = it
+   *   0x124daf6  movl  $0x90, %esi ; movq %rax,%rdi
+   *   0x124dafe  callq _bzero                        ; bzero(block, 0x90)
+   *   0x124db03  xorps %xmm0, %xmm0                  ; xmm0 = 16 zero bytes, reused below
+   *   0x124db06  movups %xmm0, 0x30(%rbx)            ; this->+0x30..+0x3f = 0
+   *   0x124db0a  movq  $0x0, 0x40(%rbx)              ; this->+0x40 = 0
+   *   0x124db12  movups %xmm0, (%r14)                ; block +0x00..+0x0f = 0
+   *   0x124db16  movq  $0x0, 0x10(%r14)              ; block +0x10 = 0
+   *   0x124db1e  movups %xmm0, 0xa8(%rbx)            ; this->+0xa8..+0xb7 = 0
+   *   0x124db25  movups %xmm0, 0x98(%rbx)            ;      +0x98..+0xa7
+   *   0x124db2c  movups %xmm0, 0x88(%rbx)            ;      +0x88..+0x97
+   *   0x124db33  movups %xmm0, 0x78(%rbx)            ;      +0x78..+0x87
+   *   0x124db37  movups %xmm0, 0x68(%rbx)            ;      +0x68..+0x77
+   *   0x124db3b  movups %xmm0, 0x58(%rbx)            ;      +0x58..+0x67
+   *   0x124db3f  movups %xmm0, 0x48(%rbx)            ;      +0x48..+0x57
+   *   0x124db43  movq  $0x0, 0xb8(%rbx)              ; this->+0xb8 = 0
+   *   0x124db4e  movups %xmm0, 0x78(%r14)            ; block +0x78..+0x87 = 0
+   *   0x124db53  movups %xmm0, 0x68(%r14)            ;       +0x68..+0x77
+   *   0x124db58  movups %xmm0, 0x58(%r14)            ;       +0x58..+0x67
+   *   0x124db5d  movups %xmm0, 0x48(%r14)            ;       +0x48..+0x57
+   *   0x124db62  movups %xmm0, 0x38(%r14)            ;       +0x38..+0x47
+   *   0x124db67  movups %xmm0, 0x28(%r14)            ;       +0x28..+0x37
+   *   0x124db6c  movups %xmm0, 0x18(%r14)            ;       +0x18..+0x27
+   *   0x124db71  movq  $0x0, 0x88(%r14)              ; block +0x88 = 0
+   *   0x124db7c  popq %rbx ; popq %r14 ; popq %rbp ; retq
+   *
+   * TWO THINGS WORTH SAYING ABOUT THAT LISTING, because both look like mistakes and are not:
+   *
+   * 1. The block is zeroed TWICE — `_bzero(block, 0x90)` and then explicit stores covering
+   *    +0x00..+0x8f (0x00 and 0x10, then 0x18..0x87 in seven 16-byte stores, then 0x88). The
+   *    second pass is redundant on the machine and is transcribed anyway, because "the compiler
+   *    emitted it" is the only claim this port is entitled to make about it.
+   * 2. `movw` at 0x124dac2 writes TWO bytes at +0x10, not four, and nothing in this constructor
+   *    writes +0x12 or +0x24..+0x27 — so those bytes are whatever `operator new` left. They are
+   *    deliberately not modelled as zero.
+   */
+  constructor() {
+    // @0x124daba  movq $0x0, 0x8(%rdi)
+    this.field_08 = 0n;
+    // @0x124dac2  movw $0x0, 0x10(%rdi) — 16-bit store.
+    this.field_10 = 0;
+    // @0x124dac8/@0x124dacf — install the vtable: 0x124dacf + 0x6d3531 = 0x1921000, the
+    // "installed pointer" of the SurroundPanner vtable at @Flexo 0x1920ff0 (resolve.py: slot
+    // *0x00 -> Process, *0x08 -> SetParameter, *0x10 -> Reset, *0x28/*0x30 -> ~SurroundPanner).
+    this.vtable = SURROUND_PANNER_VTABLE_PTR;
+    // @0x124dad2/@0x124dad9 — the 16 bytes at @Flexo 0x15831d0 stored across +0x14..+0x23.
+    this.field_14 = SURROUND_PANNER_C2_CONST[0];
+    this.field_18 = SURROUND_PANNER_C2_CONST[1];
+    this.field_1c = SURROUND_PANNER_C2_CONST[2];
+    this.field_20 = SURROUND_PANNER_C2_CONST[3];
+    // @0x124dadd  movq $0x0, 0x28(%rdi) — the block pointer is cleared BEFORE the allocation.
+    this.block = null;
+    // @0x124dae5/@0x124daea  operator new[](0x90)
+    const block = operatorNewArray(0x90);
+    // @0x124daf2  movq %rax, 0x28(%rbx)
+    this.block = block;
+    // @0x124daf6/@0x124dafe  bzero(block, 0x90)
+    bzero(block, 0x90);
+    // @0x124db03  xorps %xmm0, %xmm0 — the zero vector every store below reuses.
+    // @0x124db06  this->+0x30..+0x3f = 0   (offsets into zeroedTail are absolute minus 0x30)
+    this.zeroedTail.fill(0, 0x30 - 0x30, 0x40 - 0x30);
+    // @0x124db0a  this->+0x40 = 0
+    this.zeroedTail.fill(0, 0x40 - 0x30, 0x48 - 0x30);
+    // @0x124db12  block +0x00..+0x0f = 0
+    block.fill(0, 0x00, 0x10);
+    // @0x124db16  block +0x10 = 0
+    block.fill(0, 0x10, 0x18);
+    // @0x124db1e..@0x124db3f — this->+0xa8, +0x98, +0x88, +0x78, +0x68, +0x58, +0x48, in that
+    // order (descending, as emitted).
+    for (const off of [0xa8, 0x98, 0x88, 0x78, 0x68, 0x58, 0x48]) {
+      this.zeroedTail.fill(0, off - 0x30, off - 0x30 + 0x10);
+    }
+    // @0x124db43  this->+0xb8 = 0
+    this.zeroedTail.fill(0, 0xb8 - 0x30, 0xc0 - 0x30);
+    // @0x124db4e..@0x124db6c — block +0x78, +0x68, +0x58, +0x48, +0x38, +0x28, +0x18.
+    for (const off of [0x78, 0x68, 0x58, 0x48, 0x38, 0x28, 0x18]) {
+      block.fill(0, off, off + 0x10);
+    }
+    // @0x124db71  block +0x88 = 0
+    block.fill(0, 0x88, 0x90);
+  }
+
   /**
    * `SurroundPanner::AngleBisectionRatio(double angle, double b, double c)`
    * — @Flexo 0x12513a0 (__ZN14SurroundPanner19AngleBisectionRatioEddd).
