@@ -1689,6 +1689,101 @@ change these tools.
 ---
 
 
+## Open — reported 2026-08-11 by worker 3 (the unreleasable-worktree fix as proposed would not cover the WORKER case)
+
+- **A WORKER'S OWN `port/<Class>` WORKTREE IS ALSO UNRELEASABLE ONCE ITS PR SQUASH-MERGES, and the
+  fix proposed for the reviewer version of this bug does not cover it.** The existing entry above
+  ("A REVIEWER'S `acquire-at` WORKTREE BECOMES UNRELEASABLE THE MOMENT ITS PR LANDS") diagnoses the
+  `acquire-at` detached-HEAD case and proposes gating `wt_has_work`'s unpushed-commit test on
+  **HEAD being a BRANCH** (`git symbolic-ref -q HEAD`), reasoning that "a detached checkout is by
+  construction a read-only inspection lease". That reasoning is sound and the fix is still worth
+  making — but it would have left this case broken, because here **HEAD IS a branch**.
+
+  Hit live today on slot 3, holding `port/OZMaterialDiffuseLayer` after PR #515 merged:
+
+      $ git -C ~/.fct-pool/wt/3 status --porcelain      # completely clean
+      $ git -C ~/.fct-pool/wt/3 rev-list --count origin/main..HEAD
+      1
+      $ git -C ~/.fct-pool/wt/3 branch -r --contains HEAD
+                                                        # empty
+      $ wt_pool.sh release ~/.fct-pool/wt/3
+      wt_pool: … has UNCOMMITTED or UNPUSHED work — not discarding it.
+
+  Same mechanism as the reviewer case and the same both-conditions-true trap: a SQUASH merge creates
+  a NEW commit, so the branch tip is not an ancestor of `origin/main`, and GitHub deletes the head
+  branch on merge, so it is contained in no `origin/*` ref either. The work is on main; the message
+  names work that does not exist. Verified before force-releasing: both files at the worktree's HEAD
+  are byte-identical (`shasum`) to their `origin/main` versions.
+
+  So the guard needs a test that does not depend on HEAD's detachedness. The cheap and correct one:
+  **before refusing, check whether the worktree's tree content is already reachable from
+  `origin/main`** — e.g. every path the branch touches is byte-identical on `origin/main`, or the
+  branch's diff against `origin/main` is empty. That covers detached reviewer leases and worker
+  branches with one rule, and it still protects a genuine in-progress port (whose content is NOT on
+  main yet). Until then the documented WORKAROUND applies to workers too: confirm
+  `git status --porcelain` is empty AND the touched files are byte-identical on `origin/main`, then
+  `release <path> --force`.
+
+  **The reason this cost a slot at all is worth saying plainly, because it is an agent-side habit and
+  not a tool bug:** a worker that submits a PR and moves straight on to the next unit leaks the
+  lease. The loop in `HARNESS_LOOP.md` has `wt_pool.sh release "$WT"` immediately after
+  `pr_submit.sh` for exactly this reason. Release the worktree in the same command as the submit, not
+  in a later step that a long investigation can push out of view.
+## Open — reported 2026-08-11 by worker 3 (otool's LINEAR sweep desynchronises; FIXED in this change)
+
+- **`disasm.sh` returns 0 lines for 2,453 of the 56,060 defined text symbols (4.4%) — and for the
+  region around each one, the cached dump contains FABRICATED INSTRUCTIONS.** The standing note
+  that "`disasm.sh --sym` can return 0 lines for a symbol that is present" has been rediscovered by
+  several agents; this is the root cause, and the second half of it is worse than the first.
+
+  `otool -tV <binary>` disassembles __text as a LINEAR SWEEP from the section start. One mis-decode
+  — in-text alignment padding, a jump table, an embedded constant — desynchronises the instruction
+  boundaries, and the sweep keeps emitting instructions at the wrong offsets until it happens to
+  resynchronise. Any symbol whose start address the sweep stepped over gets NO LABEL at all, which
+  is what `disasm.sh` then slices for (via `symidx` or the awk scan) and comes back empty.
+
+  Measured live on `PCInfo::availableVRAM()` @ProCore 0x530c6. The sweep desyncs on the 1-byte pad
+  at 0x530c5 and prints:
+
+      00000000000530c5  addb  %cl, -0x7d(%rax)
+      00000000000530c8  cmpl  $0x108c62, %eax
+      00000000000530cd  pushq 0x8(%rbp)
+      00000000000530d0  movq  vramAvailable(%rip), %rax     <- resynchronised here
+
+  Those first three instructions do not exist. The real bytes are
+  `cmpq $-0x1, onceToken(%rip)` / `jne` / `pushq %rbp` / `movq %rsp, %rbp`, which is what
+  `otool -tV -p <symbol>` prints — because `-p` starts decoding AT the symbol, so the boundaries
+  are right. **So the failure mode is not only "no disassembly"; it is "plausible disassembly of
+  instructions that are not there", in the same dump every agent reads.** Today the missing LABEL
+  is what saves us: it makes `disasm.sh` return empty and error out (the #16-era fix), so nobody
+  transcribes the garbage. That protection is incidental — a symbol whose label survives while its
+  BODY sits in a desynchronised region would hand a worker fabricated instructions with no warning.
+
+  Exposure, counted as defined text symbols with no label line in the framework's linear dump:
+
+      Ozone       22,354 symbols     574 missing   (2.6%)
+      Flexo       10,766             776           (7.2%)
+      Helium      12,591             466           (3.7%)
+      ProCore      4,633             501          (10.8%)
+      ProChannel   5,716             136           (2.4%)
+      TOTAL       56,060           2,453           (4.4%)
+
+  FIX (in this change): before the objdump fallback, `disasm.sh` re-disassembles from the symbol's
+  own address with `otool -arch x86_64 -tV -p <sym>` on the thin slice and slices the label span out
+  of that. It costs ~0.1s, and it is preferred over the objdump path because it keeps otool's
+  `## symbol stub for:` annotations, which is how callees get identified. Verified: the two
+  previously-unreachable symbols above now produce their correct bodies with exit 0, and symbols the
+  linear path already handled are byte-unchanged.
+
+  **A trap inside the fix, worth its own line because it nearly shipped.** `disasm.sh` runs under
+  `set -euo pipefail`, and the natural spelling `otool ... -p "$SYM" | awk '...{exit}...'` makes awk
+  exit at the next label, which SIGPIPEs otool, which makes the pipeline status 141, which kills the
+  whole script — *after* it has written a correct `.s`. The symptom is a script that produces the
+  right file and still fails, and it is invisible if you look at the output instead of the exit
+  status. Materialise otool's output to a temp file first. This is the same discipline the gate
+  rules already demand ("check the exit status directly, never through a pipe"), applying to the
+  tools themselves.
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
