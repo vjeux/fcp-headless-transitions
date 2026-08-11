@@ -24,7 +24,10 @@ Usage: regression_check.py <mainRef> <branchRef> <path> [<path> ...]
 """
 import sys, re, subprocess
 
-MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]+')
+MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]*[A-Za-z0-9_$]')   # may contain '.' (.cold/.eh/.1)
+                                                          # but may NOT END on one: a token
+                                                          # like `...D0Ev.` is a mangled name
+                                                          # followed by a full stop in prose.
 EXPORT  = re.compile(r'^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var|interface|type|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)', re.M)
 
 def _show(ref, path):

@@ -56,7 +56,28 @@ def layer2():
     print("LAYER 2c (G5 bare-key guard — right method, not just right class):",
           "PASS" if ok3 else "FAIL")
     if not ok3: print(r3.stdout[-1200:], r3.stderr[-400:])
-    return ok and ok2 and ok3
+    # 2d — the status reconciler's fast path must agree with the reference it replaced. The
+    # depth/enclosing-class test decides whether a throw-only body demotes a unit from `ported` to
+    # `stub`; drift there moves the headline number silently, in the flattering direction. The
+    # batch scanner is 29x faster than the per-def originals, which remain in the tree AS the
+    # reference this compares against.
+    r4 = run([sys.executable, os.path.join(HERE, "test_brace_context.py")])
+    ok4 = "BRACE_CONTEXT: PASS" in r4.stdout
+    print("LAYER 2d (status reconciler brace-context — fast path == reference):",
+          "PASS" if ok4 else "FAIL")
+    if not ok4: print(r4.stdout[-1200:], r4.stderr[-400:])
+
+    # 2e — the rebase path. Not a cheat-detection layer: a work-PRESERVATION one. Three failures in
+    # one day routed finished work into the discard pile — a cited .s filename read as a symbol and
+    # false-BAILed a disjoint union, a class-keyed branch guess handed a reviewer another PR's
+    # content, and a rebase silently dropped the branch's non-src files (an oracle harness, lost to
+    # a force-push). None could be caught by a gate: each produces output that is itself gate-clean.
+    r5 = run([sys.executable, os.path.join(HERE, "test_rebase_tools.py")])
+    ok5 = "test_rebase_tools: PASS" in r5.stdout
+    print("LAYER 2e (rebase path — no phantom symbols, no branch guessing, no dropped files):",
+          "PASS" if ok5 else "FAIL")
+    if not ok5: print(r5.stdout[-1200:], r5.stderr[-400:])
+    return ok and ok2 and ok3 and ok4 and ok5
 
 def _reach(spec, expect):
     import tempfile

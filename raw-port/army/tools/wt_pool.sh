@@ -42,6 +42,22 @@ link_deps () {
   for d in raw-port/node_modules venv; do
     [ -e "$CANON/$d" ] && ln -sfn "$CANON/$d" "$wt/$d" 2>/dev/null
   done
+  # The symbol inventory (army/inventory/<FW>.syms.txt) is gitignored regenerable state, so a
+  # worktree gets an EMPTY inventory dir — and the mandated fast path ("grep the cache, never nm the
+  # 78MB framework binary", OPS_LOG #22) then dies with FileNotFoundError right where every agent
+  # works. Agents that hit that fall back to nm, which is the multi-minute core-hog the cache exists
+  # to avoid: the guidance and the filesystem disagreed, and the filesystem won. Symlink the canonical
+  # copies in, per file rather than by directory: a per-directory `ln -sfn` onto an existing real dir
+  # silently nests the link INSIDE it, which is the trap this avoids. Note `ln -sfn` DOES replace a
+  # real file a worktree generated for itself — verified, not assumed — and that is the behaviour we
+  # want: the canonical inventory is the complete 5-framework set, while an ad-hoc local slice is
+  # whatever one agent happened to need.
+  if [ -d "$CANON/raw-port/army/inventory" ]; then
+    mkdir -p "$wt/raw-port/army/inventory" 2>/dev/null
+    for f in "$CANON"/raw-port/army/inventory/*.syms.txt; do
+      [ -e "$f" ] && ln -sfn "$f" "$wt/raw-port/army/inventory/$(basename "$f")" 2>/dev/null
+    done
+  fi
 }
 
 make_wt () { # create pool worktree #N if missing; echo its path
@@ -71,9 +87,18 @@ wt_has_work () {
   # lease but not a reviewer's. Real work is source; a cache is not.
   [ -n "$(git -C "$wt" status --porcelain -- raw-port/src 2>/dev/null)" ] && return 0
   [ -n "$(git -C "$wt" status --porcelain -- raw-port/re 2>/dev/null | grep -v ' raw-port/re/disasm/')" ] && return 0
-  # HEAD reachable from some origin/* ref => pushed => nothing to lose
-  if [ -n "$(git -C "$wt" rev-list -n1 origin/main..HEAD 2>/dev/null)" ]; then
-    [ -z "$(git -C "$wt" branch -r --contains HEAD 2>/dev/null)" ] && return 0
+  # HEAD reachable from some origin/* ref => pushed => nothing to lose.
+  # ONLY MEANINGFUL ON A BRANCH. A reviewer's `acquire-at <SHA>` leaves a DETACHED HEAD at a PR head;
+  # once that PR squash-merges and its branch is deleted, the commit stops being contained in any
+  # remote branch — so this test called it "unpushed work" on a tree whose `git status` is empty, and
+  # `release` refused. The slot then leaked, and it leaked HARDER THE BETTER REVIEWERS DID: every
+  # successful merge stranded the worktree that verified it (three times in one shift, reported as
+  # OPS_LOG #401; the same POOL_FULL endgame as #12). A detached HEAD holds no work by construction —
+  # it is a checkout of a commit that already exists on the server. Only an unpushed BRANCH can.
+  if git -C "$wt" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    if [ -n "$(git -C "$wt" rev-list -n1 origin/main..HEAD 2>/dev/null)" ]; then
+      [ -z "$(git -C "$wt" branch -r --contains HEAD 2>/dev/null)" ] && return 0
+    fi
   fi
   return 1
 }
@@ -247,8 +272,9 @@ cmd_acquire_at () { # <SHA> — reviewer: detached checkout at a PR head for gat
 }
 
 cmd_release () {
-  local wt="${1:?usage: wt_pool.sh release <path>}"
+  local wt="${1:?usage: wt_pool.sh release <path> [--force] [expected-tag]}"
   local force="${2:-}"
+  local expect="${3:-}"
   local slot; slot="$(basename "$wt")"
   # OWNERSHIP GUARD. release used to reset_clean() unconditionally, so a caller releasing a path it
   # no longer owned would wipe the CURRENT holder's in-progress work. If the lease is gone, the slot
@@ -257,8 +283,27 @@ cmd_release () {
     log "wt_pool: slot $slot has no active lease — NOT resetting $wt (another holder may own it now)"
     return 0
   fi
+  # ...AND THE LEASE MUST STILL BE *YOURS*. "A lease exists" is not ownership: the slot may have been
+  # released and RE-LEASED to someone else since you took it, and then this call resets THEIR tree.
+  # That is #3 coming back through the --force door #258 opened. Observed 2026-08-11: worker 1 held
+  # slot 2 as port/ROIStatIO__ROITestSet for ~80s when a reviewer's pr_gate cleanup trap — firing
+  # late for a slot it no longer held — ran `release <wt> --force`. --force skips the has-work check,
+  # so reset_clean() wiped the worker's just-written .ts (the gitignored re/disasm files survived,
+  # which is the tell: this is a git reset, not an rm), and the rm -rf freed the lease, after which
+  # the next gate immediately re-leased the slot. The worker saw its file vanish with a clean
+  # `git status` and no error anywhere.
+  # A caller that knows which tag it leased passes it here and gets refused when it no longer holds
+  # it. Callers that pass nothing behave exactly as before, so this is additive.
+  if [ -n "$expect" ]; then
+    local holder_tag; holder_tag="$(cut -d" " -f1 "$LEASES/$slot/holder" 2>/dev/null)"
+    if [ "$holder_tag" != "$expect" ]; then
+      log "wt_pool: slot $slot is held by '$holder_tag', not '$expect' — NOT resetting $wt"
+      log "         (a stale release from a previous holder; the current holder keeps its work)"
+      return 0
+    fi
+  fi
   # Refuse to discard live work unless explicitly forced. A worker that abandons a unit should say so:
-  #   wt_pool.sh release <path> --force
+  #   wt_pool.sh release <path> --force [expected-tag]
   if [ "$force" != "--force" ] && wt_has_work "$wt"; then
     log "wt_pool: $wt has UNCOMMITTED or UNPUSHED work — not discarding it."
     log "         commit+push it (pr_submit.sh), or re-run with --force to abandon it deliberately."

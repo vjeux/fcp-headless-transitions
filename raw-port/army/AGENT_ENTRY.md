@@ -46,8 +46,22 @@ Reviewers additionally run `python3 raw-port/army/verifier/prove_all.py` once at
 
 ## 3. Priority
 
-**Rebase queue first, then fresh ports.** Reviewers: the open-PR backlog is usually the binding
-constraint on merge rate, so claim continuously rather than stopping after a verdict.
+**Workers: rework queue, then rebase queue, then fresh ports.** In that order, because it is the
+order of decreasing evidence already spent. A rejected PR carries a reviewer's completed differential
+naming exactly what is wrong; a stale base carries a finished, verified body; a fresh unit carries
+nothing yet.
+
+    bash raw-port/army/tools/rework_claim.sh claim    # a PR a reviewer REJECTED — fix what they named
+    bash raw-port/army/tools/rebase_claim.sh claim    # a stale base
+    python3 raw-port/army/tools/depclaim.py next      # a fresh symbol
+
+Each prints `NONE` when empty; fall through to the next. **Release every lease when you stop**
+(`rework_claim.sh release <PR>`), and read the reviewer's REQUEST_CHANGES in full before you touch
+anything — they usually give a minimal reproducer, and the fix is often one line.
+
+**Reviewers:** claim continuously rather than stopping after a verdict. If `review_claim` keeps
+returning `NONE` while open PRs exist, they are almost certainly CHANGES_REQUESTED and therefore
+correctly invisible to you — that is the WORKERS' queue, not a bug, and not yours to take back.
 
 ## 4. Performance — this box amplifies file I/O enormously
 
@@ -56,7 +70,9 @@ file open. It cannot be excluded. With N agents, every wasteful read is multipli
 carry almost all of the benefit:
 
 - **Never read a framework binary when a cached index answers the question.** For symbols:
-  `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` (`<addr> <T|t> <mangled>`, all 5
+  `grep <pattern> raw-port/army/inventory/<FW>.syms.txt` (the files are gitignored regenerable state,
+  symlinked into every pool worktree by `wt_pool.sh link_deps`; if one is genuinely missing, restore
+  it ONCE for everyone with `dump_syms.sh` in the canonical checkout rather than nm-ing per agent) (`<addr> <T|t> <mangled>`, all 5
   frameworks, ~145k defined symbols, **0.08s**). Running `nm` on
   `/Applications/Final Cut Pro.app/.../Flexo` instead is a 78 MB fat Mach-O read that costs a full
   core for **over two minutes** under contention — measured ~1000x worse for the same answer
@@ -96,6 +112,27 @@ executing, never by inferring from `sysctl`.**
 is **arm64**. Plain struct offsets are ABI-fixed and fine, but anywhere the slices differ — libc++
 `std::string` SSO is the flagship — an address-based differential fails **silently toward VERIFIED**.
 Use `arch -x86_64 /usr/bin/python3` for any address-based work.
+
+## 6b. Rebase and evidence hygiene (fixed today — use the fixed forms)
+
+- **`rebase_helper.py --pr <N>`**, never the bare class name. A class can have several open PRs on
+  `port/<Class>__slot<N>` branches; the class-keyed form used to hand back a DIFFERENT PR's content
+  with exit 0, and the wrong content is itself gate-clean (OPS_LOG #26). It now refuses an ambiguous
+  class rather than guessing, but pass the PR number and the question never arises.
+- **Before any force-push of a rebase, diff the FILE LIST**, not just the gate:
+  `git diff --name-status <pre-rebase-sha> HEAD`. A rebase used to drop the branch's non-src files
+  and a green gate said nothing, because the gate only inspects the `.ts` files you hand it — that is
+  how an oracle harness was destroyed (#25). The tools now carry those files and assert they survived;
+  check anyway, because the failure is silent and irreversible.
+- **Write a review body to a file: `ghapp/pr_review.sh <PR#> approve --body-file <path>`.** Backticks
+  inside a double-quoted `bash -c` are expanded by YOUR shell before the tool sees them, which
+  silently deleted the clause naming a defect from two permanent records (#30). Same door as a
+  `depclaim.py drop` reason — single-quote those.
+- **`slot_lock.sh heartbeat <role> <n>` after every verdict or unit.** The stale-reclaim measures the
+  lock file's mtime; without a beat it measures tick age, so a healthy long run looks abandoned and a
+  dead one looks busy (#32).
+- **A worktree that refuses to release after its PR merged** is the known detached-HEAD leak (#31),
+  now fixed; `release --force` remains correct if you meet it on an older tool.
 
 ## 7. When you cannot port a unit
 
