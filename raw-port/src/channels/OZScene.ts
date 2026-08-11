@@ -212,6 +212,44 @@ export interface OZSceneAllSelNodeHandle {
 }
 
 /**
+ * A libc++ `__tree_node` of the temporary-file map that lives at OZScene+0x608:
+ *
+ *   std::map<PCString, OZScene::OZTemporaryFileInfo>
+ *
+ * — the instantiation is named verbatim by the compiler-emitted Ozone symbols
+ * `__ZNSt3__16__treeINS_12__value_typeI8PCStringN7OZScene19OZTemporaryFileInfoEEE…7destroyE…`
+ * @Ozone 0x84bd0 and `…__emplace_unique_key_args…` @Ozone 0x3162d0.
+ *
+ * Only the fields the transcribed body actually touches are modelled (Rule 5: offsets are
+ * documented, never magic; and an untouched field is not invented):
+ *
+ *   +0x00  __left_    read by the successor walk  `movq (%rdx),%rdx`   @0x313d43
+ *                     and by the parent test      `cmpq (%rcx),%rax`   @0x313d54
+ *   +0x08  __right_   `movq 0x8(%rax),%rdx`                            @0x313d2c
+ *   +0x10  __parent_  `movq 0x10(%rax),%rcx`                           @0x313d50
+ *   +0x18  __is_black_ (not touched here)
+ *   +0x20  __value_.first  = PCString key (16 bytes) — not touched HERE, but pinned by the
+ *          sibling `OZScene::persistTemporaryFile(PCString const&, bool)` @Ozone 0x313c80,
+ *          which does `leaq 0x20(%r13),%rdi ; callq PCString::compare` @0x313cb0.
+ *   +0x30  __value_.second = OZTemporaryFileInfo; its FIRST byte is the persistence flag.
+ *          Written 0 here (`movb $0x0,0x30(%rax)` @0x313d28) and written with the caller's
+ *          bool by persistTemporaryFile (`movb %bl,0x30(%r12)` @0x313ce7) — the same byte,
+ *          which is what makes this method "clear the persistence flag on every entry".
+ *          That the mapped type starts at +0x30 = value+0x10 also fixes sizeof(PCString) = 16.
+ */
+export interface OZSceneTemporaryFileTreeNode {
+  /** +0x00  __left_ */
+  __left_: OZSceneTemporaryFileTreeNode | null;
+  /** +0x08  __right_ */
+  __right_: OZSceneTemporaryFileTreeNode | null;
+  /** +0x10  __parent_ (never null for a node reachable from __begin_node_; the walk ends at
+   *  the tree's end node, which IS OZScene+0x610). */
+  __parent_: OZSceneTemporaryFileTreeNode | null;
+  /** +0x30  OZTemporaryFileInfo's first byte — the persistence flag, as a raw u8. */
+  persistFlagAt0x30: number;
+}
+
+/**
  * The iterator/range object returned by OZScene::end_all_sel() @0x50cc0.
  *
  * The function zero-fills most of the return record and stores a few fields
@@ -1604,5 +1642,127 @@ export class OZScene {
       this.lockDependenciesDirtyAt680 = 1;
     }
     // @0x578d5..0x578d6 — epilogue + retq (no return value).
+  }
+
+  /**
+   * +0x608 — `temporaryFiles.__begin_node_`: the leftmost node of the
+   * `std::map<PCString, OZScene::OZTemporaryFileInfo>` embedded at OZScene+0x608, i.e. the
+   * first entry in key order — or the tree's END node when the map is empty.
+   * Read by `movq 0x608(%rdi),%rax` @0x313d00.
+   */
+  temporaryFilesBeginNodeAt608: OZSceneTemporaryFileTreeNode | null = null;
+
+  /**
+   * +0x610 — `temporaryFiles.__end_node_`: the tree's past-the-end sentinel. In libc++ this is
+   * a SUBOBJECT, not a pointer, so the binary forms its address with `addq $0x610,%rdi`
+   * @0x313d07 and then compares node pointers against it (`cmpq %rdi,%rax` @0x313d0e,
+   * `cmpq %rdi,%rcx` @0x313d23). Its `__left_` is the tree root — which is exactly the word the
+   * sibling `persistTemporaryFile` loads as its search start (`movq 0x610(%rdi),%r13`
+   * @0x313c8e). Modelled as an identity-compared node handle.
+   */
+  temporaryFilesEndNodeAt610: OZSceneTemporaryFileTreeNode | null = null;
+
+  /**
+   * `OZScene::clearTemporaryFilesPersistence()` — @Ozone 0x313d00
+   *   `__ZN7OZScene30clearTemporaryFilesPersistenceEv`
+   *
+   * FULL transcription — every instruction, in order (30 lines; the `nop`/`nopl`/`nopw` are
+   * alignment padding and are not executed):
+   *
+   *   0x313d00  movq  0x608(%rdi),%rax     ; rax = temporaryFiles.__begin_node_
+   *   0x313d07  addq  $0x610,%rdi          ; rdi = &temporaryFiles.__end_node_  (the sentinel)
+   *   0x313d0e  cmpq  %rdi,%rax            ; AT&T: computes rax - rdi
+   *   0x313d11  je    0x313d5f             ;   begin == end -> empty map -> retq
+   *   0x313d13  pushq %rbp ; movq %rsp,%rbp
+   *   0x313d17  jmp   0x313d28             ; enter the loop at the BODY, not the advance
+   * .Lnext (0x313d20):
+   *   0x313d20  movq  %rcx,%rax            ; rax = successor
+   *   0x313d23  cmpq  %rdi,%rcx            ; successor == end ?
+   *   0x313d26  je    0x313d5e             ;   yes -> pop rbp ; retq
+   * .Lbody (0x313d28):
+   *   0x313d28  movb  $0x0,0x30(%rax)      ; node->value.second.persistFlag = 0   <-- THE WORK
+   *   0x313d2c  movq  0x8(%rax),%rdx       ; rdx = node->__right_
+   *   0x313d30  testq %rdx,%rdx
+   *   0x313d33  je    0x313d50             ;   no right subtree -> climb
+   * .Lleftmost (0x313d40):
+   *   0x313d40  movq  %rdx,%rcx            ; rcx = candidate
+   *   0x313d43  movq  (%rdx),%rdx          ; rdx = rdx->__left_
+   *   0x313d46  testq %rdx,%rdx
+   *   0x313d49  jne   0x313d40             ;   descend to the leftmost node of the right subtree
+   *   0x313d4b  jmp   0x313d20
+   * .Lclimb (0x313d50):
+   *   0x313d50  movq  0x10(%rax),%rcx      ; rcx = node->__parent_
+   *   0x313d54  cmpq  (%rcx),%rax          ; is node the parent's __left_ child?
+   *   0x313d57  movq  %rcx,%rax            ; node = parent   (executed before the branch)
+   *   0x313d5a  jne   0x313d50             ;   no -> keep climbing
+   *   0x313d5c  jmp   0x313d20             ;   yes -> parent is the successor
+   *   0x313d5e  popq  %rbp
+   *   0x313d5f  retq
+   *
+   * WHAT IT IS. A textbook libc++ in-order traversal — `.Lleftmost` + `.Lclimb` together are
+   * `std::__tree_next` inlined — that visits every entry of the map at +0x608 and stores 0 into
+   * the mapped value's first byte. Nothing else is read or written: no key is touched, no
+   * comparison against a key is made, no node is inserted or erased, the map's size word is
+   * untouched, and there is no callee of any kind (`depgraph.py deps` lists nothing). So the
+   * whole meaning is: *every temporary file's "persist" flag is cleared*, which is the
+   * counterpart to `persistTemporaryFile(name, b)` @0x313c80 setting that same byte at +0x30
+   * for ONE looked-up entry.
+   *
+   * DECODE NOTE (AT&T, per PORTING_SPEC's cheat-sheet). Both `cmpq`s compute `dst - src` with
+   * the SENTINEL in `%rdi` as the source: `cmpq %rdi,%rax ; je` is `rax == end`, the empty-map
+   * exit; `cmpq %rdi,%rcx ; je` is `successor == end`, the loop exit. And in `.Lclimb` the
+   * `movq %rcx,%rax` at 0x313d57 sits BETWEEN the compare and its branch — the flags are from
+   * `cmpq (%rcx),%rax` on the PRE-update `%rax`, so the test is "was the child I came from the
+   * parent's left child", while the node pointer has already advanced to the parent. The port
+   * keeps that ordering explicitly.
+   *
+   * The traversal is written here as the same three-block loop the binary uses rather than as a
+   * recursive or iterator-based walk, so each instruction has a counterpart.
+   */
+  clearTemporaryFilesPersistence(): void {
+    // @0x313d07 — the sentinel is the address of the embedded end node.
+    const end = this.temporaryFilesEndNodeAt610;
+    // @0x313d00 — rax = __begin_node_.
+    let node = this.temporaryFilesBeginNodeAt608;
+    // @0x313d0e/0x313d11 — cmpq %rdi,%rax ; je: empty map, nothing to clear.
+    if (node === end) return;
+
+    for (;;) {
+      // .Lbody @0x313d28 — movb $0x0,0x30(%rax): clear this entry's persistence flag.
+      // `node` cannot be null here: it is either __begin_node_ (checked against `end` above)
+      // or a successor produced below, and the walk stops the moment it reaches `end`.
+      const cur = node as OZSceneTemporaryFileTreeNode;
+      cur.persistFlagAt0x30 = 0;
+
+      // @0x313d2c/0x313d30/0x313d33 — rdx = node->__right_ ; testq ; je .Lclimb
+      let successor: OZSceneTemporaryFileTreeNode | null;
+      let rdx = cur.__right_;
+      if (rdx !== null) {
+        // .Lleftmost @0x313d40..0x313d49 — descend to the leftmost node of the right subtree.
+        let rcx = rdx;
+        for (;;) {
+          rcx = rdx;                       // @0x313d40  movq %rdx,%rcx
+          rdx = rdx.__left_;               // @0x313d43  movq (%rdx),%rdx
+          if (rdx === null) break;         // @0x313d46/0x313d49  testq ; jne .Lleftmost
+        }
+        successor = rcx;                   // @0x313d4b  jmp .Lnext (with rcx = successor)
+      } else {
+        // .Lclimb @0x313d50..0x313d5a — walk up while we came from a RIGHT child.
+        let rax = cur;
+        for (;;) {
+          const parent = rax.__parent_ as OZSceneTemporaryFileTreeNode; // @0x313d50
+          const cameFromLeft = parent.__left_ === rax;                  // @0x313d54 cmpq (%rcx),%rax
+          rax = parent;                                                 // @0x313d57 movq %rcx,%rax
+          if (cameFromLeft) {                                           // @0x313d5a jne .Lclimb
+            successor = parent;                                         // @0x313d5c jmp .Lnext
+            break;
+          }
+        }
+      }
+
+      // .Lnext @0x313d20..0x313d26 — advance, and stop when the successor is the end node.
+      node = successor;
+      if (successor === end) return;       // @0x313d23/0x313d26 (then 0x313d5e popq ; retq)
+    }
   }
 }
