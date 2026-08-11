@@ -66,12 +66,44 @@ if [ "$rc" = 3 ]; then echo "rebase_pr: PR #$PR not stale / nothing to rebase (r
 WT="$(bash raw-port/army/tools/wt_pool.sh acquire "$CLS")"
 [ -z "$WT" ] && { echo "rebase_pr: pool busy, retry"; exit 3; }
 cleanup_release () { bash raw-port/army/tools/wt_pool.sh release "$WT" >/dev/null 2>&1; }
+# Fetch BOTH refs. Fetching only the branch left `origin/main` at whatever the last fetch of that
+# ref had made it, so `rebase -q origin/main` below rebased onto a STALE main and force-pushed a
+# head that was BEHIND main by every file landed since. Seen on PR #504: the clean path pushed a
+# head whose `git diff origin/main --stat` showed 16 unrelated files missing (three ports, their
+# oracles, a tools test and an OPS_LOG section). regression_check caught it — the PR went red with
+# "regression (rebase needed)", which is how it came BACK to the rebase queue on attempt 2 of 3 —
+# but nothing had actually gone wrong with the PR: the rebase tool had made the staleness worse.
+# Rebasing onto a stale ref is never right; fetch first.
+git -C "$WT" fetch -q origin main 2>/dev/null
 git -C "$WT" fetch -q origin "$BR" 2>/dev/null
 git -C "$WT" checkout -q -B "$BR" "origin/$BR" 2>/dev/null
 if git -C "$WT" rebase -q origin/main >/tmp/rebase_pr_${PR}_reb.log 2>&1; then
   CHANGED=$(git -C "$WT" diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
   if [ -n "$CHANGED" ] && ! (cd "$WT" && bash raw-port/army/gate/gate.sh $CHANGED >/tmp/rebase_pr_${PR}_gate.log 2>&1); then
     echo "rebase_pr: clean rebase but gate FAILED — needs worker fix; worktree at $WT"; echo "REBASE_MANUAL"; exit 6
+  fi
+  # LAST GUARD before a force-push: refuse when the head we are about to publish is STALE — i.e.
+  # main has files this head does not. TWO dots, deliberately (reviewer-8 caught the first draft
+  # using three): a three-dot diff compares against the MERGE BASE, so anything that landed after
+  # that base is on neither side and can never appear, which makes it blind to exactly the
+  # staleness this guard exists for. Measured both ways on the reported scenario — the two-dot form
+  # lists the files that landed, the three-dot form returns empty.
+  #
+  # WHAT A HIT MEANS, precisely (see the CORRECTION at the top of OPS_LOG): it is NOT a deletion the
+  # merge would perform — GitHub applies the three-dot delta, so files landed after the base
+  # survive. It means this head is BEHIND main. Refusing is still right, for two reasons: branch
+  # protection requires an up-to-date head, so pushing a stale one only burns one of the three
+  # rebase attempts; and if main moved between our fetch and this push, our copies of the files we
+  # DID touch may be stale too — which is the case that actually loses work, and one no file list
+  # can detect.
+  STALE=$(git -C "$WT" diff --name-only --diff-filter=D origin/main HEAD | tr '\n' ' ')
+  if [ -n "${STALE// /}" ]; then
+    echo "rebase_pr: REFUSING to force-push — this head is BEHIND main (missing: $STALE)"
+    echo "  main moved after we fetched it. Re-run rebase_pr.sh; it fetches and rebases again."
+    echo "  (Those files are not being deleted — a merge applies the three-dot delta — but a stale"
+    echo "   head cannot merge under branch protection, and the copies of the files you DID touch"
+    echo "   may be stale as well, which is the case that loses work.)"
+    cleanup_release; exit 6
   fi
   git -C "$WT" push -f origin "HEAD:$BR" 2>/dev/null && { echo "REBASE_CLEAN: rebased $BR onto origin/main + gate PASS, force-pushed (PR #$PR in place)"; cleanup_release; exit 0; }
   echo "rebase_pr: push failed"; cleanup_release; exit 1
