@@ -102,9 +102,12 @@ REBASE_MANUAL: PR #$PR ($BR) has a shared-class-body / true conflict — WORKER 
        Add ONLY your net-new methods (the ones NOT already on main) into main's class body with the
        edit tool. Do NOT drop main's methods. Keep @0xADDR provenance.
     2. bash raw-port/army/gate/gate.sh $CONFLICT_FILES      # must print GATE: PASS
-    3. git -C "$WT" diff origin/main --stat                 # ONLY the files you edited may appear!
-       main moves while you merge; anything else listed would be DELETED by your force-push, and
-       gate.sh/G6 cannot see it (they only inspect the file you hand them). If so:
+    3. git -C "$WT" diff --name-only origin/main...HEAD     # THREE dots: what a merge applies.
+       Only files you edited may appear. (A two-dot `diff origin/main` in a worktree whose main has
+       moved lists later-landed files as D and looks like mass deletion — it is not; measured, see
+       the CORRECTION at the top of OPS_LOG.) The real risk is per-FILE: your copy of a file you DID
+       touch may predate main's, so your push reverts what landed in it, and gate.sh/G6 cannot see
+       that either. If anything is unexpected, or your base is stale:
          git -C "$WT" fetch origin main && git -C "$WT" reset --hard origin/main
        then re-apply your merge on top (copy your edited files aside first) and re-gate.
     4. git -C "$WT" add -A && git -C "$WT" commit -q -m "rebase $BR onto origin/main (re-apply net-new methods)"
