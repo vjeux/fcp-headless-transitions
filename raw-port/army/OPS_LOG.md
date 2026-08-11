@@ -4106,3 +4106,64 @@ rejected). Everything below was hit live and every number is measured on this bo
   `arch -x86_64 /usr/bin/python3`, which I reproduced. The reading-only review then missed a real
   lane-indexing defect that the differential kills 22/128 of. **Every `RenderTile_AVX` unit in the
   queue is oracle-able**; "Rosetta has no AVX" is not a reason to sign one on reading.
+
+
+---
+
+## Open — reported 2026-08-11 by worker 2 (the REBASE queue no-ops on every non-`.ts` PR and then CLOSES it; FIX in this change)
+
+- **`rebase_pr.sh` reports `not stale / nothing to rebase` for a PR that is genuinely CONFLICTING,
+  because `rebase_helper.py` returns exit 3 for "this branch changes no `.ts` files" — which is true
+  of every docs/tooling PR in the swarm. The rebase queue then re-offers the PR each cycle, and past
+  its 3-attempt cap `rebase_claim.sh` CLOSES it.** So the loop's end state is: approved work closed,
+  by a queue, for failing to do something whose own tool said there was nothing to do.
+
+  MEASURED END TO END on PR #400 (APPROVED by reviewer 2, +153 lines of OPS_LOG evidence):
+
+      $ gh api …/commits/25f9cc67/statuses --jq '.[0].description'
+      regression (rebase needed): DIRTY on OPS_LOG.md; content APPROVED by reviewer 2
+      $ bash raw-port/army/tools/rebase_pr.sh 400
+      rebase_pr: PR #400  branch=port/opslog_rev4  class=opslog_rev4
+      rebase_pr: PR #400 not stale / nothing to rebase (rebase_helper exit 3)
+
+  and `rebase_claim.sh claim` had handed me that PR seconds earlier. The close comment the cap
+  would post — "Closed after 3 rebase attempts on a stale-base shared-class conflict … the
+  append-only claim queue re-hands this symbol to a fresh worker" — is wrong twice over for this
+  class of PR: there is no shared class body, and there is no symbol to re-hand. Nothing re-creates
+  an OPS_LOG section.
+
+  WHY IT IS INVISIBLE: every message in the chain reads like success. `rebase_helper`'s 3 means
+  "no `.ts` changes" (reviewer 3 filed the undocumented-exit-code half of this today); `rebase_pr`
+  translates it to "not stale / nothing to rebase"; the attempt counter increments silently; and the
+  PR's own gate keeps saying `regression (rebase needed)`, which is the thing nobody acted on.
+
+  FIX (in this change), in the branch that reads that exit code:
+    * ask GitHub whether the PR merges (`gh pr view --json mergeable`), retrying while it answers
+      `UNKNOWN` — a guess there either declares a conflicted PR clean or churns a clean one, and an
+      unanswerable question is reported as unanswered rather than folded into "clean";
+    * if it merges, say so precisely ("changes no .ts files and merges cleanly") and stop;
+    * if it does not, do the work: lease a pool worktree, check out the PR head, **merge**
+      `origin/main` (not rebase) and push **without** `-f`. The result is a descendant of the PR
+      head, so this path can only ADD commits — it cannot drop a file, which is the property the
+      `.ts` paths need a name-list guard to recover (#25/#449);
+    * on a conflict, leave the worktree with the merge in progress and print the steps, including
+      the OPS_LOG-specific rule that a tail collision is two appended sections and **both** are
+      kept, plus the deletion check (`diff --unified=0 origin/main | grep '^-[^-]'` must be empty)
+      before the push.
+  Also `swarm_doctor.py` gains `rebase-actionable`, which asserts the guard is present in
+  `rebase_pr.sh` **on origin/main** and, separately, lists the open PRs in that class right now — so
+  the next occurrence is a line in the doctor's report rather than a worker's afternoon. It FAILS
+  against today's main and passes with this change. Its first live run named **nine** open PRs in
+  that class — #523, #553, #554, #557, #571, #614, #617, #621, #622 — i.e. the queue is not one PR
+  away from this; it is the normal state of every ops PR that has sat long enough to conflict.
+
+  WHAT I DID FOR #400 ITSELF, by hand, before writing any of this: merged current main, resolved the
+  one OPS_LOG tail collision keeping both sections, verified zero deletions against main and that
+  all 153 of the PR's own lines survive, pushed **non-force** (`25f9cc67..c13d91dc`). It is
+  `MERGEABLE` again and back in the review queue.
+
+  RELATED, NOT FIXED HERE: `rebase_claim.sh`'s cap closes PRs on a rationale written for the
+  shared-class-body case. For a PR carrying evidence rather than a symbol, closing is not a re-queue
+  — it is a deletion. The rework queue already learned this (it stops OFFERING and never closes,
+  "a human decides"); the rebase queue should adopt the same rule for any PR whose delta contains no
+  `raw-port/src/**/*.ts`.
