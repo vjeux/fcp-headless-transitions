@@ -258,3 +258,81 @@ export function OZCurveNodeParam_dtor(self: OZCurveNodeParam): void {
     }
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// SECOND FRAMEWORK: the same C++ class is compiled into Ozone as well
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// Everything above this line was transcribed from ProChannel. `OZCurveNodeParam` is also emitted
+// into Ozone.framework — the class is passed by reference across the curve-node API there
+// (`OZSimulationCurveNode::solveNode(OZCurveNodeParam&)` @Ozone 0x208d20,
+//  `OZBehaviorCurveNode::solveNode(OZCurveNodeParam&)` @Ozone 0x20b8f0,
+//  `OZMotionPathCurveNode::solveNode(OZCurveNodeParam&)` @Ozone 0x40d570, and ~20 more), so the
+// compiler emitted its own copy of the inline destructor into that binary. Ozone's copy is its
+// OWN ledger unit with its OWN address, which is why it is transcribed below instead of being
+// treated as a duplicate of the ProChannel dtor. Ozone defines exactly one destructor symbol for
+// the class (D1 @0x1dff20); there is no separate D0/D2 there.
+//
+// This is also an INDEPENDENT confirmation of the layout documented in the file header: the Ozone
+// body, compiled from the same header into a different framework, tests and loads exactly the
+// same four offsets — owns_b +0xa0, buf_b +0x98, owns_a +0x58, buf_a +0x50.
+
+/**
+ * `OZCurveNodeParam::~OZCurveNodeParam()` — @Ozone 0x1dff20
+ *   `__ZN16OZCurveNodeParamD1Ev`  (D1, complete-object destructor)
+ *
+ * Disassembly (regenerate with
+ *   `bash raw-port/tools/disasm.sh --sym __ZN16OZCurveNodeParamD1Ev Ozone`):
+ *   raw-port/re/disasm/__ZN16OZCurveNodeParamD1Ev.s   (24 lines)
+ *
+ * FULL transcription — every instruction, in order:
+ *
+ *   0x1dff20  cmpb  $0x1,0xa0(%rdi)     ; if (owns_b != 1)
+ *   0x1dff27  jne   0x1dff4f            ;   goto second_free
+ *   0x1dff29  movq  0x98(%rdi),%rax     ; rax = buf_b
+ *   0x1dff30  testq %rax,%rax           ; if (buf_b == nullptr)
+ *   0x1dff33  je    0x1dff4f            ;   goto second_free
+ *   0x1dff35  pushq %rbp                ; (frame set up ONLY on the calling path)
+ *   0x1dff36  movq  %rsp,%rbp
+ *   0x1dff39  pushq %rbx
+ *   0x1dff3a  pushq %rax                ; stack alignment
+ *   0x1dff3b  movq  %rdi,%rbx           ; save this across the call
+ *   0x1dff3e  movq  %rax,%rdi           ; arg = buf_b
+ *   0x1dff41  callq 0x6dfc30            ; symbol stub for __ZdaPv = operator delete[](void*)
+ *   0x1dff46  movq  %rbx,%rdi           ; restore this
+ *   0x1dff49  addq  $0x8,%rsp ; popq %rbx ; popq %rbp
+ *   0x1dff4f  cmpb  $0x1,0x58(%rdi)     ; second_free: if (owns_a != 1)
+ *   0x1dff53  jne   0x1dff62            ;   return
+ *   0x1dff55  movq  0x50(%rdi),%rdi     ; rdi = buf_a
+ *   0x1dff59  testq %rdi,%rdi           ; if (buf_a != nullptr)
+ *   0x1dff5c  jne   0x6dfc30            ;   musttail operator delete[](buf_a)
+ *   0x1dff62  retq
+ *   0x1dff63  nopw  %cs:(%rax,%rax)     ; alignment padding, never executed
+ *
+ * Two independent guarded `delete[]`s, buf_b first then buf_a, each requiring BOTH
+ * `owns_* == 1` (an exact byte compare against 1, not a truthiness test) AND a non-null pointer.
+ * Instruction-for-instruction the same shape as the ProChannel D2 @0x278b0 above, with two
+ * codegen-only differences that carry no semantics: Ozone skips the frame prologue entirely on
+ * the paths that never call (the prologue is emitted inside the first branch), and the final
+ * `delete[]` is reached by a conditional jump straight into the stub rather than a compare-then-
+ * tail-jump. Neither is observable.
+ *
+ * As with the ProChannel dtor, this is a base/complete-object destructor: it releases the owned
+ * heap arrays but does NOT free the OZCurveNodeParam itself. TypeScript has no `delete[]`, so the
+ * port drops the references — the same modelling the ProChannel dtor above uses.
+ */
+export function OZCurveNodeParam_dtor_d1(self: OZCurveNodeParam): void {
+  // @0x1dff20..0x1dff33 — if (owns_b == 1 && buf_b != null) delete[] buf_b;
+  if ((self.owns_b & 0xff) === 1) {
+    if (self.buf_b !== null) {
+      // @0x1dff41 callq operator delete[](void*)  __ZdaPv (Ozone stub 0x6dfc30)
+      self.buf_b = null;
+    }
+  }
+  // @0x1dff4f..0x1dff5c — if (owns_a == 1 && buf_a != null) delete[] buf_a;  (tail-jumped)
+  if ((self.owns_a & 0xff) === 1) {
+    if (self.buf_a !== null) {
+      // @0x1dff5c jne operator delete[](void*)  __ZdaPv (Ozone stub 0x6dfc30)
+      self.buf_a = null;
+    }
+  }
+}

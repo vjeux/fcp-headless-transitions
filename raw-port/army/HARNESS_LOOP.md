@@ -1,5 +1,10 @@
 # HARNESS_LOOP.md — how to run the raw-port loop in ANY harness (self-continuing)
 
+> **Dispatch prompts point at [`AGENT_ENTRY.md`](AGENT_ENTRY.md), not at a scratch file.**
+> A prompt should carry only your role and slot number; the startup contract (reading list, hard
+> invariants, priority, performance rules) lives in that repo file so a fix to it reaches every
+> future agent automatically. Briefs written to `/tmp` at launch time cannot do that.
+
 ────────────────────────────────────────────────────────────────────────────────
 ## START HERE — you have zero context. Read this, then act.
 ────────────────────────────────────────────────────────────────────────────────
