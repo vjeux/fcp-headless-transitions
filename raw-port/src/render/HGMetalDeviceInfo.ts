@@ -14,17 +14,22 @@
 //     __ZNK17HGMetalDeviceInfo5isAMDEv
 //   * HGMetalDeviceInfo::isBuiltin() const         @Helium 0x1c55a0
 //     __ZNK17HGMetalDeviceInfo9isBuiltinEv
+//   * HGMetalDeviceInfo::isExternal() const        @Helium 0x1c55c0
+//     __ZNK17HGMetalDeviceInfo10isExternalEv
 //
 // re/disasm:
 //   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo7isAppleEv.s
 //   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo7isIntelEv.s
 //   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo5isAMDEv.s
 //   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo9isBuiltinEv.s
-//   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo10isExternalEv.s  (isExternal — read ONLY
-//                                                                       to pin the +0x28 field's
-//                                                                       offset/width; that method
-//                                                                       is a separate ledger entry
-//                                                                       and is NOT ported here)
+//   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo10isExternalEv.s
+//   raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo9isSlottedEv.s    (isSlotted — read ONLY to
+//                                                                       pin the +0x28 slot as an
+//                                                                       enum by supplying the
+//                                                                       third immediate (1); that
+//                                                                       method is a separate
+//                                                                       ledger entry and is NOT
+//                                                                       ported here)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (6 lines, @0x1c5510..@0x1c551f)
@@ -55,6 +60,35 @@
 // PCI vendor id (0x106b = Apple Inc., 0x8086 = Intel Corporation) rather than
 // a device-family ordinal. The field's TS name is left unchanged from the
 // landed `isApple` port (renaming a landed member would be a regression).
+//
+// -----------------------------------------------------------------------------
+// FULL DISASM (7 lines, @0x1c55c0..@0x1c55cd)
+// -----------------------------------------------------------------------------
+//   __ZNK17HGMetalDeviceInfo10isExternalEv:
+//     0x1c55c0  pushq   %rbp
+//     0x1c55c1  movq    %rsp, %rbp
+//     0x1c55c4  cmpl    $0x2, 0x28(%rdi)      ; *(u32*)(this+0x28) - 2   (AT&T: dst - src)
+//     0x1c55c8  sete    %al                   ; al = ZF = (field == 2)
+//     0x1c55cb  popq    %rbp
+//     0x1c55cc  retq
+//     0x1c55cd  nopl    (%rax)                ; padding
+//
+// A SECOND field. `isApple`/`isIntel`/`isAMD` read the vendor id at +0x20;
+// `isBuiltin`/`isExternal` read a different u32 at +0x28, and the third
+// neighbour in the text section reads that SAME slot against 1:
+//     isBuiltin()  @0x1c55a0 — `cmpl $0x0, 0x28(%rdi) ; sete %al`   (ported here)
+//     isSlotted()  @0x1c55b0 — `cmpl $0x1, 0x28(%rdi) ; sete %al`   (separate ledger entry)
+//     isExternal() @0x1c55c0 — `cmpl $0x2, 0x28(%rdi) ; sete %al`   (ported here)
+// Three mutually exclusive equality tests against 0/1/2 on one dword, laid out
+// 0x10 apart, identify +0x28 as a cached device-LOCATION enum (built-in / slot /
+// external), NOT a flag word: were it a bitfield the compiler would emit a
+// `testl $imm` + `setne`, not `cmpl`/`sete`.
+//
+// Note the contrast with `isRemovable()` @0x1c5560, which is NOT part of this
+// family: it forwards to the ObjC MTLDevice at +0x10
+// (`movq 0x10(%rdi),%rdi ; objc_msgSend isRemovable @0x1c556f`). So Helium caches
+// the location enum at +0x28 but leaves removability to the live Metal object —
+// which is why "external" cannot be modelled as "removable".
 //
 // -----------------------------------------------------------------------------
 // FRONTIER CALLEES
@@ -100,8 +134,12 @@ export class HGMetalDeviceInfo {
    * evidence for "small enum", and it is all the evidence there is: no
    * enumerator NAMES are decoded here, and the writer lives in the
    * not-yet-ported device-probing path, so the field is only observed as a
-   * read. `isExternal()` itself is a separate ledger entry and is NOT ported
-   * in this commit.
+   * read. `isExternal()` @0x1c55c0 is now ported in this same file (below), and
+   * the third sibling `isSlotted()` @0x1c55b4 tests the SAME slot against 1
+   * (`cmpl $0x1, 0x28(%rdi)`) — three mutually exclusive `cmpl`/`sete` equality
+   * tests against 0/1/2 on one dword, which is what makes "small enum" rather
+   * than "bit set" the reading: a bitfield would compile to `testl $imm` +
+   * `setne`. `isSlotted()` remains a separate ledger entry, NOT ported here.
    */
   deviceLocation_at_0x28: number = 0;
 
@@ -252,5 +290,52 @@ export class HGMetalDeviceInfo {
     //   ZF (sete) is set iff the u32 location field equals 0 — strict
     //   equality on the full 32 bits, not a truthiness test.
     return (this.deviceLocation_at_0x28 >>> 0) === 0;
+  }
+
+  /**
+   * `HGMetalDeviceInfo::isExternal() const` — @Helium 0x1c55c0
+   * (__ZNK17HGMetalDeviceInfo10isExternalEv).
+   *
+   * Faithful transcription of the 7-line disassembly quoted in the header
+   * (raw-port/re/disasm/Helium.__ZNK17HGMetalDeviceInfo10isExternalEv.s):
+   *
+   *   0x1c55c4  cmpl $0x2, 0x28(%rdi)   ; *(u32*)(this+0x28) - 2
+   *   0x1c55c8  sete %al                ; al = ZF = (field == 2)
+   *
+   * Returns whether the cached device-location enum at this[+0x28] equals 2 —
+   * the "external" enumerator, as fixed by the sibling pair `isBuiltin()`
+   * (== 0, @0x1c55a4) and `isSlotted()` (== 1, @0x1c55b4) reading the same slot.
+   * STRICT equality (`sete`, ZF), not a range or truthiness test: the machine
+   * emits `cmpl`/`sete`, never `setae`/`setne`, so `=== 2` is mirrored exactly.
+   * Note this reads a DIFFERENT field from `isApple`/`isIntel`/`isAMD`, which
+   * test the vendor id at +0x20.
+   *
+   * No in-scope callees, no externs, no indirect calls (a pure field compare);
+   * `depgraph.py deps __ZNK17HGMetalDeviceInfo10isExternalEv` reports nothing.
+   * The `const` qualifier matches the `__ZNK...` mangling; the body only reads.
+   *
+   * ORACLE: verified against the live Helium binary. The symbol is EXPORTED
+   * (`nm -arch x86_64` type `T` @0x1c55c0), so the harness dlopens Helium under
+   * `arch -x86_64 /usr/bin/python3` (the port is transcribed from the x86_64
+   * slice; calling the arm64 image would compare against a body this port never
+   * read) and calls the real method on a 0x200-byte object pre-filled with 0x5A,
+   * with the location dword planted at +0x28. 422 cases (0..5, INT_MAX,
+   * 0x80000000, 0xffffffff, 0xfffffffe, width-probing values whose low byte or
+   * low 16 bits are 2 with a non-zero upper half, 200 random u32s and 200 draws
+   * from {0,1,2,3}): 422/422 identical to this port, 0 objects mutated (it is a
+   * pure read), and on every case the real `isBuiltin`/`isSlotted` answered
+   * `loc==0`/`loc==1` — i.e. the three really are one dword at +0x28, never two
+   * true at once.
+   * NEGATIVE CONTROLS (measured, same 422 cases): truthiness instead of `== 2`
+   * -> 320 wrong; a `>= 2` range test -> 271 wrong; comparing against 1 -> 102
+   * wrong; reading the +0x20 vendor slot -> 53 wrong; a 16-bit compare instead
+   * of the machine's 32-bit `cmpl` -> 5 wrong (that last control is why the
+   * corpus carries the 0x____0002 values: without them it proves nothing).
+   */
+  isExternal(): boolean {
+    // @0x1c55c4-0x1c55c8: cmpl $0x2, 0x28(%rdi) ; sete %al
+    //   ZF (sete) is set iff the u32 field equals 2 — strict equality, full
+    //   32-bit width (`>>> 0` models the u32 read the `cmpl` performs).
+    return (this.deviceLocation_at_0x28 >>> 0) === 2;
   }
 }
