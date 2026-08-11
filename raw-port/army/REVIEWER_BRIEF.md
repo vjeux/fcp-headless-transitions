@@ -25,6 +25,12 @@ empty. There is no per-batch cap. The `gh pr list` loop described below is what 
 automates — you no longer hand-pick;
 you handle exactly the PR it leases you.
 
+**Filing what you find:** a NEW failure mode goes in its own file —
+`bash raw-port/army/tools/new_ops_entry.sh "<short title>"` prints a pre-filled path under
+`raw-port/army/ops/`; commit only that file. Two agents' findings then touch two files and land
+independently, where appending to `OPS_LOG.md` had every pair of ops reports conflicting by
+construction. Keep READING `OPS_LOG.md` — the archive does not move.
+
 ## PR FLOW — YOU ARE THE CI. Read `raw-port/army/PR_FLOW.md` first.
 Merging happens through GitHub Pull Requests.
 The faithfulness oracle dlsym's the REAL Final Cut Pro binary (only runs on vjeux-mac; a self-hosted
