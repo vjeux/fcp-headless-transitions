@@ -29,6 +29,10 @@ import platform
 import random
 import struct
 import subprocess
+
+# A driver that does not terminate is a mutant that was KILLED, not a pending result: two of them
+# held a core for 2h31m before anyone noticed. See re/oracle/oracle_driver.py for the full account.
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -297,7 +301,7 @@ def main():
     if "--no-ts" not in sys.argv:
         drv = os.path.join(HERE, "HgcScaleBiasCrop_RenderTile_AVX_driver.ts")
         p = subprocess.run(["npx", "tsx", drv], cwd=RAWPORT,
-                           input=json.dumps(wire), capture_output=True, text=True)
+                           input=json.dumps(wire), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
         if p.returncode != 0:
             print("TS driver failed:\n" + p.stdout[-2000:] + p.stderr[-2000:])
             return 2

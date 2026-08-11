@@ -38,6 +38,7 @@ prologue bytes at slide+vmaddr are checked before any number is trusted.
 USAGE:  arch -x86_64 /usr/bin/python3 HGString_destroy_oracle.py
 """
 import ctypes, json, os, subprocess, sys
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -205,7 +206,7 @@ def run_ts():
     payload = json.dumps([{"name": n, "alloc": a, "rc": c, "extra": x}
                           for n, a, c, x in CASES])
     out = subprocess.run(["node", "--experimental-strip-types", driver],
-                         input=payload, capture_output=True, text=True)
+                         input=payload, capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if out.returncode != 0:
         raise SystemExit("TS driver failed:\n%s\n%s" % (out.stdout, out.stderr))
     return json.loads(out.stdout)

@@ -30,6 +30,7 @@ import ctypes, json, os, struct, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from ozone_loader import local_fn, require_x86_64  # noqa: E402
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 require_x86_64()
 
@@ -78,7 +79,7 @@ def ts_side(shifts):
     driver = os.path.join(HERE, "copyCropValues_nullpath_driver.mts")
     p = subprocess.run(["node", "--experimental-strip-types", driver],
                        input=json.dumps({"shifts": [int(s) for s in shifts]}),
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if p.returncode != 0:
         print("TS DRIVER FAILED:\n" + p.stderr, file=sys.stderr)
         sys.exit(2)

@@ -9,20 +9,22 @@
 # NOT the reviewer (adversary — must not gate its own edits). This tool sets up the rebase in a warm
 # pool worktree, auto-resolves what it safely can, and for a shared-class-body conflict PREPARES the
 # worktree (main's current file + the branch's net-new methods extracted) so the worker re-applies
-# them with the edit tool, then re-gates and force-pushes the SAME branch (the PR updates in place;
-# NO new PR). Never touches main.
+# them with the edit tool, then re-gates and pushes the SAME branch (the PR updates in place; NO new
+# PR). Never touches main, and NEVER force-pushes: every path here MERGES current main in, so the
+# published head is always a descendant of the PR head and a plain push fast-forwards. See the long
+# note at the clean path for why the rebase-and-force it used to do cost more than it bought.
 #
 # USAGE: rebase_pr.sh <PR#>
 #   Prints one of:
-#     REBASE_CLEAN   — git rebase onto origin/main applied with no conflict; force-pushed. Done.
-#     REBASE_UNION   — rebase_helper unioned disjoint top-level exports; pushed. Done.
+#     REBASE_CLEAN   — origin/main merged in with no conflict; fast-forward pushed. Done.
+#     REBASE_UNION   — rebase_helper unioned disjoint top-level exports; published as a merge. Done.
 #     REBASE_MANUAL  — shared-class-body conflict. The worktree is prepared at $WT with:
 #                        raw-port/src/<file>  = main's CURRENT version (findFirstChild/etc intact)
 #                        /tmp/rebase_pr_<PR>_theirs/<file> = the branch's version (your net-new methods)
 #                      RE-APPLY your net-new methods into main's class body with the edit tool, then:
 #                        bash raw-port/army/gate/gate.sh <file>   # must PASS
 #                        git -C "$WT" add -A && git -C "$WT" commit -m "rebase port/<Class> onto main"
-#                        git -C "$WT" push -f origin HEAD:<branch>
+#                        git -C "$WT" push origin HEAD:<branch>     # NO -f, ever
 #                        bash raw-port/army/tools/wt_pool.sh release "$WT"
 #                      The worker AGENT completes this step (it needs judgment); the PR then re-gates.
 set -uo pipefail
@@ -30,11 +32,61 @@ PR="${1:?usage: rebase_pr.sh <PR#>}"
 SLUG="vjeux/fcp-headless-transitions"; CANON="$HOME/random/final-cut-pro-transitions"; cd "$CANON"
 git fetch -q origin main 2>/dev/null || true
 
-BR=$(gh pr view "$PR" --repo "$SLUG" --json headRefName --jq .headRefName 2>/dev/null)
-[ -z "$BR" ] && { echo "rebase_pr: PR #$PR not found"; exit 1; }
+# A TRANSPORT FAILURE IS NOT A VERDICT, and this lookup used to report one as the other. The corp
+# TLS proxy fails intermittently on this box — `Post "https://api.github.com/graphql": tls: failed
+# to verify certificate: x509: certificate signed by unknown authority`, measured 3 times in 25
+# minutes by one reviewer and twice in one minute here — and with stderr swallowed by 2>/dev/null
+# an empty answer printed `rebase_pr: PR #656 not found` about a PR that was open, conflicted and
+# had just been handed to me by rebase_claim. Two costs, both real: the worker is told the wrong
+# thing (I went looking for a deleted PR), and the rebase LEASE is already charged, so the queue
+# has spent one of the PR's three attempts on a blip. Retry, and when the query still cannot be
+# answered say THAT instead of inventing a fact about the PR.
+BR=""; LOOKUP_ERR=""
+for _try in 1 2 3; do
+  BR=$(gh pr view "$PR" --repo "$SLUG" --json headRefName --jq .headRefName 2>/tmp/rebase_pr_${PR}_lookup.err)
+  [ -n "$BR" ] && break
+  LOOKUP_ERR=$(tr -d '\r' < /tmp/rebase_pr_${PR}_lookup.err | tail -1)
+  sleep $((_try * 2))
+done
+if [ -z "$BR" ]; then
+  # GitHub ANSWERING "there is no such PR" is a verdict; anything else is the transport. Told apart
+  # by the error text, because both arrive as an empty stdout and a non-zero exit:
+  #   verdict    GraphQL: Could not resolve to a PullRequest with the number of 999999.
+  #   transport  Post "https://api.github.com/graphql": tls: failed to verify certificate: ...
+  if printf '%s' "$LOOKUP_ERR" | grep -qiE 'could not resolve to a (pullrequest|repository)|no pull requests found'; then
+    echo "rebase_pr: PR #$PR not found (GitHub answered: $LOOKUP_ERR)"; exit 1
+  fi
+  if [ -n "$LOOKUP_ERR" ]; then
+    echo "rebase_pr: could not READ PR #$PR after 3 tries — this is a transport failure, not a"
+    echo "           verdict about the PR. Last error: $LOOKUP_ERR"
+    echo "           Re-run; if it persists, check \`gh auth status\`. The PR has NOT been examined."
+    exit 7
+  fi
+  echo "rebase_pr: PR #$PR not found (gh answered, and it has no head branch)"; exit 1
+fi
 CLS="${BR#port/}"; CLS="${CLS%_rebased}"
-echo "rebase_pr: PR #$PR  branch=$BR  class=$CLS"
+# THE PR'S BASE IS NOT ALWAYS main, AND MERGEABILITY IS COMPUTED AGAINST THE BASE. This tool used to
+# merge/rebase `origin/main` unconditionally, so for a STACKED PR (base = another open branch) the
+# remedy could not clear the conflict no matter how many times it ran: the queue re-offers the PR,
+# each attempt merges main again, the PR stays CONFLICTING, and at 3/3 the cap fires. Measured
+# 2026-08-11 on #656 (`tools/slot-liveness`, base `tools/reap-dead-counters`), which took TWO
+# main-merges from two different agents — mine and a peer's, minutes apart — and stayed DIRTY;
+# merging the actual base resolved one conflicted file and GitHub reported CLEAN within seconds.
+# `git merge-tree origin/main <head>` says "clean" the whole time, so the local preview and GitHub
+# disagree for a reason that has nothing to do with `.gitattributes merge=union` — the two commands
+# are answering questions about DIFFERENT base commits.
+BASE=$(gh pr view "$PR" --repo "$SLUG" --json baseRefName --jq .baseRefName 2>/dev/null)
+[ -z "$BASE" ] && BASE=main            # gh silent -> assume the common case, and say so below
+git fetch -q origin "$BASE" 2>/dev/null || true
+if [ "$BASE" != "main" ]; then
+  echo "rebase_pr: PR #$PR is STACKED — its base is '$BASE', not main; the merge below targets that branch"
+fi
+echo "rebase_pr: PR #$PR  branch=$BR  base=$BASE  class=$CLS"
 
+# NOTE for the paths below: rebase_helper and the .ts rebase still work against origin/main. Every
+# `port/<Class>` branch in this swarm is cut from main, so that is right today — but if a STACKED
+# .ts PR ever appears, rebasing it onto main would publish its base branch's commits as its own. The
+# warning printed above is the signal; swarm_doctor's `pr-base` check counts them.
 # ---- Attempt 1: rebase_helper (handles up-to-date + disjoint-top-level-export union) ----
 # --pr, not "$CLS": a class can have several open PRs on `port/<Class>__slot<N>` branches, and the
 # class-keyed form resolved to whichever one held the bare name — handing back a DIFFERENT agent's
@@ -71,10 +123,43 @@ if [ "$rc" = 0 ]; then
     echo "rebase_pr: REFUSING to force-push — the rebased branch is missing files the PR has: $MISSING"
     echo "REBASE_MANUAL"; exit 6
   fi
-  git push -f origin "refs/remotes/origin/${RB}:refs/heads/$BR" 2>/dev/null \
-    && { echo "REBASE_UNION: force-pushed union result onto $BR (PR #$PR updates in place)"; \
-         git push -q origin --delete "${RB}" 2>/dev/null || true; exit 0; }
-  echo "REBASE_UNION: pushed ${RB} (reviewer merges that)"; exit 0
+  # PUBLISH THE UNION AS A MERGE COMMIT, NOT AS A FORCE-PUSH.
+  #
+  # rebase_helper builds its union on top of main, so `origin/$RB` is NOT a descendant of the PR
+  # head and cannot fast-forward onto it — which is why this used to force. But nothing here needs
+  # the union's HISTORY; what was verified, by the gate and by the file-list comparison directly
+  # above, is its TREE. So commit that exact tree with two parents (the PR head and main) and push
+  # it forward. Identical content to what the force-push published, byte for byte — `git diff
+  # <union> HEAD` is empty, asserted below — and the branch only gains a commit, so no work on it
+  # can be replaced by this operation.
+  #
+  # The distinction is not academic here: this is the path that publishes onto a branch a REVIEWER
+  # may already have signed, and a force-push onto a commit that is already on main CLOSES the PR
+  # outright (observed today; restoring the branch does not reopen it).
+  UT=$(git rev-parse "refs/remotes/origin/${RB}^{tree}")
+  MC=$(git commit-tree "$UT" -p "refs/remotes/origin/$BR" -p "origin/main" \
+         -m "union rebase of $BR onto origin/main (rebase_helper)
+
+Tree is rebase_helper's verified union result, published as a merge of the PR head and
+current main so the branch fast-forwards instead of being rewritten." 2>/dev/null)
+  if [ -z "$MC" ]; then
+    echo "rebase_pr: could not build the union merge commit — NOT forcing. Worktree untouched."
+    echo "REBASE_MANUAL"; exit 6
+  fi
+  # The merge commit must carry the union's tree EXACTLY. commit-tree cannot merge anything (it just
+  # records the tree it is handed), so this can only fail if $UT was misread — but a wrong tree here
+  # would publish silently, so assert rather than assume.
+  if [ -n "$(git diff --name-only "$MC" "refs/remotes/origin/${RB}")" ]; then
+    echo "rebase_pr: the union merge commit does not match the union tree — refusing to push."
+    echo "REBASE_MANUAL"; exit 6
+  fi
+  if git push origin "$MC:refs/heads/$BR" 2>/tmp/rebase_pr_${PR}_push.log; then
+    echo "REBASE_UNION: published rebase_helper's union onto $BR as a fast-forward merge (PR #$PR in place)"
+    git push -q origin --delete "${RB}" 2>/dev/null || true
+    exit 0
+  fi
+  echo "rebase_pr: could not fast-forward $BR ($(tail -1 "/tmp/rebase_pr_${PR}_push.log" 2>/dev/null))"
+  echo "REBASE_UNION: the union is on ${RB}; a peer moved $BR under us, so it was NOT forced."; exit 0
 fi
 # ---- rebase_helper exit 3 = "this branch changes no .ts files" --------------------------------
 # THAT IS NOT "nothing to rebase", and printing it as one turned the REBASE QUEUE into a no-op loop
@@ -101,25 +186,33 @@ if [ "$rc" = 3 ]; then
   if [ -z "$MRG" ] || [ "$MRG" = "UNKNOWN" ]; then
     echo "rebase_pr: PR #$PR changes no .ts files and GitHub will not say whether it merges (${MRG:-no answer}) — NOT claiming it is clean"; exit 3
   fi
-  echo "rebase_pr: PR #$PR changes no .ts files and is $MRG — rebase_helper cannot see it; merging origin/main in place"
+  echo "rebase_pr: PR #$PR changes no .ts files and is $MRG — rebase_helper cannot see it; merging origin/$BASE in place"
   WT="$(bash raw-port/army/tools/wt_pool.sh acquire "${CLS//\//_}")"
   [ -z "$WT" ] && { echo "rebase_pr: pool busy, retry"; exit 3; }
-  git -C "$WT" fetch -q origin "$BR" 2>/dev/null; git -C "$WT" fetch -q origin main 2>/dev/null
+  git -C "$WT" fetch -q origin "$BR" 2>/dev/null; git -C "$WT" fetch -q origin "$BASE" 2>/dev/null
   git -C "$WT" checkout -q -B "$BR" "origin/$BR" 2>/dev/null || {
     echo "rebase_pr: cannot check out $BR"; bash raw-port/army/tools/wt_pool.sh release "$WT" >/dev/null 2>&1; exit 1; }
   # A MERGE, and pushed WITHOUT -f. The result is a descendant of the PR head, so the branch can
   # only GAIN commits: this path cannot drop a file, which is the property the .ts paths need a
   # name-list guard to recover (#25/#449) and the reason not to reuse `rebase` here.
-  if git -C "$WT" merge --no-edit origin/main >/tmp/rebase_pr_${PR}_merge.log 2>&1; then
+  if git -C "$WT" merge --no-edit "origin/$BASE" >/tmp/rebase_pr_${PR}_merge.log 2>&1; then
     if git -C "$WT" push origin "HEAD:$BR" >/dev/null 2>&1; then
-      echo "REBASE_CLEAN: merged current origin/main into $BR and pushed (PR #$PR updates in place)"
+      echo "REBASE_CLEAN: merged current origin/$BASE into $BR and pushed (PR #$PR updates in place)"
+      # A stacked PR that now merges cleanly still cannot MOVE: since #670, pr_gate refuses to judge
+      # a non-main base (its verdict would cover the whole stack) and pr_land refuses to merge one
+      # (it would bypass main's protection). Say the same remedy pr_gate says, or the next reader
+      # sees a green in-place merge and assumes the PR is unblocked.
+      if [ "$BASE" != "main" ]; then
+        echo "  NOTE: this PR's base is '$BASE', so pr_gate will refuse to judge it and pr_land will"
+        echo "        refuse to merge it. Remedy (no code change): gh pr edit $PR --repo $SLUG --base main"
+      fi
       bash raw-port/army/tools/wt_pool.sh release "$WT" >/dev/null 2>&1; exit 0
     fi
     echo "rebase_pr: merge was clean but the push failed — worktree left at $WT"; exit 1
   fi
   CONF=$(git -C "$WT" diff --name-only --diff-filter=U | tr '\n' ' ')
   cat <<NONSRC
-REBASE_MANUAL: PR #$PR ($BR) changes no .ts files and CONFLICTS with main — WORKER AGENT finishes it.
+REBASE_MANUAL: PR #$PR ($BR) changes no .ts files and CONFLICTS with its base ($BASE) — WORKER AGENT finishes it.
   Pool worktree, on $BR at the PR head, with the merge IN PROGRESS:  $WT
   Conflicted:  $CONF
   STEPS:
@@ -127,9 +220,9 @@ REBASE_MANUAL: PR #$PR ($BR) changes no .ts files and CONFLICTS with main — WO
        APPENDED AT THE TAIL by two PRs: keep BOTH, in either order — never choose between them, and
        never take one side wholesale. A hunk with a NON-EMPTY base is a real edit collision and
        needs reading.
-    2. git -C "$WT" diff --unified=0 origin/main -- <file> | grep '^-[^-]'    # must print NOTHING:
-       publishing this branch must not delete a line that is on main.
-    3. git -C "$WT" add <files> && git -C "$WT" commit -q -m "merge origin/main into $BR"
+    2. git -C "$WT" diff --unified=0 origin/$BASE -- <file> | grep '^-[^-]'    # must print NOTHING:
+       publishing this branch must not delete a line that is on its base.
+    3. git -C "$WT" add <files> && git -C "$WT" commit -q -m "merge origin/$BASE into $BR"
     4. git -C "$WT" push origin "HEAD:$BR"      # NO -f: this is a descendant of the PR head
     5. bash raw-port/army/tools/wt_pool.sh release "$WT"
   To abandon instead: git -C "$WT" merge --abort, then release the worktree.
@@ -152,7 +245,30 @@ cleanup_release () { bash raw-port/army/tools/wt_pool.sh release "$WT" >/dev/nul
 git -C "$WT" fetch -q origin main 2>/dev/null
 git -C "$WT" fetch -q origin "$BR" 2>/dev/null
 git -C "$WT" checkout -q -B "$BR" "origin/$BR" 2>/dev/null
-if git -C "$WT" rebase -q origin/main >/tmp/rebase_pr_${PR}_reb.log 2>&1; then
+# MERGE, NOT REBASE — so the push that follows needs no -f.
+#
+# `git rebase` REWRITES the branch's commits, which is the only reason this tool ever had to force.
+# Nothing wanted the rewrite: pr_land ends in `gh pr merge --squash`, so main's linear history comes
+# from the SQUASH, not from the shape of the feature branch. The force-push was paying a real price
+# for a property we were already getting for free, and the price is on record — 45 mentions in
+# OPS_LOG and three destructive incidents, each of which needed its own guard afterwards:
+#   * #449: a force-push dropped files the PR had (an oracle harness), so rebase_helper needed a
+#     file-list post-condition to recover them;
+#   * 92 reviewer-verified lines replaced by an EMPTY branch on an APPROVED PR when a prepare step
+#     died silently — git_push_as.sh had to grow a refusal, whose own comment concedes "no gate can
+#     catch this: the destruction happens at the push, before any gate sees the head";
+#   * a force-push to a commit already on main CLOSES the PR, and restoring the branch does not
+#     reopen it (observed today: head_ref_force_pushed and closed in the same second).
+# A merge cannot do any of those, because it can only ADD commits: the result is a descendant of the
+# PR head, so the branch can only gain. That is the argument the no-.ts path in this same file has
+# always made ("this path cannot drop a file"); it just was not applied to the path that handles
+# most PRs.
+#
+# It also fixes a reviewing problem: a rebase-and-force-push MOVES THE HEAD, which makes a standing
+# CHANGES_REQUESTED go stale and re-qualifies the PR for the review queue looking unreviewed. A
+# merge moves the head too, but the rejected commit is still IN the history rather than replaced by
+# a rewritten copy of itself, so the review trail survives.
+if git -C "$WT" merge --no-edit origin/main >/tmp/rebase_pr_${PR}_reb.log 2>&1; then
   CHANGED=$(git -C "$WT" diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
   if [ -n "$CHANGED" ] && ! (cd "$WT" && bash raw-port/army/gate/gate.sh $CHANGED >/tmp/rebase_pr_${PR}_gate.log 2>&1); then
     echo "rebase_pr: clean rebase but gate FAILED — needs worker fix; worktree at $WT"; echo "REBASE_MANUAL"; exit 6
@@ -173,15 +289,27 @@ if git -C "$WT" rebase -q origin/main >/tmp/rebase_pr_${PR}_reb.log 2>&1; then
   # can detect.
   STALE=$(git -C "$WT" diff --name-only --diff-filter=D origin/main HEAD | tr '\n' ' ')
   if [ -n "${STALE// /}" ]; then
-    echo "rebase_pr: REFUSING to force-push — this head is BEHIND main (missing: $STALE)"
+    echo "rebase_pr: REFUSING to push — this head is BEHIND main (missing: $STALE)"
     echo "  main moved after we fetched it. Re-run rebase_pr.sh; it fetches and rebases again."
     echo "  (Those files are not being deleted — a merge applies the three-dot delta — but a stale"
     echo "   head cannot merge under branch protection, and the copies of the files you DID touch"
     echo "   may be stale as well, which is the case that loses work.)"
     cleanup_release; exit 6
   fi
-  git -C "$WT" push -f origin "HEAD:$BR" 2>/dev/null && { echo "REBASE_CLEAN: rebased $BR onto origin/main + gate PASS, force-pushed (PR #$PR in place)"; cleanup_release; exit 0; }
-  echo "rebase_pr: push failed"; cleanup_release; exit 1
+  # NO -f. The merge above makes this a descendant of the PR head, so a plain push fast-forwards.
+  # If it is ever REJECTED as non-fast-forward, that means a peer moved the branch while we worked —
+  # which is information, not an obstacle to bulldoze. Say so and stop; forcing here is precisely
+  # how a peer's parallel history gets overwritten.
+  if git -C "$WT" push origin "HEAD:$BR" 2>/tmp/rebase_pr_${PR}_push.log; then
+    echo "REBASE_CLEAN: merged origin/main into $BR + gate PASS, fast-forward push (PR #$PR in place)"
+    cleanup_release; exit 0
+  fi
+  if grep -qE "non-fast-forward|fetch first|rejected" "/tmp/rebase_pr_${PR}_push.log" 2>/dev/null; then
+    echo "rebase_pr: the branch moved under us — a peer pushed to $BR while this ran."
+    echo "  NOT forcing. Re-run rebase_pr.sh; it fetches and merges again from their head."
+    cleanup_release; exit 6
+  fi
+  echo "rebase_pr: push failed: $(tail -2 "/tmp/rebase_pr_${PR}_push.log" 2>/dev/null)"; cleanup_release; exit 1
 fi
 # ---- Conflict: prepare the worktree for the WORKER AGENT to re-apply net-new methods ----
 git -C "$WT" rebase --abort 2>/dev/null || true
@@ -218,10 +346,12 @@ REBASE_MANUAL: PR #$PR ($BR) has a shared-class-body / true conflict — WORKER 
          git -C "$WT" fetch origin main && git -C "$WT" reset --hard origin/main
        then re-apply your merge on top (copy your edited files aside first) and re-gate.
     4. git -C "$WT" add -A && git -C "$WT" commit -q -m "rebase $BR onto origin/main (re-apply net-new methods)"
-    5. git -C "$WT" fetch origin main && git -C "$WT" rebase origin/main   # <- pr_submit.sh does
-       this for a PORT commit, which is exactly why the port path never publishes a stale base;
-       this path force-pushes what you wrote, so do it here by hand.
-       git -C "$WT" push -f origin "HEAD:$BR"               # updates PR #$PR in place
+    5. git -C "$WT" fetch origin main && git -C "$WT" merge --no-edit origin/main
+       git -C "$WT" push origin "HEAD:$BR"     # NO -f — updates PR #$PR in place
+       MERGE, and push WITHOUT -f. A merge can only ADD commits, so it cannot drop a file, cannot
+       replace a reviewer's work, and cannot close the PR (a force-push onto a commit already on
+       main does exactly that, and restoring the branch does not reopen it). If the push is
+       rejected as non-fast-forward, a peer moved the branch: fetch and merge THEIR head. Never -f.
     6. bash raw-port/army/tools/wt_pool.sh release "$WT"
 MANUAL
 exit 6

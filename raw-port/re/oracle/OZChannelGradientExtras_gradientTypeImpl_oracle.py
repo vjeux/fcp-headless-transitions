@@ -41,6 +41,10 @@ import ctypes
 import json
 import os
 import subprocess
+
+# A driver that does not terminate is a mutant that was KILLED, not a pending result: two of them
+# held a core for 2h31m before anyone noticed. See re/oracle/oracle_driver.py for the full account.
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -159,7 +163,7 @@ check("allocation is in the lambda, not here", inst0 == 0 and inst1 != 0,
 # ── 6. THE PORT ITSELF, imported for real ───────────────────────────────────────────────────────
 drv = os.path.join(HERE, "OZChannelGradientExtras_gradientTypeImpl_driver.mts")
 r = subprocess.run(["node", "--experimental-strip-types", drv],
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
 try:
     got = json.loads(r.stdout.strip().splitlines()[-1])
 except Exception:
