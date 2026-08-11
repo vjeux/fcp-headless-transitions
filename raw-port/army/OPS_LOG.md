@@ -1155,6 +1155,72 @@ cheap to defuse once named.
 
 ---
 
+## Open — reported 2026-08-11 by worker 3 (otool -tV eats struct field offsets; FIXED in this change)
+
+- **`otool -tV` RENDERS STRUCT FIELD OFFSETS AS UNRELATED FUNCTION NAMES, `disasm.sh` CACHES THAT,
+  AND THE POISONED `.s` IS WHAT EVERY WORKER TRANSCRIBES AND WHAT G5 CLASSIFIES.** `-V` resolves the
+  disp32 of a memory operand against the symbol table. For `%rip`-relative operands that is correct
+  and load-bearing (it is how callees and literals get named). For **any other base register the
+  displacement is a struct field offset, not an address**, and symbolizing it produces a line that
+  describes a different program. Two live examples, both real:
+
+      0x61b2e4  leaq  "-[OZMagnifyTool draw]"(%rdi), %rax          # otool -tV
+      0x61b2e4  leaq  0x4290(%rdi), %rax                           # what it actually is
+
+      0x29d4f3  vaddps __ZN17HGParamBufferDesc8addFieldE5HGRefI12HGParamFieldE(%rsi), %ymm5, %ymm5
+                       ## HGParamBufferDesc::addField(HGRef<HGParamField>)      # otool -tV
+      0x29d4f3  vaddps 0x14c0(%rsi), %ymm5, %ymm5                               # what it is
+
+  A local ObjC method happens to live at VA 0x4290 and `HGParamBufferDesc::addField` at VA 0x14c0.
+  Note the second one carries otool's own `## demangled` comment, which makes the fiction look
+  authoritative — the "confident garbage" shape of #20/#21, arriving through the DISASSEMBLER
+  instead of through `find_disasm`.
+
+  **Scope, measured over all five `/tmp/<FW>_tV.txt` dumps: 355 instructions in 151 functions —
+  Ozone 149 lines / 105 functions, Helium 205 / 45, Flexo 1 / 1, and zero in ProCore and
+  ProChannel** (a framework is only exposed where a symbol's address happens to collide with a
+  displacement its own code uses, which is why this went unnoticed for so long). The distribution is
+  the bad news: it lands almost entirely on **ctors and the AVX kernels**, i.e. on exactly the two
+  places where the numbers ARE the work. `HGToneCurve::State::C2` @Helium 0x249860 has **26**
+  poisoned stores — that is its entire field layout — and all 45 affected Helium functions are the
+  `Get*Tile_AVX` / `Get*Tile` family, whose `(%rsi)` operands are reads of that very parameter block
+  (+0x940, +0xa0, +0x13e0, +0x14a0, +0x14c0 …). On the Ozone side it is the ctors/dtors of
+  OZImageElement, OZGroup, OZRotoshape and the OZMaterial*Layer family. A worker recovering a layout
+  from one of those ctors, as PORTING_SPEC Rule 5 requires, gets a disassembly with **no offsets in
+  it at all**.
+
+  **This is the second independent discovery, which is what makes it a tooling bug and not an agent
+  bug.** The landed `raw-port/src/render/Getsrgb_half_sat_unpremultTile_AVX.ts` documents the exact
+  same artifact at the exact same three addresses, worked around it correctly in-file (it decoded
+  the instruction BYTES: modrm `ae`, disp32 `c0 14 00 00` = 0x14c0), and never put it here — so the
+  next agent, on a different framework, paid for it again. **If you work around a tool lying to
+  you, the workaround belongs in OPS_LOG, not only in your file header.**
+
+  FIX (in this change, and it is a repair rather than a downgrade — dropping `-V` would cost the
+  `## symbol stub for:` call annotations the whole workflow depends on): new
+  `raw-port/tools/desymbolize_disp.py`, called by `disasm.sh` at all three of its write sites. For
+  every non-`%rip` operand it looks the named symbol's address up in the cached inventory and puts
+  **the number** back, replacing otool's misleading `## demangled` tail with a note saying what
+  happened. It never guesses: an unresolvable name keeps its original operand and gets a WARNING
+  comment telling the reader to re-derive with `otool -arch x86_64 -tv`. Cost is nil — the file is
+  scanned in memory and only rewritten when a poisoned operand is present.
+
+  Evidence the repair is EXACT, not merely plausible: for 10 affected functions across Ozone and
+  Helium, all **59** repaired lines are byte-identical to the same instruction from
+  `otool -arch x86_64 -tv` (the non-symbolizing ground truth). Pinned by
+  `raw-port/tools/test_desymbolize_disp.py` (8 operand cases + unresolvable + clean-file no-op),
+  which also locks the two directions that matter: a `%rip` symbolization must SURVIVE untouched,
+  and an already-numeric displacement must not be touched.
+
+  **Caveat for anyone holding an old checkout: already-cached `.s` files stay poisoned until they
+  are regenerated**, and `disasm.sh` reuses an existing `.s`. If a body you are about to transcribe
+  has a name where a number belongs, delete the `.s` and re-run `disasm.sh --sym`. And the standing
+  reflex worth keeping even with the fix in: **a memory operand whose displacement is a NAME is
+  never right — cross-check with `otool -arch x86_64 -tv -p <sym> /tmp/<FW>.x86_64` (0.1s), or read
+  the disp32 straight out of the instruction bytes.**
+
+---
+
 ## Standing rules that came out of the above
 
 1. **ADD-only is enforced, not advisory** (G6). Extending a class file means `git show
