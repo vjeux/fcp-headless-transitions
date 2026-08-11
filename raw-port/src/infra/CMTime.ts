@@ -94,17 +94,41 @@ export function CMTimeMake(value: bigint | number, timescale: number): CMTime {
 //     the result exceeds 2^51. The 2^51 threshold is sharp and independent of the timescale:
 //     1 x 2^51 @600 -> flags 0x1, 1 x (2^51+1) @600 -> flags 0x3 (bisected on the live framework).
 //
+// CORRECTED BEFORE MERGE — AN EARLIER VERSION OF THIS HEADER CLAIMED AN INFINITE-MULTIPLIER
+// DIVERGENCE THAT DOES NOT EXIST, and the correction is worth more than the claim was. It said
+// "the SIGN of the infinity CoreMedia returns is not the sign of the product: (100,600) x +Inf ->
+// +Inf but (473,7) x +Inf -> -Inf, with no monotone boundary between them", listed the class as
+// outside the domain, and cited "47 of 679 such calls differ". Reviewer 4 could not reproduce it
+// and neither can I. Measured against live CoreMedia, and then against this port:
+//
+//   (473,7) x +Inf   -> live +Inf (flags 0x5)   port +Inf      <- NOT -Inf
+//   (100,600) x +Inf -> live +Inf               port +Inf
+//   (-473,7) x +Inf  -> live -Inf (flags 0x9)   port -Inf
+//   (473,7) x -Inf   -> live -Inf               port -Inf
+//   (0,600) x +/-Inf -> live Invalid (0,0,0,0)  port Invalid
+//   1,199 calls, finite times x +/-Inf, POSITIVE timescales: mismatches against the MATHEMATICAL
+//     sign = 0; the 417 zero-value cases are Invalid 417/417.
+//
+// So CoreMedia's rule here IS the mathematical sign, plus `0 x Inf -> invalid`, and THE PORT
+// ALREADY MATCHES IT on all of the above. The class is IN the domain; it is not a divergence, and
+// the file no longer says it is.
+//
+// WHERE THE WRONG NUMBER CAME FROM, recorded because it is the reusable part: the sign only
+// "flips" when the INPUT already carries an infinity flag. `(473,7)` with `flags=9`
+// (Valid|NegativeInfinity) returns -Inf and with `flags=17` (Valid|Indefinite) returns Indefinite,
+// while flags 1, 3 and 5 all return +Inf — and this port reproduces those three too. A corpus that
+// randomises the flags word and then attributes the answer to `(value, timescale)` sees exactly a
+// sign with "no monotone boundary". The 47-of-679 figure was that: input-flag passthroughs counted
+// as sign anomalies. **A measurement that averages over an input you are not naming is not a
+// measurement of the thing you are naming**, which is the same lesson this file's own
+// "convert first, then combine" rules were derived by avoiding.
+//
 // DOMAIN. Verified bit-exact over 200,000 randomized cases (two seeds) plus the 341-call gate grid
 // for POSITIVE timescales and FINITE multipliers, which is CMTime's documented contract
 // (CMTime.h: "the timescale must be positive") and everything any ported FCP caller can build.
 // `raw-port/re/oracle/CMTime_coremedia_oracle.py` re-runs that corpus on demand and reports the
-// two classes OUTSIDE the domain separately, because measurement shows CoreMedia's answers there
-// are artefacts of its own saturating conversions rather than a rule worth imitating:
-//   * a multiplier of +/-Infinity on a finite time (47 of 679 such calls differ). The SIGN of the
-//     infinity CoreMedia returns is not the sign of the product: (100,600) x +Inf -> +Inf but
-//     (473,7) x +Inf -> -Inf, with no monotone boundary between them. This port returns the
-//     mathematical sign. A NaN multiplier IS modelled: invalid for a finite time, sign-flip for an
-//     infinite one, both stable across every case measured.
+// class OUTSIDE the domain separately, because measurement shows CoreMedia's answers there are
+// artefacts of its own saturating conversions rather than a rule worth imitating:
 //   * a negative or zero timescale in CMTimeAdd/CMTimeSubtract (72 of 773 such calls differ).
 //     CoreMedia negotiates a SIGNED lcm — C's truncating gcd, so gcd(-300,600) is -300 and the
 //     lcm 600 — and rejects a non-positive one, which this port reproduces. What it does NOT
