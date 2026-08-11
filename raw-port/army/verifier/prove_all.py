@@ -149,6 +149,16 @@ LAYER2 = [
      "cross-queue lease — one PR is never handed to two workers",
      ["bash", os.path.join(TOOLS, "test_cross_queue_lease.sh")],
      "TEST_CROSS_QUEUE_LEASE: PASS"),
+    # 2p — nothing may force-push a PR head. pr_land squashes every PR, so main's linear history
+    # never came from rebasing the branch; the force-push bought three destructive incidents instead
+    # (files silently dropped, 92 reviewer-verified lines replaced by an empty branch, and a PR
+    # CLOSED by forcing onto a commit already on main). Every path now merges main in and
+    # fast-forwards, and git_push_as.sh refuses a force at a branch with an open PR.
+    # Offline: local bare repo, stubbed gh. ~1s.
+    ("2p",
+     "no force-push at a PR head — a PR head may only GAIN commits",
+     ["bash", os.path.join(TOOLS, "test_no_force_push.sh")],
+     "test_no_force_push: PASS"),
     # 2s — the self-heal that clears attempt counters whose PR has already merged. It only looked at
     # counters AT the cap, while swarm_doctor flags any dead counter at all, so the tool reporting
     # the fault and the tool fixing it disagreed by construction and the board could never go green.
@@ -169,6 +179,18 @@ LAYER2 = [
      "dead attempt counters — the reaper can reach what the doctor reports",
      ["bash", os.path.join(TOOLS, "test_reap_dead_counters.sh")],
      "test_reap_dead_counters: PASS"),
+    # 2u — a driver that does not terminate. Two mutants held a core for 2h31m because 69 of 69
+    # driver spawns had no timeout: "a mutant must fail" had been read as "returns a wrong answer",
+    # never as "never returns". Offline, real node on a two-line fixture. ~28s.
+    #
+    # LETTER: this block went out as 2m, was renumbered 2u against the hand-written tail, and is now
+    # a ROW — which is the point of main's refactor: there is no variable to collide any more, only
+    # a label, and check_layer_labels() refuses a duplicate before anything runs. Kept 2u because it
+    # is what the reviewer verified and what the PR body cites.
+    ("2u",
+     "driver timeout — a hang is a kill, not a pending result",
+     ["bash", os.path.join(TOOLS, "test_driver_timeout.sh")],
+     "test_driver_timeout: PASS"),
 ]
 
 def check_layer_labels():

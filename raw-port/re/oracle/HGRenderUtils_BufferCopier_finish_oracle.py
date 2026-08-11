@@ -35,6 +35,7 @@ DISPATCH_TIME_FOREVER rather than a poll, so the boundary is being modelled
 where it is genuinely unobservable, not where it was inconvenient.
 """
 import ctypes, json, os, platform, random, subprocess, sys, threading, time
+DRIVER_TIMEOUT = int(__import__("os").environ.get("FCT_DRIVER_TIMEOUT", "120"))
 
 assert platform.machine() == 'x86_64', f"must run under Rosetta, got {platform.machine()}"
 
@@ -93,7 +94,7 @@ def run_ts(flags):
     """Execute the SHIPPED TypeScript on every case, in one node process."""
     driver = os.path.join(HERE, "HGRenderUtils_BufferCopier_finish_driver.mts")
     out = subprocess.run(["node", "--experimental-strip-types", driver],
-                         input=json.dumps(flags), capture_output=True, text=True)
+                         input=json.dumps(flags), capture_output=True, text=True, timeout=DRIVER_TIMEOUT)
     if out.returncode != 0:
         raise SystemExit("TS driver failed:\n%s\n%s" % (out.stdout, out.stderr))
     return json.loads(out.stdout)
