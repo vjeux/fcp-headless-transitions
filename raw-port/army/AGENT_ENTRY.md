@@ -38,7 +38,11 @@ Reviewers additionally run `python3 raw-port/army/verifier/prove_all.py` once at
    there, release it. `git worktree add` is forbidden. Release every lease you take, oracle work
    included.
 3. **Take your slot lock first, release it last:** `slot_lock.sh acquire <role> <N>`. `BUSY` means a
-   previous run of your slot is still alive — stop immediately.
+   previous run of your slot is still alive — stop immediately. **Then export the id it prints:
+   `export FCT_AGENT_ID=<role>-<N>`.** GitHub cannot tell one agent from another (every PR is
+   authored by the worker app and the operator login is shared), so this variable is the only thing
+   that lets `pr_submit.sh` stamp the PRs you opened and `review_claim.sh` skip them instead of
+   leasing you your own work. With it unset both tools say so out loud and the skip is inert.
 4. **Workers never merge. Reviewers never merge a PR whose `faithfulness-gate` is not success**, and
    never a REJECT/CHEAT/SKELETON. Never a bare `gh pr merge`.
 5. **No stubs, throw-stubs, or skeletons for in-scope symbols.** Every in-scope callee you are handed
@@ -137,6 +141,11 @@ Use `arch -x86_64 /usr/bin/python3` for any address-based work.
   and a green gate said nothing, because the gate only inspects the `.ts` files you hand it — that is
   how an oracle harness was destroyed (#25). The tools now carry those files and assert they survived;
   check anyway, because the failure is silent and irreversible.
+- **Sign with `--expect-head <sha>`: `ghapp/pr_review.sh <PR#> approve --expect-head <the sha you
+  verified> --body-file <path>`.** The tool resolves the head at call time, so without this a push
+  landing while you verify moves your signature onto code you never read — measured 3 times in 6 PRs,
+  once onto +119 unreviewed lines with every gate green. You leased a SHA; pass it. A moved head is
+  then a refusal instead of a signature (OPS_LOG #35).
 - **Write a review body to a file: `ghapp/pr_review.sh <PR#> approve --body-file <path>`.** Backticks
   inside a double-quoted `bash -c` are expanded by YOUR shell before the tool sees them, which
   silently deleted the clause naming a defect from two permanent records (#30). Same door as a

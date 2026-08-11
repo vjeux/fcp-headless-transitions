@@ -186,9 +186,31 @@ claim_slot () {
 
 reset_clean () { # bring a worktree back to a pristine origin/main
   local wt="$1"
+  # ABORT ANY IN-PROGRESS SEQUENCE FIRST. An interrupted `git rebase` / `merge` / `cherry-pick`
+  # leaves .git/rebase-merge (etc.) behind, and `reset --hard` does NOT clear it: the next holder
+  # acquires a slot that git still considers mid-rebase, and their commit lands on the stale state
+  # the rebase had checked out. Reported live — a worker was handed back its own interrupted rebase
+  # and committed onto it; the only tell was an empty `origin/main...HEAD` diff. Aborting is safe
+  # here because release has already established the tree holds no work (or --force was given).
+  for seq in rebase merge cherry-pick revert; do
+    git -C "$wt" "$seq" --abort >/dev/null 2>&1 || true
+  done
   git -C "$wt" checkout -q --detach 2>/dev/null || true
   git -C "$wt" reset -q --hard origin/main 2>/dev/null || true
   git -C "$wt" clean -fdq -- raw-port/src raw-port/re 2>/dev/null || true
+  # PURGE THE DISASM SCRATCH. re/disasm/*.s is gitignored, per-worktree, and never cleared — so a
+  # leftover .s from the PREVIOUS holder decides the next PR's G5 verdict in this slot. Measured:
+  # one PR gated `0 flags / SUCCESS` in a slot holding a stale .s for its symbol and
+  # `1 flag / FAILURE` in a clean slot, same body. The blind-spot flag exists to say "no disassembly
+  # here, a reviewer must re-derive"; residue silently switches it off, and the likeliest author of
+  # that residue is the PR's own author. It regenerates in ~0.1s, so there is nothing to save.
+  rm -f "$wt"/raw-port/re/disasm/*.s 2>/dev/null || true
+}
+
+wt_sequence_in_progress () { # <wt> : 0 if git considers this tree mid-rebase/merge/cherry-pick
+  local g; g="$(git -C "$1" rev-parse --git-dir 2>/dev/null)" || return 1
+  [ -d "$g/rebase-merge" ] || [ -d "$g/rebase-apply" ] || [ -f "$g/MERGE_HEAD" ] \
+    || [ -f "$g/CHERRY_PICK_HEAD" ] || [ -f "$g/REVERT_HEAD" ]
 }
 
 cmd_init () {
@@ -204,6 +226,13 @@ cmd_acquire () { # <Class> — worker: cut/extend branch port/<Class>
   local slot; slot="$(claim_slot "port/$cls")" || return 3
   local wt; wt="$(make_wt "$slot")"
   reset_clean "$wt"
+  # Belt and braces: reset_clean aborts any interrupted sequence, but if one somehow survives we must
+  # NOT hand the slot over — a tree git considers mid-rebase makes the next commit land on the state
+  # the rebase checked out, not on the base the caller asked for.
+  if wt_sequence_in_progress "$wt"; then
+    log "wt_pool: slot $slot is STILL mid-rebase/merge after reset — refusing to hand it out"
+    rm -rf "$LEASES/$slot" 2>/dev/null; return 3
+  fi
   # SAME-CLASS STACKING: if origin/port/<Class> already exists AND is ahead of origin/main (an open
   # PR for this class that hasn't merged yet), base the new work ON THAT BRANCH so a second method for
   # the same class STACKS additively instead of a fresh main-based branch that force-push would clobber

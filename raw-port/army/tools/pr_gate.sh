@@ -32,6 +32,45 @@ echo "PR #$PR  head=$HEAD_REF @ ${HEAD_SHA:0:12}  reviewed=$REVIEWED"
 GHAPP_G="$(cd "$(dirname "$0")" && pwd)/ghapp"
 post_status () { bash "$GHAPP_G/gh_as.sh" reviewer api -X POST "repos/$REPO_SLUG/statuses/$HEAD_SHA" -f state="$1" -f context="faithfulness-gate" -f description="$2" >/dev/null 2>&1 && echo "  status: $1 — $2" || echo "  WARN status post failed"; }
 
+# A MECHANICAL `success` MUST NOT PAPER OVER A REVIEWER'S REJECTION.
+# The pending guard below stopped a concurrent run from erasing a verdict with `pending`, but left
+# the worse door open: a `success`. Observed live on PR #550 — a reviewer posted a regression
+# `failure`, and six seconds later another agent's gate run posted `success` over it. GitHub keeps
+# only the LATEST status per context, so the required check went green and the rejection vanished
+# from everything branch protection can see.
+#
+# The distinction that matters is not failure-vs-success, it is MECHANICAL vs JUDGED. A same-head
+# failure→success flip is legitimate when it is mechanical: `regression_check` compares against
+# main, and main moves, so a genuine regression really can clear with no push. But when a REVIEWER
+# holds an un-dismissed CHANGES_REQUESTED on this head, a green mechanical gate is not new
+# information about the port — the defect they named is semantic and still there. Refuse, and say so.
+reviewer_rejected_this_head () {
+  bash "$GHAPP_G/gh_as.sh" reviewer api "repos/$REPO_SLUG/pulls/$PR/reviews" --paginate 2>/dev/null \
+  | python3 -c "
+import json,sys
+try: rs=json.load(sys.stdin)
+except Exception: raise SystemExit(1)
+latest={}
+for r in rs:
+    st=r.get('state')
+    if st in ('APPROVED','CHANGES_REQUESTED','DISMISSED'):
+        latest[((r.get('user') or {}).get('login'), r.get('commit_id'))]=st
+who=[u for (u,sha),st in latest.items() if st=='CHANGES_REQUESTED' and sha=='$HEAD_SHA']
+print(','.join(x for x in who if x))
+raise SystemExit(0 if who else 1)
+" 2>/dev/null
+}
+post_success_unless_rejected () {
+  local rejectors
+  if rejectors="$(reviewer_rejected_this_head)"; then
+    echo "  status: REFUSING to post success on ${HEAD_SHA:0:8} — un-dismissed CHANGES_REQUESTED stands (${rejectors})"
+    echo "  a green mechanical gate is not an answer to a semantic rejection; the author must fix it,"
+    echo "  or the reviewer must dismiss their own review deliberately."
+    return 0
+  fi
+  post_status success "$1"
+}
+
 # A PENDING must never overwrite a settled verdict. GitHub keeps only the LATEST status per context,
 # so a second agent starting a gate run on a PR that already has a red REJECT posts `pending` over
 # it and the rejection vanishes from the required check — reviewer-03 watched another agent's
@@ -88,7 +127,7 @@ cp -R "$T/raw-port/army/gate" raw-port/army/ 2>/dev/null; cp -R "$T/raw-port/arm
 
 git fetch -q origin main 2>&1 | tail -1
 CHANGED=$(git diff --name-only origin/main...HEAD -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
-if [ -z "$CHANGED" ]; then post_status success "no raw-port/src ports to gate (infra/tooling PR)"; echo "PR_GATE: PASS (no src changes) (#$PR)"; exit 0; fi
+if [ -z "$CHANGED" ]; then post_success_unless_rejected "no raw-port/src ports to gate (infra/tooling PR)"; echo "PR_GATE: PASS (no src changes) (#$PR)"; exit 0; fi
 echo "changed: $CHANGED"
 
 # ABSOLUTIZE before handing paths to gate.sh. `git diff --name-only` emits repo-RELATIVE paths, and
@@ -142,5 +181,5 @@ if [ "$FLAGS" -gt 0 ] && [ "$REVIEWED" != 1 ]; then
   echo "PR_GATE: NEEDS-REVIEW ⚠️ (#$PR) — $FLAGS G5 flag(s); mechanical gate clean but blind-spots need semantic review"
   exit 2
 fi
-if [ "$FLAGS" -gt 0 ]; then post_status success "reviewer-signed (had $FLAGS flag(s), re-derived OK)"; else post_status success "gate PASS (G0-G5 clean, 0 flags)"; fi
+if [ "$FLAGS" -gt 0 ]; then post_success_unless_rejected "reviewer-signed (had $FLAGS flag(s), re-derived OK)"; else post_success_unless_rejected "gate PASS (G0-G5 clean, 0 flags)"; fi
 echo "PR_GATE: PASS ✅ (#$PR)"
