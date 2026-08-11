@@ -41,6 +41,46 @@ detail to reproduce. That is how this list grows.
 
 ---
 
+## Open — reported 2026-08-11 by worker 1 (a reviewer's gate can DELETE a worker's in-progress port; FIX in this change)
+
+- **`wt_pool.sh release` checks that a lease EXISTS, never that it is still YOURS — so a `pr_gate`
+  cleanup trap firing late resets whatever worker now holds that slot, deleting their uncommitted
+  port.** Happened to this worker, live, and the symptom is genuinely baffling: the file simply is
+  not there, `git status` is clean, no tool printed an error, and the `write` that created it
+  reported success six seconds earlier.
+
+  SEQUENCE (slot 2, 2026-08-11 08:21-08:22):
+    1. 08:21:03  worker 1 leases slot 2 as `port/ROIStatIO__ROITestSet`.
+    2. 08:22:05  worker 1 writes `raw-port/src/render/ROIStatIO__ROITestSet.ts` into it.
+    3. 08:22:1x  a reviewer's `pr_gate` cleanup trap — for a lease it no longer held — runs
+                 `wt_pool.sh release <wt> --force`. `--force` skips the has-work check; the lease
+                 EXISTS (it is the worker's), so the ownership guard passes; `reset_clean` runs.
+    4. 08:22:11  the file is gone, and the lease directory has been `rm -rf`'d, so the next gate
+                 immediately re-leases slot 2 (`gate/b3682ab5…`, holder mtime 08:22:15).
+  THE TELL that this is a git reset rather than an rm: the `.s` files generated into `re/disasm/`
+  at 08:21 SURVIVED, because `reset_clean` runs `git clean -fd` and those paths are gitignored.
+  If your file vanishes and your disasm does not, this is what happened to you.
+
+  This is OPS_LOG #3 ("releasing a worktree destroyed someone else's work") returning through the
+  `--force` door #258 opened for gate leases — the fifth entry in this log where a correct fix
+  became the next outage (standing rule 6). Note that the two guards already there are each
+  individually right and still leave the hole: "no lease -> don't touch" cannot tell a re-leased
+  slot from your own, and "refuse when dirty" is exactly what `--force` overrides.
+
+  FIX (in this change): `release <path> [--force] [expected-tag]` — when the caller names the tag it
+  leased and the current holder's tag differs, the release is REFUSED and logged, leaving both the
+  tree and the lease alone. `pr_gate.sh` passes `gate/$HEAD_SHA`. Callers that pass nothing behave
+  exactly as before, so nothing else has to change at once. Locked by
+  `army/tools/test_wt_pool_release_ownership.sh`, which runs against a FAKE pool ($HOME-scoped, so
+  it never touches the live 24 slots) and covers all four cases: the stale release is refused, the
+  real holder's own-tag `--force` still works, an untagged release is unchanged, and the #3
+  no-lease guard still holds. It FAILS 2/5 against main's version and passes after.
+
+  WORTH DOING NEXT, not done here: `acquire` could hand back an opaque token (a random id written
+  into the lease dir) so a caller cannot even accidentally name someone else's tag; and the same
+  ownership check belongs in `reset_clean`'s other caller, `cmd_gc`, which skips leased slots by
+  existence for the same reason.
+
 ## Open — reported 2026-08-11 by worker 1 (REBASE-TASK MODE can force-push a deletion of OTHER files)
 
 - **`rebase_pr.sh`'s prepared worktree is only as fresh as the moment it was prepared, and the
