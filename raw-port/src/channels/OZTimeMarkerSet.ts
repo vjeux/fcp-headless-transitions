@@ -31,6 +31,72 @@
 //   +0x10  16 bytes zeroed                  (@0x211708/@0x21170b)
 //   (size >= 0x20; nothing at or past +0x20 is touched by this body)
 
+import type { CMTime } from "../infra/CMTime.js";
+import { CMTimeCompare } from "../infra/CMTime.js";
+
+/**
+ * The libc++ `__tree_end_node` shape — the ONE quadword at +0x00 that every
+ * object in this tree has, and the reason a walk pointer can address a real
+ * node and the set's embedded END node interchangeably.
+ *
+ * In libc++ a red-black tree's end node is a `__tree_end_node` holding only
+ * `__left_` (the tree ROOT), and a real `__tree_node_base` DERIVES from it,
+ * adding right/parent. That is exactly what this binary does: the set's +0x10
+ * is the end node, its +0x00 (== the set's +0x10) is the root pointer, and a
+ * node's +0x00 is its left child. `cmpq (%rax),%r15` @0x2126e4 reads that word
+ * through whichever of the two it happens to hold, with NO test — so the port
+ * declares it ONCE on a shared base rather than as two fields reinterpreted
+ * with a cast at each use.
+ *
+ * @Ozone 0x2126e4 (the read), 0x21170b (the ctor zeroing it)
+ */
+export interface OZTimeMarkerTreeEndNode {
+  /**
+   * +0x00 — the LEFT CHILD when this is a real node, the tree ROOT when this
+   * is the set's end node. One quadword, one read site, one declaration.
+   */
+  leftAt0: OZTimeMarkerNode | null;
+}
+
+/**
+ * A node of the ordered marker tree `OZTimeMarkerSet` holds at +0x08/+0x10.
+ *
+ * Every offset below is read by `findNextMarker(CMTime) const` @0x212620 and
+ * by nothing else in this file; the shape is the standard three-pointer
+ * red-black node the successor walk @0x2126b8..@0x2126ec implements
+ * (descend-right-then-leftmost, else climb while the node is a right child):
+ *
+ *   +0x00  left   — read as `(%rcx)` @0x2126d3 (leftmost descent) and as
+ *                   `(%rax)` @0x2126e4 (the "am I my parent's left child?" test)
+ *   +0x08  right  — read as `0x8(%r15)` @0x2126b8
+ *   +0x10  parent — read as `0x10(%r15)` @0x2126e0
+ *   +0x28  key    — a 24-byte CMTime: `movups 0x28(%r15)` @0x212665 takes
+ *                   value+timescale+flags and `movq 0x38(%r15)` @0x21265c takes
+ *                   the epoch, i.e. exactly {i64 value, i32 timescale,
+ *                   u32 flags, i64 epoch}
+ *
+ * +0x18 and +0x20 are NOT touched by this body and are therefore not modelled.
+ *
+ * The set's own +0x10 slot (see {@link OZTimeMarkerSetSentinel}) is the tree's
+ * END node. It is mostly compared by POINTER (@0x212638, @0x212653), but the
+ * climb at @0x2126e4 DOES dereference it — when the walk reaches the root, the
+ * `(%rax)` it reads is the end node's own +0x00, i.e. the tree root. Both
+ * therefore derive from {@link OZTimeMarkerTreeEndNode}, which is what lets
+ * one walk pointer hold either and makes `=== end` a legal comparison instead
+ * of two disjoint types bridged by casts.
+ *
+ * @Ozone 0x212620
+ */
+export interface OZTimeMarkerNode extends OZTimeMarkerTreeEndNode {
+  /** +0x08 — right child (NULL when absent). */
+  rightAt8: OZTimeMarkerNode | null;
+  /** +0x10 — parent; the root's parent is the set's END node, which is why
+   *  this is the union and not `OZTimeMarkerNode`. */
+  parentAt10: OZTimeMarkerNode | OZTimeMarkerSetSentinel;
+  /** +0x28 — the marker's CMTime key (24 bytes). */
+  keyAt28: CMTime;
+}
+
 /**
  * The 16 bytes at +0x10..+0x1f, modelled as the two 64-bit words the single
  * `movups %xmm0, 0x10(%rdi)` @0x21170b zeroes.
@@ -50,8 +116,12 @@
  *
  * @Ozone 0x211708 (the address whose 16 bytes this covers)
  */
-export interface OZTimeMarkerSetSentinel {
-  /** +0x10 — first zeroed quadword. */
+export interface OZTimeMarkerSetSentinel extends OZTimeMarkerTreeEndNode {
+  /** +0x10 — first zeroed quadword, as the ctor's `movups` writes it. THE SAME
+   *  8 BYTES as the inherited {@link OZTimeMarkerTreeEndNode.leftAt0}, which is
+   *  the decoded view of this word: raw here, typed there. A JS object cannot
+   *  literally alias two fields, so the ctor writes both in their zero form
+   *  (`0n` / `null`) and this unit only ever READS the decoded one. */
   qword10: bigint;
   /** +0x18 — second zeroed quadword. */
   qword18: bigint;
@@ -86,7 +156,7 @@ export class OZTimeMarkerSet {
    * +0x10..+0x1f — the embedded sentinel the +0x08 head points at.
    * Zeroed by the `movups` @0x21170b.
    */
-  sentinelAt10: OZTimeMarkerSetSentinel = { qword10: 0n, qword18: 0n };
+  sentinelAt10: OZTimeMarkerSetSentinel = { leftAt0: null, qword10: 0n, qword18: 0n };
 
   /**
    * +0x08 — the head pointer. Set to `this + 0x10`, i.e. to
@@ -131,11 +201,186 @@ export class OZTimeMarkerSet {
    */
   constructor() {
     // @0x211708/@0x21170b  xorps %xmm0,%xmm0 ; movups %xmm0,0x10(%rdi)
-    this.sentinelAt10 = { qword10: 0n, qword18: 0n };
+    this.sentinelAt10 = { leftAt0: null, qword10: 0n, qword18: 0n };
     // @0x211704/@0x21170f  leaq 0x10(%rdi),%rax ; movq %rax,0x8(%rdi)
     //   — the address of the just-zeroed sentinel, stored into the head slot.
     this.headAt8 = this.sentinelAt10;
     // @0x211713/@0x21171a  leaq 0x635c3e(%rip),%rax ; movq %rax,(%rdi)
     this.vptrAt0 = OZ_TIME_MARKER_SET_VPTR;
+  }
+
+  /**
+   * `OZTimeMarkerSet::findNextMarker(CMTime) const` @Ozone 0x212620
+   * (__ZNK15OZTimeMarkerSet14findNextMarkerE6CMTime).
+   *
+   * Linear in-order scan of the marker tree for the FIRST marker whose key is
+   * strictly LATER than the supplied time; returns the END node when there is
+   * none (including on an empty set).
+   *
+   * Full transcription — every instruction, in order:
+   *
+   *   0x212620  pushq %rbp / movq %rsp,%rbp / pushq %r15,%r14,%rbx / subq $0x38,%rsp
+   *                                          ; frame setup (no TS counterpart)
+   *   0x21262d  movq  %rdi, %rbx             ; rbx = this
+   *   0x212630  movq  0x8(%rdi), %r15        ; r15 = this->headAt8   (the BEGIN node)
+   *   0x212634  addq  $0x10, %rbx            ; rbx = &this->sentinelAt10 (the END node)
+   *   0x212638  cmpq  %rbx, %r15             ; begin == end ?  (POINTER identity)
+   *   0x21263b  je    0x2126f1               ;   empty -> return that pointer
+   *   0x212641  leaq  0x10(%rbp), %r14       ; r14 = &the by-value CMTime argument
+   *   0x212645  jmp   0x21265c               ; enter the loop at the compare
+   *   0x212650  movq  %rax, %r15             ; LOOP TOP (after advance): node = next
+   *   0x212653  cmpq  %rbx, %rax             ; node == end ?
+   *   0x212656  je    0x2126f4               ;   yes -> return it
+   *   0x21265c  movq  0x38(%r15), %rax       ; key.epoch
+   *   0x212660  movq  %rax, 0x28(%rsp)       ;   -> arg2 slot
+   *   0x212665  movups 0x28(%r15), %xmm0     ; key.value/timescale/flags (16 B)
+   *   0x21266a  movups %xmm0, 0x18(%rsp)     ;   -> arg2 slot
+   *   0x21266f  movq  0x10(%r14), %rax       ; t.epoch
+   *   0x212673  movq  %rax, 0x10(%rsp)       ;   -> arg1 slot
+   *   0x212678  movups (%r14), %xmm0         ; t.value/timescale/flags
+   *   0x21267c  movups %xmm0, (%rsp)         ;   -> arg1 slot
+   *   0x212680  callq _CMTimeCompare         ; stub 0x6dcab0 — compare(t, key)
+   *   0x212685  testl %eax, %eax
+   *   0x212687  jns   0x2126b8               ;   result >= 0  (t >= key) -> ADVANCE
+   *   0x212689  leaq  0x28(%r15), %rax       ; else: re-form &key ...
+   *   0x21268d..0x2126ab                     ; ... and re-marshal the SAME two
+   *                                          ;     arguments into the same slots
+   *   0x2126af  callq _CMTimeCompare         ; the SECOND compare(t, key)
+   *   0x2126b4  testl %eax, %eax
+   *   0x2126b6  jne   0x2126f1               ;   result != 0 -> RETURN this node
+   *   0x2126b8  movq  0x8(%r15), %rcx        ; ADVANCE: rcx = node->right
+   *   0x2126bc  testq %rcx, %rcx
+   *   0x2126bf  je    0x2126e0               ;   no right child -> climb
+   *   0x2126d0  movq  %rcx, %rax             ; descend: rax = rcx
+   *   0x2126d3  movq  (%rcx), %rcx           ;          rcx = rcx->left
+   *   0x2126d6  testq %rcx, %rcx
+   *   0x2126d9  jne   0x2126d0               ;   ... until the leftmost
+   *   0x2126db  jmp   0x212650               ; next = that leftmost
+   *   0x2126e0  movq  0x10(%r15), %rax       ; climb: rax = node->parent
+   *   0x2126e4  cmpq  (%rax), %r15           ;        parent->left == node ?
+   *   0x2126e7  movq  %rax, %r15             ;        node = parent (always)
+   *   0x2126ea  jne   0x2126e0               ;   not the left child -> keep climbing
+   *   0x2126ec  jmp   0x212650               ; next = that ancestor
+   *   0x2126f1  movq  %r15, %rax             ; return-node path
+   *   0x2126f4  addq $0x38,%rsp / popq %rbx,%r14,%r15,%rbp / retq
+   *   0x2126ff  nop                          ; padding, not executed
+   *
+   * SEMANTICS, exactly as the machine computes them:
+   *   • The walk starts at `headAt8` — the tree's BEGIN (leftmost) node — and
+   *     ends at `sentinelAt10`, compared BY POINTER IDENTITY (@0x212638,
+   *     @0x212653). The end node is never dereferenced by this body.
+   *   • `_CMTimeCompare` is called as `compare(t, key)`: the INCOMING time is
+   *     marshalled into the arg1 slots at (%rsp)/0x10(%rsp) @0x212678/@0x21266f
+   *     and the node's key into the arg2 slots at 0x18(%rsp)/0x28(%rsp)
+   *     @0x21266a/@0x212660. `jns` is "sign flag clear", i.e. result >= 0
+   *     (t >= key) -> keep walking; a NEGATIVE result (t < key) falls into the
+   *     second compare.
+   *   • The SECOND call is the SAME comparison of the SAME two values (the
+   *     compiler re-marshalled the identical bytes — note @0x212689 re-forms
+   *     `&key` with `leaq 0x28(%r15)` and reloads through it). Its `jne` is
+   *     therefore always taken on that path, but the port issues BOTH calls
+   *     because the machine does: `CMTimeCompare` is a pure function of its two
+   *     arguments, so the duplicate is observationally a no-op, and dropping it
+   *     would be a rewrite rather than a transcription.
+   *   • Net effect: return the FIRST in-order node with `t < key`, i.e. the
+   *     next marker strictly after `t`; otherwise the end node.
+   *
+   * The advance @0x2126b8..0x2126ec is the textbook ordered-tree SUCCESSOR:
+   * if there is a right child, take its leftmost descendant; otherwise climb
+   * through parents while the node is a RIGHT child, and stop at the first
+   * ancestor whose LEFT child the walk came from. The root's parent is the end
+   * node, so a walk that runs off the maximum lands exactly on the sentinel and
+   * the @0x212653 identity test terminates the loop.
+   *
+   * CALLEE: `_CMTimeCompare` (Ozone symbol stub 0x6dcab0) is CoreMedia public
+   * API, out of the five in-scope frameworks — but it does NOT need a throwing
+   * boundary stub here: the landed `raw-port/src/infra/CMTime.ts` already
+   * implements it against the documented CMTime.h semantics, so this port
+   * IMPORTS AND CALLS it. No in-scope callee beyond that, no indirect and no
+   * virtual dispatch anywhere in the body.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZNK15OZTimeMarkerSet14findNextMarkerE6CMTime.s (63 lines)
+   *
+   * @param t  the by-value CMTime the caller passes on the stack (@0x212641).
+   * @returns the next marker node, or the END node ({@link sentinelAt10}) when
+   *          there is none.
+   */
+  findNextMarker(
+    this: OZTimeMarkerSet,
+    t: CMTime,
+  ): OZTimeMarkerNode | OZTimeMarkerSetSentinel {
+    // @0x212634  addq $0x10,%rbx — the END node (identity only, never read).
+    const end: OZTimeMarkerSetSentinel = this.sentinelAt10;
+    // @0x212630  movq 0x8(%rdi),%r15 — the BEGIN node.
+    let node: OZTimeMarkerNode | OZTimeMarkerSetSentinel =
+      this.headAt8 as OZTimeMarkerNode | OZTimeMarkerSetSentinel;
+    // @0x212638-0x21263b  cmpq %rbx,%r15 ; je 0x2126f1 — empty set.
+    if (node === end) {
+      // @0x2126f1  movq %r15,%rax — returns the same pointer it started with.
+      return node;
+    }
+    for (;;) {
+      // @0x21265c..0x21267c — the node's key and the argument marshalled into
+      //   the two by-value CMTime argument slots.
+      const n = node as OZTimeMarkerNode;
+      // @0x212680  callq _CMTimeCompare(t, key)
+      const cmp1 = CMTimeCompare(t, n.keyAt28);
+      // @0x212685-0x212687  testl %eax,%eax ; jns 0x2126b8 — t >= key advances.
+      if (cmp1 < 0) {
+        // @0x212689..0x2126af — the SAME comparison, re-marshalled and re-issued.
+        const cmp2 = CMTimeCompare(t, n.keyAt28);
+        // @0x2126b4-0x2126b6  testl %eax,%eax ; jne 0x2126f1
+        if (cmp2 !== 0) {
+          return n;
+        }
+      }
+      // ---- ADVANCE: in-order successor -------------------------------------
+      // @0x2126b8-0x2126bf  movq 0x8(%r15),%rcx ; testq ; je 0x2126e0
+      let next: OZTimeMarkerNode | OZTimeMarkerSetSentinel;
+      let rcx: OZTimeMarkerNode | null = n.rightAt8;
+      if (rcx !== null) {
+        // @0x2126d0-0x2126d9  rax = rcx ; rcx = rcx->left ; loop while non-NULL.
+        let rax: OZTimeMarkerNode = rcx;
+        while (rcx !== null) {
+          rax = rcx;
+          rcx = rcx.leftAt0;
+        }
+        next = rax;
+      } else {
+        // @0x2126e0-0x2126ea  climb while the node is NOT its parent's left
+        //   child; `movq %rax,%r15` runs every iteration, so `cur` advances to
+        //   the parent each time and the loop exits with `cur` == that parent.
+        let cur: OZTimeMarkerNode = n;
+        for (;;) {
+          const parent = cur.parentAt10;
+          // @0x2126e4  cmpq (%rax),%r15 — reads the PARENT's +0x00. When the
+          //   parent is the END node that word is the set's +0x10, i.e. the
+          //   tree ROOT; for a real node it is its left child. The machine
+          //   does ONE load and no test, and because both types derive from
+          //   OZTimeMarkerTreeEndNode this is ONE read with no cast here
+          //   either — the aliasing lives in the type, not at the use site.
+          const parentLeft: OZTimeMarkerNode | null = parent.leftAt0;
+          const wasLeftChild = parentLeft === cur;
+          if (wasLeftChild) {
+            // @0x2126ec  the loop exits with `cur` == that parent, which MAY
+            //   be the end node — that is how climbing off the maximum
+            //   terminates.
+            next = parent;
+            break;
+          }
+          // Not the end node on this path: if it were, its +0x00 is the tree
+          // ROOT, and the climb only reaches the end node from the maximum,
+          // where root === cur — i.e. through the branch above. `movq %rax,%r15`
+          // runs every iteration, so `cur` advances to the parent each time.
+          cur = parent as OZTimeMarkerNode;
+        }
+      }
+      // @0x212650-0x212656  movq %rax,%r15 ; cmpq %rbx,%rax ; je 0x2126f4
+      node = next;
+      if (node === end) {
+        return node;
+      }
+    }
   }
 }
