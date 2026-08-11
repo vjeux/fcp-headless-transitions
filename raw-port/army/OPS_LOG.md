@@ -24,26 +24,23 @@ detail to reproduce. That is how this list grows.
 | 8 | A merged PR carried an APPROVE nobody performed | `pr_land` minted its own approval on any green head (#197 was approved while being a duplicate) | #234 — `pr_land` now *requires* an approval on the current head and refuses to mint one |
 | 9 | Landed method deleted by another worker's commit | Class files regenerated instead of extended; nothing enforced ADD-only | #232 — **G6 add-only** gate rejects any change that drops a landed `@0xADDR` or declaration |
 | 10 | Disasm lookups took 42s and pinned the box | Every lookup linear-scanned a 220MB `otool` dump, several times per unit | #148 — `symidx.py` byte-offset index (0.17s), verified byte-identical across all 45,785 symbol bodies |
+| 12 | Every `pr_gate` leaked its worktree lease → all 16 slots held → `POOL_FULL` → **gating and merging stopped dead** (reviewer-03 quit over it; #114 lost a verdict) | #240's dirty-tree release guard vs `pr_gate` deliberately dirtying its checkout with trusted tools. A regression introduced by a fix | #258 — `pr_gate` releases `--force`; stale-reclaim takes disposable `gate/<sha>` leases even when dirty (self-healing) |
+| 13 | A port passed every gate and still returned 24 where FCP returns 232 | out-of-range index → `undefined` → `undefined-1` = NaN → `NaN & mask` = **0**, a plausible wrong number with no throw | #255 — **G7** flags new non-null-asserted computed table reads |
+| 14 | Real ports condemned as duplicates (#108/#110/#197, one click from being closed) | `dup_check` matched `__Z*` text tokens; address-only files yielded zero units, which v2 read as "duplicate" | #252 — v3: externs excluded, no-units is INCONCLUSIVE not DUP |
 | 11 | Reviewers could not use GitHub's review system | One identity authored and reviewed every PR; GitHub forbids self-review, so verdicts degraded to status+comment | #204/#206/#210 — worker and reviewer **GitHub Apps** |
 
 ---
 
 ## Open — known, not yet fixed
 
-- **`dup_check` false positives can destroy real work.** It harvests mangled names from file text, so
-  a file citing its methods only by *address* yields only libc++ externs (`__Znwm`, `__ZdlPv`), which
-  trivially "already exist" ⇒ a bogus "already on main" verdict. **#108, #110 and #197 were each one
-  click from being wrongly closed** and are faithful. *Never close a dup on the status alone —
-  confirm the class genuinely exists on main.* Real fix: have those files cite their own mangled
-  names, and make `dup_check` require a symbol match, not a token match.
 - **`depgraph.py` does not trace `std::call_once` proxy/lambda initializers**, so units are handed out
   READY while their real init chain has unported deps. Claims are append-only, so each occurrence
   **permanently burns the symbol**. Reported by 3 workers.
-- **Silent-wrong-answer class.** #154 passed every mechanical check yet returned 24 where live FCP
-  returns 232: an out-of-bounds table read is `undefined` in TS, `undefined - 1` is `NaN`, and
-  `NaN & 0xffffffff` collapses to **0** — a plausible wrong number. Only the differential oracle
-  caught it. Proposed fix: auto-oracle every `nm`-exported (`T`) symbol; they are cheap to call even
-  without an autoreg descriptor, and that is where this class hides.
+- **Silent-wrong-answer class — partly closed.** #255 added G7, which FLAGS new non-null-asserted
+  computed table reads so a reviewer must clear them. The stronger fix is still open: `autoreg.py` /
+  `autosig.py` already implement "auto-oracle every exported `T` symbol", but **the gate never
+  invokes them**, and `autosig` rejects enum args (`HGFormat`) — the two reasons #154 escaped.
+  Wiring them in needs care: wrong ctypes marshalling would produce confident garbage verdicts.
 - **`pr_gate` status descriptions don't match `rebase_claim.sh`'s `regression|rebase` filter**, so
   PRs needing a rebase can sit forever unless a reviewer hand-writes the status text.
 - **One class, two files** — `OZScene` exists in both `channels/` and `nodes/`; `OZRenderParams`
@@ -61,3 +58,7 @@ detail to reproduce. That is how this list grows.
    reason, deliberately.
 4. **Approve with your own evidence, before landing.** No tool will mint an approval for you.
 5. **Never close a dup, or trust a "already on main" status, without confirming on main.**
+6. **A fix can be the next outage.** #240's release guard was correct and still deadlocked the swarm
+   two hours later, because `pr_gate` was a caller I had not considered. When you tighten a shared
+   primitive, enumerate every caller — and prefer a self-healing fallback (#258's disposable-lease
+   reclaim) over trusting that you found them all.
