@@ -898,3 +898,260 @@ export function HGFormatUtils_toGLFormat(fmt: number, _flag: boolean): number {
   // Result is the u32 `format` column value, returned in %eax.
   return S_HGGLFORMATINFOS_FORMAT[s]! >>> 0;
 }
+
+// ---------------------------------------------------------------------------
+// (anonymous namespace)::formatInfos[fmt].componentSel — the u32 at +0x0c of
+// each 32-byte entry of the SAME table whose +0x00 (metalFormat) and +0x10
+// (bytesPerPixel) columns are transcribed above.
+//
+// TABLE ADDRESS (re-derived independently here from the instruction bytes,
+// because the two blocks above quote different values for it): the `leaq` at
+// 0xa1d0c encodes 48 8d 15 2d 9d 96 00, i.e. a RIP-relative load with
+// disp32 = 0x00969d2d, so the target is 0xa1d13 + 0x969d2d = 0xa0ba40.
+// Reading the binary at 0xa0ba40 with a 32-byte stride reproduces the landed
+// FORMAT_INFOS_METAL_FORMAT column at +0x00 and the landed FORMAT_INFOS_BPP
+// column at +0x10 EXACTLY for all 44 entries, which confirms 0xa0ba40 is the
+// correct base (the "file offset 10549824" = 0xa0fa40 noted in the
+// metalFormat block above is off by 0x4000 — the __TEXT slide — and should be
+// corrected when that unit is next touched; it is left alone here because
+// this unit is ADD-only).
+//
+// The values are a BIT-DEPTH / packing selector drawn from {1, 2, 4, 8} — the
+// exact same domain as `buildFormat`'s `sel` parameter, whose validity mask
+// 0x8B accepts precisely sel in {1,2,4,8}. RGBtoRGBA below feeds this column
+// straight into that same gate, which is what identifies the two as the same
+// quantity.
+//
+// Read verbatim from the x86_64 slice at (0xa0ba40 + fmt*32 + 0x0c):
+const FORMAT_INFOS_COMPONENT_SEL: readonly number[] = Object.freeze([
+  //       0   1   2   3   4   5   6   7   8   9
+  /* 0*/   1,  1,  1,  2,  2,  4,  4,  8,  8,  8,
+  /*10*/   1,  2,  4,  8,  1,  1,  2,  1,  1,  2,
+  /*20*/   4,  8,  1,  1,  1,  2,  2,  4,  8,  8,
+  /*30*/   2,  1,  1,  2,  2,  2,  1,  1,  1,  1,
+  /*40*/   1,  1,  1,  1,
+]);
+
+// ---------------------------------------------------------------------------
+// The RGBA result table @Helium 0x3cd650 — 8 consecutive u32s, indexed by
+// `sel - 1`, read verbatim from the x86_64 slice:
+//
+//   idx (sel-1) :   0     1     2     3     4     5     6     7
+//   value       : 0x18  0x19  0x00  0x1b  0x00  0x00  0x00  0x1c
+//                  24    25     -     27     -     -     -     28
+//
+// The zero slots are exactly the CLEAR bits of the 0x8B validity mask
+// ({2,4,5,6}), so the gate guarantees a zero slot is never returned — the
+// identical arrangement `buildFormat`'s OUTER_TABLE @0xa0bfc0 uses for its
+// null pointers.
+//
+// This row sits immediately after `buildFormat`'s four 16-byte sub-arrays
+// (0x3cd610 / 0x3cd620 / 0x3cd630 / 0x3cd640) in the same __TEXT __const
+// block, and its four non-zero entries are precisely those sub-arrays'
+// `components == 4` column:
+//   BUILD_FORMAT_TABLE[0][3] = 0x18 = 24   (sel 1)
+//   BUILD_FORMAT_TABLE[1][3] = 0x19 = 25   (sel 2)
+//   BUILD_FORMAT_TABLE[3][3] = 0x1b = 27   (sel 4)
+//   BUILD_FORMAT_TABLE[7][3] = 0x1c = 28   (sel 8)
+// i.e. this table IS "the 4-component (RGBA) format at each bit depth",
+// which is exactly what the method name says. Corroborated by the bpp column:
+// each 3-component source maps to the 4-component format one channel wider —
+// 17 (3 bpp) -> 24 (4 bpp), 19 (6) -> 25 (8), 20 (6) -> 27 (8),
+// 21 (12) -> 28 (16).
+//
+// @Helium 0x00000000003cd650  (rip target of `leaq 0x32b919(%rip), %rcx`
+//                              @0xa1d30: 0xa1d37 + 0x32b919 = 0x3cd650)
+const RGB_TO_RGBA_BY_SEL: readonly number[] = Object.freeze([
+  /*0*/ 0x18, /*1*/ 0x19, /*2*/ 0x00, /*3*/ 0x1b,
+  /*4*/ 0x00, /*5*/ 0x00, /*6*/ 0x00, /*7*/ 0x1c,
+]);
+
+// ---------------------------------------------------------------------------
+// HGFormatUtils::RGBtoRGBA(HGFormat fmt)                       @Helium 0xa1cf0
+//   __ZN13HGFormatUtils9RGBtoRGBAE8HGFormat
+//
+// Disasm (x86_64 slice, 21 real insns + padding):
+//   0xa1cf0  pushq   %rbp
+//   0xa1cf1  movq    %rsp, %rbp
+//   0xa1cf4  movl    %edi, %eax               ; rax = fmt — ALSO the default
+//                                             ;   return value (every bail-out
+//                                             ;   below falls through to retq
+//                                             ;   with %eax still == fmt)
+//   0xa1cf6  movabsq $0x300003e0000, %rcx     ; the 3-channel-format bitmap
+//   0xa1d00  btq     %rax, %rcx               ; CF = (mask >> (fmt & 63)) & 1
+//   0xa1d04  jae     0xa1d3a                  ; CF == 0 -> return fmt unchanged
+//   0xa1d06  movl    %eax, %ecx
+//   0xa1d08  shlq    $0x5, %rcx               ; rcx = fmt * 32 (entry stride)
+//   0xa1d0c  leaq    formatInfosE(%rip), %rdx ; &formatInfos[0]  @0xa0ba40
+//   0xa1d13  movl    0xc(%rcx,%rdx), %ecx     ; sel = formatInfos[fmt] + 0x0c
+//   0xa1d17  decl    %ecx                     ; ecx = sel - 1
+//   0xa1d19  cmpl    $0x8, %ecx
+//   0xa1d1c  setb    %dl                      ; dl = (u32)(sel-1) < 8
+//   0xa1d1f  movb    $-0x75, %sil             ; sil = 0x8B (validity bitmask)
+//   0xa1d22  shrb    %cl, %sil                ; sil >>= (sel-1)   [byte shift]
+//   0xa1d25  andb    %dl, %sil
+//   0xa1d28  cmpb    $0x1, %sil
+//   0xa1d2c  jne     0xa1d3a                  ; invalid sel -> return fmt
+//   0xa1d2e  movl    %ecx, %eax               ; eax = sel - 1
+//   0xa1d30  leaq    0x32b919(%rip), %rcx     ; &RGB_TO_RGBA_BY_SEL  @0x3cd650
+//   0xa1d37  movl    (%rcx,%rax,4), %eax      ; eax = table[sel - 1]
+//   0xa1d3a  popq    %rbp
+//   0xa1d3b  retq
+//   0xa1d3c  nopl    (%rax)                   ; padding
+//
+// THE 0x300003e0000 BITMAP is byte-identical to the one `rowBytesHint`
+// @0xa1d9b already tests (`movabsq $0x300003e0000, %rdx ; btq %rcx, %rdx`):
+// bits {17, 18, 19, 20, 21, 40, 41}. In rowBytesHint those are the formats
+// whose row size is a plain `bpp * width` with no alignment; here they are
+// the formats RGBtoRGBA will widen. Both readings agree that this is the set
+// of 3-channel / non-padded packings — exactly the entries whose
+// metalFormat column is 0 (no Metal equivalent) in the table above.
+//
+// THE VALIDITY GATE `(0x8B >> (sel-1)) & ((sel-1) < 8)` is the SAME gate
+// `buildFormat` @0xa26ea-0xa26f5 applies to its `sel` argument (0x8B ==
+// 0b1000_1011, set bits {0,1,3,7}, i.e. sel in {1,2,4,8}). Reaching the same
+// gate with the +0x0c column as its input is what identifies that column as
+// `buildFormat`'s `sel`.
+//
+// `btq` with a REGISTER bit index takes it modulo the operand width (64), so
+// `btq %rax, %rcx` tests bit `fmt & 63`. `movl %edi, %eax` zero-extends, so
+// `fmt` is an unsigned 32-bit value here; the mask has no bits at or above 42,
+// and any fmt >= 64 aliases down modulo 64 exactly as the machine does.
+//
+// Zero in-scope callees, zero externs, zero indirect calls — a bitmap test
+// plus two static table reads (`depgraph.py deps
+// __ZN13HGFormatUtils9RGBtoRGBAE8HGFormat` prints nothing; no `callq`).
+//
+// Source disassembly:
+//   raw-port/re/disasm/Helium.__ZN13HGFormatUtils9RGBtoRGBAE8HGFormat.s
+/**
+ * `HGFormatUtils::RGBtoRGBA(HGFormat fmt)` — @Helium 0xa1cf0.
+ *
+ * Maps one of the 3-channel HGFormats {17,18,19,20,21,40,41} to the
+ * 4-channel (RGBA) format of the same bit depth; returns `fmt` UNCHANGED for
+ * every other input, and also for a 3-channel entry whose `+0x0c` selector
+ * fails the 0x8B validity gate. Faithful transcription of the 21-instruction
+ * body decoded above.
+ *
+ * Concretely, from the two tables transcribed above:
+ *   17 -> 24, 18 -> 24, 19 -> 25, 20 -> 27, 21 -> 28, 40 -> 24, 41 -> 24;
+ *   anything else -> itself.
+ */
+export function HGFormatUtils_RGBtoRGBA(fmt: number): number {
+  // @Helium 0xa1cf4: movl %edi,%eax — %eax starts as `fmt` and stays the
+  //   return value on every bail-out path.
+  const s = (fmt | 0) >>> 0;
+
+  // @Helium 0xa1cf6-0xa1d04: movabsq $0x300003e0000,%rcx ; btq %rax,%rcx ; jae
+  //   Bits {17,18,19,20,21,40,41}; `btq` with a register index masks it to 6
+  //   bits, so the test is on bit (fmt & 63).
+  const threeChannelMask: bigint = 0x300003e0000n;
+  const inMask = (threeChannelMask >> BigInt(s & 0x3f)) & 1n;
+  if (inMask !== 1n) {
+    // @Helium 0xa1d3a-0xa1d3b: popq %rbp ; retq with %eax == fmt.
+    //   %eax is returned as the SIGNED HGFormat enum, so the int32 view is the
+    //   faithful result: fmt = -8 answers -8, not 4294967288. (`s` above is the
+    //   zero-extended index `movl %edi,%eax` produces for the bit test and the
+    //   table scale; the RETURN is the same 32 bits read as signed.)
+    return fmt | 0;
+  }
+
+  // @Helium 0xa1d06-0xa1d13: movl %eax,%ecx ; shlq $0x5,%rcx ; leaq
+  //   formatInfosE(%rip),%rdx ; movl 0xc(%rcx,%rdx),%ecx
+  //   sel = *(u32*)(&formatInfos[fmt] + 0x0c).
+  //
+  //   NOTE THE TWO DIFFERENT INDEX WIDTHS, which is what this unit was
+  //   rejected for: `btq` above tested bit (fmt & 63), but `shlq $0x5` scales
+  //   the FULL, UNMASKED fmt. So any fmt >= 64 whose low 6 bits are in
+  //   {17..21, 40, 41} — 81, 104, 145, 168, 209, 232, 233, 296, 913, … —
+  //   passes the bitmap gate and then indexes PAST the 44 transcribed
+  //   entries. There is no bounds check at 0xa1d13: the machine reads
+  //   whatever follows the table (C++ undefined behaviour; the bytes are not
+  //   part of the transcribed program), so raise and never approximate it —
+  //   Rule 3.
+  //
+  //   THE SIBLING METHODS SPLIT ON EXACTLY THIS POINT, and the contrast is the
+  //   argument for raising here rather than returning something:
+  //     * `toGLFormat` @0xa1c50 has the SAME unchecked shape — `leaq
+  //       (%rax,%rax,2),%rax` then `movl 0x4(%rcx,%rax,4),%eax` @0xa1c61, with
+  //       no compare anywhere in the body — and is treated the same way here.
+  //     * `bytesPerPixel` @0xa1d60 is the OPPOSITE case: the MACHINE bounds-
+  //       checks it, `xorl %eax,%eax` @0xa1d64 then `cmpl $0x2b,%edi ; jg
+  //       0xa1d7c` @0xa1d66, so an out-of-range fmt provably returns 0 and
+  //       transcribing that 0 is faithful. No raise is needed there because
+  //       the binary itself defines the answer. RGBtoRGBA has no such compare,
+  //       which is precisely why there is nothing to transcribe on this path.
+  //
+  //   WHEN THIS RAISE CAN FIRE: only when (fmt & 63) is in the bitmap AND
+  //   fmt > 0x2b. Every well-formed `HGFormat` is in [0, 0x2b], so no valid
+  //   enum value can reach it — the 44 in-domain inputs all return through one
+  //   of the two paths below. This is not a reachable incompleteness throw; it
+  //   is the boundary of the domain in which the machine has a defined answer.
+  //
+  //   Measured against live Helium on BOTH slices, no returned value can be
+  //   faithful, because the two slices do not agree. Out-of-table inputs read
+  //   whatever bytes follow the 44-entry table, and those differ between the
+  //   x86_64 and arm64 images: on x86_64 (the slice this file transcribes)
+  //   fmt 232 and 233 return 24 while 81..84 and 616 return themselves; on
+  //   arm64 it is exactly the reverse. Both "cheap fixes" — return fmt
+  //   unchanged, or return 24 — are therefore wrong on at least one slice, and
+  //   a negative fmt whose low 6 bits hit the bitmap (-47, -24, …) faults with
+  //   SIGBUS rather than returning anything at all. There is no value to
+  //   transcribe here; raise.
+  //
+  //   (The earlier revision of this comment quoted those two groups the wrong
+  //   way round — it said 232/233 return themselves and 81/104/145 return 24.
+  //   Those were arm64 numbers, and this file is an x86_64 transcription: every
+  //   @0xADDR in it is an x86_64 offset and `disasm.sh` thins to that slice.
+  //   Corrected above from measurements on both slices, so that a reader who
+  //   re-runs the check on the slice the file names finds the numbers it
+  //   states. The conclusion is unchanged and is strengthened: it is the
+  //   DISAGREEMENT between the slices that proves no returned value can be
+  //   faithful.)
+  //
+  //   RE-MEASURED on the x86_64 slice when this comment was corrected, so the
+  //   file does not repeat the mistake it is fixing. `arch -x86_64
+  //   /usr/bin/python3`, Helium loaded through the depth-first @rpath preload,
+  //   `dlsym` resolving to exactly `slide + 0xa1cf0` and the prologue bytes
+  //   there reading `55 48 89 e5 89 f8` before any number was believed; each
+  //   call made in a forked child because the faulting inputs kill the process:
+  //
+  //     in-domain   17->24  18->24  19->25  20->27  21->28  40->24  41->24
+  //                 0->0  1->1  43->43
+  //     past table  81->81  82->82  83->83  84->84  616->616  65576->65576
+  //                 232->24  233->24  913->24
+  if (s > 0x2b) {
+    throw new Error(
+      "HGFormatUtils::RGBtoRGBA(fmt=" +
+        String(fmt) +
+        ") — fmt out of range [0, 0x2b] on the widening path; `btq %rax,%rcx` " +
+        "@Helium 0xa1d00 masks the bit index to (fmt & 63) but `shlq $0x5,%rcx` " +
+        "@0xa1d08 scales the FULL fmt, so the load at @Helium 0xa1d13 " +
+        "(&formatInfos + fmt*32 + 0x0c) has NO bounds check and would read past " +
+        "the 44-entry formatInfos table, yielding C++ undefined behaviour. " +
+        "Callers must clamp fmt to a valid HGFormat. @Helium 0xa1cf0",
+    );
+  }
+  const sel = FORMAT_INFOS_COMPONENT_SEL[s]!;
+
+  // @Helium 0xa1d17: decl %ecx — the table index and the shift count. `sel` is
+  //   a transcribed table value by construction (the raise above closes the
+  //   undefined -> NaN -> 0 collapse that used to turn the out-of-range load
+  //   into a fabricated answer), so no masking fallback is needed here.
+  const idx = sel - 1;
+  // @Helium 0xa1d19-0xa1d1c: cmpl $0x8,%ecx ; setb %dl  (UNSIGNED).
+  const below8 = (idx >>> 0) < 8 ? 1 : 0;
+  // @Helium 0xa1d1f-0xa1d25: movb $-0x75,%sil ; shrb %cl,%sil ; andb %dl,%sil.
+  //   `shrb` on an 8-bit operand uses only the low 3 bits of %cl as the count;
+  //   `below8` already forces the out-of-range case to 0.
+  const maskBit = below8 !== 0 ? (0x8b >> (idx & 7)) & 1 : 0;
+  const gate = maskBit & below8;
+  // @Helium 0xa1d28-0xa1d2c: cmpb $0x1,%sil ; jne 0xa1d3a.
+  if (gate !== 1) {
+    // same bail as above — %eax still holds fmt, returned as signed int32.
+    return fmt | 0;
+  }
+
+  // @Helium 0xa1d2e-0xa1d37: eax = RGB_TO_RGBA_BY_SEL[sel - 1].
+  return RGB_TO_RGBA_BY_SEL[idx]! | 0;
+}
