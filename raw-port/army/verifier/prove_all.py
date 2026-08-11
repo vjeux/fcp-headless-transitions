@@ -125,7 +125,18 @@ def layer2():
     print("LAYER 2i (queue coverage — the doctor follows the queues instead of disagreeing):",
           "PASS" if ok9 else "FAIL")
     if not ok9: print(r9.stdout[-1200:], r9.stderr[-400:])
-    # 2j — THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed
+    # 2j — THE PR'S BASE. Nothing in the swarm read `baseRefName`: pr_gate diffs `origin/main...HEAD`
+    # while pr_land merges into the PR's OWN base, so a PR stacked on another PR's branch got a green
+    # status covering three PRs' commits and would have been merged where no branch protection
+    # applies. Both tools now refuse; this pins both refusals AND the two decisions inside them (the
+    # gate posts no status, so the PR stays claimable; pr_land fails OPEN on an unanswered query, so
+    # a TLS blip cannot wedge every merge). Offline, guards extracted from the shipped files. ~1s.
+    r10 = run(["bash", os.path.join(TOOLS, "test_pr_base_is_main.sh")])
+    ok10 = "test_pr_base_is_main: PASS" in r10.stdout
+    print("LAYER 2j (a PR's base must be main — the gate and the merge target must agree):",
+          "PASS" if ok10 else "FAIL")
+    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
+    # 2k — THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed
     # the thing they exist to preserve, in the same way, at exit 0, behind a plausible success line:
     # an unrecognised flag falls through to `BODY="$*"` and is posted AS the record. `pr_review.sh`
     # lost 11KB of a differential that way (row 43) and was fixed in #596; `pr_comment_once.sh` was
@@ -139,17 +150,19 @@ def layer2():
     # review suite and 4.5s for the comment one (prove_all end to end is 2m19s at that load). An
     # earlier revision of this line said "~18s total", which is the idle number and 2.5x optimistic
     # — the figure a reader budgets from should be the one they will actually pay.
-    r10 = run(["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")])
-    ok10 = r10.returncode == 0 and "test_pr_review_argv:" in r10.stdout and "0 failed" in r10.stdout
-    r11 = run(["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")])
-    ok11 = (r11.returncode == 0 and "test_pr_comment_once_argv:" in r11.stdout
-            and "0 failed" in r11.stdout)
-    print("LAYER 2j (evidence-recording tools — an unknown flag must never become the record):",
-          "PASS" if (ok10 and ok11) else "FAIL")
-    if not ok10: print(r10.stdout[-1200:], r10.stderr[-400:])
+    r11 = run(["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")])
+    ok11 = r11.returncode == 0 and "test_pr_review_argv:" in r11.stdout and "0 failed" in r11.stdout
+    r12 = run(["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")])
+    ok12 = (r12.returncode == 0 and "test_pr_comment_once_argv:" in r12.stdout
+            and "0 failed" in r12.stdout)
+    print("LAYER 2k (evidence-recording tools — an unknown flag must never become the record):",
+          "PASS" if (ok11 and ok12) else "FAIL")
     if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
+    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
+    # (This block and 2j above landed as two different "LAYER 2j"s in two PRs; BOTH are
+    # kept — only this one's letter and result variables were renumbered.)
     return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
-            and ok10 and ok11)
+            and ok10 and ok11 and ok12)
 
 def _reach(spec, expect):
     import tempfile
