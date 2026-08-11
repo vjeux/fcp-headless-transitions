@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""test_rebase_tools.py — pin the three rebase-path failures that destroyed or misrouted work.
+"""test_rebase_tools.py — pin the rebase-path failures that destroyed or misrouted work.
 
 Each case is a real incident from 2026-08-11, reproduced on a scratch repo:
   1. a cited .s FILENAME must not read as an added symbol (false BAIL, #392)
   2. a class with several open PRs must NOT be resolved by guessing (#390 got #396's content)
   3. a rebase must carry the branch's NON-src files (#449 lost an oracle harness to a force-push)
+  4. the union rebase must LAND on a `port/<Class>__slot<N>` PR (#660: rebase_pr.sh looked for a
+     rebased branch under a name rebase_helper never pushes, and refused its own completed work)
 
 EVERY CASE MUST BE ABLE TO FAIL. Case 3's first version compared a hand-built set against itself:
 deleting the entire carry block from rebase_helper left it green, so it locked nothing while three
@@ -13,7 +15,7 @@ stubbing only `gh` and the gate (there is no TS toolchain in a scratch repo). Ve
 remove the carry loop, leaving valid code, and case 3 reports the dropped harness by name.
 If you change these tools, re-run that mutation — a lock that cannot fail is not a lock.
 """
-import json, os, re, subprocess, sys, tempfile
+import json, os, re, shutil, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.join(os.path.dirname(HERE), "tools")
@@ -166,6 +168,112 @@ with tempfile.TemporaryDirectory() as td:
                     fails.append(f"3. union lost {want} from the rebased file")
     except Exception as e:
         fails.append(f"3. harness error: {type(e).__name__}: {e}")
+
+
+CASE4_PR = "999001"   # a number the live swarm cannot be using; this case writes /tmp/rebase_pr_<PR>_*
+
+
+def case4_slot_branch(tmp):
+    """Run the REAL rebase_pr.sh end-to-end on a `port/<Class>__slot<N>` PR.
+
+    #660: rebase_helper strips `__slot<N>` to get the class and pushes `port/<Class>_rebased`;
+    rebase_pr.sh re-derived that name from the BRANCH (stripping only `_rebased`), looked for
+    `port/<Class>__slot<N>_rebased`, found nothing, and its file-list guard — reading an empty side
+    of a `comm` — refused the push as "missing files the PR has". The union was complete and
+    gate-green on the remote; the PR went back to the queue, one attempt closer to being auto-closed.
+
+    Nothing short of running the tool catches this: every part is individually correct, and the two
+    spellings coincide on the `port/<Class>` branches everyone tested with. So this case invokes the
+    script, with a scratch $HOME as the canonical checkout and only the network stubbed:
+      * `gh` — a shell stub answering the two queries these tools make;
+      * `gate.sh` — a stub printing GATE: PASS (there is no TypeScript toolchain in a scratch repo,
+        and the gate is not what this case tests; case 3 makes the same trade).
+    Returns (CompletedProcess, files on the PR branch, that branch's C.ts, remote branch names).
+    """
+    home = os.path.join(tmp, "home")
+    work = os.path.join(home, "random", "final-cut-pro-transitions")
+    bare = os.path.join(tmp, "origin4.git")
+    os.makedirs(work)
+    _git(["init", "-q", "--bare", "-b", "main", bare], tmp)
+    _git(["init", "-q", "-b", "main", work], tmp)
+    for k, v in (("user.email", "t@t"), ("user.name", "t"), ("commit.gpgsign", "false")):
+        _git(["config", k, v], work)
+    _git(["remote", "add", "origin", bare], work)
+
+    # the real tools under test, plus a stub gate
+    os.makedirs(os.path.join(work, "raw-port/army/tools"))
+    os.makedirs(os.path.join(work, "raw-port/army/gate"))
+    for t in ("rebase_pr.sh", "rebase_helper.py"):
+        shutil.copy(os.path.join(TOOLS, t), os.path.join(work, "raw-port/army/tools", t))
+    gate = os.path.join(work, "raw-port/army/gate/gate.sh")
+    open(gate, "w").write('#!/bin/bash\necho "GATE: PASS"\n')
+    os.chmod(gate, 0o755)
+
+    os.makedirs(os.path.join(work, "raw-port/src/x"))
+    csrc = "export class C {\n  base() {}  // @Helium 0x100 __ZN1C4baseEv\n}\n"
+    open(os.path.join(work, "raw-port/src/x/C.ts"), "w").write(csrc)
+    _git(["add", "-A"], work); _git(["commit", "-qm", "base"], work)
+    _git(["push", "-q", "origin", "main"], work)
+
+    # THE SHAPE THAT BREAKS IT: a __slot<N> branch (what #240 cuts whenever a class is contended)
+    _git(["checkout", "-qb", "port/C__slot7"], work)
+    open(os.path.join(work, "raw-port/src/x/C.ts"), "w").write(
+        csrc.replace("}\n", "  fromBranch() {}  // @Helium 0x200 __ZN1C10fromBranchEv\n}\n"))
+    os.makedirs(os.path.join(work, "raw-port/re/oracle"))
+    open(os.path.join(work, "raw-port/re/oracle/C_oracle.py"), "w").write("# harness\n")
+    _git(["add", "-A"], work); _git(["commit", "-qm", "port + oracle"], work)
+    _git(["push", "-q", "origin", "port/C__slot7"], work)
+
+    _git(["checkout", "-q", "main"], work)
+    open(os.path.join(work, "raw-port/src/x/C.ts"), "w").write(
+        csrc.replace("}\n", "  fromMain() {}  // @Helium 0x300 __ZN1C8fromMainEv\n}\n"))
+    _git(["add", "-A"], work); _git(["commit", "-qm", "sibling on main"], work)
+    _git(["push", "-q", "origin", "main"], work)
+    _git(["fetch", "-q", "origin"], work)
+
+    bindir = os.path.join(tmp, "bin4"); os.makedirs(bindir)
+    gh = os.path.join(bindir, "gh")
+    open(gh, "w").write(
+        '#!/bin/bash\n'
+        '# the only two queries rebase_pr.sh / rebase_helper.py make\n'
+        'if [ "$1" = pr ] && [ "$2" = view ]; then echo "port/C__slot7"; exit 0; fi\n'
+        'if [ "$1" = pr ] && [ "$2" = list ]; then\n'
+        '  echo \'[{"number":%s,"headRefName":"port/C__slot7"}]\'; exit 0\n'
+        'fi\n'
+        'exit 1\n' % CASE4_PR)
+    os.chmod(gh, 0o755)
+
+    env = dict(os.environ)
+    env["HOME"] = home
+    env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
+    r = subprocess.run(["bash", os.path.join(work, "raw-port/army/tools/rebase_pr.sh"), CASE4_PR],
+                       cwd=work, env=env, capture_output=True, text=True, timeout=300)
+    _git(["fetch", "-q", "--prune", "origin"], work)
+    files = set(_git(["ls-tree", "-r", "--name-only", "origin/port/C__slot7"], work).stdout.split())
+    src = _git(["show", "origin/port/C__slot7:raw-port/src/x/C.ts"], work, check=False).stdout
+    refs = _git(["for-each-ref", "--format=%(refname:short)", "refs/remotes/origin"],
+                work).stdout.split()
+    return r, files, src, refs
+
+
+with tempfile.TemporaryDirectory() as td:
+    try:
+        r, files, src, refs = case4_slot_branch(td)
+        out = r.stdout + r.stderr
+        if "REBASE_UNION" not in out or r.returncode != 0:
+            fails.append("4. rebase_pr.sh did not land the union on a `__slot<N>` PR branch "
+                         f"(rc={r.returncode}): {out.strip()[-300:]}")
+        else:
+            if "fromMain" not in src or "fromBranch" not in src:
+                fails.append(f"4. the PR branch does not carry both methods after the rebase: {src!r}")
+            if "raw-port/re/oracle/C_oracle.py" not in files:
+                fails.append("4. the rebase dropped the branch's oracle harness (#25) on the "
+                             "__slot path")
+            leftover = [x for x in refs if x.endswith("_rebased")]
+            if leftover:
+                fails.append(f"4. the temporary union branch was left on the remote: {leftover}")
+    except Exception as e:
+        fails.append(f"4. harness error: {type(e).__name__}: {e}")
 
 
 print(f"test_rebase_tools: {'FAIL' if fails else 'PASS'}")
