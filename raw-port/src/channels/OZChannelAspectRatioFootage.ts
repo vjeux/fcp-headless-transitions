@@ -199,26 +199,113 @@ function createOZChannelAspectRatioFootageInfo_default(): OZChannelInfo {
 }
 
 /**
- * OZChannelAspectRatioFootage::createOZChannelAspectRatioFootageImpl() —
- * static lambda under `_OZChannelAspectRatioFootageImpl_once`, bound
- * through `std::__1::__call_once_proxy`. Populates the class-scoped
- * `_OZChannelAspectRatioFootageImpl` global (a pointer to an
- * OZChannelAspectRatioFootageImpl instance).
+ * `OZChannelAspectRatioFootage::createOZChannelAspectRatioFootageImpl()`
+ *   — @ProChannel 0x66e2
+ *   — __ZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageImplEv
  *
- * Referenced by OZChannelAspectRatioFootage::C2 @0xbfd49-9f (once-flag +
- * proxy stub setup) and returned via a load of
- * `__ZN27OZChannelAspectRatioFootage32_OZChannelAspectRatioFootageImplE`
- * @0xbfdb1-bb. NOT yet decoded.
+ * WHICH BINARY THIS ADDRESS IS IN, because this file's other citations are Ozone's.
+ * The class is emitted into BOTH frameworks. Ozone carries the ctor (@0xbfc90) and the
+ * `__call_once_proxy` instantiation (@0xbff70) but NOT this accessor as a standalone
+ * symbol; ProChannel emits all three — the accessor @0x66e2, its proxy @0x687f and the
+ * lambda body @0x6890. So the only copy that can be transcribed is ProChannel's, and it
+ * is cited as such. The Ozone call sites this function serves (@0xbfdb1 in the ctor's
+ * impl-fixup branch) are unchanged and still cited below.
+ *
+ * Line-for-line transcription of the 20-line body — the standard libc++
+ * `std::call_once`-guarded singleton accessor, the same shape as the landed
+ * `OZChannelAngleOverRange_Factory::getInstance()` @ProChannel 0x2404:
+ *
+ *   0x66e2  pushq  %rbp
+ *   0x66e3  movq   %rsp, %rbp
+ *   0x66e6  subq   $0x20, %rsp            ; 32-byte frame: the libc++ tuple<lambda&&>
+ *   0x66ea  movq   _..._once(%rip), %rax  ; rax = the once_flag word
+ *   0x66f1  cmpq   $-0x1, %rax            ; libc++ writes ~0UL on completion
+ *   0x66f5  je     0x671c                 ; fast path: skip call_once
+ *   0x66f7  leaq   -0x1(%rbp), %rax       ; the empty captureless lambda's 1-byte slot
+ *   0x66fb  leaq   -0x18(%rbp), %rcx      ; the tuple<T&&> slot
+ *   0x66ff  movq   %rax, (%rcx)           ; tuple.head = &lambda-slot
+ *   0x6702  leaq   -0x10(%rbp), %rsi      ; call_once's `void* arg`
+ *   0x6706  movq   %rcx, (%rsi)           ; *arg = &tuple
+ *   0x6709  leaq   _..._once(%rip), %rdi  ; rdi = &once_flag
+ *   0x6710  leaq   __call_once_proxy<...>(%rip), %rdx   ; the proxy @0x687f
+ *   0x6717  callq  0xacdc8                ; symbol stub for std::__1::__call_once
+ *   0x671c  leaq   _OZChannelAspectRatioFootageImpl(%rip), %rax
+ *   0x6723  movq   (%rax), %rax           ; the return value: the singleton pointer
+ *   0x6726  addq   $0x20, %rsp
+ *   0x672a  popq   %rbp
+ *   0x672b  retq
+ *
+ * The stack tuple at 0x66f7..0x6706 is an ABI artefact of libc++'s `__call_once`
+ * template instantiation — two levels of indirection so the proxy can find a captureless
+ * lambda that has no state to find. It has no observable effect, and the model below
+ * calls the proxy directly, exactly as the landed `getInstance()` port does.
+ *
+ * FRONTIER, and it is not this unit: the lambda body
+ * `__ZZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageImplEvENKUlvE_clEv`
+ * @ProChannel 0x6890 and its proxy @0x687f are SEPARATE ledger units
+ * (`depgraph.py deps` lists no in-scope dependency for this symbol, because the proxy is
+ * passed as DATA — a function pointer — and never appears as a call target). Until they
+ * are claimed, the initializer raises citing both addresses, which is what makes the gap
+ * visible to depgraph instead of silently returning a fabricated pointer.
  */
 function createOZChannelAspectRatioFootageImpl_default(): OZChannelImpl {
+  // @0x66ea-0x66f5 — the libc++ fast path: once == ~0UL means init already completed.
+  if (_OZChannelAspectRatioFootageImpl_once !== -1n) {
+    // @0x66f7-0x6717 — marshal the tuple and call std::__1::__call_once(&once, arg, proxy)
+    //   through ProChannel stub 0xacdc8 (libc++, a TRUE out-of-scope extern).
+    std_call_once_AspectRatioFootageImpl();
+  }
+  // @0x671c-0x6723 — return the global the initializer wrote.
+  if (_OZChannelAspectRatioFootageImpl === null) {
+    throw new Error(
+      "OZChannelAspectRatioFootage::createOZChannelAspectRatioFootageImpl() @ProChannel " +
+        "0x66e2 completed std::__call_once without the initializer writing " +
+        "__ZN27OZChannelAspectRatioFootage32_OZChannelAspectRatioFootageImplE — the load " +
+        "@0x6723 would return NULL.",
+    );
+  }
+  return _OZChannelAspectRatioFootageImpl;
+}
+
+/**
+ * @ProChannel BSS
+ * `__ZZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageImplEvE37_OZChannelAspectRatioFootageImpl_once`
+ * — the libc++ `std::once_flag` word read @0x66ea. 0n = not started, -1n (~0UL) =
+ * completed, which is the only value the accessor's fast path @0x66f1 tests for. BSS is
+ * zero-filled at load, so it starts 0n.
+ */
+let _OZChannelAspectRatioFootageImpl_once: bigint = 0n; // @ProChannel 0x66ea read-site
+
+/**
+ * @ProChannel BSS `__ZN27OZChannelAspectRatioFootage32_OZChannelAspectRatioFootageImplE`
+ * — the singleton pointer, loaded @0x671c-0x6723 as the return value and written by the
+ * initializer lambda. Zero-filled at load, i.e. nullptr.
+ */
+let _OZChannelAspectRatioFootageImpl: OZChannelImpl | null = null; // @ProChannel 0x671c
+
+/**
+ * `std::__1::__call_once(flag&, void*, void(*)(void*))` — libc++, reached through
+ * ProChannel stub 0xacdc8 @0x6717. A TRUE out-of-scope extern; there is no libc++ runtime
+ * here, so the contract the accessor actually depends on is modelled: run the initializer
+ * once, and write ~0UL into the flag ONLY on success. If the initializer raises, the flag
+ * stays 0 and a later call retries — which is what the real runtime does, and why the
+ * fast-path test @0x66f1 is against -1 rather than "non-zero".
+ *
+ * The initializer itself (the lambda @0x6890 through the proxy @0x687f) is a separate
+ * ledger unit, so it raises citing both addresses rather than fabricating a pointer.
+ */
+function std_call_once_AspectRatioFootageImpl(): void {
+  if (_OZChannelAspectRatioFootageImpl_once === -1n) return; // libc++ fast path
   throw new Error(
-    "OZChannelAspectRatioFootage::createOZChannelAspectRatioFootageImpl() " +
-      "(lambda under __ZZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageImplEvE37_OZChannelAspectRatioFootageImpl_once) " +
-      "@Ozone — bound via " +
-      "__ZNSt3__117__call_once_proxyB9nqe210106INS_5tupleIJOZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageImplEvEUlvE_EEEEEvPv. " +
-      "Not yet decoded; populates " +
-      "__ZN27OZChannelAspectRatioFootage32_OZChannelAspectRatioFootageImplE " +
-      "(loaded @0xbfdb1 in the impl-fixup 'else' branch).",
+    "OZChannelAspectRatioFootage::createOZChannelAspectRatioFootageImpl()'s once-init " +
+      "lambda is not yet transcribed @ProChannel 0x6890 " +
+      "(__ZZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageImplEvENKUlvE_clEv), " +
+      "reached through the libc++ proxy @ProChannel 0x687f " +
+      "(__ZNSt3__117__call_once_proxyB9nqe210106INS_5tupleIJOZN27OZChannelAspectRatioFootage37createOZChannelAspectRatioFootageImplEvEUlvE_EEEEEvPv) " +
+      "from std::__1::__call_once @ProChannel 0x6717 (stub 0xacdc8). It allocates the " +
+      "OZChannelAspectRatioFootageImpl singleton and stores it into " +
+      "__ZN27OZChannelAspectRatioFootage32_OZChannelAspectRatioFootageImplE, which the " +
+      "accessor then loads @0x6723. Both are separate ledger units.",
   );
 }
 

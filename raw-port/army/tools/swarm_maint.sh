@@ -24,7 +24,15 @@ bash "$T/wt_pool.sh" gc >/dev/null 2>&1 || true
 # (2) CLEAN TREE — PR flow never dirties the canonical tree; if it's dirty AND no worker/reviewer/gate
 # proc is running, reset it. Ignore gitignored runtime state (ledger/, .gate.tsbuildinfo).
 git fetch -q origin main 2>/dev/null || true
-dirty=$(git status --porcelain 2>/dev/null | grep -vE 'raw-port/army/ledger/|raw-port/\.gate\.tsbuildinfo|raw-port/army/depgraph/' | head -1)
+# MACHINE-GENERATED STATE IS NOT "DIRTY". Everything in this list is regenerable output that
+# ordinary swarm activity rewrites in this tree, so counting it as local work is what pinned the
+# checkout: `raw-port/army/cache/stubscan_cites.v1.json` is a TRACKED 1.5 MB cache that
+# `stubscan.py` (FileCache("stubscan_cites")) rewrites every few minutes, so `dirty` was never
+# empty, so the fast-forward below could never run — while the reset --hard path that would have
+# cleaned it is itself held shut by `gatebusy`, which on a busy swarm is always set. The two
+# branches deadlocked against each other and the tree sat 45 commits behind, permanently.
+MACHINE_STATE='raw-port/army/ledger/|raw-port/\.gate\.tsbuildinfo|raw-port/army/depgraph/|raw-port/army/cache/'
+dirty=$(git status --porcelain 2>/dev/null | grep -vE "$MACHINE_STATE" | head -1)
 gatebusy=$(pgrep -f 'pr_gate.sh|pr_submit.sh|pr_land.sh|rebase_pr.sh' >/dev/null 2>&1 && echo 1 || echo "")
 if [ -n "$dirty" ] && [ -z "$gatebusy" ]; then
   git reset --hard origin/main >/dev/null 2>&1 || true
@@ -38,12 +46,40 @@ fi
 # read origin/main instead of the stale tree, and the fix could not take effect, because the fix is
 # delivered THROUGH the tree it is trying to stop trusting. `--ff-only` cannot lose work: it refuses
 # rather than rewriting, and it runs only when the tree is clean and no gate process is live.
-if [ -z "$dirty" ] && [ -z "$gatebusy" ]; then
+# NOTE THE MISSING $gatebusy CONDITION — it is deliberate, and removing it is the fix.
+#
+# The fast-forward used to require "no gate/submit/land process running", copied from the reset
+# --hard path above where it is essential. On a busy swarm that condition is NEVER satisfied: gates
+# run continuously, so the FF never fired and the canonical checkout drifted to 38 commits behind
+# while an agent watched the window fail to open 12 times in 120 seconds. That is not a theoretical
+# staleness — every agent invokes `raw-port/army/tools/*` FROM THIS TREE, so they ran a rework_claim
+# that lacked its own "already reworked" skip and drove four PRs to the attempt cap for no reason.
+#
+# The condition is also unnecessary HERE, which is why dropping it is safe rather than a trade:
+# pr_gate/pr_submit/pr_land never check out into the canonical tree — they lease a POOL worktree
+# (`wt_pool.sh acquire-at`) and only ever read the canonical tree's git DIR. A `--ff-only` merge of a
+# CLEAN tree writes no new content those readers can see mid-operation: it refuses rather than
+# rewriting, and the `-z "$dirty"` guard above already ensures nothing local is at risk.
+# The destructive path (reset --hard) keeps the gate guard, because that one can genuinely discard.
+if [ -z "$dirty" ]; then
   behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
   if [ "${behind:-0}" -gt 0 ]; then
-    git merge --ff-only origin/main >/dev/null 2>&1 \
-      && echo "swarm_maint: fast-forwarded canonical tree $behind commit(s) to origin/main" \
-      || echo "swarm_maint: canonical tree is $behind behind and NOT fast-forwardable — needs a human"
+    if git merge --ff-only origin/main >/dev/null 2>&1; then
+      echo "swarm_maint: fast-forwarded canonical tree $behind commit(s) to origin/main"
+    elif [ -n "$(git status --porcelain -- raw-port/army/cache/ 2>/dev/null)" ]; then
+      # The tree is clean apart from the machine-generated state excluded above, so the only thing
+      # that can refuse a fast-forward is an incoming commit touching one of those same files —
+      # today that means the tracked stubscan cache. Discarding a regenerable cache is free (the
+      # next stubscan run rewrites it), and NOT discarding it re-creates the deadlock the moment
+      # any commit carries a new copy: the reset --hard path cannot clean it while a gate is live,
+      # which is always. Scoped to that one directory, and only after a real FF failure.
+      git checkout -- raw-port/army/cache/ >/dev/null 2>&1 || true
+      git merge --ff-only origin/main >/dev/null 2>&1 \
+        && echo "swarm_maint: fast-forwarded canonical tree $behind commit(s) to origin/main (discarded the regenerable stubscan cache first)" \
+        || echo "swarm_maint: canonical tree is $behind behind and NOT fast-forwardable — needs a human"
+    else
+      echo "swarm_maint: canonical tree is $behind behind and NOT fast-forwardable — needs a human"
+    fi
   fi
 fi
 
