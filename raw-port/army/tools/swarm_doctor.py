@@ -123,7 +123,10 @@ def check_queue_coverage():
         the loop, because the FAILURE prefilter alone is not the filter: a FAILURE whose
         description does not match `regression|rebase|add-only|G6|gate reject` (for example
         `1 G5 flag(s): …`, `dup-ledger (already on main)`) is dropped, and those are exactly the
-        states that strand.
+        states that strand. …and the grep is not the whole filter either: a row the queue selected
+        because GitHub says the branch CONFLICTS is taken without any description being read, so
+        the exemption is followed here too — otherwise this check reports `rebase_claim=0` for
+        PRs the queue is handing out, which is the same disagreement in the other direction.
 
     Change a filter and this check follows it, instead of silently disagreeing with it.
     """
@@ -134,32 +137,46 @@ def check_queue_coverage():
     open_nums = {pr["number"] for pr in prs}
 
     def numbers_from(tool, var):
-        """Run the tool's OWN selector and return the PR numbers it would consider."""
+        """Run the tool's OWN selector; return (numbers, row-fields by number, error).
+
+        THE ROWS, not just the numbers, because a selector's row carries the evidence the tool's
+        own loop then acts on. rebase_claim emits `<num>\\t<branch>\\t<sha>\\t<mergeStateStatus>`
+        and its DIRTY branch reads that fourth field to skip the description grep entirely. Taking
+        that field out of the row keeps this check downstream of the tool's OWN answer — same
+        query, same moment — instead of pairing a lifted selector with a second, colder snapshot
+        of GitHub. (`mergeStateStatus` is computed lazily: the first ask returns UNKNOWN and merely
+        triggers the computation, so two snapshots seconds apart genuinely disagree.) Fields are
+        matched by CONTENT below, never by index, so a tool that adds a column does not silently
+        change what this check believes.
+        """
         src = from_main(f"raw-port/army/tools/{tool}")
         if not src:
-            return None, f"could not read {tool} from origin/main"
+            return None, None, f"could not read {tool} from origin/main"
         m = re.search(r'^\s*' + var + r'=\$\(gh pr list.*?\)\n', src, re.S | re.M)
         if not m:
-            return None, f"could not find the {var}= query in {tool}"
+            return None, None, f"could not find the {var}= query in {tool}"
         probe = m.group(0).replace('"$SLUG"', SLUG).replace("2>/dev/null)", ")")
         r = sh(probe + f'\nprintf "%s" "${var}"', timeout=180)
         if r.returncode != 0 and not r.stdout.strip():
-            return None, f"{tool} selector failed: {(r.stderr or '').strip()[:120]}"
-        out = set()
+            return None, None, f"{tool} selector failed: {(r.stderr or '').strip()[:120]}"
+        out, rows = set(), {}
         for line in r.stdout.splitlines():
-            tok = line.split("\t")[0].strip()
+            fields = [f.strip() for f in line.split("\t")]
+            tok = fields[0] if fields else ""
             if tok.isdigit():
                 out.add(int(tok))
-        return out, ""
+                rows[int(tok)] = fields
+        return out, rows, ""
 
-    coverage, problems = {}, []
+    coverage, rows_by_tool, problems = {}, {}, []
     for tool, var in (("review_claim.sh", "rows"), ("rework_claim.sh", "cand"),
                       ("rebase_claim.sh", "cand")):
-        nums, e = numbers_from(tool, var)
+        nums, rows, e = numbers_from(tool, var)
         if nums is None:
             problems.append(e)
         else:
             coverage[tool] = nums
+            rows_by_tool[tool] = rows
 
     if problems:
         # Cannot ask a queue -> cannot claim to know what is uncovered. UNKNOWN, never OK.
@@ -173,8 +190,69 @@ def check_queue_coverage():
     rebase_src = from_main("raw-port/army/tools/rebase_claim.sh")
     m = re.search(r"grep -qiE '([^']+)'", rebase_src)
     desc_re = re.compile(m.group(1) if m else r"regression|rebase", re.I)
+
+    # ── …AND THE GREP IS NOT THE WHOLE FILTER EITHER, ONCE THE QUEUE CAN SEE A CONFLICT ─────────
+    # rebase_claim now selects a PR two ways: the gate said regression/rebase, or GITHUB SAYS THE
+    # BRANCH CONFLICTS (mergeStateStatus DIRTY). Its DIRTY branch skips the description grep ON
+    # PURPOSE — the conflict IS the evidence, and such a PR is usually gate-GREEN with a
+    # description about something else entirely ("no raw-port/src ports to gate (infra/tooling
+    # PR)", or empty), which is precisely why those PRs stranded. Re-applying the grep to them here
+    # would drop the very PRs that fix makes claimable and report `rebase_claim=0` while the queue
+    # hands them out — this check disagreeing with the tool it lifted, which is the
+    # second-source-of-truth failure it exists to avoid (#20/#21/#26).
+    #
+    # DETECTED, NOT ASSUMED: the exemption applies only if the tool read from origin/main actually
+    # HAS that branch. Run against an older rebase_claim that cannot select a conflict, this check
+    # must behave exactly as before rather than inventing coverage the queue does not provide.
+    dirty_bypass = "DIRTY" in rebase_src
+    rebase_rows = rows_by_tool.get("rebase_claim.sh", {})
+    review_by_num = {pr["number"]: pr.get("reviewDecision") for pr in prs}
+    snapshot_dirty = {pr["number"] for pr in prs if pr.get("mergeStateStatus") == "DIRTY"}
+
+    def dirty_selected(n):
+        """Did the queue's own row say DIRTY? Fall back to our snapshot, never the other way round.
+
+        Two sources because `mergeStateStatus` is lazy (UNKNOWN on a cold ask, DIRTY seconds
+        later): the selector's row is the warmer of the two, and our list snapshot was taken first.
+        Either saying DIRTY means GitHub says the branch conflicts, so accepting either only widens
+        coverage against that race — it can never call a conflicted PR clean.
+        """
+        return n in snapshot_dirty or "DIRTY" in rebase_rows.get(n, [])[1:]
+
+    def retired_by_cap(n):
+        """Would rebase_claim's own attempt cap make it SKIP this PR? Then nobody can claim it.
+
+        On the DIRTY path the cap does not close the PR (correctly — closing an author's work is a
+        human's call), it just stops offering it, silently. That is #28's shape again: state, not a
+        filter, making work invisible, and counting such a PR as covered here would hide it behind
+        a cheerful `queue-coverage ok`. `no-stranded-work` flags the counter; this names the PR.
+
+        READ-ONLY, and it applies the queue's own two exemptions: a head that has moved since the
+        attempt was charged resets the counter (a new head is progress), and an APPROVED PR is
+        exempt outright.
+        """
+        att = os.path.join(STATE, "rebase_attempts")
+        try:
+            n_att = int((open(os.path.join(att, str(n))).read() or "0").strip() or 0)
+        except Exception:
+            return False                     # no counter -> nothing has been charged
+        if n_att < int(os.environ.get("REBASE_ATTEMPT_CAP", 3)):
+            return False
+        try:
+            last = (open(os.path.join(att, f"{n}.sha")).read() or "").strip()
+        except Exception:
+            last = ""
+        head = next((f for f in rebase_rows.get(n, []) if re.fullmatch(r"[0-9a-f]{40}", f)), "")
+        if last and head and last != head:
+            return False                     # the queue resets the counter for a new head
+        return review_by_num.get(n) != "APPROVED"
+
     kept = set()
     for n in sorted(coverage.get("rebase_claim.sh", set())):
+        if dirty_bypass and dirty_selected(n):
+            if not retired_by_cap(n):
+                kept.add(n)                  # taken on the conflict alone; no description read
+            continue
         one, _ = gh_json(f"pr view {n} --repo {SLUG} --json headRefOid", tries=2)
         if not one:
             kept.add(n)                      # cannot check -> do not call it uncovered
@@ -690,10 +768,76 @@ def check_rebase_actionable():
            + live)
 
 
-CHECKS = [check_queue_coverage, check_guards_wired, check_lease_ownership, check_tree_current, check_no_stranded,
+# How many commits the window must hold before a percentage over it means anything. Below this the
+# check reports ok and says how far it has filled: 20% of five commits is one commit.
+OPS_WINDOW_MIN = 40
+
+
+def check_ops_contention():
+    """No single file should be the swarm's merge bottleneck.
+
+    OPS_LOG.md was 28% of the last 259 merges (73 of them) because every agent appended to it, so
+    every pair of ops reports conflicted by construction — five at once at the worst, three of them
+    reviewer-APPROVED and unmergeable for over an hour. `ops/` (one file per entry) removes the
+    class. This check exists so the convention cannot quietly lapse back: if one shared file starts
+    dominating merges again, say so before it costs another afternoon of hand-merges.
+
+    MEASURED OVER THE CONVENTION, NOT THE ARCHIVE. The first version counted a fixed 200 commits of
+    history, so it FAILed the moment it landed and stayed red for ~150 commits no matter how well
+    the swarm behaved — a check correct behaviour cannot clear teaches agents to skim the doctor,
+    which is the one tool that audits the queues. The window therefore starts at the commit that
+    ADDED `raw-port/army/ops/README.md`: before that commit nobody could have followed the
+    convention, and after it every commit in the window is one that could. It goes green today by
+    agents doing the right thing, and red again if they stop.
+    """
+    base = sh("git log --diff-filter=A --format=%H -1 origin/main -- raw-port/army/ops/README.md")
+    if base.returncode != 0:
+        return record("ops-contention", UNKNOWN, "could not read git history")
+    since = base.stdout.strip()
+    if not since:
+        return record("ops-contention", OK,
+                      "one-file-per-finding (raw-port/army/ops/) is not on main yet — "
+                      "nothing to measure until it lands")
+    r = sh(f"git log {since}..origin/main --name-only --pretty=format:%H "
+           f"-- raw-port/army raw-port/tools")
+    if r.returncode != 0:
+        return record("ops-contention", UNKNOWN, "could not read git history")
+    commits, counts = 0, collections.Counter()
+    seen = set()
+    for line in r.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if len(line) == 40 and all(c in "0123456789abcdef" for c in line):
+            commits += 1
+            seen = set()
+            continue
+        if line not in seen:            # one commit counts a file once
+            seen.add(line)
+            counts[line] += 1
+    if commits < OPS_WINDOW_MIN:
+        return record("ops-contention", OK,
+                      f"only {commits} commit(s) under raw-port/army|tools since the ops/ "
+                      f"convention landed — window fills at {OPS_WINDOW_MIN}, nothing to conclude yet")
+    top, n = counts.most_common(1)[0]
+    pct = 100.0 * n / commits
+    if pct >= 20:
+        return record("ops-contention", FAIL,
+                      f"{top} is in {n} of the {commits} commits since the ops/ convention landed "
+                      f"({pct:.0f}%) — one file that hot is a merge bottleneck by construction; "
+                      f"file findings with `new_ops_entry.sh` (one file per entry) instead",
+                      "#ops-dir")
+    record("ops-contention", OK,
+           f"hottest shared file is {top} at {pct:.0f}% of the {commits} commits since the ops/ "
+           f"convention landed")
+
+
+CHECKS = [check_queue_coverage, check_guards_wired, check_lease_ownership, check_tree_current,
+          check_no_stranded,
           check_leases, check_heartbeats, check_tests_can_fail, check_inventory,
           check_dead_counters,
-          check_brief_flags_exist, check_rebase_actionable]
+          check_brief_flags_exist, check_rebase_actionable,
+          check_ops_contention]
 
 
 def main():

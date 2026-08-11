@@ -17,7 +17,8 @@ about you is special.
 
 **Everyone, first:** [`OPS_LOG.md`](OPS_LOG.md) — the failures agents keep rediscovering, and the
 fixes that closed them. Reading it is the cheapest thing you will do all session; rediscovering an
-entry in it is the most expensive.
+entry in it is the most expensive. **New findings are filed one-per-file in [`ops/`](ops/)** (that is
+what §8 tells you to write); `ls raw-port/army/ops/` is the newest of them and costs nothing.
 
 Then [`HARNESS_LOOP.md`](HARNESS_LOOP.md) (the loop spec), and:
 
@@ -198,4 +199,9 @@ work; a check turns that one-off collision into something the next agent never h
 
 Release your worktree, your review lease if you hold one, and your slot lock. Then report: units
 ported, PR numbers, rebases, drops with reasons, and **any new failure mode not already in
-`OPS_LOG.md` — and add it there.** That is how this file and OPS_LOG stay true.
+`OPS_LOG.md`**. File each new one as its OWN file — `bash raw-port/army/tools/new_ops_entry.sh
+"<short title>"` prints a pre-filled path under [`ops/`](ops/); commit only that file. One file per
+finding is what keeps two agents' reports from conflicting: `OPS_LOG.md` was in 28% of recent merges
+purely because everyone appended to it, and five ops PRs blocked each other at once. **Keep READING
+`OPS_LOG.md`** — it is the archive and the reading list, and it does not move. That is how this file
+and the ops record stay true.

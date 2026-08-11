@@ -103,6 +103,90 @@ function OZCurveEnumSplineState_getInstance(): OZSplineStatePtr {
 // ── OZChannelEnum ───────────────────────────────────────────────────────────────────────────
 export class OZChannelEnum {
   /**
+   * (+0xc0) `unsigned long*` — the base of the ENABLED-STATE BITSET: a flat array of 64-bit words,
+   * bit `i` of word `i >> 6` being the enabled state of index `i`.
+   *
+   * Recovered from `getEnabledState` below and from nothing else, so only the fact that +0xc0 holds
+   * a pointer to 64-bit words is decoded here — not the array's length (the accessor reads it with
+   * no bound), not who allocates it, and not who sets the bits. Modelled as `bigint[]` because the
+   * loaded element is a full 64-bit word that the `btq` then tests; a `number[]` could not hold bit
+   * 63 exactly. @ProChannel 0x6366e is the load.
+   */
+  enabledStateWords_at_0xc0: bigint[] | null = null;
+
+  /**
+   * `OZChannelEnum::getEnabledState(unsigned long) const` — @ProChannel 0x6366a
+   * (`__ZNK13OZChannelEnum15getEnabledStateEm`).
+   *
+   * FULL transcription of the 9-instruction body. Bytes quoted and checked against BOTH the mapped
+   * image and the on-disk thin slice, because every operand here is an addressing mode and otool
+   * renders those through its symbolizer:
+   *
+   *   0x6366a  55                    pushq %rbp                  ; prologue
+   *   0x6366b  48 89 e5              movq  %rsp, %rbp
+   *   0x6366e  48 8b 87 c0 00 00 00  movq  0xc0(%rdi), %rax      ; rax = this->words  (no null check)
+   *   0x63675  48 89 f1              movq  %rsi, %rcx            ; rcx = index
+   *   0x63678  48 c1 e9 06           shrq  $0x6, %rcx            ; REX.W LOGICAL shift: word = index >> 6
+   *   0x6367c  48 8b 04 c8           movq  (%rax,%rcx,8), %rax   ; rax = words[word]  (no bound check)
+   *   0x63680  48 0f a3 f0           btq   %rsi, %rax            ; CF = bit (index mod 64) of rax
+   *   0x63684  0f 92 c0              setb  %al                   ; al = CF -> the bool result
+   *   0x63687  5d                    popq  %rbp
+   *   0x63688  c3                    retq
+   *
+   * TWO THINGS THE ENCODING DECIDES, and neither is visible in the mnemonic text:
+   *  1. `shrq` is REX.W (`48 c1 e9 06`) and LOGICAL, so the word index is the UNSIGNED index >> 6
+   *     over the full 64-bit register — not a 32-bit shift and not an arithmetic one.
+   *  2. `btq %rsi, %rax` (`48 0f a3 f0`) takes its bit offset from a REGISTER against a REGISTER
+   *     destination, and in that form the CPU masks the offset to the operand size, i.e. bit =
+   *     index mod 64. THAT is why no explicit `andl $0x3f` appears anywhere in the body. A port
+   *     that reads the mnemonic and writes `bit = index` gets every index >= 64 wrong.
+   *
+   * NO BOUNDS CHECK and NO NULL CHECK: the machine dereferences +0xc0 and indexes the word array
+   * unconditionally, so an out-of-range index reads whatever memory follows. This port raises at
+   * both points instead of inventing a value, which keeps the gap loud (and keeps G7's
+   * silent-wrong-answer class out of it).
+   *
+   * ORACLE (executed, not read — raw-port/re/oracle/OZChannelEnum_getEnabledState_probe.py): local
+   * (`t`) symbol, called BY ADDRESS at `_dyld_get_image_vmaddr_slide(ProChannel) + 0x6366a` under
+   * `arch -x86_64`, with `this` poisoned 0xCD and +0xc0 pointing at five known words
+   * (0x1, 0x8000000000000000, 0xAAAAAAAAAAAAAAAA, 0, 0xFFFFFFFFFFFFFFFF). 14 indices spanning
+   * words 0..4 (0, 1, 63, 64, 65, 127, 128, 129, 130, 131, 255, 256, 257, 319) all matched this
+   * port's model bit-for-bit, and the arena was byte-identical afterwards (the method is `const`).
+   * Eight of those indices are ones where a model that forgot the word select answers the OPPOSITE
+   * bit — that is the negative control, and it is why the two encoding facts above are measured
+   * rather than argued.
+   */
+  getEnabledState(index: bigint): boolean {
+    // %rsi is a 64-bit register: model its width explicitly rather than trusting the caller.
+    const idx: bigint = BigInt.asUintN(64, index);
+    // @0x6366e — movq 0xc0(%rdi), %rax. Unconditional; a null here faults in the machine.
+    const words = this.enabledStateWords_at_0xc0;
+    if (words === null) {
+      throw new Error(
+        "OZChannelEnum::getEnabledState @ProChannel 0x6366a — the word array (+0xc0) is null; " +
+          "the load @0x6366e is unconditional, so the machine would fault here.",
+      );
+    }
+    // @0x63675-0x63678 — movq %rsi,%rcx ; shrq $0x6,%rcx: the LOGICAL 64-bit word index.
+    const wordIndex: bigint = idx >> 6n;
+    // @0x6367c — movq (%rax,%rcx,8), %rax. The machine applies no bound; JS would hand back
+    // `undefined` and turn the test below into a silent `false`, so refuse instead.
+    const word = words[Number(wordIndex)];
+    if (word === undefined) {
+      throw new Error(
+        "OZChannelEnum::getEnabledState @ProChannel 0x6366a — word index " +
+          wordIndex.toString() +
+          " is past the modelled array (" +
+          words.length.toString() +
+          " words). The load @0x6367c is unbounded in the machine and would read adjacent memory; " +
+          "this port refuses rather than inventing a bit.",
+      );
+    }
+    // @0x63680-0x63684 — btq %rsi,%rax ; setb %al: CF = bit (index mod 64), returned as the bool.
+    return ((word >> (idx & 63n)) & 1n) === 1n;
+  }
+
+  /**
    * OZChannelEnum::createOZChannelEnumCurve(double)
    *
    * @Ozone 0x000ab460  (symbol `__ZN13OZChannelEnum24createOZChannelEnumCurveEd`)

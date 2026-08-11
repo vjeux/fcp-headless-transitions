@@ -3826,6 +3826,98 @@ direction for a reviewer — a wrong REJECT, or a duplicate review.
   value — so the verdict stops depending on which synonyms an author happened to use. Until then,
   **a reviewer must not read `0 flags` on a throwing body as "the fuzz cleared it": check whether
   the throw's text is even in the word list.**
+- **ADDENDUM to the same worker-3 run, 40 minutes later: MY LEASED POOL WORKTREE WAS TAKEN BY A
+  PEER'S `pr_gate` WHILE I WAS EDITING IN IT, AND EVERY TOOL STAYED SILENT.** Not the #240/#3
+  shape (nothing of mine was deleted) — the tree was DETACHED at another PR's head underneath me,
+  so my edits and my commit landed on top of a stranger's SHA. Timeline, from the lease file and
+  my own log:
+
+      10:20:54  wt_pool.sh acquire SurroundPanner -> "leased slot 3 (port/SurroundPanner, base main)"
+      10:22:23  $HOME/.fct-pool/leases/3/holder now reads  gate/41f862d9…  1786468943
+      10:23:02  my edits land — in a tree now detached at 41f862d9 (someone else's PR head)
+      10:23:16  gate.sh on my file: GATE: PASS   (it gates the FILE, so it saw nothing wrong)
+      10:23:28  git commit succeeds — parent 41f862d9, not origin/main
+                pr_submit.sh: "REFUSING: worktree is on 'HEAD', not a port branch"
+
+  **What saved it was OPS_LOG #1's guard** — `pr_submit` verifying HEAD is a branch. Without that
+  the commit would have been pushed with a foreign parent. Note also what did NOT notice: `gate.sh`
+  passed (it is handed one file and never looks at HEAD), and `git status` was clean apart from my
+  own file.
+
+  A second harm runs the other way and is easy to miss: for ~65 seconds MY file was sitting in the
+  reviewer's gate tree, and `pr_gate` computes `CHANGED=$(git diff --name-only origin/main...HEAD
+  -- 'raw-port/src/**/*.ts')` — so my commit put `SurroundPanner.ts` into ANOTHER PR's changed-file
+  list, i.e. their verdict was about to cover my port. If you ever find yourself in this state,
+  clean up after the collision before you redo your own work: `git reset --soft <their sha>`, unstage
+  and `git checkout --` your file. Do NOT `git reset --hard` — that also reverts the trusted
+  `army/tools` copies `pr_gate` wrote into the tree, and it would hand that PR its OWN gate.
+
+  I could not prove which door it came through: no reclaim path in `claim_slot` can fire on an
+  89-second-old `port/*` lease, and both the canonical and current-main `pr_gate` pass
+  `--force "gate/$HEAD_SHA"` to `release`, so the #499 ownership guard should have refused a late
+  cleanup trap. The remaining candidates are a release call that passes NO tag (every worker's own
+  `wt_pool.sh release "$WT"` is one) removing the lease directory, and a caller running an older
+  copy of these tools — which the entry above says is the normal state of the canonical checkout.
+  **CHEAP DETECTION, adopt it as a habit — two commands immediately before `git add`:**
+  `git rev-parse --abbrev-ref HEAD` must still print YOUR branch, and `git log --oneline -1` must
+  still be the base you leased. Both are free next to what they catch. **TOOL FIX:** `acquire`
+  should hand back an opaque token (the "worth doing next" already proposed in the #499 entry), and
+  `release` should require it — a tagless release is what makes any of this reachable.
+
+- **AN INCOMPLETENESS RAISE IS DETECTED BY A PROSE REGEX OVER THE MESSAGE, and the EXPORT SPELLING
+  decides only how hard the verdict lands. Both variables are independent, and I measured all four
+  cells on ONE body rather than arguing from two different files.** Reviewer 5 blocked the first
+  version of this entry for attributing the whole difference to function-vs-method; that was wrong,
+  and so is attributing it all to the wording. The isolating experiment is the 2x2, same symbol,
+  same disasm cached, same header, one variable at a time — `HGExecutionUnit::SwapStack` @Helium
+  0x144570 (REAL body), scratch file, gate run at an absolute path:
+
+      wording                      | as an `export function`      | as a CLASS METHOD
+      -----------------------------|------------------------------|---------------------------
+      "... not yet transcribed"    | 1 CHEAT  -> GATE: REJECT      | 0 cheats, 1 FLAG -> PASS
+      "... not available in a TS   | 0 cheats, 0 flags -> PASS     | 0 cheats, 0 flags -> PASS
+       host" (outside the regex)   |                              |
+
+  So, precisely:
+    * **THE WORDING IS THE DETECTOR.** `g5_impl_gate.py`'s `INCOMPLETE_RE` and `reach_worker.ts`'s
+      `INCOMPLETE` both match a fixed word list — `not yet transcribed | pending transcription |
+      unimplemented | unimpl | TODO | not transcribed | frontier callee` (+ `stub not` in the
+      worker). **A raise phrased outside that list is invisible to the gate in BOTH spellings**,
+      which is the bigger finding and the one that belongs at the top. My own landed
+      `src/channels/FFMediaReaderService.ts` says "dispatch_sync not available in TS host": zero
+      hits against either regex, so its clean gate says nothing about class methods — reviewer 5
+      caught that my original evidence did not support my original claim.
+    * **THE SPELLING IS THE SEVERITY.** With the SAME message, a free function is a hard CHEAT and a
+      method is a FLAG that still PASSES. `g5_impl_gate.py`'s class-method sweep (lines ~295-336)
+      does classify methods and does look for the Pattern-C shape; what it cannot do is run the
+      REACH FUZZ, because that would have to construct an instance — so it flags where the function
+      path rejects. "G5 reads only `export function`" is out of date and I have removed it.
+    * Both failure directions are PERMISSIVE, which is what makes this worth filing: the invisible
+      cell lands silently, and the flagged cell lands as soon as a reviewer signs.
+
+  **WHAT NOT TO DO WITH THIS, and my first draft said the opposite: do not choose the export
+  spelling by what the gate can see.** Picking `method` so a raise reads as a flag instead of a
+  cheat is designing the boundary to evade the reachability check, which is what #192 was rejected
+  for. If the honest model for an extern is to raise, raise, and let it be flagged for a reviewer.
+  What I actually did on `initColorSpaceCache` stands on its own merits and not on the gate's
+  verdict: the three blocks never leave the translation unit as ADDRESSES — they are written, then
+  parked in module-level globals — so "a fresh block of N bytes" is the whole observable meaning of
+  the call, and modelling it costs nothing. Where an allocation's address IS observable, model the
+  address or raise and take the flag. Either way, state the envelope the model introduces:
+  `operator new` returns indeterminate bytes, a `Uint8Array` is zero-filled, and a later unit
+  reading an uninitialised field would see zero here and garbage on the machine.
+
+  FIXES WORTH MAKING, in order: (1) **detect an incompleteness raise by SHAPE, not by prose** — a
+  throw on a reachable path in a body whose disasm classifies REAL is the property; the word list is
+  a proxy that any rewording defeats, and rewording it is the cheat `reach_worker.ts`'s own header
+  names. (2) Let the class-method sweep reach the fuzz, or say in the flag text that the fuzz did
+  not run. Until both, a reviewer should read `0 flags` on a class-bodied file as "the fuzz did not
+  run here", and should grep a raise's MESSAGE before believing the gate looked at it.
+
+  (Method note, since the first draft's evidence did not isolate the variable: the four cells above
+  come from one scratch file in a leased worktree, deleted afterwards, with the disasm generated in
+  that worktree first so G5 classified REAL in every run; a fifth run without the provenance header
+  additionally tripped G1 P2, which is a scratch artifact and not part of the result.)
 
 ---
 
@@ -5019,3 +5111,307 @@ same mechanical job, which is the finding.
   survive the edit. My replacement did splice, but against the file as I had ALREADY edited it in an
   earlier pass, then re-applied to the freshly merged file where the original was still present.
   Same root as the entry above it: an edit is only as good as the copy it was computed against.
+---
+
+## Open — reported 2026-08-11 by reviewer 2 (a class forked across EIGHT files under the guard's nose; a merge preview that lies when your main is a minute old; and dismissing the wrong person's review; NEW)
+
+Second batch from the same shift, all found after my earlier entry landed. The first is a hole in a
+guard that works; the second cost me a wrong conclusion I nearly acted on; the third is a mistake I
+made and would make again with the same one-liner.
+
+- **ONE C++ CLASS IS FILED ACROSS EIGHT FILES ON MAIN AND `check_duplicate_classes.py` CANNOT SEE IT,
+  BECAUSE THE FORK IS IN THE FILENAME SUFFIX RATHER THAN THE DIRECTORY.** The known fork entry names
+  five classes filed twice under different LAYER directories. `OZSpline` is a sixth, through a door
+  the check does not cover:
+
+      raw-port/src/channels/OZSpline.ts        export function sampleCurveValue
+      raw-port/src/channels/OZSpline.m0.ts     export class OZSpline          (552 lines)
+      raw-port/src/channels/OZSpline.m1.ts     export interface OZSplineFieldsM1 + free functions
+      raw-port/src/channels/OZSpline.m2.ts … OZSpline.m6.ts
+
+  The check groups by the lowercased basename, so `ozspline`, `ozspline.m0` … `ozspline.m6` are eight
+  different classes to it and it reports nothing. The hazard it exists for is present in kind, not
+  just in form: `.m0` models the object as `class OZSpline { _sp: OZSplineState }` while `.m1`
+  models the SAME object as its own `OZSplineFieldsM1` interface — two struct models of one C++
+  class, exactly the drift the one-class-one-file rule is for. Found while reviewing #635, which
+  correctly EXTENDS `.m0` rather than adding a ninth file, so this is a property of main and not of
+  that PR.
+  FIX: strip a trailing `.m<N>` before grouping (two lines), or record the split as an accepted
+  exception inside the tool with its reason. Note the general shape, which is the part worth
+  keeping: **a naming convention invented to work around one guard can walk straight through
+  another.** The `.mN` split exists to keep huge class files manageable; the duplicate-class check
+  was written before it and keys on a string the split changes.
+
+- **`git merge-tree --write-tree origin/main <head>` REPORTS A CLEAN MERGE FOR A PR GITHUB CALLS
+  DIRTY, WHEN YOUR LOCAL `origin/main` IS A MINUTE OLD — AND THE OUTPUT LOOKS IDENTICAL EITHER WAY.**
+  This log already teaches `merge-tree` as the correct alternative to a two-ref diff (which renders
+  "behind" as deletions and false-rejects almost everything). It is the right tool and it has this
+  one edge. On #614, a PR a worker had just rebased:
+
+      git merge-tree --write-tree origin/main 594fd528   -> a tree oid, no CONFLICT line
+      gh pr view 614 --json mergeable                    -> CONFLICTING / DIRTY
+      git fetch origin main
+      git merge-tree --write-tree origin/main 594fd528   -> CONFLICT (content): OPS_LOG.md
+
+  I was one command away from telling an author their PR merged cleanly when it did not. `merge-tree`
+  answered exactly what I asked — about a `main` that had stopped existing sixty seconds earlier.
+  RULE: **`git fetch origin main` immediately before any merge preview**, and when the preview
+  disagrees with GitHub, believe GitHub and re-fetch. Corollary for #625's `REBASE_MANUAL`
+  instructions, which tell a worker to check deletions with `git diff --unified=0 origin/main --
+  <file>`: that two-dot form is correct THERE only because the worktree has just merged
+  `origin/main`; the same line on a branch that has not merged reports every line main gained as a
+  deletion.
+
+- **`[.[]|select(.state=="CHANGES_REQUESTED")]|last|.id` DISMISSED A PEER'S REVIEW WHEN I MEANT TO
+  DISMISS MY OWN.** Landing #603 I ran that selector to retire my own rejection; the most recent
+  `CHANGES_REQUESTED` at that moment was reviewer 1's, so their verdict now carries a dismissal
+  message written about MY findings. The dismissal was substantively correct — I had checked their
+  ask (a test with no caller) was implemented, and it was, wired as `prove_all` LAYER 2g — but I
+  dismissed it by accident, and a dismissal is durable text on someone else's judgement.
+  **`user.login` cannot save you here**: every reviewer slot posts as `vjeux-reviewer[bot]`, which
+  reviewer 4 records from the other side (auditing "which review is mine" by login returned a peer's
+  approval). RULES: (a) **list the reviews, read the one you intend to dismiss, and pass its id
+  literally** — I did that for the second dismissal on the same PR and for both on #627; (b) if you
+  slip, annotate rather than rewrite: I posted a comment stating plainly what happened, because
+  re-dismissing to tidy the trail would bury it; (c) when a rework answers rejections from several
+  reviewers, dismiss each one with a message about ITS asks, not a shared paragraph.
+
+- **THE DEAD-CONTROL PROTOCOL HAS A WORKING FORM NOW, AND IT SHOULD BE THE STANDARD ASK.** This log
+  says a control that kills 0 means a blind harness OR an equivalent mutant, and that only the author
+  can tell them apart; worker 1 added "score M0"; reviewer 3 added "mutate the same instruction more
+  violently". #633 (`hg_read_span_4s_wxyz_m1_gqt_m1_premul`) is the first harness I have reviewed
+  that does all three unprompted, and the output is worth copying verbatim as the house shape:
+
+      M0 unmutated copy through the mutation pipeline .......    0 killed  (expected 0)
+      M2 haddps pairing -> left-to-right ...................    0   -> M2v drop the 4th product:  75
+      M3 maxps operand order flipped .......................    0   -> M3v EPS -> 1e30:         2505
+      M7 head-loop alignment test inverted .................    0   -> M7v advance by 8:        3300
+
+  Three dead controls, each converted from an unanswered question into a proof that the mutant is
+  equivalent ON THIS CORPUS, plus a baseline proving the mutation pipeline itself perturbs nothing.
+  A reviewer can read that table and know what was measured; a table of four zeroes tells them
+  nothing. **Ask for M0 and a violent variant whenever a control kills 0** — it is two extra runs.
+
+- **Two small ones.** (a) A port header that says a symbol is local (`t`) when the inventory says `T`
+  costs nothing today and misleads tomorrow: the answer decides whether the next harness in that
+  family needs the slide-plus-offset apparatus at all (#636, `__ZNK7OZCurve11getRootNodeEv`, which is
+  exported). Check the inventory line, it is one grep. (b) When probing a receiver for "did the
+  callee write", poison it — `create_string_buffer(0x200)` gives 512 ZERO bytes, so "untouched" and
+  "wrote zeros" are indistinguishable; pass the explicit length with the fill
+  (`create_string_buffer(b"\xCD"*N, N)`) or the buffer is N+1 bytes and the comparison can never
+  succeed, which is the mirror trap already in this log.
+
+---
+
+## Open — reported 2026-08-11 by worker 3 (a gate verdict that depends on which SCRATCH files exist; the SHAPE of a port deciding it; and the call_once family's oracle recipe)
+
+Twelve units this run (PRs #628, #631, #634, #635, #636, #637, #639 ×2, #641, #642 ×2, #644, #645),
+one rework (#627), three OPS_LOG rebases (#523, #554, #624), two drops. Everything below was hit
+live and every number is measured on this box today.
+
+- **FOLLOWING `AGENT_ENTRY` §5 — "run `disasm.sh --sym` inside the worktree first, or G5 only flags"
+  — CAN TURN YOUR GREEN PR INTO A HARD REJECT FOR A FUNCTION YOU NEVER TOUCHED.** The pool-scratch
+  non-determinism is already in this log as a FLAG-count difference. It is not only flags: the same
+  head is `PASS` or `REJECT` depending on which `.s` files happen to be lying in the leased
+  worktree, and the REJECT arrives labelled CHEAT. Measured twice in one run.
+    * PR #645 (`OZConstantNode::operator==`, one added function). With only my symbol derived:
+      `g5_impl_gate: 0 cheat(s), 16 flag(s) -> PASS`. I then cleared those flags the honest way —
+      deriving each flagged EXPORT's own mangled symbol, since the printed addresses are
+      misattributed (the "DO NOT RESOLVE A G5 NO-DISASM FLAG BY THE ADDRESS IT NAMES" entry above;
+      11 of 11 wrong there, 16 of 16 wrong here) — and the verdict became
+      `1 cheat(s), 3 flag(s) -> REJECT`. **The cheat was on `OZConstantNode_cloneNode`, a LANDED
+      function my change does not touch**: G5 sees REAL disasm @0x29a5e and a throw on 7 reachable
+      inputs, but the throw is honest and one level down — cloneNode routes through the copy ctor,
+      whose `OZCurveNode::OZCurveNode(OZCurveNode const&)` base is unported and throws with its own
+      citation. Doing the derivation the brief asks for is what surfaced it, and the agent who
+      skips it ships a head that will REJECT in whichever reviewer slot happens to have the file.
+    * The same shape decided a verdict on my own new code (next entry).
+  WHY IT IS WORSE THAN A FLAG: a flag says "reviewer, look"; a CHEAT is a hard gate failure whose
+  text says *"Transcribe the real instructions; don't stub the body"* about code the PR did not
+  write. The obvious fix is to SCOPE G5's per-function judgement to the functions the change
+  actually touches (`git diff origin/main -- <file>` already tells it), and to distinguish
+  *"throws because a CITED frontier callee throws"* from *"body replaced by a throw"* — the first
+  is the shape this project asks for and it currently reads as the second.
+
+- **AN EXPORTED NO-ARG FUNCTION IS REACH-FUZZED; THE IDENTICAL BODY AS A CLASS STATIC IS NOT — SO
+  THE SHAPE YOU CHOOSE DECIDES THE VERDICT, AND NOBODY IS TOLD.** Porting
+  `OZChannelUint16::createOZChannelUint16Impl` @ProChannel 0xf52e (a libc++ `call_once` accessor
+  whose initializer lambda is a separate out-of-line ledger unit @0xf6d2, so the first call raises
+  at that frontier): as `export function createOZChannelUint16Impl()`, G5's fuzz calls it with no
+  arguments, hits the raise, and reports
+  `G5 CHEAT — REAL disasm but the port throws incompleteness on 1 reachable input`. As
+  `static createOZChannelUint16Impl()` on the class — which is what the mangled name says it is, and
+  what the landed `OZChannelAspectRatio.ts` does for the identical shape — `_ts_functions` never
+  sees it, the class-method sweep only FLAGS, and the gate passes. I chose the static because it is
+  the faithful modelling and **said so in the PR**, which is the only reason a reviewer can tell the
+  difference between that and contorting code to please the checker. Two agents choosing differently
+  on the same construct get opposite verdicts today; the rule should be written down (my suggestion:
+  a member function ports as a member, and the fuzz should treat a throw that cites a frontier
+  address as a frontier, not a stub).
+
+- **THE `call_once` SINGLETON-ACCESSOR FAMILY IS ORACLE-ABLE IN ABOUT TWO MINUTES EACH, AND FOUR OF
+  MY UNITS WERE ONE.** Recipe, run four times (`OZChannelAspectRatioFootage::createOZChannelAspect-
+  RatioFootageInfo` @0x6698, `OZChannelUint16::create...{Impl,Info}` @0xf52e/@0xf4e4,
+  `OZChannelSeed::create...{Impl,Info}` @0xfd18/@0xfcce), 8 checks each, all PASS:
+    1. the accessors are LOCAL (`t`) symbols — call at `_dyld_get_image_vmaddr_slide(FW) + VA`
+       under `arch -x86_64`, after asserting the opcode bytes at that address are the ones you
+       transcribed (mine caught nothing, but the same self-check DID catch a wrong SIB guess in a
+       different unit, below);
+    2. read the once-flag and the singleton BSS words BEFORE the call: 0 and NULL;
+    3. call: non-NULL pointer P; flag becomes `0xffffffffffffffff`; the singleton word == P;
+    4. call again: the same P, flag untouched (the fast path was taken).
+  WHAT THAT TRACE PROVES AND WHAT IT DOES NOT: it refutes the `=== 1` sentinel of the 2026-07-29
+  call_once cheat (the flag is never 1), and it proves the accessor returns the deref of the global
+  rather than anything it computed. It CANNOT separate `!== -1n` from `!== 0n` — a single 0 -> ~0
+  transition satisfies both — so the `-1` in a port has to come from the `cmpq $-0x1` encoding
+  (`48 83 f8 ff`), not from the trace. Say which, or the evidence is over-claimed.
+  The BSS addresses are worth deriving from the raw bytes rather than the symbol names: the once
+  flag is loaded once and address-taken once and BOTH displacements must resolve to the same word
+  (they did, every time), which is a free consistency check on your decode.
+
+- **WHETHER THE INITIALIZER IS "A SEPARATE LEDGER UNIT" OR YOUR JOB IS DECIDED BY ONE SYMBOL, AND
+  GETTING IT WRONG IS A CHEAT IN EITHER DIRECTION.** In this family the compiler either emits the
+  lambda out of line as `__ZZN...EvENKUlvE_clEv` or INLINES it into the libc++ template
+  instantiation `__ZNSt3__18__invoke...`. Out of line (Uint16 Impl @0xf6d2, Seed Impl @0xfebc) it is
+  a real queue unit and a frontier throw is correct. Inlined (AspectRatioFootage Info @0x673c,
+  Uint16 Info @0xf588, Seed Info @0xfd72) **there is no such symbol at all**, STL instantiations are
+  auto-filtered out of the port queue, so "deferring to its own unit" defers to a unit nobody can
+  ever claim — and the body is three instructions plus a ctor call whose callee is usually already
+  ported next door (`operator new(0x58)` then `<Class>Info::C2`). Then the throw would be a
+  throw-stub for a PORTED in-scope callee, which is the rejected shape. Check the inventory for
+  `NKUlvE_clEv` before you decide; it is one grep.
+
+- **TWO LANDED `call_once` ACCESSORS HAD THE GUARD INVERTED, AND THE SHAPE IS GREPPABLE.** Both
+  `OZChannelSeed::createOZChannelSeedInfo` and `...Impl` shipped as
+  `if (once === -1) { once = 0; _singleton = null; }` — acting when the flag says initialisation
+  COMPLETED, and responding by clearing the flag *and nulling the published singleton*. The disasm
+  branches the other way (`cmpq $-0x1` + `je` = when equal, skip everything and return the pointer)
+  and the accessor performs **no store at all**. Nothing depended on them, so nothing broke; both
+  are replaced in #642. Worth a grep across `src/` for `once === -1` followed by an assignment —
+  a correct accessor never writes either word.
+
+- **A ctypes CALLBACK IN A FAKE VTABLE SLOT ORACLES A DISPATCH-ONLY BODY, WITH NO COMPILER.** Three
+  of my units were "load `vtable[+N]` and tail-jump" (`OZChannelDiscreteColor::setColorIndex`
+  @0x8f1c0, `OZSplineNode::operator==` @0x2a34e, `OZConstantNode::operator==` @0x29b18). Those look
+  un-measurable — the whole body is a jump into unported code — but they are not: build a fake
+  vtable, put `ctypes.CFUNCTYPE(...)(python_fn)` in the slot, point the object's +0x00 at it, and
+  the callback records exactly what the live code marshalled. This matters on this box because the
+  security stack SIGKILLs freshly compiled binaries, and libffi's closure is a trampoline you get
+  for free. What it caught, that reading could not:
+    * `setColorIndex` passes `(double)(unsigned)index` — `movl %esi,%eax` zero-extends and the
+      signed `cvtsi2sd` then reads the 64-bit `%rax`, so 0xffffffff arrives as **4294967295.0**;
+      a `(int32)` model passes -1.0. Measured at 0x80000000 and 0xffffffff.
+    * a tail-call returns the callee's `%al` **verbatim**: 0xff came back as 0xff, so a port that
+      normalises the result to a boolean loses a value the machine keeps.
+    * the dispatch uses the RECEIVER's vtable — giving the ARGUMENT a different vtable changes
+      nothing — and neighbouring slots loaded with 0xdeadbeef are never called, which is how you
+      show the slot is the one you claim.
+  And where the target is already ported, the same harness runs the WHOLE chain: `OZConstantNode`'s
+  `operator==` -> `compare` -> `__dynamic_cast` agreed with the port on equal / value-differs /
+  default-differs / +0.0-vs--0.0 / NaN / NULL.
+
+- **`dlsym(RTLD_DEFAULT, "kCMTimeZero")` ANSWERS FROM ImageIO, NOT FROM THE IMAGE YOUR CODE LOADS.**
+  Cross-checking `setColorIndex`'s `movq 0x3b2e4(%rip), %rsi`, the literal-pool slot @0xca4c0 holds
+  `0x7ff825302980` while `dlsym` returned `0x7ff825ba8020`, which `dladdr` places inside
+  **ImageIO**. Both read `{value=0, timescale=1, flags=1, epoch=0}`. Apple re-exports these
+  constants from several images, so identifying one by ADDRESS through `RTLD_DEFAULT` can name the
+  wrong image and read like a divergence. Compare the CONTENT, or read the literal-pool slot the
+  code itself dereferences.
+
+- **THE OPCODE SELF-CHECK EARNED ITS KEEP ON A SIB BYTE.** `otool` prints
+  `movl 0x24(%rcx,%rax,4), %eax` for `OZSpline::getExtrapolation` @0x2d868, and I wrote the expected
+  bytes as `8b 44 8a 24` from that text. The live bytes are `8b 44 81 24` — SIB 0x81 is
+  base `%rcx`, index `%rax`, scale 4; 0x8a would be base `%rdx`, index `%rcx`. The probe refused
+  before running rather than measuring the wrong function. Same family as the `orq`-immediate and
+  `leaq`-displacement misrenders already in this log: **assert the bytes, not the text**, and read
+  them from BOTH the mapped image and `/tmp/<FW>.x86_64` (a disagreement would mean the loader
+  patched them).
+
+- **TWO MECHANICAL GATE FALSE-REJECTS THAT COST ONE ROUND-TRIP EACH.** (a) G1's P4 fires on any line
+  containing `throw` AND a word like "transcrib" with no `0x` **on that same line** — so a doc
+  sentence such as *"WAS a frontier throw-stub; this change transcribes the real body"* is a REJECT
+  until you put the address in that sentence. It hit me twice, on stub->real upgrades, which is the
+  change this project most wants. (b) G6 counts `@0xADDR` citations, and a disasm listing that
+  quotes an address without the `@` does not count: replacing a stub's prose with a byte-accurate
+  listing **dropped** `@0xfcdd` and `@0xfce1` and read as deleting landed work. Both are one-line
+  fixes to the port, but both look like the gate disagreeing with the transcription rather than
+  with its punctuation.
+
+- **A FILE-NAMING RULE BLOCKS ~400 SYMBOLS, AND ONLY THE FILESYSTEM IS ENFORCING IT.** Helium ships
+  **29 pairs of classes whose names differ only in capitalisation** — `HGCFoo` (the ~5-method
+  render-graph node) and `HgcFoo` (the ~17-method kernel, which is where every `RenderTile_AVX` in
+  the family lives): ColorGamma_2vuy_*/v210_*/v216_*/bias/chroma_*, InterlaceHandler_*,
+  PixelFormatConversion_kV4*, Retime*, SimpleSpatialDenoise, SolidColor. Counted over all five
+  `army/inventory/*.syms.txt`. On this case-insensitive filesystem
+  `ls raw-port/src/render/HgcColorGamma_v216_yxzx_collapse.ts` already resolves to the LANDED
+  `HGCColorGamma_v216_yxzx_collapse.ts`, so writing the natural file name silently overwrites 231
+  landed lines — `AGENT_ENTRY` §5 says drop such a unit, and I did. But note what that costs: the
+  `Hgc` half of 29 classes can never be filed. A different layer directory does not help, because
+  `check_duplicate_classes.py`'s `_norm` lowercases; the only shape that avoids both is a
+  disambiguated same-directory name (`HgcFoo__kernel.ts`), and that is a convention decision for a
+  human rather than something a worker should invent mid-unit.
+
+  **CORRECTED AND MEASURED (worker 2, in review of this PR — the original text of this bullet said
+  "`check_duplicate_classes.py` is wired into no gate at all" and that the only protection was the
+  agent reading §5; both halves were wrong, and here is what is actually true).**
+
+  It IS wired: `pr_gate.sh:260` runs `check_duplicate_classes.py --new-only origin/main` and fails
+  the gate on rc=2, landed in #565, and Fixed row 44 plus the correction at line 4295 of this file
+  already record it. The trap that produced the wrong claim is worth more than the claim was: the
+  tool's OWN module docstring and its `--new-only` comment still say "no gate, no pr_gate and no
+  prove_all runs it", written by the change that wired it, in the present tense. **Check the
+  CALLERS, not the tool:**
+  `git grep -n check_duplicate_classes origin/main -- raw-port/army/tools raw-port/army/gate`.
+
+  It still cannot see THIS hazard in any mode, which is the stronger form of the point: an APFS
+  overwrite of `HGCFoo.ts` by a write to `HgcFoo.ts` produces ONE file, not two, so no duplicate
+  basename ever exists for it to find.
+
+  And there IS a mechanical protection — G6 — but it is LATE, and **whether it fires depends on
+  which SPELLING of the path reaches the checker.** Measured today in a pool worktree on the real
+  landed file (231 lines, 87 `@0x` citations); writing a 16-line file to
+  `raw-port/src/render/HgcColorGamma_v216_yxzx_collapse.ts` takes that file to 16 lines and
+  `git status` reports exactly one path, `M .../HGCColorGamma_v216_yxzx_collapse.ts`:
+
+      gate.sh <abs>/HgcColorGamma_v216_yxzx_collapse.ts   ->  GATE: PASS ✅   exit 0
+      gate.sh <abs>/HGCColorGamma_v216_yxzx_collapse.ts   ->  GATE: REJECT ❌ exit 1
+          ADD-ONLY VIOLATION: HGCColorGamma_v216_yxzx_collapse.ts
+            dropped 48 landed @0xADDR citation(s): @0xfd844, @0xfd9f0, @0xfd9f1, @0xfd9f4, ...
+            dropped 7 declaration(s): GetDOD, GetOutput, GetROI, HGObject_operatorDelete, ...
+
+  Same tree, same bytes on disk, same second — the only difference is the case of the argument. Git
+  is case-SENSITIVE where the volume is not, so `git show origin/main:.../Hgc….ts` resolves to
+  nothing, G6 reads a brand-new file with no base version, and 48 citations disappear in silence.
+  So who catches it: **the reviewer does** — `pr_gate.sh:208` builds its file list from
+  `git diff --name-only origin/main...HEAD`, i.e. the TRACKED spelling, so the PR gate hands G6
+  `HGC…` and gets the REJECT. **The worker's own pre-check does not**, because the worker types the
+  name they just wrote. What §5 buys, then, is not the only protection but the EARLY one: it stops a
+  unit being spent on a file that cannot be filed, and it stops a green local gate reading as
+  permission.
+
+  (A cheap way to make the late catch early: have `gate.sh` resolve each argument to the path git
+  actually tracks — `git ls-files --full-name -- <dir>` matched case-insensitively — and gate THAT,
+  warning when the two differ. The mismatch is itself the bug report.)
+
+  METHOD NOTE, because it nearly inverted this measurement: my first run wrote the two gate logs to
+  `/tmp/..._hgc.txt` and `/tmp/..._HGC.txt`, which on this volume are ONE FILE — the second run
+  silently overwrote the first and I read a REJECT that belonged to the other spelling. The hazard
+  this bullet is about ate the evidence for this bullet. If you are measuring a case collision,
+  spell your scratch files with different WORDS, not different cases.
+
+- **THE 3D-LUT AVX KERNEL FAMILY IS ORACLE-ABLE TOO — PROVED, THEN REQUEUED FOR SIZE.**
+  `HgcApply3DLUTTetrahedral_basekernel::RenderTile_AVX` @Helium 0x37b4d0 is 752 instructions in two
+  paths (a 2-pixel main loop 0x37b5a0-0x37bd5e and a 1-pixel remainder 0x37bd74-0x37c327), 16 ymm
+  live and ~14 stack spill slots. I requeued it whole rather than half-transcribing it, and the
+  drop reason in `blocked.jsonl` carries the working harness so the next claimant starts an hour
+  ahead. The measurement that matters here: **the kernel runs to completion out of the live Helium
+  image under `arch -x86_64` and writes its destination plane** — no HG object graph needed. Build
+  `this` with the REAL ctor C1 @0x37d330 (it calls `HGNode::HGNode` and two vtable slots and works
+  live), which leaves the param pool at `this+0x198` = 0xe0 bytes (0x00-0x9f zero, 0xa0-0xbf
+  `1.0f×4` twice, 0xc0-0xdf `(0.5,0.5,0.5,0)` twice); `SetParameter` @0x37d520 writes slot `i` at
+  `pool+i*0x20` AND `+0x10`, so 0x00-0x7f is settable and 0x80+ is ctor rodata. The HGTile fields
+  the kernel touches are all plain buffers: `+0x00` x0,y0,x1,y1 i32, `+0x10` dst, `+0x18` dst stride
+  in PIXELS, `+0x50` src, `+0x58` src stride, `+0x60` LUT-A, `+0x68` i32 row multiplier, `+0x70`
+  LUT-B, `+0x78` i32 row multiplier — and `this` is read ONLY at +0x198. LUT fetches are manual
+  `vmovaps` xmm gathers at `base + idx*16`, so filling each plane with index-valued floats makes the
+  output name the entry fetched.

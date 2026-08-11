@@ -1738,4 +1738,158 @@ export class OZChannelBase {
     // @0x4985f/@0x49866  movq %rbx,%rdi ; jmp _CFRetain — TAIL CALL.
     return CFRetain(name);
   }
+
+  /**
+   * `OZChannelBase::getLabelCtlrClassName()`
+   *   — @ProChannel 0x4bc6e
+   *   — __ZN13OZChannelBase21getLabelCtlrClassNameEv
+   *
+   * The read side of {@link labelCtlrClassNameAt50}: a five-instruction leaf
+   * that loads the +0x50 slot and returns it. Nothing else — no retain, no
+   * NULL check, no copy.
+   *
+   * Full transcription — every instruction, in order (10 bytes, and the whole
+   * function; the next symbol `getParameterCtlrClassName` starts at 0x4bc78):
+   *
+   *   0x4bc6e  55              pushq %rbp             ; frame setup (no TS counterpart)
+   *   0x4bc6f  48 89 e5        movq  %rsp, %rbp       ; frame setup (no TS counterpart)
+   *   0x4bc72  48 8b 47 50     movq  0x50(%rdi), %rax ; rax = this->labelCtlrClassNameAt50
+   *   0x4bc76  5d              popq  %rbp             ; epilogue (no TS counterpart)
+   *   0x4bc77  c3              retq                   ; the loaded qword IS the return value
+   *
+   * OWNERSHIP: the returned `CFStringRef` is **unretained** — there is no
+   * `_CFRetain` here, unlike the setter twin @0x49836 which retains what it
+   * stores. The caller receives a borrowed reference whose lifetime the
+   * channel owns. NULL is returned unchanged: the load is unconditional, so an
+   * unset slot (initial value NULL, or NULL written through
+   * {@link setLabelCtlrClassName}) reads back as NULL rather than raising.
+   *
+   * FRONTIER CALLEES: none. No call, no jump, no indirect and no virtual
+   * dispatch in the body (`depgraph.py deps` lists nothing).
+   *
+   * ONE OF A FAMILY OF THREE, and the displacement is the only difference —
+   * checked against the raw bytes of the thin x86_64 slice so the sibling
+   * slots cannot be confused with this one:
+   *
+   *   0x4bc6e  55 48 89 e5 48 8b 47 50 5d c3   getLabelCtlrClassName      -> +0x50
+   *   0x4bc78  55 48 89 e5 48 8b 47 58 5d c3   getParameterCtlrClassName  -> +0x58
+   *   0x4bc82  55 48 89 e5 48 8b 47 60 5d c3   getInspectorCtlrClassName  -> +0x60
+   *
+   * The other two are their own ledger units and are NOT ported here.
+   *
+   * MEASURED AGAINST THE LIVE BINARY
+   * (raw-port/re/oracle/OZChannelBase_getLabelCtlrClassName_probe.py, run under
+   * `arch -x86_64 /usr/bin/python3` so dlsym resolves the same x86_64 slice
+   * this was transcribed from). The symbol is exported (`T` @0x4bc6e), so it is
+   * called through dlsym over a poisoned 0x100-byte arena:
+   *   - the 10 mapped opcode bytes equal the ones transcribed above
+   *   - for each of six sentinels at +0x50 (0, 1, 0x58 — the displacement
+   *     itself, so a wrong-slot read cannot alias — a heap pointer, ~0UL and a
+   *     0xCD-pattern word) the return value is that sentinel, bit for bit
+   *   - the arena is byte-identical after every call: the function reads and
+   *     writes nothing
+   *   - CONTROL: the same arena read through the +0x58 and +0x60 displacements
+   *     returns the OTHER sentinels, so the probe can tell this getter from its
+   *     two siblings rather than passing on any load whatsoever
+   *
+   * Result at ProChannel slide 0x10a951000: **17/17 PASS**, dlsym landing on
+   * slide+0x4bc6e exactly, all six sentinels returned bit-for-bit, 0 of 256
+   * arena bytes changed on every call, and both sibling displacements
+   * returning their own values and not this one.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProChannel.__ZN13OZChannelBase21getLabelCtlrClassNameEv.s
+   *   (6 lines: the label plus the five instructions)
+   */
+  getLabelCtlrClassName(this: OZChannelBase): CFStringRef | null {
+    // @0x4bc72  movq 0x50(%rdi),%rax — the whole body: load the slot and
+    // return it, NULL included, unretained.
+    return this.labelCtlrClassNameAt50;
+  }
+
+  /**
+   * `OZChannelBase::getParameterCtlrClassName()`
+   *   — @ProChannel 0x4bc78
+   *   — __ZN13OZChannelBase25getParameterCtlrClassNameEv
+   *
+   * The read side of {@link parameterCtlrClassNameAt58}: a five-instruction
+   * leaf that loads the +0x58 slot and returns it. Nothing else — no retain,
+   * no NULL check, no copy. The +0x50 twin
+   * {@link getLabelCtlrClassName} @0x4bc6e is already landed and is the same
+   * body at a different displacement.
+   *
+   * Full transcription — every instruction, in order (10 bytes, and the whole
+   * function; the next symbol `getInspectorCtlrClassName` starts at 0x4bc82):
+   *
+   *   0x4bc78  55              pushq %rbp             ; frame setup (no TS counterpart)
+   *   0x4bc79  48 89 e5        movq  %rsp, %rbp       ; frame setup (no TS counterpart)
+   *   0x4bc7c  48 8b 47 58     movq  0x58(%rdi), %rax ; rax = this->parameterCtlrClassNameAt58
+   *   0x4bc80  5d              popq  %rbp             ; epilogue (no TS counterpart)
+   *   0x4bc81  c3              retq                   ; the loaded qword IS the return value
+   *
+   * OWNERSHIP: the returned `CFStringRef` is **unretained** — there is no
+   * `_CFRetain` here, unlike the setter twin
+   * {@link setParameterCtlrClassName} @0x49870, which retains what it stores
+   * (`jmp _CFRetain` @0x498a0) and releases the old value. The caller receives
+   * a borrowed reference whose lifetime the channel owns. NULL is returned
+   * unchanged: the load is unconditional, so an unset slot (initial value
+   * NULL, or NULL written through the setter) reads back as NULL rather than
+   * raising.
+   *
+   * FRONTIER CALLEES: none. No call, no jump, no indirect and no virtual
+   * dispatch in the body (`depgraph.py deps` lists nothing).
+   *
+   * ONE OF A FAMILY OF THREE, and the displacement is the only difference —
+   * checked against the raw bytes of the thin x86_64 slice so the sibling
+   * slots cannot be confused with this one:
+   *
+   *   0x4bc6e  55 48 89 e5 48 8b 47 50 5d c3   getLabelCtlrClassName      -> +0x50
+   *   0x4bc78  55 48 89 e5 48 8b 47 58 5d c3   getParameterCtlrClassName  -> +0x58  (THIS)
+   *   0x4bc82  55 48 89 e5 48 8b 47 60 5d c3   getInspectorCtlrClassName  -> +0x60
+   *
+   * The +0x60 one is its own ledger unit and is NOT ported here.
+   *
+   * MEASURED AGAINST THE LIVE BINARY
+   * (raw-port/re/oracle/OZChannelBase_getParameterCtlrClassName_probe.py, run
+   * under `arch -x86_64 /usr/bin/python3` so dlsym resolves the same x86_64
+   * slice this was transcribed from). The symbol is exported (`T` @0x4bc78),
+   * so it is called through dlsym over a poisoned 0x100-byte arena:
+   *   - the dlsym'd address is slide+0x4bc78 and the 10 mapped opcode bytes
+   *     equal both the ones transcribed above AND the on-disk thin-slice bytes
+   *     at the same offset
+   *   - for each of six sentinels at +0x58 (0, 1, 0x50 — the SIBLING's
+   *     displacement, so a wrong-slot read cannot alias — a heap pointer, ~0UL
+   *     and a 0xCD-pattern word) the return value is that sentinel, bit for bit
+   *   - the arena is byte-identical after every call: the function reads and
+   *     writes nothing
+   *   - CONTROL: the same arena read through the +0x50 and +0x60 displacements
+   *     returns the OTHER sentinels, so the probe can tell this getter from its
+   *     two siblings rather than passing on any load whatsoever. This is the
+   *     mirror of the landed +0x50 probe, which used THIS function as one of
+   *     its controls.
+   *   - AND THE PORT ITSELF IS EXECUTED (check E), which the +0x50 probe does
+   *     not do: `OZChannelBase_getParameterCtlrClassName_driver.mts` builds a
+   *     real OZChannelBase, fills the three slots with distinguishable values,
+   *     and calls this method. Everything else here measures the BINARY; the
+   *     one defect this body can have is reading the +0x50 FIELD, which
+   *     compiles, cites the right address and returns a plausible
+   *     CFStringRef. MUTATION CONTROL, driven not asserted: change the body to
+   *     `return this.labelCtlrClassNameAt50` and E goes red on both cases
+   *     (returns '+0x50', and NULL is no longer preserved).
+   *
+   * Result at ProChannel slide 0x109a6b000: **20/20 PASS**, dlsym landing on
+   * slide+0x4bc78 exactly, mapped bytes equal to the on-disk slice, all six
+   * sentinels returned bit-for-bit, 0 of 256 arena bytes changed on every
+   * call, both sibling displacements returning their own values and not this
+   * one, and the executed port returning the +0x58 slot and preserving NULL.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/ProChannel.__ZN13OZChannelBase25getParameterCtlrClassNameEv.s
+   *   (6 lines: the label plus the five instructions)
+   */
+  getParameterCtlrClassName(this: OZChannelBase): CFStringRef | null {
+    // @0x4bc7c  movq 0x58(%rdi),%rax — the whole body: load the slot and
+    // return it, NULL included, unretained.
+    return this.parameterCtlrClassNameAt58;
+  }
 }
