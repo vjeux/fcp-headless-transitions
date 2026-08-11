@@ -20,10 +20,41 @@ Usage: dup_check.py <mainRef> <branchRef> <path> [<path> ...]
   exit 0 = >=1 introduced mangled symbol is genuinely new to main  -> real port, mergeable
   exit 5 = DUP (every introduced mangled symbol already exists on main, maybe under another file)
   exit 1 = usage error
+
+v3 (2026-08-10) -- STOP CONDEMNING REAL PORTS. A false DUP destroys transcription work: #108, #110
+and #197 each carried an "already on main" status and were one click from being closed. Two
+reviewers flagged it and DISAGREED about #197 -- one closed it as a true dup, the other called it a
+false positive. When two careful reviewers read the same evidence oppositely, it is not evidence.
+
+Root cause, reproduced on #110: v2 harvested `__Z*` TOKENS from file TEXT and treated "introduced 0
+new mangled symbols" as proof of duplication. OZPasteEntry does not exist on main in ANY form, yet
+it was condemned -- the file cites its methods only by @0xADDR and so contains ZERO mangled tokens.
+Where files do cite `__Z*` names, the tokens are often just libc++ externs (__Znwm, __ZdlPv) which
+trivially "already exist".
+
+The asymmetry that drives v3: a MISSED dup is cheap (a reviewer notices; dedup is cleanup), a FALSE
+dup destroys work. So v3 biases hard toward NEW:
+  * compiler/libc++ runtime externs excluded -- never a unit of porting work;
+  * "no units found" is DUP-INCONCLUSIVE (exit 0), never DUP;
+  * v2's cross-file dup detection is preserved intact for files that cite mangled names (the norm).
 """
 import sys, re, subprocess
 
 MANGLED = re.compile(r'__Z[A-Za-z0-9_$.]+')
+
+# Compiler / libc++ / libc++abi runtime symbols. They appear in almost every ported file as
+# out-of-scope externs, are never a unit of porting work, and always "already exist on main" --
+# which is exactly how they manufactured false DUP verdicts.
+EXTERN_PREFIXES = (
+    "__Zn",      # operator new / new[]
+    "__Zd",      # operator delete / delete[]
+    "__ZSt", "__ZNSt", "__ZNKSt",   # std::
+    "__ZTI", "__ZTS", "__ZTV",      # typeinfo / typeinfo-name / vtable
+    "__ZGV",     # guard variables
+)
+
+def _is_extern(sym):
+    return sym.startswith(EXTERN_PREFIXES) or "__cxa" in sym or "__cxxabi" in sym
 
 def _show(ref, path):
     r = subprocess.run(["git","show",f"{ref}:{path}"], capture_output=True, text=True)
@@ -47,10 +78,19 @@ def main(argv):
         b = _mangled(_show(br_ref, path))
         m = _mangled(_show(main_ref, path))   # empty set if file absent on main (new file)
         introduced |= (b - m)
+    # Runtime externs are not units of work; counting them is what made libc++ noise look like
+    # "everything here already exists on main".
+    introduced = {s for s in introduced if not _is_extern(s)}
     if not introduced:
-        print(f"  DUP-LEDGER: branch {br_ref} introduces 0 new mangled symbols in its changed files.")
-        print("  -> re-port / body-rewrite of already-landed symbols. Not a new port.")
-        return 5
+        # v2 called this a DUP. It is not: it means the file cites its methods by @0xADDR only,
+        # which is common and legal -- #110's OZPasteEntry does not exist on main in any form and
+        # was condemned by this branch of the logic. Absence of a mangled citation is absence of
+        # evidence, so say so and let the reviewer decide.
+        print(f"  DUP-INCONCLUSIVE: branch {br_ref} cites no mangled port symbols in its changed "
+              f"files (address-only provenance).")
+        print("  -> cannot determine duplication mechanically. NOT treated as a dup; the reviewer")
+        print("     must confirm the class exists on main before closing anything.")
+        return 0
     genuinely_new = [s for s in sorted(introduced) if not _exists_on_main(main_ref, s)]
     if genuinely_new:
         return 0
