@@ -36,11 +36,25 @@ CLS="${BR#port/}"; CLS="${CLS%_rebased}"
 echo "rebase_pr: PR #$PR  branch=$BR  class=$CLS"
 
 # ---- Attempt 1: rebase_helper (handles up-to-date + disjoint-top-level-export union) ----
-python3 raw-port/army/tools/rebase_helper.py "$CLS" > /tmp/rebase_pr_${PR}_rh.log 2>&1; rc=$?
+# --pr, not "$CLS": a class can have several open PRs on `port/<Class>__slot<N>` branches, and the
+# class-keyed form resolved to whichever one held the bare name — handing back a DIFFERENT agent's
+# content with exit 0. We know the PR number here, so there is no reason to guess.
+python3 raw-port/army/tools/rebase_helper.py --pr "$PR" > /tmp/rebase_pr_${PR}_rh.log 2>&1; rc=$?
 if [ "$rc" = 0 ]; then
   # rebase_helper pushed port/<Class>_rebased. Repoint: the SAME PR can't change head branch, so the
   # reviewer will gate the _rebased branch as its own PR. For in-place, force-push _rebased -> BR.
   git fetch -q origin "port/${CLS}_rebased" 2>/dev/null
+  # LAST GUARD BEFORE AN IRREVERSIBLE FORCE-PUSH: compare the FILE LIST, not just the gate. A green
+  # gate says nothing about a file the rebase dropped, because the gate only inspects the .ts files
+  # handed to it (that is how #449 lost an oracle harness). rebase_helper now carries non-src files
+  # and asserts they survived; this repeats the check at the push, where the damage would be done.
+  MISSING=$(comm -23 \
+    <(git diff --name-only "origin/main...origin/$BR" | sort) \
+    <(git diff --name-only "origin/main...origin/port/${CLS}_rebased" | sort) | tr '\n' ' ')
+  if [ -n "${MISSING// /}" ]; then
+    echo "rebase_pr: REFUSING to force-push — the rebased branch is missing files the PR has: $MISSING"
+    echo "REBASE_MANUAL"; exit 6
+  fi
   git push -f origin "refs/remotes/origin/port/${CLS}_rebased:refs/heads/$BR" 2>/dev/null \
     && { echo "REBASE_UNION: force-pushed union result onto $BR (PR #$PR updates in place)"; \
          git push -q origin --delete "port/${CLS}_rebased" 2>/dev/null || true; exit 0; }

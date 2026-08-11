@@ -99,6 +99,27 @@ is **arm64**. Plain struct offsets are ABI-fixed and fine, but anywhere the slic
 `std::string` SSO is the flagship — an address-based differential fails **silently toward VERIFIED**.
 Use `arch -x86_64 /usr/bin/python3` for any address-based work.
 
+## 6b. Rebase and evidence hygiene (fixed today — use the fixed forms)
+
+- **`rebase_helper.py --pr <N>`**, never the bare class name. A class can have several open PRs on
+  `port/<Class>__slot<N>` branches; the class-keyed form used to hand back a DIFFERENT PR's content
+  with exit 0, and the wrong content is itself gate-clean (OPS_LOG #26). It now refuses an ambiguous
+  class rather than guessing, but pass the PR number and the question never arises.
+- **Before any force-push of a rebase, diff the FILE LIST**, not just the gate:
+  `git diff --name-status <pre-rebase-sha> HEAD`. A rebase used to drop the branch's non-src files
+  and a green gate said nothing, because the gate only inspects the `.ts` files you hand it — that is
+  how an oracle harness was destroyed (#25). The tools now carry those files and assert they survived;
+  check anyway, because the failure is silent and irreversible.
+- **Write a review body to a file: `ghapp/pr_review.sh <PR#> approve --body-file <path>`.** Backticks
+  inside a double-quoted `bash -c` are expanded by YOUR shell before the tool sees them, which
+  silently deleted the clause naming a defect from two permanent records (#30). Same door as a
+  `depclaim.py drop` reason — single-quote those.
+- **`slot_lock.sh heartbeat <role> <n>` after every verdict or unit.** The stale-reclaim measures the
+  lock file's mtime; without a beat it measures tick age, so a healthy long run looks abandoned and a
+  dead one looks busy (#32).
+- **A worktree that refuses to release after its PR merged** is the known detached-HEAD leak (#31),
+  now fixed; `release --force` remains correct if you meet it on an older tool.
+
 ## 7. When you cannot port a unit
 
 Requeue it: `python3 raw-port/army/tools/depclaim.py drop <mangled> "<why>"`. Skim
