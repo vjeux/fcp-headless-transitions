@@ -9,6 +9,9 @@
 // VTABLE (ProCore @0x148B48; installed-ptr @0x148B58):
 //   *0x00 -> 0xDD34C  ~PCStream (D1 base dtor)     — `ud2` (abstract)
 //   *0x08 -> 0xDD352  ~PCStream (D0 deleting dtor) — `ud2` (abstract)
+//   (D2, the base-object dtor @0x6DEC, is NOT a vtable slot: it is called directly, by name,
+//    from each derived class's dtor. That is why it is an ordinary empty function while the
+//    two vtable dtor slots above are `ud2` traps.)
 //   *0x18            "write(void*, size_t)"        — pure virtual; installed by subclass
 //   ... (typeinfo/vtable-embedded PCCurveFit at *0xE0/*0xE8/*0xF0 is a SEPARATE typeinfo
 //        contiguously laid out after PCStream's — an artefact of ProCore's build unit; not
@@ -125,6 +128,47 @@ export abstract class PCStream {
    */
   destroyD0(): never {
     throw new Error("PCStream::~PCStream() D0 @ProCore 0xDD352 is `ud2` — abstract-class trap, must never be reached");
+  }
+
+  /**
+   * PCStream::~PCStream() (D2 — base-object dtor) @ProCore 0x6DEC (__ZN8PCStreamD2Ev).
+   *
+   * Full transcription of the entire 5-line body
+   * (raw-port/re/disasm/ProCore.__ZN8PCStreamD2Ev.s):
+   *
+   *   0x6dec  pushq %rbp        ; frame prologue
+   *   0x6ded  movq  %rsp, %rbp
+   *   0x6df0  popq  %rbp        ; epilogue
+   *   0x6df1  retq
+   *
+   * The body is EMPTY — a frame is built and immediately torn down. There is no store, no
+   * call, no vptr write, and (unlike the D1/D0 slots above) no `ud2`. That is exactly what
+   * the C++ says: PCStream's only decoded member is the vptr at +0x00, it owns no heap
+   * resource, and a base-object destructor does not reset the vptr, so the compiler had
+   * nothing to emit. `destroyD2()` therefore does nothing, and doing nothing IS the port —
+   * a throw here would be WRONG (it would turn a reachable, side-effect-free dtor into a
+   * trap, and D2 is the one dtor variant of the three that is genuinely callable).
+   *
+   * THE EMPTINESS IS VERIFIED, NOT ASSUMED. Two independent checks, because a body that
+   * "looks empty" is precisely the shape OPS_LOG #368 describes when a slicer truncates a
+   * REAL body:
+   *   (a) EXTENT — the function is 6 bytes, 0x6dec..0x6df1 inclusive, and the very next
+   *       exported symbol `PCStream::indent(unsigned int)` (__ZN8PCStream6indentEj) starts
+   *       at 0x6df2, one byte past the `retq`. There is no room for a dropped instruction:
+   *       the address range is fully accounted for by the four instructions above.
+   *   (b) DIFFERENTIAL — raw-port/re/oracle/PCStream_D2_oracle.py dlsym's the live exported
+   *       symbol (`nm` type `T` @0x6dec) under `arch -x86_64` and calls it on a 0x100-byte
+   *       record, then compares the record byte-for-byte with its pre-call contents, over 32
+   *       fills (0x00, 0xEE, 0xFF, 0xA5 and 28 seeded-random ones, several with a
+   *       plausible-looking vptr in the first qword): 32 records, 0x100 bytes each,
+   *       **0 mutated bytes**. Had the real D2 reset the vptr — the single most likely
+   *       non-empty behaviour for a base dtor, and the one a truncated disasm would hide —
+   *       the +0x00 qword would differ on every fill.
+   */
+  destroyD2(): void {
+    // @0x6dec..0x6df1 — pushq %rbp ; movq %rsp,%rbp ; popq %rbp ; retq.
+    // Prologue and epilogue only: no field is written, the vptr at +0x00 is left alone,
+    // and nothing is called. The empty body is the whole function.
   }
 
   /**
