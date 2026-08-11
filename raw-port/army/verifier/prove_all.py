@@ -150,7 +150,17 @@ def layer2():
     print("LAYER 2k (queue ownership of a G5-flagged PR — the gate asked for a reviewer):",
           "PASS" if ok11 else "FAIL")
     if not ok11: print(r11.stdout[-1200:], r11.stderr[-400:])
-    # 2l — THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed
+    # 2l — the cross-queue lease guard. A PR that is CHANGES_REQUESTED *and* CONFLICTING sits in
+    # BOTH worker queues, and until #643 taught rebase_claim to see DIRTY branches that combination
+    # was rare. It is not rare now: measured the same hour, two workers held the two leases on #656
+    # 66 seconds apart and both began reconciling the same 936-line PR. Offline, ~0.2s, and each
+    # case is mutation-checked inside the suite.
+    r12 = run(["bash", os.path.join(TOOLS, "test_cross_queue_lease.sh")])
+    ok12 = "TEST_CROSS_QUEUE_LEASE: PASS" in r12.stdout
+    print("LAYER 2l (cross-queue lease — one PR is never handed to two workers):",
+          "PASS" if ok12 else "FAIL")
+    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
+    # 2r — THE ARGV CONTRACTS OF THE TWO TOOLS WHOSE JOB IS TO RECORD EVIDENCE. Both have destroyed
     # the thing they exist to preserve, in the same way, at exit 0, behind a plausible success line:
     # an unrecognised flag falls through to `BODY="$*"` and is posted AS the record. `pr_review.sh`
     # lost 11KB of a differential that way (row 43) and was fixed in #596; `pr_comment_once.sh` was
@@ -164,20 +174,26 @@ def layer2():
     # review suite and 4.5s for the comment one (prove_all end to end is 2m19s at that load). An
     # earlier revision of this line said "~18s total", which is the idle number and 2.5x optimistic
     # — the figure a reader budgets from should be the one they will actually pay.
-    r12 = run(["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")])
-    ok12 = r12.returncode == 0 and "test_pr_review_argv:" in r12.stdout and "0 failed" in r12.stdout
-    r13 = run(["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")])
-    ok13 = (r13.returncode == 0 and "test_pr_comment_once_argv:" in r13.stdout
-            and "0 failed" in r13.stdout)
-    print("LAYER 2l (evidence-recording tools — an unknown flag must never become the record):",
-          "PASS" if (ok12 and ok13) else "FAIL")
-    if not ok12: print(r12.stdout[-1200:], r12.stderr[-400:])
-    if not ok13: print(r13.stdout[-1200:], r13.stderr[-400:])
-    # (Letter collisions on this line are routine — this block has been 2j, then 2k, and is
-    # now 2l because main took 2k (queue ownership of a G5-flagged PR) while this PR was open.
-    # BOTH blocks are kept every time; only this one's letter and result variables move.)
+    #
+    # LETTER AND VARIABLES: this block has been 2j, then 2k, then 2l, and is now 2r. Main took 2l
+    # (above) while this PR was open, and one worker is holding merges of #656 (2m/2n/2o, r13-r15),
+    # #715 (2p, r16) and #714 (2q, r17) on this same tail right now. 2r/r18/r19 collides with none
+    # of them. The VARIABLE names matter as much as the letter and are easier to miss: two blocks
+    # that both assign `r13`/`ok13` still print correctly — each print follows its own assignment —
+    # while the single `return` line references the name once, so the LATER block's result silently
+    # decides the verdict for both and a red suite returns PASS. That is the "a lock that cannot
+    # fail" shape, so the numbers are allocated disjointly here rather than left to the next merge.
+    r18 = run(["bash", os.path.join(TOOLS, "ghapp", "test_pr_review_argv.sh")])
+    ok18 = r18.returncode == 0 and "test_pr_review_argv:" in r18.stdout and "0 failed" in r18.stdout
+    r19 = run(["bash", os.path.join(TOOLS, "test_pr_comment_once_argv.sh")])
+    ok19 = (r19.returncode == 0 and "test_pr_comment_once_argv:" in r19.stdout
+            and "0 failed" in r19.stdout)
+    print("LAYER 2r (evidence-recording tools — an unknown flag must never become the record):",
+          "PASS" if (ok18 and ok19) else "FAIL")
+    if not ok18: print(r18.stdout[-1200:], r18.stderr[-400:])
+    if not ok19: print(r19.stdout[-1200:], r19.stderr[-400:])
     return (ok and ok2 and ok3 and ok4 and ok5 and ok6 and ok7 and ok8 and ok9
-            and ok10 and ok11 and ok12 and ok13)
+            and ok10 and ok11 and ok12 and ok18 and ok19)
 
 def _reach(spec, expect):
     import tempfile
