@@ -35,6 +35,25 @@
 // unsigned. The 64-bit `btq %rax,%rcx` tests bit (offset mod 64) of the mask.
 //
 // No in-scope callees, no externs, no indirect calls — pure integer dispatch.
+//
+// ── ORACLE (differential against the LIVE binary) ─────────────────────────
+//   raw-port/re/oracle/getCodecGroup_oracle.py  (+ getCodecGroup_driver.mts)
+//     arch -x86_64 /usr/bin/python3 raw-port/re/oracle/getCodecGroup_oracle.py
+//
+// `__Z13getCodecGroupj` is an `nm` type `t` LOCAL symbol, so dlsym cannot see
+// it; it is reached by inventory vmaddr + `_dyld_get_image_vmaddr_slide`
+// through `ozone_loader.local_fn`, with the target's first 16 bytes checked
+// against the thin slice before any result is trusted. The driver imports
+// THIS module (node --experimental-strip-types), so what is measured is what
+// ships.
+//   SHIPPED: 2,373/2,373 cases bit-exact vs live Flexo, 0 divergences —
+//   every offset of all five windows (past both ends), every constant and
+//   its neighbours, the tree's boundaries, and 2,000 seeded random FourCCs.
+// Four mutants, each an exact one-token substitution on this source, all
+// fired (no dead control): the pre-fix 32-bit shift diverges on exactly the
+// four inputs review found (ai1U/ai1V/ai5U/ai5V), narrowing the OTHER btq
+// diverges on 7, `cmp $0x3f -> $0x1f` on 3, and flipping the bit-test
+// polarity on 119.
 
 /**
  * getCodecGroup(unsigned int)
@@ -130,8 +149,15 @@ function blk31b(edi: number, eax: number): number {
   // @0xe4232e btq %rax,%rcx ; jae 0xe4236e : test bit eax of the 64-bit mask.
   const MASK = 0xc000000000000003n;
   if (((MASK >> BigInt(eax)) & 1n) === 0n) {
-    // @0xe4236e movl $0x18,%ecx ; btq %rax,%rcx ; jae 0xe423af.
-    if (((0x18 >>> eax) & 1) === 0) return edi; // @0xe423af
+    // @0xe4236e movl $0x18,%ecx ; @0xe42373 btq %rax,%rcx ; @0xe42377 jae 0xe423af.
+    // btq tests bit (rax mod 64) of the 64-bit %rcx, and eax reaches 0x3f here
+    // (the only guard above is `cmp $0x3f,%eax ; ja` @0xe4231b), so this must be
+    // a 64-bit shift like the mask test one branch up. A JS `>>>` would mask the
+    // COUNT to 5 bits and answer bit (eax & 31) instead — wrong for eax 32..63,
+    // e.g. eax=35 would read bit 3 (set) and return 'ai56' where the machine
+    // reads bit 35 (clear) and takes jae. (Defect caught in review of PR #82;
+    // the four divergent inputs were ai1U/ai1V/ai5U/ai5V.)
+    if (((0x18n >> BigInt(eax)) & 1n) === 0n) return edi; // @0xe423af
     // @0xe42379 movl $0x61693536,%eax : 'ai56'.
     return 0x61693536;
   }
