@@ -66,6 +66,12 @@ fi
 git -C "$WT" rebase --abort 2>/dev/null || true
 CONFLICT_FILES=$(git -C "$WT" diff --name-only origin/main...origin/$BR -- 'raw-port/src/**/*.ts' | tr '\n' ' ')
 THEIRS="/tmp/rebase_pr_${PR}_theirs"; rm -rf "$THEIRS"; mkdir -p "$THEIRS"
+# Re-fetch first: on a busy swarm main moves between the START of this script (rebase_helper +
+# a full rebase attempt + a gate run, minutes) and here, and "CURRENT main" that is minutes stale
+# is how a hand-merge ends up force-pushing a DELETION of everything that landed in between
+# (seen on PR #478: three ports, their oracles and an OPS_LOG section). This narrows the window;
+# the worker still has to re-check before committing, which step 3 below now says explicitly.
+git -C "$WT" fetch -q origin main 2>/dev/null || true
 git -C "$WT" checkout -q --detach origin/main 2>/dev/null
 git -C "$WT" checkout -q -B "$BR" origin/main 2>/dev/null      # start from CURRENT main
 for f in $CONFLICT_FILES; do
@@ -82,8 +88,16 @@ REBASE_MANUAL: PR #$PR ($BR) has a shared-class-body / true conflict — WORKER 
        Add ONLY your net-new methods (the ones NOT already on main) into main's class body with the
        edit tool. Do NOT drop main's methods. Keep @0xADDR provenance.
     2. bash raw-port/army/gate/gate.sh $CONFLICT_FILES      # must print GATE: PASS
-    3. git -C "$WT" add -A && git -C "$WT" commit -q -m "rebase $BR onto origin/main (re-apply net-new methods)"
-    4. git -C "$WT" push -f origin "HEAD:$BR"               # updates PR #$PR in place
-    5. bash raw-port/army/tools/wt_pool.sh release "$WT"
+    3. git -C "$WT" diff origin/main --stat                 # ONLY the files you edited may appear!
+       main moves while you merge; anything else listed would be DELETED by your force-push, and
+       gate.sh/G6 cannot see it (they only inspect the file you hand them). If so:
+         git -C "$WT" fetch origin main && git -C "$WT" reset --hard origin/main
+       then re-apply your merge on top (copy your edited files aside first) and re-gate.
+    4. git -C "$WT" add -A && git -C "$WT" commit -q -m "rebase $BR onto origin/main (re-apply net-new methods)"
+    5. git -C "$WT" fetch origin main && git -C "$WT" rebase origin/main   # <- pr_submit.sh does
+       this for a PORT commit, which is exactly why the port path never publishes a stale base;
+       this path force-pushes what you wrote, so do it here by hand.
+       git -C "$WT" push -f origin "HEAD:$BR"               # updates PR #$PR in place
+    6. bash raw-port/army/tools/wt_pool.sh release "$WT"
 MANUAL
 exit 6
