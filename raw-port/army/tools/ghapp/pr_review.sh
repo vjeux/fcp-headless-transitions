@@ -220,6 +220,29 @@ if printf '%s' "$resp" | grep -q '"state"'; then
   exit 0
 fi
 
+# A PR AUTHORED BY THE REVIEWER APP CAN NEVER BE APPROVED BY ANY REVIEWER, so say so plainly rather
+# than letting each slot rediscover it by burning a lease. GitHub refuses a self-review, and every
+# reviewer slot shares this one app identity — so such a PR is structurally unmergeable: no queue can
+# claim it (swarm_doctor reports it as an orphan), and it sits open forever. Two are open right now,
+# both OPS_LOG reports a reviewer filed with raw `gh pr create` instead of pr_submit.sh, which pushes
+# as the WORKER app precisely so that author != reviewer.
+if printf '%s' "$resp" | grep -qiE 'own pull request|not approve your own'; then
+  AUTHOR=$("$ROOT/gh_as.sh" reviewer pr view "$PR" --repo "$SLUG" --json author --jq .author.login 2>/dev/null)
+  if [ -n "$AUTHOR" ] && [ "$AUTHOR" = "${ME%\[bot\]}[bot]" ]; then
+    cat >&2 <<EOM
+pr_review: PR #$PR was authored by the REVIEWER app ($AUTHOR), so NO reviewer can ever approve it —
+  every reviewer slot shares this identity and GitHub refuses a self-review. It is structurally
+  unmergeable and invisible to every queue.
+  This happens when a reviewer files a PR with raw \`gh pr create\`. Use pr_submit.sh, which pushes
+  as the WORKER app for exactly this reason (author != reviewer).
+  To rescue THIS one: re-push the branch as the worker app and open a fresh PR —
+      bash raw-port/army/tools/ghapp/git_push_as.sh worker -q -u origin <branch> --force-with-lease
+      bash raw-port/army/tools/ghapp/gh_as.sh worker pr create --base main --head <branch> ...
+  then close #$PR with a pointer to the replacement.
+EOM
+    exit 3
+  fi
+fi
 if printf '%s' "$resp" | grep -qiE 'own pull request|not approve your own'; then
   cat >&2 <<EOF
 pr_review: REFUSED — GitHub says this identity authored PR #$PR, so it cannot review it.
