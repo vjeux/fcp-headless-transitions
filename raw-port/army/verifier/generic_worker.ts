@@ -20,12 +20,19 @@
 // Only a port whose output equals the REAL FCP symbol's output on every fuzzed input passes.
 
 import readline from 'node:readline';
+import { pathToFileURL } from 'node:url';
+import { isAbsolute, resolve } from 'node:path';
 
 const cache = new Map<string, any>();
 
 async function loadModule(p: string): Promise<any> {
   if (cache.has(p)) return cache.get(p);
-  const url = 'file://' + p;
+  // pathToFileURL, not string concat: `'file://' + p` on a RELATIVE path yields file://raw-port/...
+  // where "raw-port" parses as a URL HOST, which node rejects on macOS with
+  //   File URL host must be "localhost" or empty on darwin
+  // The driver then reports HARNESS_BROKEN. Same root cause as the relative-path bug in pr_gate
+  // (#234) — this is the other half of it, and it is why G4 stayed dark even once the worker spawned.
+  const url = pathToFileURL(isAbsolute(p) ? p : resolve(process.cwd(), p)).href;
   const m = await import(url);
   cache.set(p, m);
   return m;
