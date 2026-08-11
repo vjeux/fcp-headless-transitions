@@ -5,6 +5,8 @@
 import { PCSerializerReadStream } from "../infra/PCSerializerReadStream.js";
 import { PCStreamElement } from "../infra/PCStreamElement.js";
 import type { OZChannelObjectRootBase } from "./OZChannelObjectRootBase.js";
+import type { PCSerializerWriteStream } from "../infra/PCSerializerWriteStream.js";
+import type { CMTime } from "../infra/CMTime.js";
 
 /**
  * `___dynamic_cast(void* src, const std::type_info* srcType,
@@ -1381,5 +1383,48 @@ export class OZChannelBase {
       }
       cur = parent;
     }
+  }
+
+  /**
+   * `OZChannelBase::calcHashForState(PCSerializerWriteStream&, CMTime const&)`
+   *   — @ProChannel 0x4bed4
+   *     (__ZN13OZChannelBase16calcHashForStateER23PCSerializerWriteStreamRK6CMTime)
+   *
+   * An EMPTY virtual: the base class contributes nothing to the state hash. The entire
+   * function is a frame prologue and epilogue —
+   * raw-port/re/disasm/ProChannel.__ZN13OZChannelBase16calcHashForStateER23PCSerializerWriteStreamRK6CMTime.s:
+   *
+   *   0x4bed4  pushq %rbp
+   *   0x4bed5  movq  %rsp, %rbp
+   *   0x4bed8  popq  %rbp
+   *   0x4bed9  retq
+   *
+   * THE BODY IS COMPLETE, NOT TRUNCATED — the two facts that establish it:
+   *   * the very next symbol in the table is `OZChannelBase::parseBegin` @0x4beda, exactly SIX
+   *     bytes after 0x4bed4, which is the precise length of `push rbp; mov rsp,rbp; pop rbp;
+   *     ret` (1 + 3 + 1 + 1). There is no room for another instruction.
+   *   * there is no `xorl %eax,%eax`, consistent with a `void` return — the sibling empty
+   *     bodies that DO return a scalar all zero %eax first.
+   * (Worth stating explicitly because a truncated listing that ends early is exactly how the
+   * #368 slicer bug turned REAL bodies into EMPTY ones.)
+   *
+   * NEITHER PARAMETER IS READ. `%rsi` (the stream) and `%rdx` (the CMTime) are never touched:
+   * nothing is written to the stream, and no hash is mixed. Writing anything here — even a
+   * zero — would be adding an instruction the machine does not execute (PORTING_SPEC Rule 1),
+   * so both parameters are accepted and deliberately ignored.
+   *
+   * THIS IS A DEFAULT, NOT A GAP. Derived channels override it and do the real work: the
+   * same-signature override `FFOZMediaRefChannel::calcHashForState(PCSerializerWriteStream&,
+   * CMTime const&)` @Flexo 0x21d840 is a 43-instruction body (a separate, unported ledger
+   * entry, cited here only as evidence). So the base's empty body means "a plain channel adds
+   * nothing to the hash of its state", which is a decoded behaviour rather than an undecoded
+   * one.
+   *
+   * @param _stream — %rsi, `PCSerializerWriteStream&`. Never read, never written to.
+   * @param _time   — %rdx, `CMTime const&`. Never read.
+   */
+  calcHashForState(_stream: PCSerializerWriteStream, _time: CMTime): void {
+    // @0x4bed4..0x4bed5 — prologue; @0x4bed8..0x4bed9 — epilogue + retq.
+    // There is no instruction in between. Doing nothing IS the transcription.
   }
 }
