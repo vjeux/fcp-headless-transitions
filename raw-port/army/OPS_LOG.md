@@ -3143,3 +3143,155 @@ wrong reported confidently and falsely.
   repo keeps relearning in new places: **an unparseable SUCCESS is not an empty result, and "I could
   not read this" must never be folded into a data value.** Fetch text as text, and on a genuine
   failure fail toward NOT accusing.
+
+---
+
+## Open — reported 2026-08-11 by reviewer 5 (four ways the REVIEW path handed me a wrong answer; NEW)
+
+Nine PRs this run. None of these is about a port being wrong: each is a case where the machinery a
+reviewer is told to use reported something false, and three of the four fail toward the expensive
+direction for a reviewer — a wrong REJECT, or a duplicate review.
+
+- **`git fetch origin refs/pull/<N>/head` CAN HAND YOU THE PRE-REWORK COMMIT MINUTES AFTER THE
+  FORCE-PUSH, AND EVERYTHING DOWNSTREAM LOOKS RIGHT.** Hit on PR #554, a rework whose standing
+  rejection named one false claim. `review_claim.sh` leased me head `6aa161d0`; the natural next
+  command — `git fetch origin refs/pull/554/head:refs/remotes/pr/554` — gave me `61b430a7`, the head
+  the rejection was recorded against, and `git log origin/main..refs/remotes/pr/554` showed one
+  commit, so nothing looked stale. Reviewing that ref, I found the rejected sentence still present
+  and was one command away from filing a REJECT quoting text the author had already removed. The
+  tell was cheap and I only ran it out of habit: `gh pr view <N> --json headRefOid` disagreed with
+  `git rev-parse` on the fetched ref. GitHub's `refs/pull/<N>/head` is updated asynchronously after a
+  force-push; the PR's `headRefOid` is not.
+  RULE: **fetch the SHA the lease named, not the pull ref** (`git fetch origin <sha>` works and is
+  exact), or assert `git rev-parse <fetched ref>` equals the leased SHA before you read a line of
+  the diff. This is the same family as reviewer 3's "the approval binds to the LIVE head, not the
+  reviewed one", arriving one step earlier in the process: there the head moved forward under a
+  review, here the head I fetched had not caught up yet.
+
+- **G5's CLASS-METHOD SWEEP TAKES A FIXED 4,000-CHARACTER WINDOW AS THE "METHOD BODY", SO A
+  DOCUMENTATION HEADING BELONGING TO THE NEXT METHOD FLAGS AN HONEST, THROW-FREE TRANSCRIPTION —
+  and the phrase that trips it is one PORTING_SPEC encourages people to write.** Measured on PR #256
+  (`OZChannelBase::setParameterCtlrClassName`), which `pr_land`'s re-gate flagged as
+  "disasm classifies REAL (24 instrs, 1 stores) but the method body throws incompleteness". That body
+  contains no `throw` at all. In `g5_impl_gate.py`'s sweep the body is `text[mstart:mstart+4000]`,
+  and on that head:
+
+      method starts at char 88,826; its real brace-matched body is 845 chars
+      INCOMPLETE_RE matches at offset 3,977 of the window — 3.1 KB PAST the end of the body
+      the matched text is "FRONTIER CALLEE", inside the doc comment of the NEXT method
+
+  `INCOMPLETE_RE` carries `frontier callee` as an alternative, and enumerating a body's boundary
+  calls under a `FRONTIER CALLEES:` heading is exactly what the well-documented ports in this repo
+  do. Note the asymmetry that makes the flag look meaningful rather than random: the twin method
+  right after it was NOT flagged, only because its own 4,000-char window runs off the end of the
+  file before meeting another such heading. Same family as G7's `\]\s*!` matching the `!` of `!==`
+  and `rebase_helper`'s MANGLED regex swallowing a `.s` — a pattern reading text outside the scope it
+  means to judge, and it holds `faithfulness-gate` red until a reviewer hand-clears it.
+  FIX: slice the brace-matched body (the repo already has `_scan_brace_context` for this) instead of
+  a fixed window, and consider dropping `frontier callee` from a regex whose purpose is to detect an
+  incompleteness THROW.
+
+- **`review_claim.sh` RE-OFFERS A PR THE REVIEWER JUST REJECTED, AT THE SAME HEAD — its
+  CHANGES_REQUESTED guard is only wired into one branch of the filter.** Six minutes after I posted a
+  blocking review on #571 at head `10c76368`, the very next `review_claim.sh claim` handed me #571 at
+  `10c76368` again. The eligibility jq is
+
+      select(.s=="NONE" or .s=="PENDING" or .s=="EXPECTED"
+             or (.s=="SUCCESS" and .d!="APPROVED" and .d!="CHANGES_REQUESTED"))
+
+  so `d != "CHANGES_REQUESTED"` is tested ONLY in the `SUCCESS` branch. A head with no
+  `faithfulness-gate` status at all — the normal state after a reviewer rejects a head that was never
+  gated, or after any fresh push — is admitted regardless of the review decision. Consequence: a
+  rejected PR is offered to reviewer after reviewer while it waits on its author, which is a wasted
+  claim each time, and it is the duplicate-review race (#7/#224) pointed the other way, because the
+  next reviewer to take it can record an APPROVE over the standing rejection (reviewer 8's entry
+  documents that exact door). I released it untouched rather than re-reviewing.
+  FIX: move the `.d != "CHANGES_REQUESTED"` test out of the SUCCESS branch so it applies to every
+  candidate. It is a one-line change to the jq.
+
+- **~~`pr_review.sh` HAS NO `--expect-head`, AND PASSING ONE POSTS THE FLAG TEXT AS THE REVIEW
+  BODY.~~ FIXED the same day in #596 (`f926ee91`), after this was measured.** On current main
+  `grep -c expect-head raw-port/army/tools/ghapp/pr_review.sh` is **14**: the flag exists,
+  refuses loudly on a mismatch (printing `you verified :` / `head is now :` before it exits), an
+  unknown `--*` argument is a usage error instead of a body, and a MISSING or EMPTY sha exits 2
+  rather than silently unbinding — both fixes this bullet asks for, plus two cases it did not
+  reach. Use the flag; the workaround below is for a host still running an older copy, and the
+  test for that is `grep -c expect-head` in the tree you are ABOUT TO RUN rather than on main.
+  Reconciling with row 43, which records an older copy that ACCEPTS `--expect-head` and silently
+  ignores it: those are two different older copies, and they fail differently — the one described
+  here posts the flag text as the body, the one in row 43 binds nothing while looking like it
+  does. Either way the version you are running is the only thing that settles it.
+
+  The finding is kept because it explains a destroyed review and because the rule it produced
+  outlives its fix: **read the tool before believing a flag your prompt taught you.**
+
+  Dispatch prompts (mine included) now ask reviewers to "sign with `--expect-head <the sha you
+  verified>`", which is exactly the right guard to want — it is fix (a) in reviewer 3's
+  approval-binds-to-the-live-head entry. It did not exist when this was written. The script's
+  argument handling WAS `if [ "$1" = "--body-file" ] … else BODY="${*:-}"`, so an unrecognised flag falls
+  through into the BODY and is posted as the reviewer's evidence, at exit 0 — the same door that
+  swallowed 11 KB of a differential earlier today, entered from the other side. I checked the source
+  before signing anything and used the documented workaround instead: re-read `headRefOid`
+  immediately before `pr_review.sh` and refuse to sign if it moved (it HAD moved on one of my nine,
+  where the author pushed a second commit mid-review).
+  RULES: **read the tool before believing a flag your prompt taught you**, and on a host whose copy
+  predates #596, compare the live head to your lease by hand. The FIX this bullet asked for —
+  implement `--expect-head <sha>` refusing loudly on a mismatch, and make an unknown `--*` argument
+  a usage error rather than a body — is what #596 shipped.
+
+- **Corroborations of three existing entries, from independent runs, since a second measurement is
+  what turns an anecdote into a property:**
+  * The G5 flag NAMES THE WRONG ADDRESS (worker 4, worker 6): on PR #597 two of the four NO-DISASM
+    flags cite `@ProCore 0x25ebc`, which is the address of the `mulsd` in the export under review,
+    not of either flagged function.
+  * The sibling-override sensitivity control (worker 1) works and is worth the four seconds: on #576
+    I called `OZImageGenerator::filteredEdges` @Ozone 0x30c120 and `OZGradientSource::filteredEdges`
+    @0x2fd2f0 interleaved through one CFUNCTYPE — 48/48 false against 48/48 true — and the family's
+    `movb $0x1,%al` / `movzbl 0xd2(%rdi)` plus the setter's mangled `…setFilteredEdgesEb` ground the
+    bool return that a bare `xorl %eax,%eax` cannot.
+  * "An inflated control is as bad as a dead one" (worker 1, on the AVX kernel in #572): reviewing
+    that same unit with an independent harness, my table reads M0=0 / MAXPS-swap 53 / MINPS-swap 46 /
+    sign-as-`v<0` 30 / `Math.abs`-for-`andps` 77 / lane-uniform-State 1,262. The last number is
+    independent confirmation of the fact the entry blames its own inflation on: in the 8-wide body
+    the SECOND texel of each pair reads State lanes 4..7.
+
+- **AND ONE THING THAT IS NOT A TOOL BUG BUT COST ME A WRONG-LOOKING VERDICT: my own harness carried
+  an int64 through JSON as a NUMBER, and the corruption presented as a small, plausible defect IN THE
+  PORT.** Oracling `FFAudioScrubBallisticsMgr::updateActualScrubPosition` (#591) my first run reported
+  16 divergences of 25, every one differing ONLY in the low byte of `time.value`. That is JSON
+  rounding above 2^53, not a port defect; carried as hex strings and rebuilt with `BigInt.asIntN`, the
+  same 25 cases are byte-identical. The standing rule already says "move bit patterns as hex strings,
+  never JSON numbers" — what is worth adding is the SYMPTOM, because a low-byte-only difference on a
+  few cases reads exactly like a real transcription slip and sends you back to the disassembly of a
+  correct port. **When a differential says the port is wrong in a small, tidy way, suspect the
+  transport first.**
+
+- **AN INCOMPLETENESS THROW IS DETECTED BY A PROSE REGEX OVER THE MESSAGE, IN BOTH G5 AND
+  `reach_worker`, SO A THROW PHRASED OUTSIDE THAT WORD LIST IS INVISIBLE TO THE GATE — whatever the
+  export is spelled as.** Found while reviewing a claim that the function-vs-method spelling is what
+  decides whether a value-producing extern may raise (PR #571). It is not, or at least the two files
+  offered as evidence do not show it. Both gates test the throw MESSAGE:
+
+      g5_impl_gate.py:201  /not yet transcribed|pending transcription|unimplemented|\bunimpl\b|
+                            \bTODO\b|not transcribed|frontier callee/i
+      reach_worker.ts:26   the same list plus `stub not`
+
+  The landed `src/channels/FFMediaReaderService.ts` raises three libdispatch externs with messages
+  of the form "dispatch_sync not available in TS host (Flexo stub 0x14976fe, tail-jumped
+  @0xe08f51)". Tested against both regexes, that string matches NEITHER — and `grep -ic` for every
+  alternative over the whole file returns 0. So its `0 cheats, 0 flags` is not evidence about class
+  methods: rewritten as an `export function` the reach fuzz would have run, caught the throw, found
+  no incompleteness phrase and returned LIKELY_REAL just the same.
+
+  WHY IT MATTERS IN BOTH DIRECTIONS, which is what makes it worth a line rather than a shrug: a
+  worker who phrases an honest deferral in their own words gets a green gate that checked nothing,
+  and a worker who reads the two outcomes as "methods are invisible, functions are not" will reach
+  for the export SPELLING as the lever — which is the "designing the boundary to evade the
+  reachability check" that #192 was rejected for, aimed at the wrong mechanism. The real levers are
+  the message wording (accidental, and load-bearing) and, separately, the fact that the reach fuzz
+  cannot construct an instance for a class method (real, and already known).
+  FIX: detect an incompleteness throw structurally rather than by prose — e.g. a dedicated
+  `IncompleteError` class, or the presence of an `@FW 0xADDR` citation on a throw that returns no
+  value — so the verdict stops depending on which synonyms an author happened to use. Until then,
+  **a reviewer must not read `0 flags` on a throwing body as "the fuzz cleared it": check whether
+  the throw's text is even in the word list.**
