@@ -226,6 +226,53 @@ export class OZHostApplicationDelegateHandler {
     // @0x5d3faa — jmpq *_objc_msgSend: a TAIL CALL, so the delegate's BOOL is returned as-is.
     return objc_msgSend_BOOL(delegate, SEL_wantsToAssertThatLoadedSceneHasAnimateFlagDisabled);
   }
+
+  /**
+   * `OZHostApplicationDelegateHandler::wantsToCacheTopLevelGroupRender() const`
+   * — @Ozone 0x5d3f40
+   * — `__ZNK32OZHostApplicationDelegateHandler31wantsToCacheTopLevelGroupRenderEv`
+   *
+   *   0x5d3f40  pushq %rbp
+   *   0x5d3f41  movq  %rsp, %rbp
+   *   0x5d3f44  pushq %r14
+   *   0x5d3f46  pushq %rbx
+   *   0x5d3f47  movq  (%rdi), %rbx        ; delegate = this->payload (+0x00)
+   *   0x5d3f4a  movq  0x34274f(%rip),%r14 ; SEL slot @Ozone 0x9166a0
+   *   0x5d3f51  movq  %rbx, %rdi
+   *   0x5d3f54  movq  %r14, %rsi
+   *   0x5d3f57  callq 0x6e0026            ; _objc_opt_respondsToSelector
+   *   0x5d3f5c  testb %al, %al
+   *   0x5d3f5e  je    0x5d3f70            ; unsupported selector -> false
+   *   0x5d3f60  movq  %rbx, %rdi
+   *   0x5d3f63  movq  %r14, %rsi
+   *   0x5d3f66  popq  %rbx
+   *   0x5d3f67  popq  %r14
+   *   0x5d3f69  popq  %rbp
+   *   0x5d3f6a  jmpq  *0x2520b8(%rip)     ; GOT @Ozone 0x826028 -> _objc_msgSend
+   *   0x5d3f70  xorl  %eax, %eax
+   *   0x5d3f72  popq  %rbx
+   *   0x5d3f73  popq  %r14
+   *   0x5d3f75  popq  %rbp
+   *   0x5d3f76  retq
+   *
+   * The selector slot was resolved in the live x86_64 image with `sel_getName` as
+   * `wantsToCacheTopLevelGroupRender`; the indirect jump target was verified by pointer identity
+   * with `objc_msgSend`. The same live probe verified that nil and a real NSObject lacking the
+   * selector both return false without modifying the receiver arena.
+   */
+  wantsToCacheTopLevelGroupRender(
+    this: OZHostApplicationDelegateHandler,
+  ): boolean {
+    // @0x5d3f47 — movq (%rdi),%rbx: load the delegate from this+0x00.
+    const delegate = this.payload;
+    // @0x5d3f4a/@0x5d3f57 — load the selector and ask whether the delegate implements it.
+    // @0x5d3f5e/@0x5d3f70 — the unsupported-selector path returns zero.
+    if (!objc_opt_respondsToSelector(delegate, SEL_wantsToCacheTopLevelGroupRender)) {
+      return false;
+    }
+    // @0x5d3f6a — tail-call _objc_msgSend and return the delegate's BOOL answer.
+    return objc_msgSend_BOOL(delegate, SEL_wantsToCacheTopLevelGroupRender);
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════════════════════
@@ -246,6 +293,13 @@ export class OZHostApplicationDelegateHandler {
  */
 const SEL_wantsToAssertThatLoadedSceneHasAnimateFlagDisabled =
   "wantsToAssertThatLoadedSceneHasAnimateFlagDisabled";
+
+/**
+ * The selector held in `__objc_selrefs` @Ozone 0x9166a0 — loaded by
+ * `movq 0x34274f(%rip), %r14` @0x5d3f4a (0x5d3f51 + 0x34274f).
+ * Resolved from the live x86_64 image with `sel_getName`.
+ */
+const SEL_wantsToCacheTopLevelGroupRender = "wantsToCacheTopLevelGroupRender";
 
 /**
  * `_objc_opt_respondsToSelector(id, SEL)` — the ObjC runtime, reached through Ozone symbol stub
