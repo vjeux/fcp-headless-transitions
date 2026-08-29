@@ -5,15 +5,15 @@
 // (x86_64 slice; unadjusted VAs — the same addresses raw-port/re/disasm uses).
 //
 // -----------------------------------------------------------------------------
-// STRUCT LAYOUT (recovered from FFSemaphore::timedWait's reads)
+// STRUCT LAYOUT (recovered from timedWait and the D0 deleting destructor)
 // -----------------------------------------------------------------------------
-//   +0x08  dispatch_semaphore_t  sem   ; the underlying libdispatch semaphore
-//                                        (read @0x12efa3e `movq 0x8(%rdi),%rbx`)
+//   +0x00  vptr                     ; overwritten with FFSemaphore's own vtable
+//                                      by D0 @0x12ef9d9..0x12ef9e0
+//   +0x08  dispatch_semaphore_t sem ; read by timedWait @0x12efa3e and by D0
+//                                      @0x12ef9e3 before dispatch_release
 //
-// timedWait is the only FFSemaphore symbol nm surfaces in this slice; the
-// ctor/dtor that store the semaphore into +0x8 are elsewhere (or inlined at
-// construction sites) and not ported here — so +0x8 is modelled as an opaque
-// dispatch_semaphore_t handle, injected at the extern boundary.
+// The ctor symbols are separate queue units. The semaphore remains an opaque
+// libdispatch handle injected at the extern boundary.
 //
 // -----------------------------------------------------------------------------
 // EXTERN BOUNDARY (OUT OF PORT SCOPE — libdispatch, Apple's OS runtime)
@@ -108,6 +108,33 @@ export class FFSemaphore {
 
   constructor(dispatch: DispatchSemaphoreExtern = new ThrowingDispatchSemaphoreExtern()) {
     this.dispatch = dispatch;
+  }
+
+  /**
+   * `FFSemaphore::~FFSemaphore()` — Itanium D0 deleting destructor.
+   * @Flexo 0x12ef9d0  `__ZN11FFSemaphoreD0Ev`
+   *
+   * Complete 16-line body:
+   *   0x12ef9d6  movq %rdi,%rbx                         ; preserve this
+   *   0x12ef9d9  leaq 0x636b80(%rip),%rax              ; FFSemaphore vtable
+   *   0x12ef9e0  movq %rax,(%rdi)                      ; restore own vptr
+   *   0x12ef9e3  movq 0x8(%rdi),%rdi                   ; this->sem
+   *   0x12ef9e7  callq _dispatch_release               ; lifetime release
+   *   0x12ef9ec  movq %rbx,%rdi                        ; this
+   *   0x12ef9f5  jmp __ZdlPv                           ; operator delete(this)
+   *
+   * Both callees are lifetime/ownership primitives. JavaScript GC owns the
+   * semaphore surrogate and this object, so release and operator delete are
+   * no-ops. The vptr store has no independent TypeScript state: this remains an
+   * FFSemaphore instance for the remainder of the call. The native body does
+   * not clear `sem`, and neither does the port.
+   */
+  dtor_d0(): void {
+    // @0x12ef9d9..0x12ef9e0 — native vptr restoration; class identity is
+    // intrinsic in TypeScript, so no store is required.
+    // @0x12ef9e7 — _dispatch_release(this->sem): lifetime primitive, JS no-op.
+    void this.sem;
+    // @0x12ef9f5 — __ZdlPv(this): operator delete is replaced by JS GC.
   }
 
   /**
