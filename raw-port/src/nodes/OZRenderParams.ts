@@ -50,6 +50,10 @@
 //       — OZRenderParams::setReducedResolutionMedia(bool) @Ozone 0x271970
 //         (raw-port/re/disasm/
 //           __ZN14OZRenderParams25setReducedResolutionMediaEb.s — 7 lines)
+//   * __ZN14OZRenderParams28setReducedResolutionOverrideEb
+//       — OZRenderParams::setReducedResolutionOverride(bool) @Ozone 0x2719a0
+//         (raw-port/re/disasm/
+//           __ZN14OZRenderParams28setReducedResolutionOverrideEb.s — 7 lines)
 //   * __ZN14OZRenderParams38setDo3DIntersectionAntialiasingDynamicEb
 //       — OZRenderParams::setDo3DIntersectionAntialiasingDynamic(bool) @Ozone 0x271930
 //         (raw-port/re/disasm/
@@ -314,6 +318,16 @@ export class OZRenderParams {
    * mirrors it directly.
    */
   reducedResolutionMediaAt1e6: number = 0;
+
+  /**
+   * @Ozone offset +0x1e7 — a one-byte flag written by
+   * `setReducedResolutionOverride(bool)` @0x2719a4 via
+   * `movb %sil, 0x1e7(%rdi)`. The adjacent +0x1e6 byte belongs to
+   * `setReducedResolutionMedia`; this distinct byte stores the caller's
+   * explicit override. Preserved as `number` (0 or 1) to mirror the byte-wide
+   * machine state used by the neighbouring decoded flags.
+   */
+  reducedResolutionOverrideAt1e7: number = 0;
 
   /**
    * @Ozone offset +0x140 — a 4-byte integer written by
@@ -897,6 +911,30 @@ export class OZRenderParams {
     // @0x271974  movb %sil,0x1e6(%rdi)
     //   C++ `bool` → 1 byte: true == 0x01, false == 0x00.
     this.reducedResolutionMediaAt1e6 = reduced ? 1 : 0;
+  }
+
+  /**
+   * `OZRenderParams::setReducedResolutionOverride(bool)`
+   *   — @Ozone 0x2719a0
+   *   — __ZN14OZRenderParams28setReducedResolutionOverrideEb
+   *
+   * Faithful transcription of the complete body:
+   *   0x2719a0  pushq  %rbp
+   *   0x2719a1  movq   %rsp, %rbp
+   *   0x2719a4  movb   %sil, 0x1e7(%rdi)
+   *   0x2719ab  popq   %rbp
+   *   0x2719ac  retq
+   *
+   * The only TS-visible instruction stores the incoming C++ `bool` from
+   * `%sil` into the byte immediately after `reducedResolutionMediaAt1e6`.
+   * There are no callees, branches, or other writes.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/__ZN14OZRenderParams28setReducedResolutionOverrideEb.s
+   */
+  setReducedResolutionOverride(override: boolean): void {
+    // @0x2719a4  movb %sil,0x1e7(%rdi)
+    this.reducedResolutionOverrideAt1e7 = override ? 1 : 0;
   }
 
   /**
