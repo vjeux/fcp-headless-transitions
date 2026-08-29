@@ -393,6 +393,28 @@ export class SurroundPanner {
   }
 
   /**
+   * `SurroundPanner::Create()` @Flexo 0x124d240
+   * (`__ZN14SurroundPanner6CreateEv`).
+   *
+   * The machine allocates 0xf0 bytes with `operator new` @0x124d24c, then
+   * emits the C2 constructor body inline: the stores, 0x90-byte `operator
+   * new[]` @0x124d284, `_bzero` @0x124d298, and explicit zeroing sequence are
+   * instruction-for-instruction the constructor transcribed above. It returns
+   * the allocated object at @0x124d316.
+   *
+   * TypeScript's `new` is the object-allocation counterpart of the outer
+   * `operator new(0xf0)` and runs that same constructor body. If the inner
+   * value-producing `operator new[]` boundary throws, JavaScript discards the
+   * partial object and propagates the exception, matching the landing pad at
+   * @0x124d31e..@0x124d32c (`operator delete` then `_Unwind_Resume`).
+   */
+  static Create(): SurroundPanner {
+    // @0x124d247/@0x124d24c — operator new(0xf0), followed by the inlined C2
+    // body @0x124d254..@0x124d30b and return of the object @0x124d316.
+    return new SurroundPanner();
+  }
+
+  /**
    * `SurroundPanner::AngleBisectionRatio(double angle, double b, double c)`
    * — @Flexo 0x12513a0 (__ZN14SurroundPanner19AngleBisectionRatioEddd).
    *
