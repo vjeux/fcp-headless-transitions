@@ -219,4 +219,32 @@ export class OZFxPlugSharedBase {
     // @0x29bddc retq                    : return that zero-extended byte.
     return this.OSCIsPoint_at_0xd5;
   }
+
+  /**
+   * (this+0x108) — opaque plug-in pointer tested by `isXPCBasedPlugin()`.
+   * The accessor performs one 64-bit compare against zero @Ozone 0x50fd54 and
+   * never dereferences the value, so only nullness is represented here.
+   */
+  xpcPlugin_at_0x108: unknown | null = null;
+
+  /**
+   * `OZFxPlugSharedBase::isXPCBasedPlugin() const` — @Ozone 0x50fd50
+   * (`__ZNK18OZFxPlugSharedBase16isXPCBasedPluginEv`).
+   *
+   * Full x86_64 body:
+   *
+   *   @0x50fd50  pushq %rbp
+   *   @0x50fd51  movq  %rsp, %rbp
+   *   @0x50fd54  cmpq  $0x0, 0x108(%rdi) ; compare the full pointer-sized field with null
+   *   @0x50fd5c  setne %al               ; return 1 exactly when it is nonzero
+   *   @0x50fd5f  popq  %rbp
+   *   @0x50fd60  retq
+   *
+   * The `setne` normalizes the result to a C++ `bool`; there are no calls,
+   * additional reads, or writes.
+   */
+  isXPCBasedPlugin(): boolean {
+    // @0x50fd54/@0x50fd5c — cmpq $0,this+0x108; setne %al.
+    return this.xpcPlugin_at_0x108 !== null;
+  }
 }
