@@ -469,3 +469,27 @@ export function HGRasterizer_enableBlending(
   self.blendMode0x424 = mode | 0;
   // 0x19824c/0x19824d — epilogue + retq, void.
 }
+
+/**
+ * HGRasterizer::GetRasterizerFlags() @Helium 0x1a0300
+ *   (__ZN12HGRasterizer18GetRasterizerFlagsEv)
+ *
+ * Returns the complete u32 flags word at HGRasterizer+0x454. The `movl` load
+ * writes `%eax`, so x86_64 zero-extends the result to the return register; the
+ * TypeScript `>>> 0` preserves that unsigned 32-bit interpretation.
+ *
+ * FULL DISASM (7 lines, including frame and alignment padding):
+ *   0x1a0300  pushq %rbp
+ *   0x1a0301  movq  %rsp, %rbp
+ *   0x1a0304  movl  0x454(%rdi), %eax
+ *   0x1a030a  popq  %rbp
+ *   0x1a030b  retq
+ *
+ * No branches, no callees, and no extern boundary.
+ */
+export function HGRasterizer_GetRasterizerFlags(
+  self: HGRasterizer,
+): number {
+  // @0x1a0304 — movl 0x454(%rdi), %eax: load and return the whole u32 word.
+  return self.flags0x454 >>> 0;
+}
