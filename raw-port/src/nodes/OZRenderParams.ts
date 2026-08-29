@@ -78,6 +78,10 @@
 //       — OZRenderParams::getDestinationDevice() const @Ozone 0x2719d0
 //         (raw-port/re/disasm/
 //           __ZNK14OZRenderParams20getDestinationDeviceEv.s — 7 lines)
+//   * __ZNK14OZRenderParams12getRenderGPUEv
+//       — OZRenderParams::getRenderGPU() const @Ozone 0x271ab0
+//         (raw-port/re/disasm/
+//           __ZNK14OZRenderParams12getRenderGPUEv.s — 32 lines)
 //
 // -----------------------------------------------------------------------------
 // FULL DISASM (raw-port/re/disasm/
@@ -152,6 +156,48 @@ export interface FxColorDescription {
  * NULL-ness is ever observed by the ported code below.
  */
 export type CGColorSpaceRef = { readonly __cgColorSpaceRef: unique symbol };
+
+/**
+ * Minimal `HGComputeDevice` view needed by `getRenderGPU`.
+ *
+ * `HGComputeDevice::HGComputeDevice(Type)` stores `type` at device +0x08
+ * (@Helium 0x116e57). `HGGPUComputeDevice` passes the value 1 to that base
+ * constructor (@Helium 0x1173b1-0x1173bc), so the type word is the TS runtime
+ * discriminator corresponding to the binary's RTTI cast.
+ */
+export interface OZRenderParamsComputeDevice {
+  /** HGComputeDevice +0x08 — 0 for CPU, 1 for HGGPUComputeDevice. */
+  type: number;
+}
+
+/** `HGGPUComputeDevice*` after the successful RTTI check @Ozone 0x271ad9. */
+export interface OZRenderParamsGPUComputeDevice extends OZRenderParamsComputeDevice {
+  type: 1;
+}
+
+/**
+ * libc++ `__shared_weak_count` portion observed by `getRenderGPU`.
+ * The strong-owner count is the qword at control-block +0x08, incremented by
+ * `lock incq` @Ozone 0x271af6-0x271afb.
+ */
+export interface OZRenderParamsSharedControlBlock {
+  strongCountAt08: bigint;
+}
+
+/**
+ * `std::shared_ptr<HGComputeDevice>` embedded at OZRenderParams +0x130.
+ * `ptr` occupies +0x130 and `cntrl` +0x138.
+ */
+export interface OZRenderParamsComputeDeviceRef {
+  ptr: OZRenderParamsComputeDevice | null;
+  cntrl: OZRenderParamsSharedControlBlock | null;
+}
+
+/** `std::shared_ptr<HGGPUComputeDevice>` returned by `getRenderGPU`. */
+export interface OZRenderParamsGPUComputeDeviceRef {
+  ptr: OZRenderParamsGPUComputeDevice | null;
+  cntrl: OZRenderParamsSharedControlBlock | null;
+}
 
 /**
  * `FxColorDescription::getCGColorSpace() const` — TRUE OUT-OF-SCOPE extern.
@@ -1546,6 +1592,53 @@ export class OZRenderParams {
     //   Return the ADDRESS of the embedded render-device sub-object — i.e. a
     //   reference to this.renderDeviceAt130 (no dereference, no copy).
     return this.renderDeviceAt130;
+  }
+
+  /**
+   * `OZRenderParams::getRenderGPU() const`
+   *   — @Ozone 0x271ab0
+   *   — __ZNK14OZRenderParams12getRenderGPUEv
+   *
+   * Returns a copied `shared_ptr<HGGPUComputeDevice>`. The hidden aggregate
+   * return slot is `%rdi` and `this` is `%rsi`:
+   *
+   *   @0x271aba  load `renderDeviceAt130.ptr`
+   *   @0x271ac1  null pointer -> zero both result words
+   *   @0x271ac9-0x271ad9  `dynamic_cast<HGComputeDevice*, HGGPUComputeDevice*>`
+   *   @0x271ade  failed cast -> zero both result words
+   *   @0x271ae3  store cast pointer to result +0x00
+   *   @0x271ae6  copy `renderDeviceAt130.cntrl` to result +0x08
+   *   @0x271af1-0x271afb  if control block is non-null, atomically increment
+   *                       its strong-owner qword at control +0x08
+   *
+   * The TS port uses the constructor-established HGComputeDevice type word as
+   * its runtime class discriminator: HGGPUComputeDevice passes type 1 to the
+   * base constructor @Helium 0x1173b1-0x1173bc. This preserves the binary's
+   * successful-vs-failed RTTI branch without inventing a second object model.
+   */
+  getRenderGPU(this: OZRenderParams): OZRenderParamsGPUComputeDeviceRef {
+    // @0x271aba-@0x271ac4: load the shared_ptr's raw pointer; null -> empty.
+    const renderDevice = this.renderDeviceAt130 as OZRenderParamsComputeDeviceRef;
+    const ptr = renderDevice.ptr ?? null;
+    if (ptr === null) {
+      // @0x271afd-@0x271b00: xorps + movups zero the 16-byte result.
+      return { ptr: null, cntrl: null };
+    }
+
+    // @0x271ac9-@0x271ade: RTTI downcast HGComputeDevice -> HGGPUComputeDevice.
+    // HGGPUComputeDevice's ctor passes type=1 to HGComputeDevice @0x1173b7.
+    if ((ptr.type | 0) !== 1) {
+      // @0x271afd-@0x271b00: failed cast returns an empty shared_ptr.
+      return { ptr: null, cntrl: null };
+    }
+
+    // @0x271ae3-@0x271aed: copy the cast pointer and control-block pointer.
+    const cntrl = renderDevice.cntrl ?? null;
+    if (cntrl !== null) {
+      // @0x271af1-@0x271afb: lock incq 0x8(%rax), modulo the qword width.
+      cntrl.strongCountAt08 = BigInt.asIntN(64, cntrl.strongCountAt08 + 1n);
+    }
+    return { ptr: ptr as OZRenderParamsGPUComputeDevice, cntrl };
   }
 
   /**
