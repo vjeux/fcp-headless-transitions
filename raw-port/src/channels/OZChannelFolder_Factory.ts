@@ -266,4 +266,18 @@ export class OZChannelFolder_Factory {
     // ------------------------------------------------------------
     return _instance;
   }
+
+  /**
+   * `OZChannelFolder_Factory::getIconIDInternal()` — @Ozone 0x558d70
+   * (__ZN23OZChannelFolder_Factory17getIconIDInternalEv).
+   *
+   * Source disassembly:
+   * raw-port/re/disasm/__ZN23OZChannelFolder_Factory17getIconIDInternalEv.s
+   *
+   * @0x558d74 `movl $0xffffffff, %eax` returns the signed 32-bit sentinel
+   * -1 unconditionally. The body does not read `this` and has no side effects.
+   */
+  getIconIDInternal(): number {
+    return -1;
+  }
 }
