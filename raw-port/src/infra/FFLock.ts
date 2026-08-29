@@ -116,4 +116,16 @@ export class FFLock {
     //   tail-jmp _pthread_mutex_init(&this->mutex, NULL)
     _pthread_mutex_init_impl(this, 0);
   }
+
+  /**
+   * `FFLock::timedWait(long long)` — @Flexo 0x12b9370
+   * (`__ZN6FFLock9timedWaitEx`).
+   *
+   * The body ignores both `this` and the signed 64-bit timeout argument:
+   *   @0x12b9374  xorl %eax, %eax  — return false
+   * No lock state is read or changed.
+   */
+  timedWait(_timeout: bigint): boolean {
+    return false;
+  }
 }
