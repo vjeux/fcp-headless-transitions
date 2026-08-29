@@ -15,7 +15,9 @@
 // Source disassembly:
 //   raw-port/re/disasm/__ZNK23OZSingleChannelBehavior11getChanBaseEv.s (12 lines)
 
+import type { OZChannel } from "./OZChannel.js";
 import type { OZChannelBase } from "./OZChannelBase.js";
+import type { OZChannelInfo } from "./OZChannelInfo.js";
 
 /**
  * The UNDECODED record the `OZSingleChannelBehavior` +0x170 slot points at.
@@ -144,5 +146,28 @@ export class OZSingleChannelBehavior {
     const record = this.chanRecordAt170 as OZSingleChannelBehaviorChanRecord;
     // @0x3e8f75-0x3e8f7a  movq 0x20(%rax),%rax ; retq — returned raw.
     return record.chanBaseAt20;
+  }
+
+  /**
+   * `OZSingleChannelBehavior::didSetChannelInfo(OZChannelInfo const*, OZChannel*)`
+   * — @Ozone 0x3eb9c0
+   * (`__ZN23OZSingleChannelBehavior17didSetChannelInfoEPK13OZChannelInfoP9OZChannel`).
+   *
+   * Full x86_64 body:
+   *
+   *   @0x3eb9c0  pushq %rbp
+   *   @0x3eb9c1  movq  %rsp, %rbp
+   *   @0x3eb9c4  popq  %rbp
+   *   @0x3eb9c5  retq
+   *
+   * The receiver and both explicit pointer arguments are never read. There are
+   * no calls, branches, loads, stores, or return-value construction, so the
+   * faithful TypeScript body has no observable effect.
+   */
+  didSetChannelInfo(
+    _channelInfo: OZChannelInfo | null,
+    _channel: OZChannel | null,
+  ): void {
+    // @0x3eb9c0..0x3eb9c5 — frame setup, frame teardown, and return only.
   }
 }
