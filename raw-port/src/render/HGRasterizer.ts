@@ -99,25 +99,18 @@ export interface HGRasterizer {
   /** +0x450  — u32 current GL matrix mode (GL_MODELVIEW / GL_PROJECTION /
    *  other). See OFF_MATRIX_MODE above. */
   matrixMode: number;
-  /** +0x454  — u8 flags byte. Bit 0 (0x1) is the "clear to black" request
-   *  flag, OR'd in by clearToBlack() @0x1981f4 (`orb $0x1, 0x454(%rdi)`).
-   *  Other bits are unmapped so far.
+  /** +0x454  — u32 flags word. Bit 0 (0x1) is the "clear to black" request
+   *  flag, OR'd into the low byte by clearToBlack() @0x1981f4
+   *  (`orb $0x1, 0x454(%rdi)`).
    *
-   *  WIDTH CORRECTION (evidence added by the enableBlending unit, @0x198230).
-   *  The slot is not a byte: it is a **u32 flags word**, and the decisive
-   *  proof is a public getter that returns the whole thing —
-   *  `HGRasterizer::GetRasterizerFlags()` @0x1a0300 is
-   *  `movl 0x454(%rdi), %eax`, a 4-byte load. enableBlending @0x198237/
-   *  @0x198240 likewise does a 32-bit `orl 0x454(%rdi), %edx` /
-   *  `movl %edx, 0x454(%rdi)` read-modify-write, and HGGLNode's
-   *  skipDODCalculations_DEPRECATED @0xdb48b..@0xdb4cb ORs 0x100/0x200/0x400
-   *  into the same offset — bits that do not exist in a byte.
-   *  The byte-sized `& 0xff` in HGRasterizer_clearToBlack below is left
-   *  exactly as landed: an `orb` writes only the low byte, and every bit the
-   *  two landed methods touch lives in it, so nothing observable changes
-   *  today. It is NOT correct in general, and a future method that touches a
-   *  bit above 7 through this field must widen it (the mask would clear
-   *  0x100/0x200/0x400).
+   *  WIDTH EVIDENCE (from the enableBlending unit, @0x198230):
+   *  `HGRasterizer::GetRasterizerFlags()` @0x1a0300 returns the whole word via
+   *  `movl 0x454(%rdi), %eax`. enableBlending @0x198237/@0x198240 likewise
+   *  performs a 32-bit `orl 0x454(%rdi), %edx` / `movl %edx, 0x454(%rdi)`
+   *  read-modify-write, and HGGLNode's skipDODCalculations_DEPRECATED
+   *  @0xdb48b..@0xdb4cb ORs 0x100/0x200/0x400 into the same offset.
+   *  Byte operations such as clearToBlack's `orb` update only the low byte and
+   *  therefore preserve bits 8..31 of this word.
    *
    *  BIT MAP, each bit grounded in the sibling that sets it (all Helium):
    *    0x01  clearToBlack()               @0x1981f4  orb  $0x1
@@ -274,20 +267,21 @@ export function HGRasterizer_rotatef(
  * HGRasterizer::clearToBlack() @Helium 0x1981f0  (__ZN12HGRasterizer12clearToBlackEv)
  *
  * Requests that the rasterizer clear its framebuffer to black by setting bit 0
- * of the flags byte at +0x454. A deferred flag: the actual clear happens later
- * when the flag is consumed; this entry point just records the request.
+ * of the u32 flags word at +0x454. A deferred flag: the actual clear happens
+ * later when the flag is consumed; this entry point just records the request.
  *
  * DECODE (raw-port/re/disasm/Helium.__ZN12HGRasterizer12clearToBlackEv.s):
  *   0x1981f0  pushq %rbp ; movq %rsp,%rbp        ; frame
  *   0x1981f4  orb   $0x1, 0x454(%rdi)            ; *(u8*)(this+0x454) |= 0x1
  *   0x1981fb  popq %rbp ; retq                   ; void
  *
- * Zero callees, no externs — a single read-modify-write OR of the low bit into
- * the +0x454 flags byte. The `orb` is a byte operation, so we mask to 8 bits.
+ * Zero callees, no externs — a byte-sized read-modify-write sets bit 0 while
+ * preserving the other three bytes of the u32 word at +0x454.
  */
 export function HGRasterizer_clearToBlack(self: HGRasterizer): void {
-  // 0x1981f4 — orb $0x1, 0x454(%rdi) : set bit 0 of the u8 flags byte at +0x454.
-  self.flags0x454 = (self.flags0x454 | 0x1) & 0xff;
+  // 0x1981f4 — orb $0x1, 0x454(%rdi): set low-byte bit 0 while preserving
+  // bits 8..31 of the containing u32 flags word.
+  self.flags0x454 = (self.flags0x454 | 0x1) >>> 0;
 }
 
 /**
