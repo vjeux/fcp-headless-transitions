@@ -99,10 +99,42 @@ export interface HGRasterizer {
   /** +0x450  — u32 current GL matrix mode (GL_MODELVIEW / GL_PROJECTION /
    *  other). See OFF_MATRIX_MODE above. */
   matrixMode: number;
-  /** +0x454  — u8 flags byte. Bit 0 (0x1) is the "clear to black" request
-   *  flag, OR'd in by clearToBlack() @0x1981f4 (`orb $0x1, 0x454(%rdi)`).
-   *  Other bits are unmapped so far. */
+  /** +0x454  — u32 flags word. Bit 0 (0x1) is the "clear to black" request
+   *  flag, OR'd into the low byte by clearToBlack() @0x1981f4
+   *  (`orb $0x1, 0x454(%rdi)`).
+   *
+   *  WIDTH EVIDENCE (from the enableBlending unit, @0x198230):
+   *  `HGRasterizer::GetRasterizerFlags()` @0x1a0300 returns the whole word via
+   *  `movl 0x454(%rdi), %eax`. enableBlending @0x198237/@0x198240 likewise
+   *  performs a 32-bit `orl 0x454(%rdi), %edx` / `movl %edx, 0x454(%rdi)`
+   *  read-modify-write, and HGGLNode's skipDODCalculations_DEPRECATED
+   *  @0xdb48b..@0xdb4cb ORs 0x100/0x200/0x400 into the same offset.
+   *  Byte operations such as clearToBlack's `orb` update only the low byte and
+   *  therefore preserve bits 8..31 of this word.
+   *
+   *  BIT MAP, each bit grounded in the sibling that sets it (all Helium):
+   *    0x01  clearToBlack()               @0x1981f4  orb  $0x1
+   *          ...and enableBlending() @0x19823d, unconditionally, via `orl $0x5`
+   *    0x02  enableDepthTest()            @0x197d64  orb  $0x2
+   *    0x04  enableBlending()             @0x19823d  orl  $0x5   (bit 2 = blending on)
+   *          cleared by disableBlending() @0x198254  andb $-0x5  (AND ~0x4)
+   *    0x08  enableDepthGeneration()      @0x197d74  orb  $0x8
+   *    0x10  forceNoClearToBlack()        @0x198204  orb  $0x10
+   *    0x20  enableBlending()'s `bool` argument, shifted into place @0x198234
+   *    0x40  enableInplaceBlending()      @0x197654  orb  $0x40
+   *          read back by BindTexture()   @0x19ad9e  testb $0x40
+   *    0x80  enableXFormConcatenation()   @0x195a60  orb  $-0x80
+   *  Bits 8+ are set on this offset by HGGLNode (above); whether that is this
+   *  same class is not established here, so they are left unmapped. */
   flags0x454: number;
+  /** +0x424  — u32 `HGLBlendMode`, the blend mode enum. Written whole by
+   *  enableBlending() @0x198246 (`movl %esi, 0x424(%rdi)`) and read as a u32
+   *  elsewhere in Helium — `HGColorGamma::GetOutput` compares it against 1, 2
+   *  and 3 (@0xf6211, @0xf629a, @0xf64b5), and the accessor next door to
+   *  GetRasterizerFlags reads it at @0x1a0314. The enum's names are not
+   *  recoverable from these instructions, so the value is kept as the raw
+   *  32-bit integer the machine stores. */
+  blendMode0x424: number;
   /** +0x260  — the rasterizer's CURRENT color as a packed 4-float vector
    *  [r, g, b, a] (a 16-byte SSE lane). Written by color4f @0x1978d0 via a
    *  single `movaps %xmm0, 0x260(%rdi)`. See OFF_CURRENT_COLOR below. */
@@ -235,20 +267,21 @@ export function HGRasterizer_rotatef(
  * HGRasterizer::clearToBlack() @Helium 0x1981f0  (__ZN12HGRasterizer12clearToBlackEv)
  *
  * Requests that the rasterizer clear its framebuffer to black by setting bit 0
- * of the flags byte at +0x454. A deferred flag: the actual clear happens later
- * when the flag is consumed; this entry point just records the request.
+ * of the u32 flags word at +0x454. A deferred flag: the actual clear happens
+ * later when the flag is consumed; this entry point just records the request.
  *
  * DECODE (raw-port/re/disasm/Helium.__ZN12HGRasterizer12clearToBlackEv.s):
  *   0x1981f0  pushq %rbp ; movq %rsp,%rbp        ; frame
  *   0x1981f4  orb   $0x1, 0x454(%rdi)            ; *(u8*)(this+0x454) |= 0x1
  *   0x1981fb  popq %rbp ; retq                   ; void
  *
- * Zero callees, no externs — a single read-modify-write OR of the low bit into
- * the +0x454 flags byte. The `orb` is a byte operation, so we mask to 8 bits.
+ * Zero callees, no externs — a byte-sized read-modify-write sets bit 0 while
+ * preserving the other three bytes of the u32 word at +0x454.
  */
 export function HGRasterizer_clearToBlack(self: HGRasterizer): void {
-  // 0x1981f4 — orb $0x1, 0x454(%rdi) : set bit 0 of the u8 flags byte at +0x454.
-  self.flags0x454 = (self.flags0x454 | 0x1) & 0xff;
+  // 0x1981f4 — orb $0x1, 0x454(%rdi): set low-byte bit 0 while preserving
+  // bits 8..31 of the containing u32 flags word.
+  self.flags0x454 = (self.flags0x454 | 0x1) >>> 0;
 }
 
 /**
@@ -348,4 +381,115 @@ export function HGRasterizer_setLineWidth(self: HGRasterizer, w: number): void {
   // 0x1978c4 — movss %xmm0, 0x258(%rdi) (OFF_LINE_WIDTH): one scalar f32 store.
   self.lineWidth = Math.fround(w);
   // 0x1978cd — retq, returns void.
+}
+
+/** +0x454 — the u32 rasterizer flags word (see the `flags0x454` field doc for
+ *  the bit map and for the getter that proves the width). Read-modify-written
+ *  32 bits at a time by enableBlending @0x198237/@0x198240. */
+const OFF_RASTERIZER_FLAGS = 0x454;
+
+/** +0x424 — the u32 `HGLBlendMode` slot, stored whole by enableBlending
+ *  @0x198246 (`movl %esi, 0x424(%rdi)`). */
+const OFF_BLEND_MODE = 0x424;
+
+/**
+ * HGRasterizer::enableBlending(HGLBlendMode mode, bool enable) @Helium 0x198230
+ *   (__ZN12HGRasterizer14enableBlendingE12HGLBlendModeb)
+ *
+ * Turns blending on in the rasterizer's flags word and records which blend mode
+ * to use. Two stores, no branch, no callee, no extern — the whole function is
+ * nine instructions.
+ *
+ * DECODE (raw-port/re/disasm/Helium.__ZN12HGRasterizer14enableBlendingE12HGLBlendModeb.s):
+ *
+ *   0x198230  pushq %rbp                     ; frame
+ *   0x198231  movq  %rsp, %rbp
+ *   0x198234  shll  $0x5, %edx               ; edx = enable << 5      (arg3, the bool)
+ *   0x198237  orl   0x454(%rdi), %edx        ; edx |= this->flags     (32-BIT load)
+ *   0x19823d  orl   $0x5, %edx               ; edx |= 0x5             (bits 0 and 2)
+ *   0x198240  movl  %edx, 0x454(%rdi)        ; this->flags = edx      (32-BIT store)
+ *   0x198246  movl  %esi, 0x424(%rdi)        ; this->blendMode = mode (arg2, 32-BIT store)
+ *   0x19824c  popq  %rbp
+ *   0x19824d  retq                           ; void
+ *
+ * ARGUMENTS. `%rdi` is `this`, `%esi` is the `HGLBlendMode` enum, and `%dl` is
+ * the `bool`. The shift at @0x198234 operates on the FULL `%edx`, so it relies
+ * on the caller having zero-extended the bool into the register — which is what
+ * the psABI requires of a `bool` argument, and why the port models the argument
+ * as a `boolean` contributing exactly 0 or 1.
+ *
+ * THE ORDER OF THE THREE OR'd TERMS IS THE MACHINE'S, and the port keeps the
+ * three steps separate rather than folding them into one expression, because
+ * `orl 0x454(%rdi), %edx` is where the OLD flags enter: the method never clears
+ * anything. Its counterpart `disableBlending()` @0x198250 is the only clear
+ * (`andb $-0x5`, i.e. AND ~0x4 — bit 2 only), so bits 0 and 5 that this method
+ * sets are STICKY across a disable.
+ *
+ * `orl $0x5` SETS BIT 0 AS WELL AS BIT 2, unconditionally. Bit 0 is the bit the
+ * landed `clearToBlack()` @0x1981f4 also sets, which means bit 0 cannot be read
+ * as "clear to black was requested" alone — enabling blending sets it too. This
+ * port records that as an observation of the two instruction streams and does
+ * not rename the field or the landed comment: what the bit MEANS needs a reader
+ * of it, and the only reader decoded so far (`GetRasterizerFlags()` @0x1a0300)
+ * hands the whole word to a caller outside this class.
+ *
+ * BIT 5 IS THE ARGUMENT, NOT A CONSTANT: `enable` is shifted to 0x20 and OR'd,
+ * so `enable=false` leaves bit 5 as it was rather than clearing it. Reading the
+ * function as "bit 5 = blending enabled" would be wrong in exactly the case the
+ * caller passes false after having passed true.
+ *
+ * ORACLE — raw-port/re/oracle/HGRasterizer_enableBlending_oracle.py under
+ * `arch -x86_64 /usr/bin/python3`: the live LOCAL symbol at slide + 0x198230 is
+ * called on a 0xCD-poisoned 0x500-byte arena and compared, per case, against
+ * this port driven from the SAME case list — 72 cases over six initial flag
+ * words (including 0xffffffff and words with bits 8+ set), both bool values and
+ * six mode values (0..3, -1, 0x7fffffff). It compares both stored 32-bit words
+ * AND asserts that no other byte of the arena moved, which is what pins the two
+ * offsets and the two store widths. All 72 agree. Three mutants of this port
+ * are each run through the identical case list and each caught: `<< 5` -> `<< 4`
+ * (24 cases disagree), `| 0x5` -> `| 0x4` (48), and ignoring the argument (18).
+ */
+export function HGRasterizer_enableBlending(
+  self: HGRasterizer,
+  mode: number,
+  enable: boolean,
+): void {
+  // 0x198234 — shll $0x5, %edx : the bool argument, zero-extended by the caller,
+  // shifted into bit 5. `>>> 0` keeps the 32-bit unsigned reading of %edx.
+  let edx = ((enable ? 1 : 0) << 5) >>> 0;
+  // 0x198237 — orl 0x454(%rdi), %edx : fold in the CURRENT flags word (32-bit
+  // load from OFF_RASTERIZER_FLAGS). Nothing is cleared here.
+  edx = (edx | self.flags0x454) >>> 0;
+  // 0x19823d — orl $0x5, %edx : set bit 0 and bit 2 unconditionally.
+  edx = (edx | 0x5) >>> 0;
+  // 0x198240 — movl %edx, 0x454(%rdi) : store the whole 32-bit word back.
+  self.flags0x454 = edx;
+  // 0x198246 — movl %esi, 0x424(%rdi) : store the HGLBlendMode enum, 32 bits,
+  // exactly as passed (the machine neither validates nor narrows it).
+  self.blendMode0x424 = mode | 0;
+  // 0x19824c/0x19824d — epilogue + retq, void.
+}
+
+/**
+ * HGRasterizer::GetRasterizerFlags() @Helium 0x1a0300
+ *   (__ZN12HGRasterizer18GetRasterizerFlagsEv)
+ *
+ * Returns the complete u32 flags word at HGRasterizer+0x454. The `movl` load
+ * writes `%eax`, so x86_64 zero-extends the result to the return register; the
+ * TypeScript `>>> 0` preserves that unsigned 32-bit interpretation.
+ *
+ * FULL DISASM (7 lines, including frame and alignment padding):
+ *   0x1a0300  pushq %rbp
+ *   0x1a0301  movq  %rsp, %rbp
+ *   0x1a0304  movl  0x454(%rdi), %eax
+ *   0x1a030a  popq  %rbp
+ *   0x1a030b  retq
+ *
+ * No branches, no callees, and no extern boundary.
+ */
+export function HGRasterizer_GetRasterizerFlags(
+  self: HGRasterizer,
+): number {
+  // @0x1a0304 — movl 0x454(%rdi), %eax: load and return the whole u32 word.
+  return self.flags0x454 >>> 0;
 }
