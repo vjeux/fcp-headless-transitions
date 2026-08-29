@@ -10,6 +10,8 @@
 // -----------------------------------------------------------------------------
 // ADDITIONALLY PORTED HERE (runtime state, not parse state)
 // -----------------------------------------------------------------------------
+//   * __ZN9OZElement16prepareForRenderERK14OZRenderParams
+//       — OZElement::prepareForRender(OZRenderParams const&) @Ozone 0x8c880
 //   * __ZN9OZElement19isCachedRenderDirtyEv
 //       — OZElement::isCachedRenderDirty() @Ozone 0x9ecc0
 //     Source: raw-port/re/disasm/__ZN9OZElement19isCachedRenderDirtyEv.s
@@ -42,6 +44,7 @@
 import { PCSerializerReadStream } from "../infra/PCSerializerReadStream.js";
 import { PCStreamElement } from "../infra/PCStreamElement.js";
 import { OZTransformNode } from "./OZTransformNode.js";
+import type { OZRenderParams } from "./OZRenderParams.js";
 
 export interface OZMaskRef { factoryID: number; name?: string; id?: number; }
 
@@ -88,6 +91,24 @@ export class OZElement extends OZTransformNode {
    * should set this from the ctor's own instructions.
    */
   cachedRenderDirty: boolean = false; // @Ozone OZElement@0x4931
+
+  /**
+   * `OZElement::prepareForRender(OZRenderParams const&)` @Ozone 0x8c880
+   *   (__ZN9OZElement16prepareForRenderERK14OZRenderParams)
+   *
+   * The complete x86_64 body is only the standard frame prologue and epilogue:
+   *
+   *   0x8c880  pushq  %rbp
+   *   0x8c881  movq   %rsp, %rbp
+   *   0x8c884  popq   %rbp
+   *   0x8c885  retq
+   *
+   * It does not read `this` or `params`, call another function, write memory,
+   * or produce a return value. The faithful TypeScript body is therefore empty.
+   */
+  prepareForRender(_params: OZRenderParams): void {
+    // @0x8c880..0x8c885 — frame setup/teardown and return; no TS-visible work.
+  }
 
   /**
    * `OZElement::isCachedRenderDirty()` @Ozone 0x9ecc0
