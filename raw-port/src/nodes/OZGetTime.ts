@@ -105,3 +105,34 @@ export function OZGetTime(): number {
   // @0x23bdef..0x23bdf4  epilogue + retq. Returns %eax (u32 in low 32).
   return ms;
 }
+
+// Ozone.__const @0x0070ab00, bytes 8d ed b5 a0 f7 c6 b0 40: the
+// binary64 value 4294.967296, exactly 2^32 / 1,000,000.
+const SECONDS_PER_UNSIGNED_WIDE_HIGH_WORD = 4294.967296;
+
+// Ozone.__const @0x00707a60, bytes 00 00 00 00 80 84 2e 41: the
+// binary64 value 1,000,000.
+const MICROSECONDS_PER_SECOND = 1_000_000;
+
+/**
+ * `OZGetTimeInSeconds()` — @Ozone 0x0023be00
+ * (`__Z18OZGetTimeInSecondsv`).
+ *
+ * `_Microseconds` writes its 64-bit UnsignedWide result as low and high u32
+ * words. The machine converts each zero-extended word to binary64, scales the
+ * high word by 2^32 / 1,000,000, divides the low word by 1,000,000, then adds
+ * the two contributions. The operation order below matches @0x23be17..0x23be31.
+ */
+export function OZGetTimeInSeconds(): number {
+  // @0x23be08..0x23be0c: _Microseconds(&local), through Ozone stub 0x6dcd0e.
+  const microseconds = Microseconds_stub();
+
+  // @0x23be11 and @0x23be14: two movl loads zero-extend the low and high words.
+  const low = Number(microseconds & 0xffffffffn);
+  const high = Number((microseconds >> 32n) & 0xffffffffn);
+
+  // @0x23be17..0x23be31: cvtsi2sd, mulsd/divsd, then addsd.
+  const highSeconds = high * SECONDS_PER_UNSIGNED_WIDE_HIGH_WORD;
+  const lowSeconds = low / MICROSECONDS_PER_SECOND;
+  return lowSeconds + highSeconds;
+}
