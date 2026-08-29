@@ -13,6 +13,7 @@
 //   0x00031450  HGRenderContext::SetWorkMode(HGRenderContext::WorkMode) (FULL)
 //   0x00031470  HGRenderContext::GetComputeDevice()                    (FULL)
 //   0x00031490  HGRenderContext::GetWorkMode()                         (FULL)
+//   0x00031630  HGRenderContext::SetRenderStatsFlag(bool)             (FULL)
 //
 // STRUCT LAYOUT — every offset below is cited to the exact instruction it was
 // recovered from. The primary evidence is the constructor
@@ -154,6 +155,13 @@ export class HGRenderContext {
   workMode: number = 2;
 
   /**
+   * @+0x5c — byte-sized render-statistics enable flag. The constructor writes
+   * 1 at @Helium 0x310e4; SetRenderStatsFlag overwrites exactly this byte at
+   * @0x31634.
+   */
+  renderStatsFlag: boolean = true;
+
+  /**
    * `HGRenderContext::IsCPU() const` — Helium @0x00031280
    * (mangled `__ZNK15HGRenderContext5IsCPUEv`).
    *
@@ -279,6 +287,34 @@ export class HGRenderContext {
   GetWorkMode(): number {
     // @Helium 0x31494: movl 0x28(%rdi), %eax
     return this.workMode | 0;
+  }
+
+  /**
+   * `HGRenderContext::SetRenderStatsFlag(bool)` — Helium @0x00031630
+   * (mangled `__ZN15HGRenderContext18SetRenderStatsFlagEb`).
+   *
+   * Full transcription (5 instructions + padding):
+   *
+   *   0x31630  pushq  %rbp
+   *   0x31631  movq   %rsp, %rbp
+   *   0x31634  movb   %sil, 0x5c(%rdi)   ; this->renderStatsFlag = flag
+   *   0x31638  popq   %rbp
+   *   0x31639  retq
+   *   0x3163a  nopw   (%rax,%rax)        ; alignment padding, not code
+   *
+   * This is a bare one-byte store. It does not read the previous value, mask
+   * any other field, notify the renderer, or return a status. The bool arrives
+   * in `%sil`, the low byte of the second argument register, and replaces the
+   * constructor default of true written to the same +0x5c slot @0x310e4.
+   *
+   * Zero callees, zero externs, zero indirect calls.
+   *
+   * Source disassembly:
+   *   raw-port/re/disasm/Helium.__ZN15HGRenderContext18SetRenderStatsFlagEb.s
+   */
+  SetRenderStatsFlag(flag: boolean): void {
+    // @Helium 0x31634: movb %sil, 0x5c(%rdi)
+    this.renderStatsFlag = flag;
   }
 
   /**
